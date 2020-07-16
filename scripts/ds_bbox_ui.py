@@ -52,23 +52,29 @@ def press(event):
     global current
     global prev_rect
     global ax
+    global adjusted
+
     if event.key == 'z':
         if current != None:
             plt.close()
 
     if event.key == 'a':
+        if adjusted == 1:
+            return
         if current == None:
             print("Please create an annotation before adjusting it.")
+            return
         prev_rect.remove()
         x1, y1, x2, y2 = current
         center_x = np.abs(x1+x2)/2
         center_y = np.abs(y1+y2)/2
         length = min(img.shape[0], img.shape[1])
-        start_x = int(center_x - length/2)
-        start_y = int(center_y - length/2)
+        start_x = center_x - int(length/2)
+        start_y = center_y - int(length/2)
         rect = plt.Rectangle((start_x, start_y), int(length), int(length), fill=False, edgecolor='blue')
         prev_rect = rect
         current = [max(0, start_x), max(0, start_y), min(img.shape[0], start_x + length), min(img.shape[1],start_y + length)]
+        adjusted = 1
         ax.add_patch(rect)
         plt.draw()
         plt.show()
@@ -76,7 +82,7 @@ def press(event):
 prev_rect = None
 current = []
 prev_dim = None
-
+adjusted = 0
 for i in range(len(image_names)):
     if len(annotations[image_names[i]]) != 0:
         print(image_names[i], "Done!")
@@ -84,7 +90,7 @@ for i in range(len(image_names)):
         continue
 
     img = np.flip(cv2.imread(os.path.join(data_dir, image_names[i])), 2)
-
+    adjusted = 0
     xdata = np.linspace(0,9*np.pi, num=301)
     ydata = np.sin(xdata)
 
