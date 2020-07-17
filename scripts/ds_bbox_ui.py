@@ -35,13 +35,15 @@ else:
 def line_select_callback(eclick, erelease):
     global prev_rect
     global current
+    global adjusted
     x1, y1 = eclick.xdata, eclick.ydata
     x2, y2 = erelease.xdata, erelease.ydata
 
     rect = plt.Rectangle( (min(x1,x2),min(y1,y2)), np.abs(x1-x2), np.abs(y1-y2), fill=False, edgecolor='red')
     if prev_rect != None:
         prev_rect.remove()
-
+    
+    adjusted = 0
     prev_rect = rect
     current = [x1, y1, x2, y2]
     ax.add_patch(rect)
@@ -73,7 +75,7 @@ def press(event):
         start_y = center_y - int(length/2)
         rect = plt.Rectangle((start_x, start_y), int(length), int(length), fill=False, edgecolor='blue')
         prev_rect = rect
-        current = [max(0, start_x), max(0, start_y), min(img.shape[0], start_x + length), min(img.shape[1],start_y + length)]
+        current = [max(0, start_x), max(0, start_y), min(img.shape[1], start_x + length), min(img.shape[0], length,start_y + length)]
         adjusted = 1
         ax.add_patch(rect)
         plt.draw()
@@ -108,7 +110,8 @@ for i in range(len(image_names)):
     print(current)
     if current != None and len(current) != 0:
         x1, y1, x2, y2 = current
-        cur_rect = plt.Rectangle( (min(x1,x2),min(y1,y2)), np.abs(x1-x2), np.abs(y1-y2), fill=False, edgecolor='red')
+        print("Current from prev:", current)
+        cur_rect = plt.Rectangle((x1, y1), np.abs(x1-x2), np.abs(y1-y2), fill=False, edgecolor='red')
         ax.add_patch(cur_rect)
         prev_rect = cur_rect
 
