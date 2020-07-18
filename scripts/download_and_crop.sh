@@ -3,7 +3,7 @@
 # from the sppech to gesture dataset
 
 DIR="/data/vibhaa/speech2gesture-master/"
-for speaker in "almaram" "angelica" "rock" "chemistry" "shelly"
+for speaker in "chemistry" "rock" "almaram" "angelica" "shelly" "jon" "oliver" "seth" "conan" "ellen"
 do
     echo "SPEAKER: ${speaker}"
     python ${DIR}data/download/download_youtube.py \

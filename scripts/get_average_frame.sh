@@ -3,12 +3,14 @@
 # from the sppech to gesture dataset
 
 DIR="/data/vibhaa/speech2gesture-master/"
-for speaker in "oliver" # "almaram" "angelica" "rock" "chemistry" "shelly"
+for speaker in "chemistry" "rock" "almaram" "angelica" "shelly" "jon" "oliver" "seth" "conan" "ellen"
 do
+    i=0
     mkdir -p ${DIR}dataset/${speaker}/averages
-    for file in ${DIR}dataset/${speaker}/videos/*.mp4
+    for file in ${DIR}dataset/${speaker}/videos/*
     do
-	fbname=$(basename "$file" .mp4)
+        filename=$(basename "$file")
+        fbname=${filename%%.*}
         echo $fbname
         python get_average.py $file ${DIR}dataset/${speaker}/averages/${fbname}.jpg
     done
