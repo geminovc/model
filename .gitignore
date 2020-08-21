@@ -1,0 +1,14 @@
+*.txt
+*.ipynb_checkpoints
+*.pkl
+*.pth
+*.jpg
+*.jpeg
+*.png
+*.json
+./SPADE/coco/
+./SPADE/CelebAMask/
+./SPADE/checkpoints/
+./SPADE/cityscapes/
+./SPADE/FFHQ/
+./SPADE/segmentation/
