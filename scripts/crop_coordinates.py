@@ -44,7 +44,13 @@ for input_video in input_videos:
 
     print(input_video, base_name, video_name)
 
+    if os.path.exists(output_folder + "/" + input_video):
+        print("Skipping", input_video)
+        continue
+
     # compute coordinates
+    if video_name + '.jpg' not in annotations:
+        continue
     primary_diag = annotations[video_name + '.jpg']
     top_left_x = primary_diag[0]
     top_left_y = primary_diag[1]
