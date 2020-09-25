@@ -31,8 +31,6 @@ print(' '.join(sys.argv))
 
 import torch.nn as nn
 
-from segmentation.face_parsing.model_utils import *
-
 gpu_ids = [0]
 torch.cuda.set_device(gpu_ids[0])
 
@@ -49,6 +47,7 @@ class Dataset(torch.utils.data.Dataset):
     def __getitem__(self, index):
         pre = '/data/vision/billf/eht/videoconf/FSRNet-pytorch/'
         img_lr = cv2.imread(pre+self.img_lr_paths[index])
+#         print(self.img_lr_paths[index], img_lr)
         img_hrprev = cv2.imread(pre+self.img_hrprev_paths[index])
         img_hr = cv2.imread(pre+self.img_hr_paths[index])
         
@@ -108,7 +107,7 @@ with open(pkl_fpath + 'train_hbr_ellen_season1-2_Ellen_s_Coffee_Monologue-fA9iO8
 ds = Dataset(img_lr_paths, img_gt_paths, img_hrprev_paths, regular_transform)
 dataloader = torch.utils.data.DataLoader(ds, batch_size=8,
     shuffle=True,
-    num_workers=32, drop_last=True
+    num_workers=1, drop_last=True
 )
 
 # create trainer for our model

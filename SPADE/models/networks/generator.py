@@ -37,7 +37,7 @@ class SPADEGenerator(BaseNetwork):
             # downsampled segmentation map instead of random z
 #             self.fc = nn.Conv2d(3, 16 * nf, 3, padding=1)
             self.encoder = nn.Sequential(nn.ReflectionPad2d(3 // 2),
-                                         nn.Conv2d(3, nf, 3, 1, 0),
+                                         nn.Conv2d(6, nf, 3, 1, 0),
                                          nn.ReLU(False),
                                          nn.Conv2d(nf, 2*nf, 3, 2, 1),
                                          nn.ReLU(False),
@@ -85,8 +85,8 @@ class SPADEGenerator(BaseNetwork):
         return sw, sh
 
     def forward(self, input, seg, z=None):
-#         seg = input
-#         input is noisy image and the seg map concatenated
+
+#         input is LBR image and the seg map concatenated
         if self.opt.use_vae:
             # we sample z from unit normal and reshape the tensor
             if z is None:
