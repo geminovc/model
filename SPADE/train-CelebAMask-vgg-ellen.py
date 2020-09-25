@@ -114,7 +114,7 @@ class Dataset(torch.utils.data.Dataset):
     def __getitem__(self, index):
 #         print(self.img_lr_paths[index])
 #         print("File:", img_lr_paths[index])
-        pre = '/data/vision/billf/eht/videoconf/FSRNet-pytorch/'
+        pre = '/nfs/disk1/video-conf/FSRNet-pytorch/'
         img_lr = cv2.imread(pre+self.img_lr_paths[index])
         img_hr = cv2.imread(pre+self.img_hr_paths[index])
         if img_lr is None or img_hr is None:
@@ -162,10 +162,10 @@ transform_label = transforms.Compose([
 
 import pickle
 
-with open('/data/vision/billf/eht/videoconf/FSRNet-pytorch/ellen_lr_train', 'rb') as handle:
+with open('/nfs/disk1/video-conf/FSRNet-pytorch/ellen_lr_train', 'rb') as handle:
     img_lr_paths = pickle.load(handle)
     
-with open('/data/vision/billf/eht/videoconf/FSRNet-pytorch/ellen_hr_train', 'rb') as handle:
+with open('/nfs/disk1/video-conf/FSRNet-pytorch/ellen_hr_train', 'rb') as handle:
     img_hr_paths = pickle.load(handle)
     
 ds = Dataset(img_lr_paths, img_hr_paths, regular_transform)

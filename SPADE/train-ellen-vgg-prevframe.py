@@ -31,6 +31,8 @@ print(' '.join(sys.argv))
 
 import torch.nn as nn
 
+#from segmentation.face_parsing.model_utils import *
+
 gpu_ids = [0]
 torch.cuda.set_device(gpu_ids[0])
 
@@ -45,7 +47,7 @@ class Dataset(torch.utils.data.Dataset):
         self.seg_net.eval()
         
     def __getitem__(self, index):
-        pre = '/data/vision/billf/eht/videoconf/FSRNet-pytorch/'
+        pre = '/nfs/disk1/video-conf/FSRNet-pytorch/'
         img_lr = cv2.imread(pre+self.img_lr_paths[index])
 #         print(self.img_lr_paths[index], img_lr)
         img_hrprev = cv2.imread(pre+self.img_hrprev_paths[index])
@@ -94,7 +96,7 @@ transform_label = transforms.Compose([
 
 import pickle
 
-pkl_fpath = '/data/vision/billf/video-conf/nets_implementation/SPADE/'
+pkl_fpath = '/nfs/disk1/video-conf/nets_implementation/SPADE/'
 with open(pkl_fpath + 'train_lbr_ellen_season1-2_Ellen_s_Coffee_Monologue-fA9iO849Tyo_5.pkl', 'rb') as handle:
     img_lr_paths = pickle.load(handle)
     
