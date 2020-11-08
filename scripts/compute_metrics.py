@@ -9,6 +9,7 @@ import torch
 import numpy as np
 from PIL import Image
 import torchvision.transforms as transforms
+import math
 
 # transform for centering picture
 regular_transform = transforms.Compose([
@@ -43,6 +44,17 @@ parser.add_argument('--kilo-bitrate-list',
                 nargs='+',
                 help='list of kb values to aggregate results over', default=[])
 args = parser.parse_args()
+
+""" custom psnr calculator """
+def per_frame_psnr(x, y):
+    assert(x.size == y.size)
+
+    mse = np.mean(np.square((x - y)/255.0))
+    if mse > 0:
+        psnr = -10 * math.log10(mse)
+    else:
+        psnr = 100000
+    return psnr
 
 """ compute metric for all filenames matching prefix relative to the reference video """
 def compute_metric_for_files(video_prefix, setting):
