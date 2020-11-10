@@ -49,9 +49,9 @@ args = parser.parse_args()
 def per_frame_psnr(x, y):
     assert(x.size == y.size)
 
-    mse = np.mean(np.square((x - y)/255.0))
+    mse = np.mean(np.square(x - y))
     if mse > 0:
-        psnr = -10 * math.log10(mse)
+        psnr = 10 * math.log10(255*255/mse)
     else:
         psnr = 100000
     return psnr
@@ -89,7 +89,7 @@ def compute_metric_for_files(video_prefix, setting):
             ssim_sum += ssim(reference_frame, input_frame, multichannel=True)
             
             with np.errstate(divide='ignore', invalid='ignore'):
-                psnr_sum += psnr(reference_frame, input_frame)
+                psnr_sum += per_frame_psnr(reference_frame, input_frame)
 
             # resize input into square, crop the center 256x256 
             w, h, _ = input_frame.shape
