@@ -8,7 +8,7 @@ import argparse
 import torchvision
 import os
 import sys
-sys.path.append("/home/pantea/video-conf/pantea/bilayer-model")
+sys.path.append("/home/pantea/NETS/nets_implementation/original_bilayer")
 import pathlib
 import numpy as np
 import cv2
@@ -138,8 +138,8 @@ class Segmentation_Generator():
     # one by on esegmenation extraction
     def get_segs (self):
          # Sample source and target frames for the current sequence
+        print("The sequences are ", str(self.sequences))
         for index in range(0,len(self.sequences)):
-            print("Sequences is: ", str(self.sequences[index]))
             filenames_vid = list((self.imgs_dir / self.sequences[index]).glob('*/*'))
             filenames_vid = [pathlib.Path(*filename.parts[-4:]).with_suffix('') for filename in filenames_vid]
             filenames = list(set(filenames_vid))
@@ -163,7 +163,7 @@ class Segmentation_Generator():
                 #print(segs)
                 #torchvision.utils.save_image (segs, str(self.segs_dir) +"/"+ str(filename) + '.png')
                 segs.save(str(self.segs_dir) +"/"+ str(filename) + '.png')
-                #imgs_directory = 
+            print("Extracting finished for ", str(self.sequences[index])) 
               
 
 

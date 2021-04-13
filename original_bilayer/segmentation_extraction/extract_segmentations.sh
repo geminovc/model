@@ -9,7 +9,7 @@ python  segmentation_generator.py \
     --bn_momentum 1.0 \
     --calc_stats \
     --checkpoint_freq 25 \
-    --data_root /data/pantea/video_conf/minidataset \
+    --data_root /data/pantea/video_conf/ \
     --dis_activation_type leakyrelu \
     --dis_downsampling_type avgpool \
     --dis_max_channels 512 \
