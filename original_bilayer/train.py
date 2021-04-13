@@ -215,6 +215,21 @@ class TrainingWrapper(object):
         if args.rank == 0:
             print(self.runner)
 
+
+    def get_current_lr(self, optimizer, group_idx, parameter_idx, step):
+        # Adam has different learning rates for each paramter. So we need to pick the
+        # group and paramter first.
+        group = optimizer.param_groups[group_idx]
+        p = group['params'][parameter_idx]
+
+        beta1, _ = group['betas']
+        state = optimizer.state[p]
+
+        bias_correction1 = 1 - beta1 ** step
+        current_lr = group['lr'] / bias_correction1
+        return current_lr
+
+
     def train(self, args):
         # Reset amp
         if args.use_apex:
@@ -224,7 +239,7 @@ class TrainingWrapper(object):
 
         # Tensorboard writer init
         if args.rank == 0:
-            writer = SummaryWriter(log_dir=args.project_dir+'logs/' + args.label_run)
+            writer = SummaryWriter(log_dir=args.experiment_dir+'logs/' + args.label_run)
         
         # Get dataloaders
         train_dataloader = ds_utils.get_dataloader(args, 'train')
@@ -301,9 +316,9 @@ class TrainingWrapper(object):
 
             # Shuffle the dataset before the epoch
             train_dataloader.dataset.shuffle()
-            itr_count = 0
+            iter_count = 0
             for i, data_dict in enumerate(train_dataloader, 1): 
-                itr_count+=1 
+                iter_count+=1 
                 # Prepare input data
                 if args.num_gpus > 0 and args.num_gpus > 0:
                     for key, value in data_dict.items():
@@ -327,8 +342,46 @@ class TrainingWrapper(object):
 
                 # Perform a forward pass
                 if not args.use_closure:
-                    loss = model(data_dict)
+                    #loss = model(data_dict)
+                    loss, losses_dict, metrics_dict, misc_dict = model(data_dict)
                     closure = None
+
+                if args.rank == 0:
+                    epoch_to_add = iter_count
+
+                    if iter_count % 100 == 0:
+                        
+                        # Plot the learning rates
+                        for name, optim in opts.items():
+                            group_idx, param_idx = 0, 0
+                            current_lr = self.get_current_lr(optim, group_idx, param_idx, iter_count)
+                            writer.add_scalar("lrs/" + name, current_lr, epoch_to_add)
+
+                        writer.add_scalar("loss/train_loss", loss, epoch_to_add)
+                        
+                        for loss_dict_key in losses_dict.keys():
+                            writer.add_scalar("losses/" + loss_dict_key, losses_dict[loss_dict_key], epoch_to_add) 
+                        
+                        writer.add_scalar("metrics/PSNR", metrics_dict['G_PSNR'], epoch_to_add)
+                        writer.add_scalar("metrics/pose_matching_metric", metrics_dict['G_PME'], epoch_to_add)
+                        writer.add_scalar("metrics/lpips", metrics_dict['G_LPIPS'], epoch_to_add)
+                        
+                        # Logs times
+                        for misc_dict_key in misc_dict.keys():
+                            if "time" in misc_dict_key:
+                                writer.add_scalar("timing/" + misc_dict_key, misc_dict[misc_dict_key], epoch_to_add)
+                        
+                    if iter_count % args.images_log_rate == 0:
+                        
+                        target_img = ((misc_dict['target_image'][0,0].clamp(-1, 1).cpu().detach().numpy() + 1) / 2)
+                        
+                        source_img = ((misc_dict['source_image'][0,0].clamp(-1, 1).cpu().detach().numpy() + 1) / 2)
+                        
+                        generated_img = ((misc_dict['generated_image'][0,0].clamp(-1, 1).cpu().detach().numpy() + 1) / 2)
+                        
+                        writer.add_image('images/generated_image', generated_img, epoch_to_add)
+                        writer.add_image('images/target_image', target_img, epoch_to_add)
+                        writer.add_image('images/source_image', source_img, epoch_to_add)
 
                 if args.use_apex and args.num_gpus > 0 and args.num_gpus <= 8:
                     # Mixed precision requires a special wrapper for the loss
@@ -348,8 +401,8 @@ class TrainingWrapper(object):
                 for opt in opts.values():
                     opt.step(closure)
                 
-                if itr_count%30 ==0:
-                    print("The itration", itr_count, " for epoch ", epoch, "finished!")
+                if iter_count%30 ==0:
+                    print("The iteration", iter_count, " for epoch ", epoch, "finished!")
 
                 if output_logs:
             
