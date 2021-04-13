@@ -22,6 +22,8 @@ class TrainingWrapper(object):
     @staticmethod
     def get_args(parser):
         # General options
+        parser.add('--experiment_dir',              default='.', type=str,
+                                                 help='directory to save logs')
         parser.add('--project_dir',              default='.', type=str,
                                                  help='root directory of the code')
 
@@ -161,15 +163,15 @@ class TrainingWrapper(object):
             raise # Not supported
 
         # Prepare experiment directories and save options
-        project_dir = pathlib.Path(args.project_dir)
+        experiment_dir = pathlib.Path(args.experiment_dir)
         
-        self.checkpoints_dir = project_dir / 'runs' / args.experiment_name / 'checkpoints'
+        self.checkpoints_dir = experiment_dir / 'runs' / args.experiment_name / 'checkpoints'
 
         # Store options
         if not args.no_disk_write_ops:
             os.makedirs(self.checkpoints_dir, exist_ok=True)
 
-        self.experiment_dir = project_dir / 'runs' / args.experiment_name
+        self.experiment_dir = experiment_dir / 'runs' / args.experiment_name
 
         if not args.no_disk_write_ops:
             # Redirect stdout
@@ -299,8 +301,9 @@ class TrainingWrapper(object):
 
             # Shuffle the dataset before the epoch
             train_dataloader.dataset.shuffle()
-
-            for i, data_dict in enumerate(train_dataloader, 1):  
+            itr_count = 0
+            for i, data_dict in enumerate(train_dataloader, 1): 
+                itr_count+=1 
                 # Prepare input data
                 if args.num_gpus > 0 and args.num_gpus > 0:
                     for key, value in data_dict.items():
@@ -344,8 +347,9 @@ class TrainingWrapper(object):
                 # Perform steps for all optimizers
                 for opt in opts.values():
                     opt.step(closure)
-
-                print("The time for this epoch is:", time.time() - time_start)
+                
+                if itr_count%30 ==0:
+                    print("The itration", itr_count, " for epoch ", epoch, "finished!")
 
                 if output_logs:
             
