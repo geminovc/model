@@ -4,6 +4,7 @@ import torch
 from torch import nn
 from torch import optim
 import torch.nn.functional as F
+import time
 from matplotlib import pyplot as plt
 
 # This project
@@ -106,6 +107,7 @@ class RunnerWrapper(nn.Module):
         if self.training:
             nets_names += self.nets_names_train
         nets_names = list(set(nets_names))
+        print("Here are the names of networks and corresponding outputs for", str(nets_names))
 
         self.nets = nn.ModuleDict()
 
@@ -131,6 +133,13 @@ class RunnerWrapper(nn.Module):
 
             for loss_name in sorted(losses_names):
                 self.losses[loss_name] = importlib.import_module(f'losses.{loss_name}').LossWrapper(args)
+
+        metrics_names = list(set(self.metrics_names))
+        self.metrics = nn.ModuleDict()
+
+        for metric_name in sorted(metrics_names):
+            self.metrics[metric_name] = importlib.import_module(f'losses.{metric_name}').LossWrapper(args)
+
 
         # Spectral norm
         if args.spn_layers:
@@ -189,12 +198,11 @@ class RunnerWrapper(nn.Module):
             networks_to_train = []
 
             losses_names = self.losses_names_test
+        metric_names = self.metrics
 
         # Forward pass through all the required networks
         self.data_dict = data_dict
-        import sys
-        #print("data", data_dict, flush=True)
-        sys.stdout.flush()
+        misc_dict = {}
 
   
 
@@ -212,7 +220,16 @@ class RunnerWrapper(nn.Module):
         # Calculate the total loss and store history
         loss = self.process_losses_dict(losses_dict)
 
-        return loss
+        metrics_dict = {}
+        for metric in metric_names:
+            metrics_dict = self.metrics[metric](self.data_dict, metrics_dict)
+        # Calculate the total loss and store history
+        
+        misc_dict['generated_image'] = self.data_dict['pred_target_delta_lf_rgbs']
+        misc_dict['target_image'] = self.data_dict['target_imgs']
+        misc_dict['source_image'] = self.data_dict['source_imgs']
+        
+        return loss, losses_dict, metrics_dict, misc_dict # loss is a single number
 
     ########################################################
     #                     Utility functions                #
@@ -228,6 +245,7 @@ class RunnerWrapper(nn.Module):
         # Initialize utility lists and dicts for the networks
         self.losses_names_train = utils.parse_str_to_list(args.losses_train)
         self.losses_names_test = utils.parse_str_to_list(args.losses_test)
+        self.metrics_names = utils.parse_str_to_list(args.metrics)
 
     def get_optimizers(self, args):
         # Initialize utility lists and dicts for the optimizers

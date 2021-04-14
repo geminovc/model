@@ -22,7 +22,6 @@ class LossWrapper(nn.Module):
             
 
     def forward(self, data_dict, losses_dict):
-        
         for i, (tensor_name, target_tensor_name) in enumerate(self.apply_to):
             real_imgs = data_dict[target_tensor_name]
             fake_imgs = data_dict[tensor_name]

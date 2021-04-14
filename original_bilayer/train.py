@@ -22,8 +22,9 @@ class TrainingWrapper(object):
     @staticmethod
     def get_args(parser):
         # General options
-        parser.add('--experiment_dir',              default='.', type=str,
-                                                 help='directory to save logs')
+        parser.add('--experiment_dir',          default='.', type=str,
+                                                help='directory to save logs')
+        
         parser.add('--project_dir',              default='.', type=str,
                                                  help='root directory of the code')
 
@@ -118,10 +119,23 @@ class TrainingWrapper(object):
         parser.add('--folder_postfix',           default='2d_crop', type=str,
                                                  help='crop the stickman')
         
-        parser.add('--output_segmentation',   default='False', type=rn_utils.str2bool, choices=[True, False],
-                                              help='read segmentation mask')
-        parser.add('--label_run',   default='name', type=str,
-                                              help='name for storing in tensorboard')
+        parser.add('--output_segmentation',     default='False', type=rn_utils.str2bool, choices=[True, False],
+                                                help='read segmentation mask')
+        
+        parser.add('--label_run',               default='name', type=str,
+                                                help='name for storing in tensorboard')
+        
+        parser.add('--metrics',                 default='PSNR, lpips, pose_matching', type=str,
+                                                help='metrics to evaluate the model while training') 
+
+        parser.add('--psnr_loss_apply_to',      default='pred_target_delta_lf_rgbs , target_imgs', type=str,
+                                                help='psnr loss to apply') 
+                                                                                              
+        parser.add('--images_log_rate',         default=100, type=int,
+                                                help='logging rate for images') 
+        
+        parser.add('--nme_num_threads',         default=1, type=int,
+                                                help='logging rate for images')                                              
 
 
 
@@ -239,7 +253,7 @@ class TrainingWrapper(object):
 
         # Tensorboard writer init
         if args.rank == 0:
-            writer = SummaryWriter(log_dir=args.experiment_dir+'logs/' + args.label_run)
+            writer = SummaryWriter(log_dir=args.experiment_dir+'/tensorboard/' + args.label_run)
         
         # Get dataloaders
         train_dataloader = ds_utils.get_dataloader(args, 'train')
@@ -344,6 +358,7 @@ class TrainingWrapper(object):
                 if not args.use_closure:
                     #loss = model(data_dict)
                     loss, losses_dict, metrics_dict, misc_dict = model(data_dict)
+                    #print(metrics_dict)
                     closure = None
 
                 if args.rank == 0:

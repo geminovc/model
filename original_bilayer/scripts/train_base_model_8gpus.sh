@@ -1,6 +1,7 @@
 cd ../
 python  train.py \
     --experiment_name 'Pantea_experiment' \
+    --images_log_rate 100 \
     --adam_beta1 0.5 \
     --adv_loss_weight 0.5 \
     --adv_pred_type ragan \
@@ -51,8 +52,10 @@ python  train.py \
     --tex_upsampling_type nearest \
     --tex_activation_type leakyrelu \
     --image_size 256 \
-    --label_run : name \
+    --label_run  'Pantea_experiment' \
     --losses_test 'lpips, csim' \
+    --metrics: 'PSNR, lpips' \
+    --psnr_loss_apply_to: 'pred_target_delta_lf_rgbs, target_imgs'  \
     --losses_train 'adversarial, feature_matching, perceptual, pixelwise, warping_regularizer'  \
     --lrs 'identity_embedder: 2e-4, texture_generator: 2e-4, keypoints_embedder: 2e-4, inference_generator: 2e-4, discriminator: 2e-4'  \
     --networks_calc_stats 'identity_embedder, texture_generator, keypoints_embedder, inference_generator' \
@@ -104,5 +107,6 @@ python  train.py \
     --wpr_loss_decay_schedule '-1' \
     --wpr_loss_type l1 \
     --wpr_loss_weight 0.0 \
-    --wpr_loss_weight_decay 1.0  
+    --wpr_loss_weight_decay 1.0 \
+    --nme_num_threads 1  
    

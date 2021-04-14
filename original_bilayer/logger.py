@@ -29,7 +29,7 @@ class Logger(object):
                 else:
                     self.losses = {}
                 
-                self.writer = tensorboardX.SummaryWriter('/data/pantea/tensorboard')
+                self.writer = tensorboardX.SummaryWriter('/data/pantea/video_conf/tensorboard')
 
     def output_logs(self, phase, visuals, losses, time):
         if not self.no_disk_write_ops:
