@@ -48,7 +48,6 @@ class LossWrapper(nn.Module):
         real_imgs = real_imgs.view(b*t, *real_imgs.shape[2:])
 
         losses = [self.calc_metric(fake_img, real_img, i % self.num_threads) for i, (fake_img, real_img) in enumerate(zip(fake_imgs, real_imgs))]
-
         losses_dict['G_PME'] = sum(losses) / len(losses)
         return losses_dict
 
@@ -70,6 +69,6 @@ class LossWrapper(nn.Module):
             loss = error / d
         
         except Exception as e:
-            return 0
+            return torch.tensor([0.01])
 
         return loss

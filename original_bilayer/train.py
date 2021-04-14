@@ -253,7 +253,7 @@ class TrainingWrapper(object):
 
         # Tensorboard writer init
         if args.rank == 0:
-            writer = SummaryWriter(log_dir=args.experiment_dir+'/tensorboard/' + args.label_run)
+            writer = SummaryWriter(log_dir=args.experiment_dir+'/tensorboard_v/' + args.label_run)
         
         # Get dataloaders
         train_dataloader = ds_utils.get_dataloader(args, 'train')

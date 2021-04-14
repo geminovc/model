@@ -300,6 +300,7 @@ class RunnerWrapper(nn.Module):
             
             self.losses_history[self.training][key] += [value.item()]
             loss += value
+
             
         return loss
 

@@ -1,5 +1,5 @@
 cd ../
-python  train.py \
+     python  train.py \
     --experiment_name 'Pantea_experiment' \
     --images_log_rate 100 \
     --adam_beta1 0.5 \
