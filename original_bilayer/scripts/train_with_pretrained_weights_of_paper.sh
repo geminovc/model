@@ -19,6 +19,7 @@ cd ../
     --dis_norm_layer_type bn \
     --dis_num_blocks 6 \
     --dis_num_channels 64 \
+    --use_source_background True \
     --output_segmentation True \
     --dis_output_tensor_size 8 \
     --emb_activation_type leakyrelu \

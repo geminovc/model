@@ -45,6 +45,11 @@ class NetworkWrapper(nn.Module):
 
         parser.add('--inf_apply_masks',          default='True', type=rn_utils.str2bool, choices=[True, False], 
                                                  help='apply segmentation masks to predicted and ground-truth images')
+       
+        parser.add('--use_source_background',    default='True', type=rn_utils.str2bool, choices=[True, False], 
+                                                 help='apply the segmenattion mask and use the source background')
+
+                                                 
 
     def __init__(self, args):
         super(NetworkWrapper, self).__init__()

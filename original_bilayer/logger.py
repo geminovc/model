@@ -29,7 +29,7 @@ class Logger(object):
                 else:
                     self.losses = {}
                 
-                self.writer = tensorboardX.SummaryWriter(args.experiment_dir+'/tensorboard_p/' + args.label_run )
+                self.writer = tensorboardX.SummaryWriter(args.experiment_dir + '/runs/' + args.experiment_name + '/tensorboard_p/')
 
     def output_logs(self, phase, visuals, losses, time):
         if not self.no_disk_write_ops:
