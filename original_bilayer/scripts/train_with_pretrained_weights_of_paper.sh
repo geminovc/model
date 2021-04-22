@@ -1,6 +1,6 @@
 cd ../
      python  train.py \
-    --experiment_name 'Pantea_experiment' \
+    --experiment_name 'one_person_bilayer_initilalized_with_pretrained_with_if_apply_mask_False' \
     --images_log_rate 100 \
     --adam_beta1 0.5 \
     --adv_loss_weight 0.5 \
@@ -33,7 +33,7 @@ cd ../
     --fem_loss_weight 10.0 \
     --folder_postfix '2d_crop' \
     --inf_activation_type leakyrelu \
-    --inf_apply_masks True \
+    --inf_apply_masks False \
     --inf_calc_grad False \
     --inf_max_channels 256 \
     --inf_norm_layer_type ada_bn \
@@ -108,5 +108,10 @@ cd ../
     --wpr_loss_type l1 \
     --wpr_loss_weight 0.0 \
     --wpr_loss_weight_decay 1.0 \
-    --nme_num_threads 1  
+    --nme_num_threads 1  \
+    --init_experiment_dir /data/pantea/runs/vc2-hq_adrianb_paper_main \
+    --init_networks 'identity_embedder, texture_generator, keypoints_embedder, inference_generator, discriminator' \
+    --init_which_epoch 2225 \
+     
+
    

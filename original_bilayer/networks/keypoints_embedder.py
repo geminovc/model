@@ -145,6 +145,7 @@ class PoseEmbedder(nn.Module):
         # Define encoding blocks
         layers = [nn.Linear(in_channels, num_channels)]
         
+
         for i in range(1, args.pse_num_blocks - 1):
             if args.pse_norm_layer_type != 'none':
                 layers += [norm_layer(num_channels, None, eps=args.eps)]
@@ -162,6 +163,7 @@ class PoseEmbedder(nn.Module):
                 nn.Linear(num_channels, self.num_channels * self.spatial_size**2)]
 
         self.mlp = nn.Sequential(*layers)
+
 
     def forward(self, inputs):
         #print("\n","This is the size of input in keypont-embedder",inputs)

@@ -1,7 +1,7 @@
 import os
 import shutil
 import  pathlib
-data_root = "/data/pantea/video_conf/seperate_train_test/"
+data_root = "/data/pantea/video_conf/minidataset/"
 
 # Data paths
 imgs_dir = data_root + 'imgs'  
@@ -25,7 +25,7 @@ print(personId_sequences)
 
 print("Moving the first 20 percent of people you will never see while training -------")
 
-not_seen_persons_sequences = personId_sequences[:int(0.2*len(personId_sequences))]
+not_seen_persons_sequences = personId_sequences[:int(0.1*len(personId_sequences))]
 
 for person_id in not_seen_persons_sequences:
     
@@ -50,14 +50,14 @@ for person_id in not_seen_persons_sequences:
     #print("moving ",source," to " ,destination)
     dest = shutil.move(source, destination) 
 
-seen_persons_sequences = personId_sequences[int(0.2*len(personId_sequences)):]
+seen_persons_sequences = personId_sequences[int(0.1*len(personId_sequences)):]
 
 for person_id in seen_persons_sequences:
     videoId_sequences = pathlib.Path(imgs_dir_train + person_id).glob('*')
     videoId_sequences = ['/'.join(str(seq).split('/')[-1:]) for seq in videoId_sequences]
     videoId_sequences = sorted(videoId_sequences)
-    not_seen_videoId_sequences = videoId_sequences[:int(0.2*len(videoId_sequences))]
-    seen_videoId_sequences = videoId_sequences[int(0.2*len(videoId_sequences)):]
+    not_seen_videoId_sequences = videoId_sequences[:int(0.1*len(videoId_sequences))]
+    seen_videoId_sequences = videoId_sequences[int(0.1*len(videoId_sequences)):]
     for video_id in not_seen_videoId_sequences:
     
         # images
@@ -86,7 +86,7 @@ for person_id in seen_persons_sequences:
         seqId_sequences = ['/'.join(str(seq).split('/')[-1:]) for seq in seqId_sequences]
         seqId_sequences = sorted(seqId_sequences)
         if len(seqId_sequences) > 5:
-            not_seen_seqId_sequences = seqId_sequences[:int(0.2*len(seqId_sequences))]
+            not_seen_seqId_sequences = seqId_sequences[:int(0.15*len(seqId_sequences))]
             for seq_id in not_seen_seqId_sequences:
 
                 # images

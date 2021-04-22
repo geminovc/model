@@ -50,7 +50,7 @@ class InferenceWrapper(nn.Module):
         self.to_tensor = transforms.ToTensor()
 
         # Load the model
-        self.runner = importlib.import_module("{}".format(runners.{self.args.runner_name})).RunnerWrapper(self.args, training=False)
+        self.runner = importlib.import_module(f'runners.{self.args.runner_name}').RunnerWrapper(self.args, training=False)
         self.runner.eval()
 
         # Load pretrained weights
@@ -65,14 +65,14 @@ class InferenceWrapper(nn.Module):
                 self.runner.nets[net_name].load_state_dict(torch.load(
                     pathlib.Path(self.args.init_experiment_dir) 
                         / 'checkpoints' 
-                        / '{}.pth'.format({self.args.init_which_epoch}_{net_name}), 
+                        / f'{self.args.init_which_epoch}_{net_name}.pth', 
                     map_location='cpu'))
 
         for net_name in networks_to_train:
             if net_name not in init_networks and net_name in self.runner.nets.keys():
                 self.runner.nets[net_name].load_state_dict(torch.load(
                     checkpoints_dir 
-                        / '{}.pth'.format({self.args.which_epoch}_{net_name}), 
+                        / f'{self.args.which_epoch}_{net_name}.pth', 
                     map_location='cpu'))
         
         # Remove spectral norm to improve the performance
