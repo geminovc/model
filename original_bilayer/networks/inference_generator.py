@@ -246,13 +246,14 @@ class NetworkWrapper(nn.Module):
 
         # Predicted target LF rgbs
         visuals += [data_dict['pred_target_delta_lf_rgbs']]
+        
+        if not (args.use_unet_only_hf or args.use_lf_with_unet):
+            # Predicted target HF rgbs
+            visuals += [data_dict['pred_target_delta_hf_rgbs']]
 
-        # Predicted target HF rgbs
-        visuals += [data_dict['pred_target_delta_hf_rgbs']]
-
-        if 'pred_enh_target_delta_hf_rgbs' in data_dict.keys():
-            # Predicted enhated target HF rgbs
-            visuals += [data_dict['pred_enh_target_delta_hf_rgbs']]
+            if 'pred_enh_target_delta_hf_rgbs' in data_dict.keys():
+                # Predicted enhated target HF rgbs
+                visuals += [data_dict['pred_enh_target_delta_hf_rgbs']]
 
         # Predicted target UVs
         pred_target_uvs = data_dict['pred_target_uvs'].permute(0, 3, 1, 2)
