@@ -168,8 +168,13 @@ class NetworkWrapper(nn.Module):
 
         # Output debugging results
         data_dict['pred_target_uvs'] = reshape_target_data(pred_target_uvs)
+        if args.use_unet:
+            warped_neural_textures = pred_target_delta_hf_rgbs
+            data_dict['warped_neural_textures'] = warped_neural_textures
+        if args.use_lf_with_unet:
+            data_dict['lf_hf_predictions'] = torch.cat((warped_neural_textures, pred_target_delta_lf_rgbs), dim=1)
+            data_dict['lf_detached_predictions'] =  torch.cat((warped_neural_textures, pred_target_delta_lf_rgbs.detach()), dim=1)
         data_dict['pred_target_delta_lf_rgbs'] = reshape_target_data(pred_target_delta_lf_rgbs)
-        data_dict['pred_target_delta_hf_rgbs'] = reshape_target_data(pred_target_delta_hf_rgbs)
 
         # Output results needed for training
         if 'inference_generator' in networks_to_train or self.args.inf_calc_grad:
