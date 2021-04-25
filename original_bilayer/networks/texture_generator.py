@@ -183,7 +183,10 @@ class Generator(nn.Module):
         self.blocks = nn.Sequential(*layers)
 
         # Get the list of required heads
-        heads = [(3, nn.Tanh)]
+        if args.use_unet_only_hf or args.use_lf_with_unet:
+            heads = [(16, nn.Tanh)]
+        else:
+            heads = [(3, nn.Tanh)]
 
         # Initialize the heads
         self.heads = nn.ModuleList()
