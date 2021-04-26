@@ -16,7 +16,7 @@ import numpy as np
 import cv2
 import importlib
 import ssl
-
+import os
 from datasets import utils as ds_utils
 from runners import utils as rn_utils
 from external.Graphonomy import wrapper
@@ -36,11 +36,7 @@ args_dict = {
     'inf_apply_masks': False}
 
 
-# Input data for intiialization and inference
-data_dict = {
-    'source_imgs': np.asarray(Image.open('./pre_train/images/source.jpg'))  # Size: H x W x 3, type: NumPy RGB uint8 image
-    #'target_imgs': np.asarray(Image.open('/pre_train/images/target.jpg'))[None] # Size: NUM_FRAMES x H x W x 3, type: NumPy RGB uint8 images
-}
+
 
 
 # Stickman/facemasks drawer
