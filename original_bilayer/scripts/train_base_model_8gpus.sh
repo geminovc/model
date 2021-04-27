@@ -1,7 +1,11 @@
 cd ../
      python  train.py \
-    --experiment_name 'from_base_apply_mask_false_batch_size_32_epoch_10000' \
+    --experiment_name 'toy_project' \
     --images_log_rate 400 \
+    --save_dataset_filenames True \
+    --dataset_load_from_txt False \
+    --train_load_from_filename . \
+    --test_load_from_filename . \
     --adam_beta1 0.5 \
     --adv_loss_weight 0.5 \
     --adv_pred_type ragan \
@@ -102,7 +106,7 @@ cd ../
     --spn_networks 'identity_embedder, texture_generator, keypoints_embedder, inference_generator, discriminator' \
     --stats_calc_iters 500 \
     --stickmen_thickness 2 \
-    --test_freq 400 \
+    --test_freq 1 \
     --visual_freq '50' \
     --wpr_loss_apply_to pred_target_delta_uvs \
     --wpr_loss_decay_schedule '-1' \

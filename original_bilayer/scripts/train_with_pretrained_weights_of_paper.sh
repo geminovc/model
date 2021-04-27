@@ -2,6 +2,10 @@ cd ../
      python  train.py \
     --experiment_name 'from_checkpoints_paper_apply_mask_false_skip_test_true' \
     --images_log_rate 100 \
+    --save_dataset_filenames True \
+    --dataset_load_from_txt False \
+    --train_load_from_filename . \
+    --test_load_from_filename . \
     --adam_beta1 0.5 \
     --adv_loss_weight 0.5 \
     --adv_pred_type ragan \

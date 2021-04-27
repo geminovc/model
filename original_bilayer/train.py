@@ -135,7 +135,16 @@ class TrainingWrapper(object):
                                                 help='logging rate for images') 
         
         parser.add('--nme_num_threads',         default=1, type=int,
-                                                help='logging rate for images')                                              
+                                                help='logging rate for images')     
+                
+        parser.add('--frame_num_from_paper',   default='False', type=rn_utils.str2bool, choices=[True, False],
+                                               help='The random method to sample frame numbers for source and target from dataset')
+        
+        parser.add('--dataset_load_from_txt',  default='False', type=rn_utils.str2bool, choices=[True, False],
+                                               help='If True, the train is loaded from train_load_from_filename, the test is loaded from test_load_from_filename. If false, the data is loaded from data-root')
+        
+        parser.add('--save_dataset_filenames',  default='False', type=rn_utils.str2bool, choices=[True, False],
+                                                help='If True, the train/test data is saved in train/test_filnames.txt')                                    
 
 
 
@@ -228,6 +237,22 @@ class TrainingWrapper(object):
 
         if args.rank == 0:
             print(self.runner)
+
+        #If we are reading from the data filenames from a txt file, there is no need to store it again
+        if args.dataset_load_from_txt:
+            args.save_dataset_filenames = False
+
+        if args.save_dataset_filenames:
+            print("Clearing the files already stored as train_filenames.txt and test_filenames.txt.")
+            train_file = "train_filenames.txt"
+            file = open(self.experiment_dir / train_file,"r+")
+            file.truncate(0)
+            file.close()
+
+            test_file = "test_filenames.txt"
+            file = open(self.experiment_dir / test_file,"r+")
+            file.truncate(0)
+            file.close()
 
 
     def get_current_lr(self, optimizer, group_idx, parameter_idx, step):

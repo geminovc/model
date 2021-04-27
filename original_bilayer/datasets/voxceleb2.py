@@ -19,8 +19,14 @@ class DatasetWrapper(data.Dataset):
     @staticmethod
     def get_args(parser):
         # Common properties
-        parser.add('--num_source_frames',     default=1, type=int,
-                                              help='number of frames used for initialization of the model')
+        parser.add('--experiment_dir',          default='.', type=str,
+                                                help='directory to save logs')
+
+        parser.add('--experiment_name',          default='test', type=str,
+                                                 help='name of the experiment used for logging')
+
+        parser.add('--num_source_frames',        default=1, type=int,
+                                                help='number of frames used for initialization of the model')
 
         parser.add('--num_target_frames',     default=1, type=int,
                                               help='number of frames per identity used for training')
@@ -40,8 +46,14 @@ class DatasetWrapper(data.Dataset):
         parser.add('--stickmen_thickness',    default=2, type=int, 
                                               help='thickness of lines in the stickman')
         
-        parser.add('--frame_num_from_paper',   default=False, type=int, 
-                                              help='The random method to sample frame numbers for source and target from dataset')
+        parser.add('--frame_num_from_paper',   default='False', type=rn_utils.str2bool, choices=[True, False],
+                                               help='The random method to sample frame numbers for source and target from dataset')
+        
+        parser.add('--dataset_load_from_txt',  default='False', type=rn_utils.str2bool, choices=[True, False],
+                                               help='If True, the train is loaded from train_load_from_filename, the test is loaded from test_load_from_filename. If false, the data is loaded from data-root')
+        
+        parser.add('--save_dataset_filenames',  default='False', type=rn_utils.str2bool, choices=[True, False],
+                                                help='If True, the train/test data is saved in train/test_filnames.txt')
 
         return parser
 
@@ -74,6 +86,14 @@ class DatasetWrapper(data.Dataset):
         # Parameters of the sampling scheme
         self.delta = math.sqrt(5)
         self.cur_num = torch.rand(1).item()
+
+        #make a directory to save test and train paths
+        # Prepare experiment directories and save options
+        experiment_dir = pathlib.Path(args.experiment_dir)
+        self.experiment_dir = experiment_dir / 'runs' / args.experiment_name
+
+        if self.args.dataset_load_from_txt:
+            self.args.save_dataset_filenames = False
 
     def __getitem__(self, index):
         # Sample source and target frames for the current sequence
@@ -143,7 +163,7 @@ class DatasetWrapper(data.Dataset):
 
             # Read images
             img_path = pathlib.Path(self.imgs_dir) / filename.with_suffix('.jpg')
-            #print("This is the image path:",img_path )
+            
             
             try:
                 img = Image.open(img_path)
@@ -164,7 +184,19 @@ class DatasetWrapper(data.Dataset):
             #print(str(keypoints_path))
             try:
                 keypoints = np.load(keypoints_path).astype('float32')
-                #print("Got the raw keypoint:", keypoints)
+                
+                if self.args.save_dataset_filenames:
+                    # write the filename to file
+                    if len (imgs) <= self.args.num_source_frames :
+                        save_file = self.phase + "_filenames.txt"
+                        with open(self.experiment_dir / save_file, 'a') as data_file:
+                            data_file.write('source %s: %s\n' % (str(len (imgs)), str(filename.with_suffix('.jpg'))))
+                    
+                    if len (imgs) > self.args.num_source_frames:
+                        save_file = self.phase + "_filenames.txt"
+                        with open(self.experiment_dir / save_file, 'a') as data_file:
+                            data_file.write('target %s: %s\n' % (str(len (imgs)-self.args.num_source_frames), str(filename.with_suffix('.jpg'))))
+                    #print("Got the raw keypoint:", keypoints)
             except:
                 imgs.pop(-1)
 

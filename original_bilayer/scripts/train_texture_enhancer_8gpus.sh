@@ -1,6 +1,11 @@
 cd ../
 python -m torch.distributed.launch --nproc_per_node=8 train.py \
     --experiment_name 'test_enhancer_experiment' \
+    --images_log_rate 400 \
+    --save_dataset_filenames True \
+    --dataset_load_from_txt False \
+    --train_load_from_filename . \
+    --test_load_from_filename . \
     --adam_beta1 0.5 \
     --adv_loss_weight 0.5 \
     --adv_pred_type ragan \
