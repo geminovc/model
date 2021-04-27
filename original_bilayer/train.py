@@ -247,11 +247,13 @@ class TrainingWrapper(object):
             train_file = "train_filenames.txt"
             file = open(self.experiment_dir / train_file,"r+")
             file.truncate(0)
+            file.write('data-root: ' + (str(args.data_root))+ "\n")
             file.close()
 
             test_file = "test_filenames.txt"
             file = open(self.experiment_dir / test_file,"r+")
             file.truncate(0)
+            file.write('data-root: ' + (str(args.data_root))+ "\n")
             file.close()
 
 

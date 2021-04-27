@@ -231,6 +231,10 @@ class DatasetWrapper(data.Dataset):
 
             sample_from_reserve = False
 
+        save_file = self.phase + "_filenames.txt"
+        with open(self.experiment_dir / save_file, 'a') as data_file:
+            data_file.write('\n')
+        
         imgs = (torch.stack(imgs)- 0.5) * 2.0
 
         poses = (torch.stack(poses) - 0.5) * 2.0
