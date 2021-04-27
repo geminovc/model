@@ -191,11 +191,14 @@ class InferenceWrapper(nn.Module):
         if target_stickmen is not None:
             data_dict['target_stickmen'] = target_stickmen
 
+        now = time.time()
         if no_grad:
             with torch.no_grad():
                 self.runner(data_dict)
 
         else:
             self.runner(data_dict)
+        now_now = time.time()
+        print("It took ", now_now-now, " s!")
 
         return self.runner.data_dict

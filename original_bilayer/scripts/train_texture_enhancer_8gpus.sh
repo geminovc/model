@@ -27,6 +27,7 @@ python -m torch.distributed.launch --nproc_per_node=8 train.py \
     --eps 1e-07 \
     --fem_loss_type l1 \
     --fem_loss_weight 10.0 \
+    --frame_num_from_paper False \
     --inf_activation_type leakyrelu \
     --inf_apply_masks True \
     --inf_calc_grad False \

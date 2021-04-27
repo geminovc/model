@@ -1,18 +1,18 @@
 cd ../
      python  train.py \
-    --experiment_name 'one_person_bilayer_initilalized_with_pretrained_with_if_apply_mask_False' \
+    --experiment_name 'from_checkpoints_paper_apply_mask_false_skip_test_true' \
     --images_log_rate 100 \
     --adam_beta1 0.5 \
     --adv_loss_weight 0.5 \
     --adv_pred_type ragan \
     --amp_loss_scale dynamic \
-    --experiment_dir /data/pantea/video_conf/one_person_dataset/new_dataset/ID00012/results \
+    --experiment_dir /data/pantea/video_conf/one_person_dataset/per_video_dataset/results \
     --amp_opt_level O0 \
     --batch_size 2 \
     --bn_momentum 1.0 \
     --calc_stats \
     --checkpoint_freq 25 \
-    --data_root /data/pantea/video_conf/one_person_dataset/new_dataset/ID00012 \
+    --data_root /data/pantea/video_conf/one_person_dataset/per_video_dataset \
     --dis_activation_type leakyrelu \
     --dis_downsampling_type avgpool \
     --dis_max_channels 512 \
@@ -33,6 +33,7 @@ cd ../
     --fem_loss_type l1 \
     --fem_loss_weight 10.0 \
     --folder_postfix '2d_crop' \
+    --frame_num_from_paper False \
     --inf_activation_type leakyrelu \
     --inf_apply_masks False \
     --inf_calc_grad False \
@@ -102,7 +103,7 @@ cd ../
     --spn_networks 'identity_embedder, texture_generator, keypoints_embedder, inference_generator, discriminator' \
     --stats_calc_iters 500 \
     --stickmen_thickness 2 \
-    --test_freq 2 \
+    --test_freq 5 \
     --visual_freq '-1' \
     --wpr_loss_apply_to pred_target_delta_uvs \
     --wpr_loss_decay_schedule '-1' \
@@ -113,6 +114,7 @@ cd ../
     --init_experiment_dir /data/pantea/runs/vc2-hq_adrianb_paper_main \
     --init_networks 'identity_embedder, texture_generator, keypoints_embedder, inference_generator, discriminator' \
     --init_which_epoch 2225 \
+    --skip_test True 
      
 
    

@@ -118,8 +118,9 @@ def preprocess_data(input_imgs, crop_data=True):
 
 images = []
 fname = []
-for f in glob.iglob("/data/pantea/video_conf/imgs/test/0/0/0/*"):
+for f in glob.iglob("/video-conf/scratch/pantea/Vedantha_dataset/imgs/train/barack/graduation/0/*"):
     images.append(np.asarray(Image.open(f)))
+    print(f)
     fname.append((f.split('/')[len(f.split('/'))-1]).split('.')[0])
 
 images = np.array(images)
@@ -127,16 +128,81 @@ images = np.array(images)
 for i in range(0, len(images)):
     print(i)
     poses, imgs, segs, stickmen = preprocess_data(images[i], crop_data=True)
-    np.save('/data/pantea/video_conf/keypoints/test/0/0/0/'+fname[i], (poses.cpu()).numpy())
-
-#source_imgs=np.asarray(Image.open('./pre_train/images/target.jpg'))
-#poses, imgs, segs, stickmen = preprocess_data(source_imgs, crop_data=True)
-
-#import numpy as geek
-  
-  
-# the array is saved in the file geekfile.npy 
-#geek.save('/data/pantea/video_conf/keypoints/test/0/0/0/0', (poses.cpu()).numpy())
+    os.makedirs('/video-conf/scratch/pantea/Vedantha_dataset/keypoints/train/barack/graduation/0/', exist_ok=True)
+    np.save('/video-conf/scratch/pantea/Vedantha_dataset/keypoints/train/barack/graduation/0/'+fname[i], (poses.cpu()).numpy())
 
 
 
+print("barak done!")
+
+images = []
+fname = []
+for f in glob.iglob("/video-conf/scratch/pantea/Vedantha_dataset/imgs/train/dave/lecture1/0/*"):
+    images.append(np.asarray(Image.open(f)))
+    print(f)
+    fname.append((f.split('/')[len(f.split('/'))-1]).split('.')[0])
+
+images = np.array(images)
+
+for i in range(0, len(images)):
+    print(i)
+    poses, imgs, segs, stickmen = preprocess_data(images[i], crop_data=True)
+    os.makedirs('/video-conf/scratch/pantea/Vedantha_dataset/keypoints/train/dave/lecture1/0/', exist_ok=True)
+    np.save('/video-conf/scratch/pantea/Vedantha_dataset/keypoints/train/dave/lecture1/0/'+fname[i], (poses.cpu()).numpy())
+
+
+print("dave done!")
+
+
+images = []
+fname = []
+for f in glob.iglob("/video-conf/scratch/pantea/Vedantha_dataset/imgs/train/gaga/graduation/0/*"):
+    images.append(np.asarray(Image.open(f)))
+    print(f)
+    fname.append((f.split('/')[len(f.split('/'))-1]).split('.')[0])
+
+images = np.array(images)
+
+for i in range(0, len(images)):
+    print(i)
+    poses, imgs, segs, stickmen = preprocess_data(images[i], crop_data=True)
+    os.makedirs('/video-conf/scratch/pantea/Vedantha_dataset/keypoints/train/gaga/graduation/0/', exist_ok=True)
+    np.save('/video-conf/scratch/pantea/Vedantha_dataset/keypoints/train/gaga/graduation/0/'+fname[i], (poses.cpu()).numpy())
+
+
+
+print("gaga done!")
+
+
+images = []
+fname = []
+for f in glob.iglob("/video-conf/scratch/pantea/Vedantha_dataset/imgs/train/kevin/stonks/0/*"):
+    images.append(np.asarray(Image.open(f)))
+    print(f)
+    fname.append((f.split('/')[len(f.split('/'))-1]).split('.')[0])
+
+images = np.array(images)
+
+for i in range(0, len(images)):
+    print(i)
+    poses, imgs, segs, stickmen = preprocess_data(images[i], crop_data=True)
+    os.makedirs('/video-conf/scratch/pantea/Vedantha_dataset//keypoints/train/kevin/stonks/0/', exist_ok=True)
+    np.save('/video-conf/scratch/pantea/Vedantha_dataset/keypoints/train/kevin/stonks/0/'+fname[i], (poses.cpu()).numpy())
+
+
+print("kevin done!")
+
+images = []
+fname = []
+for f in glob.iglob("/video-conf/scratch/pantea/Vedantha_dataset/imgs/train/sundar/sundarVisualization/0/*"):
+    images.append(np.asarray(Image.open(f)))
+    print(f)
+    fname.append((f.split('/')[len(f.split('/'))-1]).split('.')[0])
+
+images = np.array(images)
+
+for i in range(0, len(images)):
+    print(i)
+    poses, imgs, segs, stickmen = preprocess_data(images[i], crop_data=True)
+    os.makedirs('/video-conf/scratch/pantea/Vedantha_dataset/keypoints/train/sundar/sundarVisualization/0/', exist_ok=True)
+    np.save('/video-conf/scratch/pantea/Vedantha_dataset/keypoints/train/sundar/sundarVisualization/0/'+fname[i], (poses.cpu()).numpy())

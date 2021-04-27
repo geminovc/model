@@ -39,6 +39,9 @@ class DatasetWrapper(data.Dataset):
         
         parser.add('--stickmen_thickness',    default=2, type=int, 
                                               help='thickness of lines in the stickman')
+        
+        parser.add('--frame_num_from_paper',   default=False, type=int, 
+                                              help='The random method to sample frame numbers for source and target from dataset')
 
         return parser
 
@@ -76,6 +79,7 @@ class DatasetWrapper(data.Dataset):
         # Sample source and target frames for the current sequence
         count = 0
         filenames = [1]
+        #print("Dataloader index is", index)
         while len(filenames):
             count+=1
             try:
@@ -93,6 +97,7 @@ class DatasetWrapper(data.Dataset):
                     filenames_seg = [pathlib.Path(*filename.parts[-4:]).with_suffix('') for filename in filenames_seg]
 
                     filenames = list(set(filenames).intersection(set(filenames_seg)))
+                    
                 
 
                 if len(filenames)!=0:
@@ -128,13 +133,17 @@ class DatasetWrapper(data.Dataset):
                 filename = filenames[reserve_index]
 
             else:
-                frame_num = int(round(self.cur_num * (len(filenames) - 1)))
-                self.cur_num = (self.cur_num + self.delta) % 1
+                if self.args.frame_num_from_paper:
+                    frame_num = int(round(self.cur_num * (len(filenames) - 1)))
+                    self.cur_num = (self.cur_num + self.delta) % 1
+                else:
+                    frame_num = random.randint(0, (len(filenames) - 1))
 
                 filename = filenames[frame_num]
 
             # Read images
             img_path = pathlib.Path(self.imgs_dir) / filename.with_suffix('.jpg')
+            #print("This is the image path:",img_path )
             
             try:
                 img = Image.open(img_path)

@@ -1,18 +1,18 @@
 cd ../
      python  train.py \
-    --experiment_name 'Pantea_experiment' \
-    --images_log_rate 100 \
+    --experiment_name 'from_base_apply_mask_false_batch_size_32_epoch_10000' \
+    --images_log_rate 400 \
     --adam_beta1 0.5 \
     --adv_loss_weight 0.5 \
     --adv_pred_type ragan \
     --amp_loss_scale dynamic \
-    --experiment_dir /data/pantea/video_conf/one_person_dataset/new_dataset/ID00012/results \
+    --experiment_dir /data/pantea/video_conf/one_person_dataset/per_video_dataset/results \
     --amp_opt_level O0 \
-    --batch_size 2 \
+    --batch_size 32 \
     --bn_momentum 1.0 \
     --calc_stats \
-    --checkpoint_freq 25 \
-    --data_root /data/pantea/video_conf/one_person_dataset/new_dataset/ID00012 \
+    --checkpoint_freq 100 \
+    --data_root /data/pantea/video_conf/one_person_dataset/per_video_dataset \
     --dis_activation_type leakyrelu \
     --dis_downsampling_type avgpool \
     --dis_max_channels 512 \
@@ -32,8 +32,9 @@ cd ../
     --fem_loss_type l1 \
     --fem_loss_weight 10.0 \
     --folder_postfix '2d_crop' \
+    --frame_num_from_paper False \
     --inf_activation_type leakyrelu \
-    --inf_apply_masks True \
+    --inf_apply_masks False \
     --inf_calc_grad False \
     --inf_max_channels 256 \
     --inf_norm_layer_type ada_bn \
@@ -62,7 +63,7 @@ cd ../
     --networks_test 'identity_embedder, texture_generator, keypoints_embedder, inference_generator' \
     --networks_to_train 'identity_embedder, texture_generator, keypoints_embedder, inference_generator, discriminator' \
     --networks_train 'identity_embedder, texture_generator, keypoints_embedder, inference_generator, discriminator' \
-    --num_epochs 5000 \
+    --num_epochs 100000 \
     --num_gpus 1 \
     --num_keypoints 68 \
     --num_source_frames 1 \
@@ -101,12 +102,12 @@ cd ../
     --spn_networks 'identity_embedder, texture_generator, keypoints_embedder, inference_generator, discriminator' \
     --stats_calc_iters 500 \
     --stickmen_thickness 2 \
-    --test_freq 2 \
-    --visual_freq '-1' \
+    --test_freq 400 \
+    --visual_freq '50' \
     --wpr_loss_apply_to pred_target_delta_uvs \
     --wpr_loss_decay_schedule '-1' \
     --wpr_loss_type l1 \
     --wpr_loss_weight 0.0 \
     --wpr_loss_weight_decay 1.0 \
-    --nme_num_threads 1  
+    --nme_num_threads 1 \
    
