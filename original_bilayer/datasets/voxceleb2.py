@@ -55,6 +55,12 @@ class DatasetWrapper(data.Dataset):
         parser.add('--save_dataset_filenames',  default='False', type=rn_utils.str2bool, choices=[True, False],
                                                 help='If True, the train/test data is saved in train/test_filnames.txt')
 
+        parser.add('--train_load_from_filename', default='train_filnames.txt', type=str,
+                                                help='filename that we read the training dataset images from if dataset_load_from_txt==True')                                    
+
+        parser.add('--test_load_from_filename', default='test_filnames.txt', type=str,
+                                                help='filename that we read the testing dataset images from if dataset_load_from_txt==True')                                                  
+
         return parser
 
     def __init__(self, args, phase):
@@ -62,11 +68,29 @@ class DatasetWrapper(data.Dataset):
         # Store options
         self.phase = phase
         self.args = args
+        self.train_load_index=0
+        self.test_load_index=0
 
         self.to_tensor = transforms.ToTensor()
         self.epoch = 0 if args.which_epoch == 'none' else int(args.which_epoch)
 
-        data_root = args.data_root
+        if self.args.dataset_load_from_txt:
+
+            if self.phase == 'train':
+                my_file = open(str(self.args.train_load_from_filename), "r")
+            else:
+                my_file = open(str(self.args.test_load_from_filename), "r")
+
+            content = my_file.read()
+            data_list = content.split("\n")
+            my_file.close()
+            data_root = args.data_root
+            #data_root = (data_list[0].split(":"))[1]
+
+
+        else:
+            data_root = args.data_root
+        
         # Data paths
         self.imgs_dir = pathlib.Path(data_root) / 'imgs' / phase
         self.pose_dir = pathlib.Path(data_root) / 'keypoints' / phase
@@ -92,8 +116,8 @@ class DatasetWrapper(data.Dataset):
         experiment_dir = pathlib.Path(args.experiment_dir)
         self.experiment_dir = experiment_dir / 'runs' / args.experiment_name
 
-        if self.args.dataset_load_from_txt:
-            self.args.save_dataset_filenames = False
+        # if self.args.dataset_load_from_txt:
+        #     self.args.save_dataset_filenames = False
 
     def __getitem__(self, index):
         # Sample source and target frames for the current sequence
@@ -190,12 +214,12 @@ class DatasetWrapper(data.Dataset):
                     if len (imgs) <= self.args.num_source_frames :
                         save_file = self.phase + "_filenames.txt"
                         with open(self.experiment_dir / save_file, 'a') as data_file:
-                            data_file.write('source %s: %s\n' % (str(len (imgs)), str(filename.with_suffix('.jpg'))))
+                            data_file.write('source %s:%s\n' % (str(len (imgs)), str(filename.with_suffix('.jpg'))))
                     
                     if len (imgs) > self.args.num_source_frames:
                         save_file = self.phase + "_filenames.txt"
                         with open(self.experiment_dir / save_file, 'a') as data_file:
-                            data_file.write('target %s: %s\n' % (str(len (imgs)-self.args.num_source_frames), str(filename.with_suffix('.jpg'))))
+                            data_file.write('target %s:%s\n' % (str(len (imgs)-self.args.num_source_frames), str(filename.with_suffix('.jpg'))))
                     #print("Got the raw keypoint:", keypoints)
             except:
                 imgs.pop(-1)
@@ -231,9 +255,9 @@ class DatasetWrapper(data.Dataset):
 
             sample_from_reserve = False
 
-        save_file = self.phase + "_filenames.txt"
-        with open(self.experiment_dir / save_file, 'a') as data_file:
-            data_file.write('\n')
+        # save_file = self.phase + "_filenames.txt"
+        # with open(self.experiment_dir / save_file, 'a') as data_file:
+        #     data_file.write('\n')
         
         imgs = (torch.stack(imgs)- 0.5) * 2.0
 
