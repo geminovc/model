@@ -182,6 +182,7 @@ class DatasetWrapper(data.Dataset):
                     self.cur_num = (self.cur_num + self.delta) % 1
                 else:
                     frame_num = random.randint(0, (len(filenames) - 1))
+                    # If you want to use parallel learning, use torch (not numpy)
 
                 filename = filenames[frame_num]
 

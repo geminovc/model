@@ -3,8 +3,9 @@ cd ../
     --experiment_name 'toy_project' \
     --images_log_rate 400 \
     --metrics_log_rate 100 \
+    --random_seed 0 \
     --save_dataset_filenames True \
-    --dataset_load_from_txt True \
+    --dataset_load_from_txt False \
     --train_load_from_filename /data/pantea/video_conf/one_person_dataset/per_video_dataset/results/runs/toy_project/reserved_train_filenames.txt \
     --test_load_from_filename /data/pantea/video_conf/one_person_dataset/per_video_dataset/results/runs/toy_project/reserved_test_filenames.txt \
     --adam_beta1 0.5 \
@@ -97,7 +98,6 @@ cd ../
     --pse_num_blocks 4 \
     --pse_num_channels 256 \
     --pse_use_harmonic_enc False \
-    --random_seed 0 \
     --runner_name default \
     --seg_loss_apply_to 'pred_target_segs_logits, target_segs' \
     --seg_loss_names BCE \
