@@ -2,6 +2,7 @@ cd ../
      python  train.py \
     --experiment_name 'toy_project' \
     --images_log_rate 400 \
+    --metrics_log_rate 100 \
     --save_dataset_filenames True \
     --dataset_load_from_txt False \
     --train_load_from_filename . \
@@ -59,7 +60,7 @@ cd ../
     --image_size 256 \
     --label_run  'Pantea_experiment' \
     --losses_test 'lpips, csim' \
-    --metrics: 'PSNR, lpips' \
+    --metrics: 'PSNR, lpips, pose_matching_metric' \
     --psnr_loss_apply_to: 'pred_target_delta_lf_rgbs, target_imgs'  \
     --losses_train 'adversarial, feature_matching, perceptual, pixelwise, warping_regularizer'  \
     --lrs 'identity_embedder: 2e-4, texture_generator: 2e-4, keypoints_embedder: 2e-4, inference_generator: 2e-4, discriminator: 2e-4'  \

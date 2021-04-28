@@ -134,6 +134,9 @@ class TrainingWrapper(object):
         parser.add('--images_log_rate',         default=100, type=int,
                                                 help='logging rate for images') 
         
+        parser.add('--metrics_log_rate',         default=2, type=int,
+                                                help='logging rate for metrics like PSNR') 
+        
         parser.add('--nme_num_threads',         default=1, type=int,
                                                 help='logging rate for images')     
                 
@@ -245,13 +248,13 @@ class TrainingWrapper(object):
         if args.save_dataset_filenames:
             print("Clearing the files already stored as train_filenames.txt and test_filenames.txt.")
             train_file = "train_filenames.txt"
-            file = open(self.experiment_dir / train_file,"r+")
+            file = open(self.experiment_dir / train_file,"w+")
             file.truncate(0)
             file.write('data-root: ' + (str(args.data_root))+ "\n")
             file.close()
 
             test_file = "test_filenames.txt"
-            file = open(self.experiment_dir / test_file,"r+")
+            file = open(self.experiment_dir / test_file,"w+")
             file.truncate(0)
             file.write('data-root: ' + (str(args.data_root))+ "\n")
             file.close()
@@ -280,7 +283,7 @@ class TrainingWrapper(object):
 
         # Tensorboard writer init
         if args.rank == 0:
-            writer = SummaryWriter(log_dir= args.experiment_dir + '/runs/' + args.experiment_name + '/tensorboard_v/')
+            writer = SummaryWriter(log_dir= args.experiment_dir + '/runs/' + args.experiment_name + '/metrics/')
         
         # Get dataloaders
         train_dataloader = ds_utils.get_dataloader(args, 'train')
@@ -343,6 +346,7 @@ class TrainingWrapper(object):
             torch.autograd.set_detect_anomaly(True)
 
         total_iters = 1
+        iter_count = 0
 
         for epoch in range(epoch_start, args.num_epochs + 1):
             self.epoch_start = time.time()
@@ -357,7 +361,6 @@ class TrainingWrapper(object):
 
             # Shuffle the dataset before the epoch
             train_dataloader.dataset.shuffle()
-            iter_count = 0
             for i, data_dict in enumerate(train_dataloader, 1): 
                 iter_count+=1 
                 # Prepare input data
@@ -387,11 +390,12 @@ class TrainingWrapper(object):
                     loss, losses_dict, metrics_dict, misc_dict = model(data_dict)
                     #print(metrics_dict)
                     closure = None
-
+                
+                #Log metrics.
                 if args.rank == 0:
                     epoch_to_add = iter_count
 
-                    if iter_count % 100 == 0:
+                    if iter_count % args.metrics_log_rate == 0:
                         
                         # Plot the learning rates
                         for name, optim in opts.items():

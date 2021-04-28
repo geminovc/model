@@ -1,6 +1,6 @@
 cd ../
      python  train.py \
-    --experiment_name 'from_checkpoints_paper_apply_mask_false_skip_test_true' \
+    --experiment_name 'initialiaed_from_6800_checkin_overflow' \
     --images_log_rate 100 \
     --save_dataset_filenames True \
     --dataset_load_from_txt False \
@@ -15,7 +15,7 @@ cd ../
     --batch_size 2 \
     --bn_momentum 1.0 \
     --calc_stats \
-    --checkpoint_freq 25 \
+    --checkpoint_freq 100 \
     --data_root /data/pantea/video_conf/one_person_dataset/per_video_dataset \
     --dis_activation_type leakyrelu \
     --dis_downsampling_type avgpool \
@@ -107,18 +107,18 @@ cd ../
     --spn_networks 'identity_embedder, texture_generator, keypoints_embedder, inference_generator, discriminator' \
     --stats_calc_iters 500 \
     --stickmen_thickness 2 \
-    --test_freq 5 \
-    --visual_freq '-1' \
+    --test_freq 100 \
+    --visual_freq '50' \
     --wpr_loss_apply_to pred_target_delta_uvs \
     --wpr_loss_decay_schedule '-1' \
     --wpr_loss_type l1 \
     --wpr_loss_weight 0.0 \
     --wpr_loss_weight_decay 1.0 \
     --nme_num_threads 1  \
-    --init_experiment_dir /data/pantea/runs/vc2-hq_adrianb_paper_main \
+    --init_experiment_dir /data/pantea/video_conf/one_person_dataset/per_video_dataset/results/runs/from_base_apply_mask_false_batch_size_32_epoch_10000 \
     --init_networks 'identity_embedder, texture_generator, keypoints_embedder, inference_generator, discriminator' \
-    --init_which_epoch 2225 \
-    --skip_test True 
+    --init_which_epoch 6800 \
+    --skip_test False 
      
 
    
