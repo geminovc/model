@@ -1,7 +1,7 @@
 cd ../
      python  train.py \
     --experiment_name 'from_paper_pretrained_inf_apply_mask_false_skip_test_true_28_Apr' \
-    --pretrained_weights_dir /video_conf/scratch/pantea \
+    --pretrained_weights_dir /video-conf/scratch/pantea \
     --images_log_rate 400 \
     --metrics_log_rate 100 \
     --random_seed 0 \
@@ -119,7 +119,7 @@ cd ../
     --nme_num_threads 1  \
     --init_experiment_dir /video-conf/scratch/pantea/bilayer_paper_runs/vc2-hq_adrianb_paper_main \
     --init_networks 'identity_embedder, texture_generator, keypoints_embedder, inference_generator, discriminator' \
-    --init_which_epoch 6800 \
+    --init_which_epoch 2225 \
     --skip_test True 
 
    
