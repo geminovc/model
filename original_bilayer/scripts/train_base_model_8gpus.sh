@@ -1,10 +1,11 @@
 cd ../
      python  train.py \
-    --experiment_name 'toy_project' \
+    --experiment_name 'toy_projet' \
+    --pretrained_weights_dir /video-conf/scratch/pantea \
     --images_log_rate 400 \
     --metrics_log_rate 100 \
     --random_seed 0 \
-    --save_dataset_filenames True \
+    --save_dataset_filenames False \
     --dataset_load_from_txt False \
     --train_load_from_filename /data/pantea/video_conf/one_person_dataset/per_video_dataset/results/runs/toy_project/reserved_train_filenames.txt \
     --test_load_from_filename /data/pantea/video_conf/one_person_dataset/per_video_dataset/results/runs/toy_project/reserved_test_filenames.txt \
@@ -12,13 +13,13 @@ cd ../
     --adv_loss_weight 0.5 \
     --adv_pred_type ragan \
     --amp_loss_scale dynamic \
-    --experiment_dir /data/pantea/video_conf/one_person_dataset/per_video_dataset/results \
+    --experiment_dir /video-conf/scratch/pantea/video_conf_datasets/per_person_dataset/results \
     --amp_opt_level O0 \
-    --batch_size 32 \
+    --batch_size 2 \
     --bn_momentum 1.0 \
     --calc_stats \
     --checkpoint_freq 100 \
-    --data_root /data/pantea/video_conf/one_person_dataset/per_video_dataset \
+    --data_root /video-conf/scratch/pantea/video_conf_datasets/per_person_dataset \
     --dis_activation_type leakyrelu \
     --dis_downsampling_type avgpool \
     --dis_max_channels 512 \
@@ -107,7 +108,7 @@ cd ../
     --spn_networks 'identity_embedder, texture_generator, keypoints_embedder, inference_generator, discriminator' \
     --stats_calc_iters 500 \
     --stickmen_thickness 2 \
-    --test_freq 1 \
+    --test_freq 50 \
     --visual_freq '50' \
     --wpr_loss_apply_to pred_target_delta_uvs \
     --wpr_loss_decay_schedule '-1' \
@@ -115,4 +116,5 @@ cd ../
     --wpr_loss_weight 0.0 \
     --wpr_loss_weight_decay 1.0 \
     --nme_num_threads 1 \
+    --skip_test False 
    

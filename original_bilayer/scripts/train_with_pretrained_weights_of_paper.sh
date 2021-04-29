@@ -1,8 +1,11 @@
 cd ../
      python  train.py \
-    --experiment_name 'initialiaed_from_6800_checkin_overflow' \
-    --images_log_rate 100 \
-    --save_dataset_filenames True \
+    --experiment_name 'from_paper_pretrained_inf_apply_mask_false_skip_test_true_28_Apr' \
+    --pretrained_weights_dir /video_conf/scratch/pantea \
+    --images_log_rate 400 \
+    --metrics_log_rate 100 \
+    --random_seed 0 \
+    --save_dataset_filenames False \
     --dataset_load_from_txt False \
     --train_load_from_filename . \
     --test_load_from_filename . \
@@ -10,13 +13,13 @@ cd ../
     --adv_loss_weight 0.5 \
     --adv_pred_type ragan \
     --amp_loss_scale dynamic \
-    --experiment_dir /data/pantea/video_conf/one_person_dataset/per_video_dataset/results \
+    --experiment_dir /video-conf/scratch/pantea/video_conf_datasets/per_person_dataset/results  \
     --amp_opt_level O0 \
     --batch_size 2 \
     --bn_momentum 1.0 \
     --calc_stats \
     --checkpoint_freq 100 \
-    --data_root /data/pantea/video_conf/one_person_dataset/per_video_dataset \
+    --data_root /video-conf/scratch/pantea/video_conf_datasets/per_person_dataset \
     --dis_activation_type leakyrelu \
     --dis_downsampling_type avgpool \
     --dis_max_channels 512 \
@@ -60,7 +63,7 @@ cd ../
     --image_size 256 \
     --label_run  'Pantea_experiment' \
     --losses_test 'lpips, csim' \
-    --metrics: 'PSNR, lpips' \
+    --metrics: 'PSNR, lpips, pose_matching_metric' \
     --psnr_loss_apply_to: 'pred_target_delta_lf_rgbs, target_imgs'  \
     --losses_train 'adversarial, feature_matching, perceptual, pixelwise, warping_regularizer'  \
     --lrs 'identity_embedder: 2e-4, texture_generator: 2e-4, keypoints_embedder: 2e-4, inference_generator: 2e-4, discriminator: 2e-4'  \
@@ -97,7 +100,6 @@ cd ../
     --pse_num_blocks 4 \
     --pse_num_channels 256 \
     --pse_use_harmonic_enc False \
-    --random_seed 0 \
     --runner_name default \
     --seg_loss_apply_to 'pred_target_segs_logits, target_segs' \
     --seg_loss_names BCE \
@@ -107,7 +109,7 @@ cd ../
     --spn_networks 'identity_embedder, texture_generator, keypoints_embedder, inference_generator, discriminator' \
     --stats_calc_iters 500 \
     --stickmen_thickness 2 \
-    --test_freq 100 \
+    --test_freq 50 \
     --visual_freq '50' \
     --wpr_loss_apply_to pred_target_delta_uvs \
     --wpr_loss_decay_schedule '-1' \
@@ -115,10 +117,9 @@ cd ../
     --wpr_loss_weight 0.0 \
     --wpr_loss_weight_decay 1.0 \
     --nme_num_threads 1  \
-    --init_experiment_dir /data/pantea/video_conf/one_person_dataset/per_video_dataset/results/runs/from_base_apply_mask_false_batch_size_32_epoch_10000 \
+    --init_experiment_dir /video-conf/scratch/pantea/bilayer_paper_runs/vc2-hq_adrianb_paper_main \
     --init_networks 'identity_embedder, texture_generator, keypoints_embedder, inference_generator, discriminator' \
     --init_which_epoch 6800 \
-    --skip_test False 
-     
+    --skip_test True 
 
    

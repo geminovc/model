@@ -73,6 +73,9 @@ class RunnerWrapper(nn.Module):
 
         parser.add('--adam_beta1',           default = 0.5,    type=float, 
                                              help    = 'beta1 (momentum of the gradient) parameter for Adam')
+        
+        parser.add('--pretrained_weights_dir',  default='/video_conf/scratch/pantea', type=str,
+                                                help='directory for pretrained weights of loss networks (lpips , ...)')
 
         args, _ = parser.parse_known_args()
         

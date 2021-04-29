@@ -16,7 +16,7 @@ class LossWrapper(nn.Module):
         super(LossWrapper, self).__init__()
         self.calc_grad = args.lps_calc_grad
 
-        model_path = pathlib.Path("/data/pantea") / 'pretrained_weights' / 'lpips' / f'{args.lps_net}.pth'
+        model_path = pathlib.Path(args.pretrained_weights_dir) / 'pretrained_weights' / 'lpips' / f'{args.lps_net}.pth'
 
         self.loss = PerceptualLoss(
             model=args.lps_model, net=args.lps_net, model_path=model_path, 

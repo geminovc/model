@@ -25,6 +25,9 @@ class TrainingWrapper(object):
         parser.add('--experiment_dir',          default='.', type=str,
                                                 help='directory to save logs')
         
+        parser.add('--pretrained_weights_dir',  default='/video_conf/scratch/pantea', type=str,
+                                                help='directory for pretrained weights of loss networks (lpips , ...)')
+        
         parser.add('--project_dir',              default='.', type=str,
                                                  help='root directory of the code')
 
