@@ -29,6 +29,7 @@ experiment_name = 'from_base_apply_mask_false'
 
 args_dict = {
     'project_dir': '/data/pantea/video_conf/one_person_dataset/per_video_dataset/results',
+    'pretrained_weights_dir': '/video-conf/scratch/pantea', 
     'init_experiment_dir': '/data/pantea/video_conf/one_person_dataset/per_video_dataset/results/runs/'+experiment_name ,
     'init_networks': 'identity_embedder, keypoints_embedder, inference_generator',
     'init_which_epoch': '3000',
