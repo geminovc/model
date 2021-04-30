@@ -1,6 +1,6 @@
 cd ../
      python  train.py \
-    --experiment_name 'from_paper_pretrained_inf_apply_mask_false_skip_test_true_28_Apr' \
+    --experiment_name 'from_paper_pretrained_inf_apply_mask_false_skip_test_true_29_Apr' \
     --pretrained_weights_dir /video-conf/scratch/pantea \
     --images_log_rate 400 \
     --metrics_log_rate 100 \
@@ -13,13 +13,13 @@ cd ../
     --adv_loss_weight 0.5 \
     --adv_pred_type ragan \
     --amp_loss_scale dynamic \
-    --experiment_dir /video-conf/scratch/pantea/video_conf_datasets/per_person_dataset/results  \
+    --experiment_dir /video-conf/scratch/pantea/video_conf_datasets/per_video_dataset/results  \
     --amp_opt_level O0 \
     --batch_size 2 \
     --bn_momentum 1.0 \
     --calc_stats \
     --checkpoint_freq 100 \
-    --data_root /video-conf/scratch/pantea/video_conf_datasets/per_person_dataset \
+    --data_root /video-conf/scratch/pantea/video_conf_datasets/per_video_dataset \
     --dis_activation_type leakyrelu \
     --dis_downsampling_type avgpool \
     --dis_max_channels 512 \

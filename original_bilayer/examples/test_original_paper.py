@@ -9,30 +9,25 @@ from matplotlib import pyplot as plt
 import time
 from infer import InferenceWrapper
 
-# args_dict = {
-#     'project_dir': '/data/pantea/',
-#     'init_experiment_dir': '/data/pantea/runs/vc2-hq_adrianb_paper_main',
-#     'init_networks': 'identity_embedder, texture_generator, keypoints_embedder, inference_generator',
-#     'init_which_epoch': '2225',
-#     'num_gpus': 1,
-#     'experiment_name': 'vc2-hq_adrianb_paper_enhancer',
-#     'which_epoch': '1225',
-#     'metrics': 'PSNR, lpips',
-#     'psnr_loss_apply_to': 'pred_target_delta_lf_rgbs, target_imgs',
-#     'spn_networks': 'identity_embedder, texture_generator, keypoints_embedder, inference_generator, texture_enhancer',
-#     'enh_apply_masks': False,
-#     'inf_apply_masks': False}
 
-experiment_name = 'from_base_apply_mask_false'
-##from_base_apply_mask_false_skip_test_false
-##from_checkpoints_paper_apply_mask_false_skip_test_false
+#/video-conf/scratch/pantea_experiments/runs/from_paper_pretrained_inf_apply_mask_false_skip_test_true_28_Apr
+
+experiment_name = 'from_paper_pretrained_inf_apply_mask_false_skip_test_true_28_Apr'
+project_dir = '/video-conf/scratch/pantea_experiments'
+
+# experiment_name = 'from_base_inf_apply_mask_false_skip_test_false_28_Apr'
+# project_dir = '/video-conf/scratch/pantea/video_conf_datasets/per_person_dataset/results'
+
+#experiment_name = 'from_base_apply_mask_false'
+#project_dir = '/data/pantea/video_conf/one_person_dataset/per_video_dataset/results'
+
 
 args_dict = {
-    'project_dir': '/data/pantea/video_conf/one_person_dataset/per_video_dataset/results',
+    'project_dir': project_dir,
     'pretrained_weights_dir': '/video-conf/scratch/pantea', 
-    'init_experiment_dir': '/data/pantea/video_conf/one_person_dataset/per_video_dataset/results/runs/'+experiment_name ,
+    'init_experiment_dir': project_dir + '/runs/' + experiment_name ,
     'init_networks': 'identity_embedder, keypoints_embedder, inference_generator',
-    'init_which_epoch': '3000',
+    'init_which_epoch': '100',
     'num_gpus': 1,
     'experiment_name': experiment_name,
     'which_epoch': '100',
@@ -48,15 +43,14 @@ module = InferenceWrapper(args_dict)
 
 
 input_data_dict = {
-    'source_imgs': np.asarray(Image.open('images/109.jpg')), # H x W x 3
-    'target_imgs': np.asarray(Image.open('images/20.jpg'))[None]} # B x H x W x # 3
+    'source_imgs': np.asarray(Image.open('images/0-1.jpg')), # H x W x 3
+    'target_imgs': np.asarray(Image.open('images/0.jpg'))[None]} # B x H x W x # 3
 
 now = time.time()
 output_data_dict = module(input_data_dict)
-#print("after!")
 now_now = time.time()
 
-#print("It took ", now_now- now)
+print("It took ", str(now_now- now), "for load and inference module.")
 
 
 

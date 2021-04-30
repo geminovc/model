@@ -219,7 +219,7 @@ class TrainingWrapper(object):
                 print(args)
                 with open(self.experiment_dir / 'args.txt', 'wt') as args_file:
                     for k, v in sorted(vars(args).items()):
-                        args_file.write('%s:%s\n' % (str(k), str(v)))
+                        args_file.write('%s: %s\n' % (str(k), str(v)))
 
         # Initialize model
         self.runner = runner
