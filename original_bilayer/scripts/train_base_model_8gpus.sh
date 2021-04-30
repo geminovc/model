@@ -51,9 +51,10 @@ python  train.py \
     --tex_upsampling_type nearest \
     --tex_activation_type leakyrelu \
     --image_size 256 \
+    --metrics : ''\
     --label_run : name \
     --losses_test 'lpips, csim' \
-    --losses_train 'adversarial, feature_matching, perceptual, pixelwise, warping_regularizer'  \
+    --losses_train 'adversarial, pixelwise'  \
     --lrs 'identity_embedder: 2e-4, texture_generator: 2e-4, keypoints_embedder: 2e-4, inference_generator: 2e-4, discriminator: 2e-4'  \
     --networks_calc_stats 'identity_embedder, texture_generator, keypoints_embedder, inference_generator' \
     --networks_test 'identity_embedder, texture_generator, keypoints_embedder, inference_generator' \
