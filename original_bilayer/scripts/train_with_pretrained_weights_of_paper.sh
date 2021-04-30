@@ -120,6 +120,11 @@ cd ../
     --init_experiment_dir /video-conf/scratch/pantea/bilayer_paper_runs/vc2-hq_adrianb_paper_main \
     --init_networks 'identity_embedder, texture_generator, keypoints_embedder, inference_generator, discriminator' \
     --init_which_epoch 2225 \
-    --skip_test True 
+    --skip_test True \
+    --freeze_discriminator False \
+    --freeze_identity_embedder False \
+    --freeze_texture_generator False \
+    --freeze_keypoints_embedder False \
+    --freeze_inference_generator False 
 
    
