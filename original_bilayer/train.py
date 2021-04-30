@@ -324,7 +324,7 @@ class TrainingWrapper(object):
 
                 # Perform a forward pass
                 if not args.use_closure:
-                    loss = model(data_dict)
+                    loss, losses_dict, metrics_dict = model(data_dict)
                     closure = None
 
                 if args.use_apex and args.num_gpus > 0 and args.num_gpus <= 8:
