@@ -16,7 +16,7 @@ class NetworkWrapper(nn.Module):
     def __init__(self, args):
         super(NetworkWrapper, self).__init__()
         # Initialize options
-        self.unet = UNet(19,3)
+        self.unet = UNet(args.unet_input_channels,args.unet_output_channels)
 
     def forward(
             self, 
@@ -27,17 +27,11 @@ class NetworkWrapper(nn.Module):
         # Information we need:        
         # Final images but with only the low frequency componenets
         # Done in inference generator because it makes more sense there. 
-        if args.use_unet_only_hf:
-            output =  self.unet(data_dict['warped_neural_textures'], data_dict) 
-            data_dict['pred_target_imgs'] = output
-            data_dict['pred_target_imgs_lf_detached'] = output
-            data_dict['pred_target_delta_lf_rgbs'] = output
-            
-        if args.use_lf_with_unet:
-            # Final images but with low frequency components detached. I'm not sure how to do this, so we will just use final images
-            data_dict['pred_target_imgs'] = self.unet(data_dict['lf_hf_predictions'], data_dict) 
-            # The actual images
-            data_dict['pred_target_imgs_lf_detached'] = self.unet(data_dict['lf_detached_predictions'], data_dict)
+        output =  self.unet(data_dict['unet_input'], data_dict) 
+        data_dict['pred_target_imgs'] = output
+        output_lf_detached =  self.unet(data_dict['lf_detached_inputs'], data_dict) 
+
+        data_dict['pred_target_imgs_lf_detached'] = output_lf_detached
         return data_dict
 
 

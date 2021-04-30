@@ -168,13 +168,27 @@ class NetworkWrapper(nn.Module):
 
         # Output debugging results
         data_dict['pred_target_uvs'] = reshape_target_data(pred_target_uvs)
-        if args.use_unet:
+        data_dict['pred_target_delta_lf_rgbs'] = reshape_target_data(pred_target_delta_lf_rgbs)
+        if args.use_final_unet:
+            # Add the code for making hte neural textures here
+            # depending on wether you have the lf and hf content as inputs
+            data_dict['warped_neural_textures'] = warped_neural_textures
+            full_input = warped_neural_textures
+            data_dict['lf_detached_predictions'] = full_input 
+
+            if 'lf' in args.unet_inputs:
+                full_input = torch.cat((full_input, pred_target_delta_lf_rgbs), dim=1)
+                data_dict['lf_detached_inputs'] =  torch.cat((full_input, pred_target_delta_lf_rgbs.detach()), dim=1)
+            data_dict['unet_input'] = full_input
+            
+                
+        if args.use_hf_with_unet: # Make this into a list here. Doesn't work with current setup but eventually
+            # For output of unet do the same thing with adding lf if you want to.
             warped_neural_textures = pred_target_delta_hf_rgbs
             data_dict['warped_neural_textures'] = warped_neural_textures
-        if args.use_lf_with_unet:
+        elif args.use_lf_and_hf_with_unet:
             data_dict['lf_hf_predictions'] = torch.cat((warped_neural_textures, pred_target_delta_lf_rgbs), dim=1)
             data_dict['lf_detached_predictions'] =  torch.cat((warped_neural_textures, pred_target_delta_lf_rgbs.detach()), dim=1)
-        data_dict['pred_target_delta_lf_rgbs'] = reshape_target_data(pred_target_delta_lf_rgbs)
 
         # Output results needed for training
         if 'inference_generator' in networks_to_train or self.args.inf_calc_grad:
@@ -247,7 +261,7 @@ class NetworkWrapper(nn.Module):
         # Predicted target LF rgbs
         visuals += [data_dict['pred_target_delta_lf_rgbs']]
         
-        if not (args.use_unet_only_hf or args.use_lf_with_unet):
+        if not (args.use_hf_with_unet or args.use_lf_and_hf_with_unet):
             # Predicted target HF rgbs
             visuals += [data_dict['pred_target_delta_hf_rgbs']]
 
