@@ -1,17 +1,17 @@
 cd ../
 python  train.py \
-    --experiment_name 'Pantea_experiment' \
+    --experiment_name 'is_code_working_trial' \
     --adam_beta1 0.5 \
     --adv_loss_weight 0.5 \
     --adv_pred_type ragan \
     --amp_loss_scale dynamic \
-    --experiment_dir /data/pantea/video_conf/minidataset/results \
+    --experiment_dir /data/vision/billf/video-conf/scratch/vedantha/runs/discriminator_test_17_only_improve_unet_for_debugging \
     --amp_opt_level O0 \
     --batch_size 2 \
     --bn_momentum 1.0 \
     --calc_stats \
     --checkpoint_freq 25 \
-    --data_root /data/pantea/video_conf/minidataset \
+    --data_root /data/vision/billf/video-conf/scratch/pantea/video_conf_datasets/general_dataset\
     --dis_activation_type leakyrelu \
     --dis_downsampling_type avgpool \
     --dis_max_channels 512 \
@@ -51,9 +51,9 @@ python  train.py \
     --tex_upsampling_type nearest \
     --tex_activation_type leakyrelu \
     --image_size 256 \
-    --metrics : ''\
+    --metrics \
     --label_run : name \
-    --losses_test 'lpips, csim' \
+    --losses_test '' \
     --losses_train 'adversarial, pixelwise'  \
     --lrs 'identity_embedder: 2e-4, texture_generator: 2e-4, keypoints_embedder: 2e-4, inference_generator: 2e-4, discriminator: 2e-4'  \
     --networks_calc_stats 'identity_embedder, texture_generator, keypoints_embedder, inference_generator' \
@@ -100,6 +100,11 @@ python  train.py \
     --stats_calc_iters 500 \
     --stickmen_thickness 2 \
     --test_freq 2 \
+    --use_unet True \
+    --unet_input_channels 16 \
+    --unet_output_channels 3 \
+    --use_final_unet True \
+    --unet_inputs 'hf' \
     --visual_freq '-1' \
     --wpr_loss_apply_to pred_target_delta_uvs \
     --wpr_loss_decay_schedule '-1' \

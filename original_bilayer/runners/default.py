@@ -72,7 +72,7 @@ class RunnerWrapper(nn.Module):
 
         parser.add('--adam_beta1',           default = 0.5,    type=float, 
                                              help    = 'beta1 (momentum of the gradient) parameter for Adam')
-        parser.add('--metrics', default = '', type=str,  help    = 'metrics evaluated always')
+        parser.add('--metrics', default = None, type=str,  help    = 'metrics evaluated always')
         args, _ = parser.parse_known_args()
         
 
