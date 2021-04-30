@@ -116,5 +116,10 @@ cd ../
     --wpr_loss_weight 0.0 \
     --wpr_loss_weight_decay 1.0 \
     --nme_num_threads 1 \
-    --skip_test False 
+    --skip_test True \
+    --freeze_discriminator False \
+    --freeze_identity_embedder False \
+    --freeze_texture_generator False \
+    --freeze_keypoints_embedder False \
+    --freeze_inference_generator False 
    
