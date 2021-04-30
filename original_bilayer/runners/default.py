@@ -34,6 +34,8 @@ class RunnerWrapper(nn.Module):
 
         parser.add('--losses_test',          default = 'lpips, csim', 
                                              help    = 'losses evaluated during testing')
+        parser.add('--metrics',         default = '', 
+                                             help    = 'metrics evaluated always')
 
         # Spectral norm options
         parser.add('--spn_networks',         default = 'identity_embedder, texture_generator, keypoints_embedder, inference_generator, discriminator',
@@ -91,7 +93,7 @@ class RunnerWrapper(nn.Module):
             importlib.import_module(f'losses.{loss_name}').LossWrapper.get_args(parser)
 
         metrics_names = list(set(
-            utils.parse_str_to_list(args.metrics, sep=',')
+            utils.parse_str_to_list(args.metrics, sep=',')))
         for metric_name in metrics_names:
             importlib.import_module(f'losses.{loss_name}').LossWrapper.get_args(parser)
         return parser

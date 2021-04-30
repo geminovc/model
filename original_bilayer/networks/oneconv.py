@@ -16,7 +16,7 @@ class NetworkWrapper(nn.Module):
     def __init__(self, args):
         super(NetworkWrapper, self).__init__()
         # Initialize options
-        self.unet = UNet()
+        self.oneConv = oneConv()
 
     def forward(
             self, 
@@ -24,7 +24,7 @@ class NetworkWrapper(nn.Module):
             networks_to_train: list,
             all_networks: dict, # dict of all networks in the model
         ) -> dict:
-        data_dict = self.unet(data_dict)
+        data_dict = self.oneConv(data_dict)
         return data_dict
 
 

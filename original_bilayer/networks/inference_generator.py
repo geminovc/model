@@ -33,7 +33,9 @@ class NetworkWrapper(nn.Module):
 
         parser.add('--inf_upsampling_type',      default='nearest', type=str,
                                                  help='upsampling layer inside the generator')
-
+        parser.add('--use_unet', default=False, type=bool, help='use unet')
+        parser.add('--use_final_unet', default=False, type=bool, help='use unet copy to be removed later')
+        parser.add('--unet_inputs', default='hf', type=str, help='list of unet inputs [lf, hf]') 
         parser.add('--inf_skip_layer_type',      default='ada_conv', type=str,
                                                  help='skip connection layer type')
 
