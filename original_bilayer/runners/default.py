@@ -90,6 +90,10 @@ class RunnerWrapper(nn.Module):
         for loss_name in losses_names:
             importlib.import_module(f'losses.{loss_name}').LossWrapper.get_args(parser)
 
+        metrics_names = list(set(
+            utils.parse_str_to_list(args.metrics, sep=',')
+        for metric_name in metrics_names:
+            importlib.import_module(f'losses.{loss_name}').LossWrapper.get_args(parser)
         return parser
 
     def __init__(self, args, training=True):
@@ -188,7 +192,7 @@ class RunnerWrapper(nn.Module):
         if self.training:
             nets_names = self.nets_names_train
             networks_to_train = self.nets_names_to_train
-
+            metrics_names = self.metrics_names_train
             losses_names = self.losses_names_train
 
         else:
@@ -239,6 +243,7 @@ class RunnerWrapper(nn.Module):
 
         # Initialize utility lists and dicts for the networks
         self.losses_names_train = utils.parse_str_to_list(args.losses_train)
+        self.metrics_names = utils.parse_str_to_list(args.metrics)
         self.losses_names_test = utils.parse_str_to_list(args.losses_test)
 
     def get_optimizers(self, args):
