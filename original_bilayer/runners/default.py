@@ -131,7 +131,11 @@ class RunnerWrapper(nn.Module):
 
             for loss_name in sorted(losses_names):
                 self.losses[loss_name] = importlib.import_module(f'losses.{loss_name}').LossWrapper(args)
+        self.metrics = nn.ModuleDict()
 
+        for metric_name in sorted(metrics_names):
+            self.metrics[metric_name] = importlib.import_module(f'losses.{metric_name}').LossWrapper(args)
+        
         # Spectral norm
         if args.spn_layers:
             spn_layers = utils.parse_str_to_list(args.spn_layers, sep=',')
@@ -208,6 +212,11 @@ class RunnerWrapper(nn.Module):
             if hasattr(self, 'losses') and loss_name in self.losses.keys():
                 #print("These are the loss dicts:", self.losses[loss_name](self.data_dict, losses_dict),"\n")
                 losses_dict = self.losses[loss_name](self.data_dict, losses_dict)
+        metrics_dict = {}
+        for metric_name in metrics_names:
+            if hasattr(self, 'metrics') and loss_name in self.metrics.keys():
+                #print("These are the loss dicts:", self.losses[loss_name](self.data_dict, losses_dict),"\n")
+                metrics_dict = self.metrics[metric_name](self.data_dict, metrics_dict)
 
         # Calculate the total loss and store history
         loss = self.process_losses_dict(losses_dict)
@@ -293,7 +302,7 @@ class RunnerWrapper(nn.Module):
 
             # Average the losses
             losses[key] = value.cpu().mean()
-
+        
         # Clear losses hist
         self.losses_history[self.training] = {}
 
