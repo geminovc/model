@@ -179,6 +179,9 @@ class RunnerWrapper(nn.Module):
         self.losses_history = {
             True: {}, # self.training = True
             False: {}}
+        self.metrics_history = {
+            True: {}, # self.training = True
+            False: {}}
 
     def forward(self, data_dict):
         ### Set lists of networks' and losses' names ###
@@ -221,7 +224,7 @@ class RunnerWrapper(nn.Module):
         # Calculate the total loss and store history
         loss = self.process_losses_dict(losses_dict)
 
-        return loss
+        return losst
 
     ########################################################
     #                     Utility functions                #
@@ -294,6 +297,15 @@ class RunnerWrapper(nn.Module):
             
         return loss
 
+    def process_metrics_dict(self, metrics_dict):
+        # This function appends loss value into losses_dict
+
+        for key, value in metrics_dict.items():
+            if key not in self.metrics_history[self.training]: 
+                self.metrics_history[self.training][key] = []
+            
+            self.metics_history[self.training][key] += [value.item()]
+            
     def output_losses(self):
         losses = {}
 
@@ -311,6 +323,22 @@ class RunnerWrapper(nn.Module):
         else:
             return losses
 
+    def output_metrics(self):
+        metrics = {}
+
+        for key, values in self.metrics_history[self.training].items():
+            value = torch.FloatTensor(values)
+
+            # Average the losses
+            metrics[key] = value.cpu().mean()
+        
+        # Clear losses hist
+        self.metrics_history[self.training] = {}
+
+        if self.args.rank != 0:
+            return None
+        else:
+            return metrics
     def output_visuals(self):
         # This function creates an output grid of visuals
         visuals_data_dict = {}
