@@ -221,7 +221,10 @@ class NetworkWrapper(nn.Module):
 
             # Predicted source HF rgbs
             if 'pred_source_delta_hf_rgbs' in data_dict.keys():
-                visuals += [data_dict['pred_source_delta_hf_rgbs']]
+                if args.use_unet:
+                    pass # for now we'll not include hf content if its part of the unet.
+                else:
+                    visuals += [data_dict['pred_source_delta_hf_rgbs']]
 
             # Predicted source UVs
             pred_source_uvs = data_dict['pred_source_uvs'].permute(0, 3, 1, 2)
@@ -242,7 +245,10 @@ class NetworkWrapper(nn.Module):
                 visuals += [torch.cat([(pred_source_segs - 0.5) * 2] * 3, 1)]
 
         # Predicted textures
-        visuals += [data_dict['pred_tex_hf_rgbs']]
+        if args.use_unet:
+            pass # for now we'll not include hf content if its part of the unet.
+        else:
+            visuals += [data_dict['pred_tex_hf_rgbs']]
 
         if 'pred_enh_tex_hf_rgbs' in data_dict.keys():
             # Predicted enhated textures
@@ -261,7 +267,7 @@ class NetworkWrapper(nn.Module):
         # Predicted target LF rgbs
         visuals += [data_dict['pred_target_delta_lf_rgbs']]
         
-        if not (args.use_hf_with_unet or args.use_lf_and_hf_with_unet):
+        if not args.use_unet:
             # Predicted target HF rgbs
             visuals += [data_dict['pred_target_delta_hf_rgbs']]
 
