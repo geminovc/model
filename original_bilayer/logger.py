@@ -31,7 +31,7 @@ class Logger(object):
                     self.losses = {}
                     self.metrics = {}
                 
-                self.writer = tensorboardX.SummaryWriter('/data/pantea/tensorboard') # Set this to an argument
+                self.writer = tensorboardX.SummaryWriter(args.tensorboard_dir+'/tensorboard') # Set this to an argument
 
     def output_logs(self, phase, visuals, losses, metrics, time):
         if not self.no_disk_write_ops:
