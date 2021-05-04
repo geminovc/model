@@ -72,7 +72,8 @@ class RunnerWrapper(nn.Module):
 
         parser.add('--adam_beta1',           default = 0.5,    type=float, 
                                              help    = 'beta1 (momentum of the gradient) parameter for Adam')
-        parser.add('--metrics', default = None, type=str,  help    = 'metrics evaluated always')
+        parser.add('--metrics', default = 'lpips', type=str,  help    = 'metrics evaluated always')
+        parser.add('--pretrained_weights_dir', type=str, help='location so x/pretrained_weights has all the weights')
         args, _ = parser.parse_known_args()
         
 
@@ -93,7 +94,7 @@ class RunnerWrapper(nn.Module):
         metrics_names = list(set(
             utils.parse_str_to_list(args.metrics, sep=',')))
         for metric_name in metrics_names:
-            importlib.import_module(f'losses.{loss_name}').LossWrapper.get_args(parser)
+            importlib.import_module(f'losses.{metric_name}').LossWrapper.get_args(parser)
         return parser
 
     def __init__(self, args, training=True):
@@ -101,7 +102,6 @@ class RunnerWrapper(nn.Module):
         # Store general options
         self.args = args
         self.training = training
-
         # Read names lists from the args
         self.load_names(args)
 
@@ -193,13 +193,14 @@ class RunnerWrapper(nn.Module):
         if self.training:
             nets_names = self.nets_names_train
             networks_to_train = self.nets_names_to_train
-            metrics_names = self.metrics_names_train
+            metrics_names = self.metrics_names
             losses_names = self.losses_names_train
 
         else:
             nets_names = self.nets_names_test
             networks_to_train = []
 
+            metrics_names = self.metrics_names
             losses_names = self.losses_names_test
 
         # Forward pass through all the required networks
@@ -228,8 +229,8 @@ class RunnerWrapper(nn.Module):
 
         # Calculate the total loss and store history
         loss = self.process_losses_dict(losses_dict)
-
-        return losst
+        #self.process_metrics_dict(metrics_dict)
+        return loss
 
     ########################################################
     #                     Utility functions                #
