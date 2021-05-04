@@ -52,7 +52,6 @@ class NetworkWrapper(nn.Module):
         super(NetworkWrapper, self).__init__()
         # Initialize options
         self.args = args
-
         # Generator
         self.gen_inf = Generator(args)
 
@@ -171,27 +170,20 @@ class NetworkWrapper(nn.Module):
         # Output debugging results
         data_dict['pred_target_uvs'] = reshape_target_data(pred_target_uvs)
         data_dict['pred_target_delta_lf_rgbs'] = reshape_target_data(pred_target_delta_lf_rgbs)
-        if args.use_final_unet:
+        if self.args.use_final_unet:
             # Add the code for making hte neural textures here
+            warped_neural_textures = pred_target_delta_hf_rgbs
             # depending on wether you have the lf and hf content as inputs
             data_dict['warped_neural_textures'] = warped_neural_textures
             full_input = warped_neural_textures
             data_dict['lf_detached_predictions'] = full_input 
 
-            if 'lf' in args.unet_inputs:
+            if 'lf' in self.args.unet_inputs:
                 full_input = torch.cat((full_input, pred_target_delta_lf_rgbs), dim=1)
                 data_dict['lf_detached_inputs'] =  torch.cat((full_input, pred_target_delta_lf_rgbs.detach()), dim=1)
             data_dict['unet_input'] = full_input
             
                 
-        if args.use_hf_with_unet: # Make this into a list here. Doesn't work with current setup but eventually
-            # For output of unet do the same thing with adding lf if you want to.
-            warped_neural_textures = pred_target_delta_hf_rgbs
-            data_dict['warped_neural_textures'] = warped_neural_textures
-        elif args.use_lf_and_hf_with_unet:
-            data_dict['lf_hf_predictions'] = torch.cat((warped_neural_textures, pred_target_delta_lf_rgbs), dim=1)
-            data_dict['lf_detached_predictions'] =  torch.cat((warped_neural_textures, pred_target_delta_lf_rgbs.detach()), dim=1)
-
         # Output results needed for training
         if 'inference_generator' in networks_to_train or self.args.inf_calc_grad:
             data_dict['pred_target_delta_uvs'] = reshape_target_data(pred_target_delta_uvs)
@@ -223,7 +215,7 @@ class NetworkWrapper(nn.Module):
 
             # Predicted source HF rgbs
             if 'pred_source_delta_hf_rgbs' in data_dict.keys():
-                if args.use_unet:
+                if self.args.use_unet:
                     pass # for now we'll not include hf content if its part of the unet.
                 else:
                     visuals += [data_dict['pred_source_delta_hf_rgbs']]
@@ -247,7 +239,7 @@ class NetworkWrapper(nn.Module):
                 visuals += [torch.cat([(pred_source_segs - 0.5) * 2] * 3, 1)]
 
         # Predicted textures
-        if args.use_unet:
+        if self.args.use_unet:
             pass # for now we'll not include hf content if its part of the unet.
         else:
             visuals += [data_dict['pred_tex_hf_rgbs']]
@@ -269,7 +261,7 @@ class NetworkWrapper(nn.Module):
         # Predicted target LF rgbs
         visuals += [data_dict['pred_target_delta_lf_rgbs']]
         
-        if not args.use_unet:
+        if not self.args.use_unet:
             # Predicted target HF rgbs
             visuals += [data_dict['pred_target_delta_hf_rgbs']]
 
