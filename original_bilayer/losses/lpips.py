@@ -2,21 +2,22 @@ import pathlib
 import torch
 from torch import nn
 import torch.nn.functional as F
-
+from runners import utils as rn_utils
+from networks import utils as nt_utils
 
 
 class LossWrapper(nn.Module):
     @staticmethod
     def get_args(parser):
+        print('=============== used hte parser===================') 
         parser.add('--lps_model', type=str, default='net-lin')
         parser.add('--lps_net', type=str, default='vgg')
-        parser.add('--lps_calc_grad', action='store_true', help='if True, the loss is differentiable')
-    
+        parser.add('--lps_calc_grad',action='store_true', help='if True, the loss is differentiable')
     def __init__(self, args):
         super(LossWrapper, self).__init__()
         self.calc_grad = args.lps_calc_grad
 
-        model_path = pathlib.Path("/data/pantea") / 'pretrained_weights' / 'lpips' / f'{args.lps_net}.pth'
+        model_path = pathlib.Path(args.pretrained_weights_dir) / 'pretrained_weights' / 'lpips' / f'{args.lps_net}.pth'
 
         self.loss = PerceptualLoss(
             model=args.lps_model, net=args.lps_net, model_path=model_path, 
