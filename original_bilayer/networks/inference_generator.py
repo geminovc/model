@@ -34,7 +34,6 @@ class NetworkWrapper(nn.Module):
         parser.add('--inf_upsampling_type',      default='nearest', type=str,
                                                  help='upsampling layer inside the generator')
         parser.add('--use_unet', default=False, type=bool, help='use unet')
-        parser.add('--use_final_unet', default=False, type=bool, help='use unet copy to be removed later')
         parser.add('--unet_inputs', default='hf', type=str, help='list of unet inputs [lf, hf]') 
         parser.add('--inf_skip_layer_type',      default='ada_conv', type=str,
                                                  help='skip connection layer type')
@@ -137,14 +136,14 @@ class NetworkWrapper(nn.Module):
         pred_target_delta_hf_rgbs = F.grid_sample(pred_tex_hf_rgbs_repeated, pred_target_uvs)
 
         # Final image
-        pred_target_imgs = pred_target_delta_lf_rgbs + pred_target_delta_hf_rgbs
-
-        if 'inference_generator' in networks_to_train or self.args.inf_calc_grad:
+        if not self.args.use_unet:
+            pred_target_imgs = pred_target_delta_lf_rgbs + pred_target_delta_hf_rgbs
+        if not self.args.use_unet and ('inference_generator' in networks_to_train or self.args.inf_calc_grad):
             # Get an image with a low-frequency component detached
             pred_target_imgs_lf_detached = pred_target_delta_lf_rgbs.detach() + pred_target_delta_hf_rgbs
 
         # Mask output images (if needed)
-        if self.args.inf_apply_masks and self.args.inf_pred_segmentation:
+        if not self.args.use_unet and (self.args.inf_apply_masks and self.args.inf_pred_segmentation):
             pred_target_masks = pred_target_segs.detach()
 
             target_imgs = target_imgs * pred_target_masks + (-1) * (1 - pred_target_masks)
@@ -162,31 +161,32 @@ class NetworkWrapper(nn.Module):
         ### Store outputs ###
         reshape_target_data = lambda data: data.view(b, t, *data.shape[1:])
         reshape_source_data = lambda data: data.view(b, n, *data.shape[1:])
+        if not self.args.use_unet:
+            data_dict['pred_target_imgs'] = reshape_target_data(pred_target_imgs)
 
-        data_dict['pred_target_imgs'] = reshape_target_data(pred_target_imgs)
         if self.args.inf_pred_segmentation:
             data_dict['pred_target_segs'] = reshape_target_data(pred_target_segs)
 
         # Output debugging results
         data_dict['pred_target_uvs'] = reshape_target_data(pred_target_uvs)
         data_dict['pred_target_delta_lf_rgbs'] = reshape_target_data(pred_target_delta_lf_rgbs)
-        if self.args.use_final_unet:
+        if self.args.use_unet:
             # Add the code for making hte neural textures here
             warped_neural_textures = pred_target_delta_hf_rgbs
             # depending on wether you have the lf and hf content as inputs
             data_dict['warped_neural_textures'] = warped_neural_textures
             full_input = warped_neural_textures
-            data_dict['lf_detached_predictions'] = full_input 
+            data_dict['lf_detached_predictions'] = full_input
 
             if 'lf' in self.args.unet_inputs:
+                data_dict['lf_detached_inputs'] = torch.cat((full_input, pred_target_delta_lf_rgbs.detach()), dim=1)
                 full_input = torch.cat((full_input, pred_target_delta_lf_rgbs), dim=1)
-                data_dict['lf_detached_inputs'] =  torch.cat((full_input, pred_target_delta_lf_rgbs.detach()), dim=1)
             data_dict['unet_input'] = full_input
             
                 
         # Output results needed for training
-        if 'inference_generator' in networks_to_train or self.args.inf_calc_grad:
-            data_dict['pred_target_delta_uvs'] = reshape_target_data(pred_target_delta_uvs)
+        data_dict['pred_target_delta_uvs'] = reshape_target_data(pred_target_delta_uvs)
+        if not self.args.use_unet and ('inference_generator' in networks_to_train or self.args.inf_calc_grad):
             data_dict['pred_target_imgs_lf_detached'] = reshape_target_data(pred_target_imgs_lf_detached)
 
             if self.args.inf_pred_segmentation:

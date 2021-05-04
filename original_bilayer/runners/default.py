@@ -223,13 +223,13 @@ class RunnerWrapper(nn.Module):
                 losses_dict = self.losses[loss_name](self.data_dict, losses_dict)
         metrics_dict = {}
         for metric_name in metrics_names:
-            if hasattr(self, 'metrics') and loss_name in self.metrics.keys():
+            if hasattr(self, 'metrics') and metric_name in self.metrics.keys():
                 #print("These are the loss dicts:", self.losses[loss_name](self.data_dict, losses_dict),"\n")
                 metrics_dict = self.metrics[metric_name](self.data_dict, metrics_dict)
 
         # Calculate the total loss and store history
         loss = self.process_losses_dict(losses_dict)
-        #self.process_metrics_dict(metrics_dict)
+        self.process_metrics_dict(metrics_dict)
         return loss
 
     ########################################################
@@ -298,7 +298,6 @@ class RunnerWrapper(nn.Module):
         for key, value in losses_dict.items():
             if key not in self.losses_history[self.training]: 
                 self.losses_history[self.training][key] = []
-            
             self.losses_history[self.training][key] += [value.item()]
             loss += value
             
@@ -311,7 +310,7 @@ class RunnerWrapper(nn.Module):
             if key not in self.metrics_history[self.training]: 
                 self.metrics_history[self.training][key] = []
             
-            self.metics_history[self.training][key] += [value.item()]
+            self.metrics_history[self.training][key] += [value.item()]
             
     def output_losses(self):
         losses = {}

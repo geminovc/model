@@ -34,10 +34,15 @@ class NetworkWrapper(nn.Module):
         output =  self.unet(data_dict['unet_input'], data_dict) 
         data_dict['pred_target_imgs'] = output
         output_lf_detached =  self.unet(data_dict['lf_detached_inputs'], data_dict) 
-
         data_dict['pred_target_imgs_lf_detached'] = output_lf_detached
         return data_dict
-
+    
+    @torch.no_grad()
+    def visualize_outputs(self, data_dict):
+        # All visualization is done in the inference generator
+        visuals = []
+        visuals += [data_dict['pred_target_imgs']]
+        return visuals
 
 class down(nn.Module):
     def __init__(self, in_ch, out_ch):
@@ -106,11 +111,13 @@ class UNet(nn.Module):
         x = self.up3(x, x3)
         x = self.up4(x, x2)
         x = self.up5(x, x1)
-        
+        target_pose_embeds=data_dict['target_pose_embeds'] 
+        b, t = target_pose_embeds.shape[:2]
+        reshape_target_data = lambda data: data.view(b, t, *data.shape[1:])
         pred_target_imgs = x
         #rint(torch.mean(pred_target_imgs, dim=(0, 2, 3)))
         output_mean = torch.mean(pred_target_imgs, dim=(0, 2, 3))
         target_mean = torch.mean(data_dict['target_imgs'], dim=(0, 1, 3, 4))
         pred_target_imgs = pred_target_imgs - output_mean.view(1, 3, 1, 1) + target_mean.view(1, 3, 1, 1)
-        return pred_target_imgs[None]
+        return reshape_target_data(pred_target_imgs)
 

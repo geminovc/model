@@ -41,7 +41,7 @@ class LossWrapper(nn.Module):
 
         ### Define extractors ###
         self.apply_to = [rn_utils.parse_str_to_list(s, sep=',') for s in rn_utils.parse_str_to_list(args.per_loss_apply_to, sep=';')]
-        weights_dir = pathlib.Path("/data/pantea") / 'pretrained_weights' / 'perceptual'
+        weights_dir = pathlib.Path(args.pretrained_weights_dir) / 'pretrained_weights' / 'perceptual'
 
         # Architectures for the supported networks 
         networks = {

@@ -19,7 +19,7 @@ class LossWrapper(nn.Module):
         super(LossWrapper, self).__init__()
         self.use_gpu = args.num_gpus > 0
 
-        model_path = pathlib.Path("/data/pantea") / 'pretrained_weights' / 'csim' / f'{args.csm_model}.pth'
+        model_path = pathlib.Path(args.pretrained_weights_dir) / 'pretrained_weights' / 'csim' / f'{args.csm_model}.pth'
 
         self.model = InsightFaceWrapper(model_path)
         if self.use_gpu:

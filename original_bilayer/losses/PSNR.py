@@ -11,7 +11,7 @@ from runners import utils as rn_utils
 class LossWrapper(nn.Module):
     @staticmethod
     def get_args(parser):
-        pass
+        parser.add('--psnr_loss_apply_to', type=str, help='what you want to apply psnr loss to')
     
     def __init__(self, args):
         super(LossWrapper, self).__init__()

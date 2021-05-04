@@ -11,7 +11,7 @@ python  train.py \
     --bn_momentum 1.0 \
     --calc_stats \
     --checkpoint_freq 25 \
-    --data_root /data/vision/billf/video-conf/scratch/pantea/video_conf_datasets/general_dataset\
+    --data_root /data/vision/billf/video-conf/scratch/pantea/video_conf_datasets/per_person_dataset\
     --dis_activation_type leakyrelu \
     --dis_downsampling_type avgpool \
     --dis_max_channels 512 \
@@ -51,15 +51,15 @@ python  train.py \
     --tex_upsampling_type nearest \
     --tex_activation_type leakyrelu \
     --image_size 256 \
-    --metrics \
-    --label_run : name \
+    --metrics 'lpips, PSNR'\
+    --label_run general_dataset_all_losses_trial_2 \
     --losses_test '' \
-    --losses_train 'adversarial, pixelwise'  \
+    --losses_train 'adversarial, feature_matching, perceptual    , pixelwise, segmentation, warping_regularizer' \
     --lrs 'identity_embedder: 2e-4, texture_generator: 2e-4, keypoints_embedder: 2e-4, inference_generator: 2e-4, discriminator: 2e-4'  \
     --networks_calc_stats 'identity_embedder, texture_generator, keypoints_embedder, inference_generator' \
-    --networks_test 'identity_embedder, texture_generator, keypoints_embedder, inference_generator' \
-    --networks_to_train 'identity_embedder, texture_generator, keypoints_embedder, inference_generator, discriminator' \
-    --networks_train 'identity_embedder, texture_generator, keypoints_embedder, inference_generator, discriminator' \
+    --networks_test 'identity_embedder, texture_generator, keypoints_embedder, inference_generator, unet' \
+    --networks_to_train 'identity_embedder, texture_generator, keypoints_embedder, inference_generator, discriminator, unet' \
+    --networks_train 'identity_embedder, texture_generator, keypoints_embedder, inference_generator, unet, discriminator' \
     --num_epochs 1000 \
     --num_gpus 1 \
     --num_keypoints 68 \
@@ -82,6 +82,8 @@ python  train.py \
     --pix_loss_type l1 \
     --pix_loss_weights 10.0 \
     --project_dir '.' \
+    --pretrained_weights_dir '/data/vision/billf/video-conf/scratch/vedantha'\
+    --tensorboard_dir '/data/vision/billf/video-conf/scratch/vedantha'\
     --pse_activation_type leakyrelu \
     --pse_emb_source_pose False \
     --pse_in_channels 136 \
@@ -89,9 +91,10 @@ python  train.py \
     --pse_num_blocks 4 \
     --pse_num_channels 256 \
     --pse_use_harmonic_enc False \
+    --psnr_loss_apply_to 'pred_target_imgs, target_imgs' \
     --random_seed 0 \
     --runner_name default \
-    --seg_loss_apply_to 'pred_target_segs_logits, target_segs' \
+    --seg_loss_apply_to 'pred_target_segs, target_segs' \
     --seg_loss_names BCE \
     --seg_loss_type bce \
     --seg_loss_weights 10.0 \
@@ -100,11 +103,12 @@ python  train.py \
     --stats_calc_iters 500 \
     --stickmen_thickness 2 \
     --test_freq 2 \
+    --texture_output_dim 16 \
     --use_unet True \
-    --unet_input_channels 16 \
+    --unet_input_channels 19 \
     --unet_output_channels 3 \
     --use_final_unet True \
-    --unet_inputs 'hf' \
+    --unet_inputs 'lf, hf' \
     --visual_freq '-1' \
     --wpr_loss_apply_to pred_target_delta_uvs \
     --wpr_loss_decay_schedule '-1' \
