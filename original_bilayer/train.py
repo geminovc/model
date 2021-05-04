@@ -388,8 +388,6 @@ class TrainingWrapper(object):
                     if args.debug:
                         break
 
-            # Output logs
-            logger.output_logs('test', runner.output_visuals(), runner.output_losses(), time.time() - time_start)
             
             # If creation of checkpoint is not required -- continue
             if epoch % args.checkpoint_freq and not args.debug:
