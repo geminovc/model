@@ -52,14 +52,14 @@ python  train.py \
     --tex_activation_type leakyrelu \
     --image_size 256 \
     --metrics 'lpips, PSNR'\
-    --label_run general_dataset_all_losses_trial_2 \
+    --label_run general_dataset_all_losses_trial_3_no_unet \
     --losses_test '' \
     --losses_train 'adversarial, feature_matching, perceptual    , pixelwise, segmentation, warping_regularizer' \
-    --lrs 'identity_embedder: 2e-4, texture_generator: 2e-4, keypoints_embedder: 2e-4, inference_generator: 2e-4,unet: 2e-4, discriminator: 2e-4'  \
-    --networks_calc_stats 'identity_embedder, texture_generator, keypoints_embedder, inference_generator, unet' \
-    --networks_test 'identity_embedder, texture_generator, keypoints_embedder, inference_generator, unet' \
-    --networks_to_train 'identity_embedder, texture_generator, keypoints_embedder, inference_generator, unet, discriminator' \
-    --networks_train 'identity_embedder, texture_generator, keypoints_embedder, inference_generator, unet, discriminator' \
+    --lrs 'identity_embedder: 2e-4, texture_generator: 2e-4, keypoints_embedder: 2e-4, inference_generator: 2e-4, discriminator: 2e-4'  \
+    --networks_calc_stats 'identity_embedder, texture_generator, keypoints_embedder, inference_generator' \
+    --networks_test 'identity_embedder, texture_generator, keypoints_embedder, inference_generator' \
+    --networks_to_train 'identity_embedder, texture_generator, keypoints_embedder, inference_generator, discriminator' \
+    --networks_train 'identity_embedder, texture_generator, keypoints_embedder, inference_generator, discriminator' \
     --num_epochs 1000 \
     --num_gpus 1 \
     --num_keypoints 68 \
@@ -67,7 +67,7 @@ python  train.py \
     --num_target_frames 1 \
     --num_visuals 1 \
     --num_workers_per_process 20 \
-    --optims 'identity_embedder: adam, texture_generator: adam, keypoints_embedder: adam, inference_generator: adam, unet: adam, discriminator: adam' \
+    --optims 'identity_embedder: adam, texture_generator: adam, keypoints_embedder: adam, inference_generator: adam, discriminator: adam' \
     --output_stickmen True \
     --per_full_net_names 'vgg19_imagenet_pytorch, vgg16_face_caffe' \
     --per_layer_weights '0.03125, 0.0625, 0.125, 0.25, 1.0' \
@@ -103,11 +103,10 @@ python  train.py \
     --stats_calc_iters 500 \
     --stickmen_thickness 2 \
     --test_freq 2 \
-    --texture_output_dim 16 \
-    --use_unet True \
+    --texture_output_dim 3 \
+    --use_unet False \
     --unet_input_channels 19 \
     --unet_output_channels 3 \
-    --use_final_unet True \
     --unet_inputs 'lf, hf' \
     --visual_freq '-1' \
     --wpr_loss_apply_to pred_target_delta_uvs \
