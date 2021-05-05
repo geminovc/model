@@ -33,7 +33,8 @@ class NetworkWrapper(nn.Module):
 
         parser.add('--inf_upsampling_type',      default='nearest', type=str,
                                                  help='upsampling layer inside the generator')
-        parser.add('--use_unet', default=False, type=bool, help='use unet')
+        parser.add('--use_unet',          default='True', type=rn_utils.str2bool, choices=[True, False],
+                                                                 help='apply segmentation masks to predicted and ground-truth images')
         parser.add('--unet_inputs', default='hf', type=str, help='list of unet inputs [lf, hf]') 
         parser.add('--inf_skip_layer_type',      default='ada_conv', type=str,
                                                  help='skip connection layer type')
@@ -134,7 +135,6 @@ class NetworkWrapper(nn.Module):
         pred_tex_hf_rgbs_repeated = pred_tex_hf_rgbs_repeated.view(b*t, *pred_tex_hf_rgbs.shape[1:])
 
         pred_target_delta_hf_rgbs = F.grid_sample(pred_tex_hf_rgbs_repeated, pred_target_uvs)
-
         # Final image
         if not self.args.use_unet:
             pred_target_imgs = pred_target_delta_lf_rgbs + pred_target_delta_hf_rgbs
@@ -161,6 +161,9 @@ class NetworkWrapper(nn.Module):
         ### Store outputs ###
         reshape_target_data = lambda data: data.view(b, t, *data.shape[1:])
         reshape_source_data = lambda data: data.view(b, n, *data.shape[1:])
+
+        if not self.args.use_unet:
+            data_dict['pred_target_delta_hf_rgbs']=reshape_target_data(pred_target_delta_hf_rgbs)
         if not self.args.use_unet:
             data_dict['pred_target_imgs'] = reshape_target_data(pred_target_imgs)
 
@@ -344,7 +347,6 @@ class Generator(nn.Module):
         # Set options for the blocks
         num_blocks = int(math.log(args.image_size // args.inf_input_tensor_size, 2))
         out_channels = min(int(args.inf_num_channels * 2**num_blocks), args.inf_max_channels)
-
         # Construct the upsampling blocks
         layers = []
 

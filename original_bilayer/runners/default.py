@@ -261,7 +261,7 @@ class RunnerWrapper(nn.Module):
             lr = nets_lrs[net_name]
             optim_name = optim_name.lower()
             params = self.nets[net_name].parameters()
-
+            print(net_name, 'opted')
             # Choose the required optimizer
             if optim_name == 'adam':
                 opt = optim.Adam(params, lr=lr, eps=args.eps, betas=(args.adam_beta1, 0.999))
