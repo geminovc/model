@@ -1,6 +1,6 @@
 cd ../
      python  train.py \
-    --experiment_name 'all_networks_frozen_except_after_upsampling_blocks_in_texture_generator' \
+    --experiment_name 'no_networks_frozen_except_first_layers_of_texture_generator_and_inference_generator' \
     --pretrained_weights_dir /video-conf/scratch/pantea \
     --images_log_rate 400 \
     --metrics_log_rate 100 \
@@ -43,7 +43,6 @@ cd ../
     --frame_num_from_paper False \
     --inf_activation_type leakyrelu \
     --inf_apply_masks False \
-    --inf_calc_grad False \
     --inf_max_channels 256 \
     --inf_norm_layer_type ada_bn \
     --inf_num_channels 32 \
@@ -69,8 +68,9 @@ cd ../
     --lrs 'identity_embedder: 2e-4, texture_generator: 2e-4, keypoints_embedder: 2e-4, inference_generator: 2e-4, discriminator: 2e-4'  \
     --networks_calc_stats 'identity_embedder, texture_generator, keypoints_embedder, inference_generator' \
     --networks_test 'identity_embedder, texture_generator, keypoints_embedder, inference_generator' \
-    --networks_to_train 'identity_embedder, texture_generator, keypoints_embedder, inference_generator, discriminator' \
+    --networks_to_train 'identity_embedder, texture_generator, keypoints_embedder, inference_generator, discriminator'   \
     --networks_train 'identity_embedder, texture_generator, keypoints_embedder, inference_generator, discriminator' \
+    --inf_calc_grad True \
     --num_epochs 5000 \
     --num_gpus 1 \
     --num_keypoints 68 \

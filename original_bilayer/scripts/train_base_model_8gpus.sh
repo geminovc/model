@@ -71,7 +71,7 @@ cd ../
     --networks_test 'identity_embedder, texture_generator, keypoints_embedder, inference_generator' \
     --networks_to_train 'identity_embedder, texture_generator, keypoints_embedder, inference_generator, discriminator' \
     --networks_train 'identity_embedder, texture_generator, keypoints_embedder, inference_generator, discriminator' \
-    --num_epochs 100000 \
+    --num_epochs 5000 \
     --num_gpus 1 \
     --num_keypoints 68 \
     --num_source_frames 1 \
