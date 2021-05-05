@@ -1,6 +1,6 @@
 cd ../
      python  train.py \
-    --experiment_name 'from_paper_pretrained_inf_apply_mask_false_skip_test_true_29_Apr' \
+    --experiment_name 'all_networks_frozen_except_after_upsampling_blocks_in_texture_generator' \
     --pretrained_weights_dir /video-conf/scratch/pantea \
     --images_log_rate 400 \
     --metrics_log_rate 100 \
@@ -13,13 +13,13 @@ cd ../
     --adv_loss_weight 0.5 \
     --adv_pred_type ragan \
     --amp_loss_scale dynamic \
-    --experiment_dir /video-conf/scratch/pantea/video_conf_datasets/per_video_dataset/results  \
+    --experiment_dir /video-conf/scratch/pantea/video_conf_datasets/per_person_dataset/results  \
     --amp_opt_level O0 \
     --batch_size 2 \
     --bn_momentum 1.0 \
     --calc_stats \
     --checkpoint_freq 100 \
-    --data_root /video-conf/scratch/pantea/video_conf_datasets/per_video_dataset \
+    --data_root /video-conf/scratch/pantea/video_conf_datasets/per_person_dataset \
     --dis_activation_type leakyrelu \
     --dis_downsampling_type avgpool \
     --dis_max_channels 512 \
@@ -121,10 +121,14 @@ cd ../
     --init_networks 'identity_embedder, texture_generator, keypoints_embedder, inference_generator, discriminator' \
     --init_which_epoch 2225 \
     --skip_test True \
+    --frozen_networks ' texture_generator, inference_generator' \
+    --unfreeze_texture_generator_last_layers True \
+    --unfreeze_inference_generator_last_layers True \
+    --replace_AdaSpade_with_conv False \
     --freeze_discriminator False \
     --freeze_identity_embedder False \
-    --freeze_texture_generator False \
     --freeze_keypoints_embedder False \
     --freeze_inference_generator False 
+
 
    

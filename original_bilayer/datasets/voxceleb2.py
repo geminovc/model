@@ -188,7 +188,7 @@ class DatasetWrapper(data.Dataset):
 
             # Read images
             img_path = pathlib.Path(self.imgs_dir) / filename.with_suffix('.jpg')
-            
+
             
             try:
                 img = Image.open(img_path)

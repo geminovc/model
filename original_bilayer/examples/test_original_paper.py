@@ -43,8 +43,8 @@ module = InferenceWrapper(args_dict)
 
 
 input_data_dict = {
-    'source_imgs': np.asarray(Image.open('images/0-1.jpg')), # H x W x 3
-    'target_imgs': np.asarray(Image.open('images/0.jpg'))[None]} # B x H x W x # 3
+    'source_imgs': np.asarray(Image.open('images/20.jpg')), # H x W x 3
+    'target_imgs': np.asarray(Image.open('images/109.jpg'))[None]} # B x H x W x # 3
 
 now = time.time()
 output_data_dict = module(input_data_dict)

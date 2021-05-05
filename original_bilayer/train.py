@@ -94,7 +94,7 @@ class TrainingWrapper(object):
         parser.add('--num_workers_per_process',  default=20, type=int,
                                                  help='number of workers used for data loading in each process')
         
-        parser.add('--skip_test',                action='store_true',
+        parser.add('--skip_test',                default='False', type=rn_utils.str2bool, choices=[True, False],
                                                  help='do not perform testing')
         
         parser.add('--calc_stats',               action='store_true',
@@ -157,6 +157,19 @@ class TrainingWrapper(object):
 
         parser.add('--test_load_from_filename', default='test_filnames.txt', type=str,
                                                 help='filename that we read the testing dataset images from if dataset_load_from_txt==True')  
+        
+        parser.add('--frozen_networks',            default='', type=str,
+                                                 help='list of frozen networks')
+
+        parser.add('--unfreeze_texture_generator_last_layers',     default='True', type=rn_utils.str2bool, choices=[True, False],
+                                                help='set to false if you want to freeze the last layers (after up samlping blocks) in the texture generator')
+
+        parser.add('--unfreeze_inference_generator_last_layers',     default='False', type=rn_utils.str2bool, choices=[True, False],
+                                                help='set to false if you want to freeze the last layers (after up samlping blocks) in the inference generator')
+
+        parser.add('--save_initial_test_before_training',     default='True', type=rn_utils.str2bool, choices=[True, False],
+                                                help='save how he model performs on test before training, useful for sanity check')    
+
 
         # Technical options that are set automatically
         parser.add('--local_rank', default=0, type=int)
@@ -216,7 +229,7 @@ class TrainingWrapper(object):
                 sys.stderr = open(os.path.join(logs_dir, f'stderr_{args.rank}.txt'), 'w')
 
             if args.rank == 0:
-                print(args)
+                #print(args)
                 with open(self.experiment_dir / 'args.txt', 'wt') as args_file:
                     for k, v in sorted(vars(args).items()):
                         args_file.write('%s: %s\n' % (str(k), str(v)))
@@ -231,22 +244,73 @@ class TrainingWrapper(object):
 
         # Load pre-trained weights (if needed)
         init_networks = rn_utils.parse_str_to_list(args.init_networks) if args.init_networks else {}
+        frozen_networks = rn_utils.parse_str_to_list(args.frozen_networks) if args.frozen_networks else {}
         networks_to_train = self.runner.nets_names_to_train
+        #nets_frozen_networks_dict= rn_utils.parse_str_to_dict(args.frozen_networks_dict)
 
         if args.init_which_epoch != 'none' and args.init_experiment_dir:
             for net_name in init_networks:
-                self.runner.nets[net_name].load_state_dict(torch.load(pathlib.Path(args.init_experiment_dir) / 'checkpoints' / f'{args.init_which_epoch}_{net_name}.pth', map_location='cpu'))
+                self.runner.nets[net_name].load_state_dict(torch.load(pathlib.Path(args.init_experiment_dir) / 'checkpoints' / f'{args.init_which_epoch}_{net_name}.pth', map_location='cpu'))    
+                if net_name in frozen_networks: #dictionary
+                    for p in self.runner.nets[net_name].parameters():
+                        p.requires_grad = False
+                    
+                    #for unfreezed_layer_name in frozen_networks[net_name]['unfreezed_layers']:
+                    #    getattr(self.runner.nets[net_name], unfreezed_layer_name).requires_grad=True
+                    #    --frozen_networks '{'texture_generator': {'unfreezed_layers':['layer_1','layer_2']}}'
+
+                        #frozen_networks ={'texture_generator': {'unfreezed_layers':['layer_1','layer_2']}}
+                if net_name == "texture_generator" and net_name in frozen_networks and args.unfreeze_texture_generator_last_layers: 
+                    for name, module in self.runner.nets[net_name].named_children():
+                        if name == 'prj_tex':
+                            print()
+                        if name =='gen_tex':
+                            for subname, submodule in module.named_children():
+                                if subname == 'heads':
+                                    print("unfreezing heads for texture generator in gen_tex ...")
+                                    for p in submodule.parameters():
+                                        p.requires_grad = True
+                                if subname == 'blocks':
+                                    for subsubname, subsubmodule in submodule.named_children():
+                                        if int(subsubname) > 5:
+                                            print("unfreezing after AdaSpade for texture generator in gen_tex ...")
+                                            for p in subsubmodule.parameters():
+                                                p.requires_grad = True
+
+
+
+                if net_name == "inference_generator" and net_name in frozen_networks and args.unfreeze_inference_generator_last_layers: 
+                    for name, module in self.runner.nets[net_name].named_children():
+                        if name =='prj_inf':
+                            print()                        
+                        if name =='gen_inf':
+                            for subname, submodule in module.named_children():
+                                if subname == 'heads':
+                                    print("unfreezing heads for inference generator in gen_inf ...")
+                                    for p in submodule.parameters():
+                                        p.requires_grad = True
+                                if subname == 'blocks':
+                                    for subsubname, subsubmodule in submodule.named_children():
+                                        if int(subsubname) > 5:
+                                            print("unfreezing after AdaSpade for inference generator in gen_inf ...")
+                                            for p in subsubmodule.parameters():
+                                                p.requires_grad = True
+
+
+
 
         if args.which_epoch != 'none':
             for net_name in networks_to_train:
                 if net_name not in init_networks:
                     self.runner.nets[net_name].load_state_dict(torch.load(self.checkpoints_dir / f'{args.which_epoch}_{net_name}.pth', map_location='cpu'))
 
+                    
         if args.num_gpus > 0:
             self.runner.cuda()
 
         if args.rank == 0:
-            print(self.runner)
+            print()
+            #print("runner is: ",self.runner)
 
         #If we are reading from the data filenames from a txt file, there is no need to store it again
         #commented to test 
@@ -361,20 +425,54 @@ class TrainingWrapper(object):
         total_iters = 1
         iter_count = 0
 
+        # Adding the first test image on the logger for sanity check
+        if args.save_initial_test_before_training:
+            print("Testing the model before starts training for sanity check")
+            # Calculate "standing" stats for the batch normalization
+            train_dataloader.dataset.shuffle()
+            if args.calc_stats:
+                runner.calculate_batchnorm_stats(train_dataloader, args.debug)
+
+            # Test
+            time_start = time.time()
+            model.eval()
+
+            test_dataloader.dataset.shuffle()
+            for data_dict in test_dataloader:
+                # Prepare input data
+                if args.num_gpus > 0:
+                    for key, value in data_dict.items():
+                        data_dict[key] = value.cuda()
+
+                # Forward pass
+                with torch.no_grad():
+                    model(data_dict)
+                
+                if args.debug:
+                    break
+
+            # Output logs
+            logger.output_logs('test', runner.output_visuals(), runner.output_losses(), time.time() - time_start)
+            
+
+
+
+
         for epoch in range(epoch_start, args.num_epochs + 1):
             self.epoch_start = time.time()
             if args.rank == 0: 
                 print('epoch %d' % epoch)
 
+            # Train for one epoch from now on
 
-            # Train for one epoch
-            model.train()
+            # Initiate all the networks in the training mode 
+            model.train() 
             time_start = time.time()
 
 
             # Shuffle the dataset before the epoch
             train_dataloader.dataset.shuffle()
-            for i, data_dict in enumerate(train_dataloader, 1): 
+            for i, data_dict in enumerate(train_dataloader, 1):
                 iter_count+=1 
                 # Prepare input data
                 if args.num_gpus > 0 and args.num_gpus > 0:
@@ -478,11 +576,11 @@ class TrainingWrapper(object):
             train_dataloader.dataset.epoch += 1
 
             # If testing is not required -- continue
-            if epoch % args.test_freq:
+            if epoch % args.test_freq != 0:
                 continue
-
             # If skip test flag is set -- only check if a checkpoint if required
             if not args.skip_test:
+                print("Testing the model in epoch ", epoch)
                 # Calculate "standing" stats for the batch normalization
                 if args.calc_stats:
                     runner.calculate_batchnorm_stats(train_dataloader, args.debug)
@@ -491,11 +589,14 @@ class TrainingWrapper(object):
                 time_start = time.time()
                 model.eval()
 
+                test_dataloader.dataset.shuffle()
                 for data_dict in test_dataloader:
                     # Prepare input data
                     if args.num_gpus > 0:
                         for key, value in data_dict.items():
                             data_dict[key] = value.cuda()
+
+                    
 
                     # Forward pass
                     with torch.no_grad():

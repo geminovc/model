@@ -1,7 +1,8 @@
 cd ../
      python  train.py \
-    --experiment_name 'from_base_paper_randomizaion' \
+    --experiment_name 'sanity_check' \
     --pretrained_weights_dir /video-conf/scratch/pantea \
+    --save_initial_test_before_training True \
     --images_log_rate 100 \
     --metrics_log_rate 100 \
     --random_seed 0 \
@@ -13,13 +14,13 @@ cd ../
     --adv_loss_weight 0.5 \
     --adv_pred_type ragan \
     --amp_loss_scale dynamic \
-    --experiment_dir /video-conf/scratch/pantea/video_conf_datasets/per_video_dataset/results \
+    --experiment_dir /video-conf/scratch/pantea/video_conf_datasets/per_person_dataset/results \
     --amp_opt_level O0 \
     --batch_size 2 \
     --bn_momentum 1.0 \
     --calc_stats \
     --checkpoint_freq 100 \
-    --data_root /video-conf/scratch/pantea/video_conf_datasets/per_video_dataset \
+    --data_root /video-conf/scratch/pantea/video_conf_datasets/per_person_dataset \
     --dis_activation_type leakyrelu \
     --dis_downsampling_type avgpool \
     --dis_max_channels 512 \
@@ -109,17 +110,11 @@ cd ../
     --stats_calc_iters 500 \
     --stickmen_thickness 2 \
     --test_freq 50 \
-    --visual_freq '50' \
+    --visual_freq '10' \
     --wpr_loss_apply_to pred_target_delta_uvs \
     --wpr_loss_decay_schedule '-1' \
     --wpr_loss_type l1 \
     --wpr_loss_weight 0.0 \
     --wpr_loss_weight_decay 1.0 \
     --nme_num_threads 1 \
-    --skip_test True \
-    --freeze_discriminator False \
-    --freeze_identity_embedder False \
-    --freeze_texture_generator False \
-    --freeze_keypoints_embedder False \
-    --freeze_inference_generator False 
-   
+    --skip_test False \
