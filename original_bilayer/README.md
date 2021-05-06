@@ -47,7 +47,19 @@ CUDA_VISIBLE_DEVICES=<YOUR_CUDA_ID> bash train_with_pretrained_weights_of_paper.
 
 We introduced some sets of flags for training:
 * `experiment_name`: name of your experiment, we suggest you change your name to something meaningful to distinguish between your experiments
-* `pretrained_weights_dir`: After downloading the [pre-trained weights](### Pre-trained Weights)
+* `pretrained_weights_dir`: After downloading the pre-trained weights, you should edit this directory to point to the correct directory containing the pretrained weights.
+* `images_log_rate`: It is the rate that train images are saved in `metrics` tensorboard folder. 
+* `metrics_log_rate`: It is the rate that model metrics such as PSNR and LPIPS are saved in `metrics` tensorboard folder. 
+* `random_seed`: The random seed that is used while randomly selecting test and train images from dataset. If you want to re-run an experiment, make sure to choose the same random seed.
+* `save_dataset_filenames`: If you want to save the filenames of the data that you use while training or testing, set this flag to True; otherwise, set it to Fasle. The used train data will be saved in `train_filenames.txt` in the experiment directory in the format of:
+```
+data-root: <YOUR_DATA_ROOT>
+source1: <PATH_TO_SOURCE1>
+target1: <PATH_TO_TARGET1>
+...
+```
+The used test data will be also be saved in `test_filenames.txt` in the experiment directory in the same format. This flag automatically deletes the previous files with the name `[train, test]_filenames.txt`.
+
 
 ## Tensorboard
 The tensorboard results are stored in two `tensorboard_paper` and `metrics` folders in `experiment_dir/runs/experiment_name` directory. They and can be viewed using tensorboard (on a browser at the reported port after running this command).
