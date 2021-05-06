@@ -65,7 +65,7 @@ The used test data will be also be saved in `test_filenames.txt` in the experime
 * `data_root`: You can choose the root of your data in this flag. For example, if you want to run an experiment on the per_person dataset, put `data_root: /video-conf/scratch/pantea/video_conf_datasets/per_person_dataset`. 
 * `output_segmentation`: If you want to enable computing the predicted image's segmentation set this flag to True. You will be able to see the segmentation in the saved images.
 * `emb_apply_masks`: If you want the embedding network to use the segmentation mask, set this variable to True. 
-* `frame_num_from_paper`: If you want to use the paper's approach in selecting the train and test images, set this variable to True. If you set this variable to `False`, the source and the target images are  
+* `frame_num_from_paper`: If you want to use the paper's approach in selecting the train and test images, set this variable to True. If you set this variable to `False`, the source and the target images are randomly picked from all the sessions of one video.   
 
 ## Results folder
 
