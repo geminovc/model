@@ -43,6 +43,11 @@ If you want to train your model from paper's released checkpoints, you should ru
 cd scripts
 CUDA_VISIBLE_DEVICES=<YOUR_CUDA_ID> bash train_with_pretrained_weights_of_paper.sh
 ```
+### Flags in script files 
+
+We introduced some sets of flags for training:
+* `experiment_name`: name of your experiment, we suggest you change your name to something meaningful to distinguish between your experiments
+* `pretrained_weights_dir`: After downloading the [pre-trained weights](### Pre-trained Weights)
 
 ## Tensorboard
 The tensorboard results are stored in two `tensorboard_paper` and `metrics` folders in `experiment_dir/runs/experiment_name` directory. They and can be viewed using tensorboard (on a browser at the reported port after running this command).
