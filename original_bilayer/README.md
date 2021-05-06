@@ -58,7 +58,16 @@ source1: <PATH_TO_SOURCE1>
 target1: <PATH_TO_TARGET1>
 ...
 ```
-The used test data will be also be saved in `test_filenames.txt` in the experiment directory in the same format. This flag automatically deletes the previous files with the name `[train, test]_filenames.txt`.
+The used test data will be also be saved in `test_filenames.txt` in the experiment directory in the same format. This flag automatically deletes the previous files with the name `[train, test]_filenames.txt`. Make sure to set this flag to False if you don't want to save the image paths; otherwise, it will store a lot of data.
+* `dataset_load_from_txt`: If you set this flag to True, the training happens on the train and test images from the `.txt` files that you provide in `train_load_from_filename` and `test_load_from_filename` respectively. 
+* `experiment_dir`: Your experiment results be will saved in this main directory under `experiment_dir/runs/experiment_name`.
+* `checkpoint_freq`: You can sepcify the frequency of storing the the model checkpoints with this flag. The model saves the checkpoints each `checkpoint_freq` epochs.
+* `data_root`: You can choose the root of your data in this flag. For example, if you want to run an experiment on the per_person dataset, put `data_root: /video-conf/scratch/pantea/video_conf_datasets/per_person_dataset`. 
+* `output_segmentation`: If you want to enable computing the predicted image's segmentation set this flag to True. You will be able to see the segmentation in the saved images.
+* `emb_apply_masks`: If you want the embedding network to use the segmentation mask, set this variable to True. 
+* `frame_num_from_paper`: If you want to use the paper's approach in selecting the train and test images, set this variable to True. If you set this variable to `False`, the source and the target images are  
+
+## Results folder
 
 
 ## Tensorboard
