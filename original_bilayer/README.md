@@ -1,81 +1,83 @@
-# Fast Bi-layer Neural Synthesis of One-Shot Realistic Head Avatars
+# Running the bilayer model
 
-A project on the speed up of one-shot adversarially trained human pose to image translation models for mobile devices.
+## Setup
+### Conda Environment
+Install [Conda](https://docs.conda.io/projects/conda/en/latest/user-guide/install/index.html) and 
+initialize your shell by running `conda init <YOUR_SHELL_NAME>`.
 
-<img src="https://saic-violet.github.io/bilayer-model/assets/teaser.png"/>
-
-## Installation
-
-* Python 3.7
-* Pytorch 1.3 or higher
-* Apex (is required only for training, needs to be built from https://github.com/NVIDIA/apex)
-* Face-alignment (https://github.com/1adrianb/face-alignment)
-* Other packages are in requirements.txt
-* Download pretrained_weights and runs from https://drive.google.com/drive/folders/11SwIYnk3KY61d8qa17Nlb0BN9j57B3L6
-
-## Inference API usage
-
-```python
-import argparse
-from infer import InferenceWrapper
-
-args_dict = {
-    'project_dir': '.',
-    'init_experiment_dir': './runs/vc2-hq_adrianb_paper_main',
-    'init_networks': 'identity_embedder, texture_generator, keypoints_embedder, inference_generator',
-    'init_which_epoch': '2225',
-    'num_gpus': 1,
-    'experiment_name': 'vc2-hq_adrianb_paper_enhancer',
-    'which_epoch': '1225',
-    'spn_networks': 'identity_embedder, texture_generator, keypoints_embedder, inference_generator, texture_enhancer',
-    'enh_apply_masks': False,
-    'inf_apply_masks': False}
-
-# Initialization
-module = InferenceWrapper(args_dict)
-
-# Input data for intiialization and inference
-data_dict = {
-    'source_imgs': ..., # Size: H x W x 3, type: NumPy RGB uint8 image
-    'target_imgs': ..., # Size: NUM_FRAMES x H x W x 3, type: NumPy RGB uint8 images
-}
-
-# Inference
-data_dict = module(data_dict)
-
-# Outputs (images are in [-1, 1] range, segmentation masks -- in [0, 1])
-imgs = data_dict['pred_enh_target_imgs']
-segs = data_dict['pred_target_segs']
+Clone and setup new environment, check that it has been created and activate it.
+```bash
+conda env create -f environment.yml
+conda env list
+conda activate bilayer
 ```
 
-For a concrete inference example, please refer to examples/inference.ipynb.
+### Pre-trained Weights 
+Download the `pretrained-weights` folder from [here](https://drive.google.com/drive/folders/11SwIYnk3KY61d8qa17Nlb0BN9j57B3L6). You should put the name of this downloaded directory in `--pretrained_weights_dir` in the scripts. 
+The pre-trained weights are courtesy [Fast Bi-layer Neural Synthesis of One-Shot Realistic Head Avatars](https://arxiv.org/abs/2008.10174) by Zakharov et. al.
 
-## Training
+If you want to train your model based on the paper's released checkpoints, you should download the `runs` folder from [here](https://drive.google.com/drive/folders/11SwIYnk3KY61d8qa17Nlb0BN9j57B3L6), and put the folder in the same directory as your downloaded `pretrained-weights` above.  
 
-The example training scripts are in the scripts folder. The base model is trained first, the texture enhancer is trained afterwards. In order to reproduce the results from the paper, 8 GPUs with at least 24 GBs of memory are required, since batch normalization layers may be sensitive to the batch size.
+### Datasets
 
-## Datasets
+The model expects the frames to be located in a directory organization similar to [VoxCeleb2](https://www.robots.ox.ac.uk/~vgg/data/voxceleb/vox2.html). We have created three datasets matching the VoxCeleb2 format. The structure is as the following:
 
-Supported datasets should have the same structure as VoxCeleb2 (http://www.robots.ox.ac.uk/~vgg/data/voxceleb/vox2.html) dataset:
+`DATA_ROOT/[imgs, keypoints, segs]/[train, test]/PERSON_ID/VIDEO_ID/SEQUENCE_ID/FRAME_NUM[.jpg, .npy, .png]`
 
-```DATA_ROOT/[imgs, keypoints, segs]/[train, test]/PERSON_ID/VIDEO_ID/SEQUENCE_ID/FRAME_NUM[.jpg, .npy, .png]```
+`DATA_ROOT` is the root of your dataset. We have three datasets so far for different experiments: 
+* General Dataset: This dataset contains all the data in the VoxCeleb2. We sampled the frames with a `--sampling_rate`. It is currently stored in `/video-conf/scratch/pantea/video_conf_datasets/general_dataset`.
+* Per-person Dataset: This dataset contains all the data from one person. We usually use this dataset for our personalization. It is currently stored in `/video-conf/scratch/pantea/video_conf_datasets/per_person_dataset`.
+* Per-video Dataset: This dataset contains all the data from one video. We usually use this dataset for online learning. It is currently stored in `/video-conf/scratch/pantea/video_conf_datasets/per_video_dataset`.
 
-Please refer to the link above for more details.
+In each of the `DATA_ROOT`s above, there are three folders `[imgs, keypoints, segs]` contating the `keypoints` as `.png` and `seg`mentations as `.npy` corresponding to the `imgs` as `.jpg`. In each of them, there are `[train, test]` data in seperate folders in the format of VoxCeleb2 `PERSON_ID/VIDEO_ID/SEQUENCE_ID`.  
 
-Additionally, all training data must be annotated with keypoints obtained using face-alignment (or any other keypoints detection) library before training. Annotation with segmentation masks is optional, yet it significantly improves the performance of the method.
 
-## Links
-
-- Project page: https://saic-violet.github.io/bilayer-model
-- ArXiv: https://arxiv.org/abs/2008.10174
-- YouTube: https://youtu.be/54tji11VhOI
-
-## Citation
+## Training 
+If you want to train your model from scratch, you should run:
+```bash
+cd scripts
+CUDA_VISIBLE_DEVICES= <YOUR_CUDA_ID>  bash train_base_model_8gpus.sh 
 ```
-@InProceedings{Zakharov20,
-  author={Zakharov, Egor and Ivakhnenko, Aleksei and Shysheya, Aliaksandra and Lempitsky, Victor},
-  title={Fast Bi-layer Neural Synthesis of One-Shot Realistic Head Avatars},
-  booktitle = {European Conference of Computer vision (ECCV)},
-  month = {August},
-  year = {2020}}
+If you want to train your model from paper's released checkpoints, you should run:
+```bash
+cd scripts
+CUDA_VISIBLE_DEVICES=<YOUR_CUDA_ID> bash train_with_pretrained_weights_of_paper.sh
+```
+### Flags in script files 
+
+We introduced some sets of flags for training:
+* `experiment_name`: name of your experiment, we suggest you change your name to something meaningful to distinguish between your experiments
+* `pretrained_weights_dir`: After downloading the pre-trained weights, you should edit this directory to point to the correct directory containing the pretrained weights.
+* `images_log_rate`: It is the rate that train images are saved in `metrics` tensorboard folder. 
+* `metrics_log_rate`: It is the rate that model metrics such as PSNR and LPIPS are saved in `metrics` tensorboard folder. 
+* `random_seed`: The random seed that is used while randomly selecting test and train images from dataset. If you want to re-run an experiment, make sure to choose the same random seed.
+* `save_dataset_filenames`: If you want to save the filenames of the data that you use while training or testing, set this flag to True; otherwise, set it to Fasle. The used train data will be saved in `train_filenames.txt` in the experiment directory in the format of:
+```
+data-root: <YOUR_DATA_ROOT>
+source1: <PATH_TO_SOURCE1>
+target1: <PATH_TO_TARGET1>
+...
+```
+The used test data will be also be saved in `test_filenames.txt` in the experiment directory in the same format. This flag automatically deletes the previous files with the name `[train, test]_filenames.txt`. Make sure to set this flag to False if you don't want to save the image paths; otherwise, it will store a lot of data.
+* `dataset_load_from_txt`: If you set this flag to True, the training happens on the train and test images from the `.txt` files that you provide in `train_load_from_filename` and `test_load_from_filename` respectively. 
+* `experiment_dir`: Your experiment results be will saved in this main directory under `experiment_dir/runs/experiment_name`.
+* `checkpoint_freq`: You can sepcify the frequency of storing the the model checkpoints with this flag. The model saves the checkpoints each `checkpoint_freq` epochs.
+* `data_root`: You can choose the root of your data in this flag. For example, if you want to run an experiment on the per_person dataset, put `data_root: /video-conf/scratch/pantea/video_conf_datasets/per_person_dataset`. 
+* `output_segmentation`: If you want to enable computing the predicted image's segmentation set this flag to True. You will be able to see the segmentation in the saved images.
+* `emb_apply_masks`: If you want the embedding network to use the segmentation mask, set this variable to True. 
+* `frame_num_from_paper`: If you want to use the paper's approach in selecting the train and test images, set this variable to True. If you set this variable to `False`, the source and the target images are randomly picked from all the sessions of one video.   
+* `losses_test`: You can choose what losses to compute when testing the model; for example:  `--losses_test 'lpips, csim'`.
+* `metrics`: You can choose what metrics you want to store; for example:  `metrics: 'PSNR, lpips, pose_matching_metric'`.
+* `networks_test`: Order of forward passes during the training of gen (or gen and dis for sim sgd).
+* `networks_train`: Order of forward passes during testing.
+* `networks_to_train`: Names of networks that are being trained.
+* ``
+
+## Results folder
+
+
+## Tensorboard
+The tensorboard results are stored in two `tensorboard_paper` and `metrics` folders in `experiment_dir/runs/experiment_name` directory. They and can be viewed using tensorboard (on a browser at the reported port after running this command).
+```bash
+tensorboard --bind_all --logdir=<PATH_TO_TENSORBOARD>
 ```
