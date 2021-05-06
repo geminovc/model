@@ -1,6 +1,6 @@
 cd ../
      python  train.py \
-    --experiment_name 'no_networks_frozen_except_first_layers_of_texture_generator_and_inference_generator' \
+    --experiment_name 'all_networks_frozen_except_after_upsampling_blocks_in_texture_generator_and_inference_generator' \
     --pretrained_weights_dir /video-conf/scratch/pantea \
     --images_log_rate 400 \
     --metrics_log_rate 100 \
@@ -13,7 +13,7 @@ cd ../
     --adv_loss_weight 0.5 \
     --adv_pred_type ragan \
     --amp_loss_scale dynamic \
-    --experiment_dir /video-conf/scratch/pantea/video_conf_datasets/per_person_dataset/results  \
+    --experiment_dir /video-conf/scratch/pantea_experiments_chunky \
     --amp_opt_level O0 \
     --batch_size 2 \
     --bn_momentum 1.0 \
@@ -71,7 +71,7 @@ cd ../
     --networks_to_train 'identity_embedder, texture_generator, keypoints_embedder, inference_generator, discriminator'   \
     --networks_train 'identity_embedder, texture_generator, keypoints_embedder, inference_generator, discriminator' \
     --inf_calc_grad True \
-    --num_epochs 5000 \
+    --num_epochs 8000 \
     --num_gpus 1 \
     --num_keypoints 68 \
     --num_source_frames 1 \
@@ -120,8 +120,8 @@ cd ../
     --init_experiment_dir /video-conf/scratch/pantea/bilayer_paper_runs/vc2-hq_adrianb_paper_main \
     --init_networks 'identity_embedder, texture_generator, keypoints_embedder, inference_generator, discriminator' \
     --init_which_epoch 2225 \
-    --skip_test True \
-    --frozen_networks ' texture_generator, inference_generator' \
+    --skip_test False \
+    --frozen_networks 'identity_embedder, keypoints_embedder, texture_generator, inference_generator' \
     --unfreeze_texture_generator_last_layers True \
     --unfreeze_inference_generator_last_layers True \
     --replace_AdaSpade_with_conv False \

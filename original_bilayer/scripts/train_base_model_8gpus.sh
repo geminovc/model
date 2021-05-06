@@ -14,7 +14,7 @@ cd ../
     --adv_loss_weight 0.5 \
     --adv_pred_type ragan \
     --amp_loss_scale dynamic \
-    --experiment_dir /video-conf/scratch/pantea/video_conf_datasets/per_person_dataset/results \
+    --experiment_dir /video-conf/scratch/pantea_experiments_chunky \
     --amp_opt_level O0 \
     --batch_size 2 \
     --bn_momentum 1.0 \
