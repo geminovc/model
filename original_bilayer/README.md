@@ -47,7 +47,7 @@ CUDA_VISIBLE_DEVICES=<YOUR_CUDA_ID> bash train_with_pretrained_weights_of_paper.
 
 We introduced some sets of flags for training:
 * `experiment_name`: name of your experiment, we suggest you change your name to something meaningful to distinguish between your experiments
-* `pretrained_weights_dir`: After downloading the pre-trained weights, you should edit this directory to point to the correct directory containing the pretrained weights.
+* `pretrained_weights_dir`: After downloading the [pre-trained weights](### Pre-trained Weights), you should edit this directory to point to the correct directory containing the pretrained weights.
 * `images_log_rate`: It is the rate that train images are saved in `metrics` tensorboard folder. 
 * `metrics_log_rate`: It is the rate that model metrics such as PSNR and LPIPS are saved in `metrics` tensorboard folder. 
 * `random_seed`: The random seed that is used while randomly selecting test and train images from dataset. If you want to re-run an experiment, make sure to choose the same random seed.
