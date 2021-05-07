@@ -14,7 +14,7 @@ cd ../
     --adv_pred_type ragan \
     --amp_loss_scale dynamic \
     --experiment_dir /video-conf/scratch/pantea_experiments_chunky \
-    --amp_opt_level O0 \
+    --amp_opt_level  O0 \
     --batch_size 2 \
     --bn_momentum 1.0 \
     --calc_stats \
