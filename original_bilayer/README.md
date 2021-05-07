@@ -99,4 +99,10 @@ tensorboard --bind_all --logdir=<PATH_TO_TENSORBOARD>
 ```
 ## Inference
 
-For inference, you can currently use 
+For inference, you can currently use `examples/inference.py` file. Change the followings in the file to generate a new predicted target image:
+
+* `experiment_name`: The name of the experiment that you want to test
+* `experiment_dir` : The root of experiments
+* `init_which_epoch`: The epoch that you want to test
+* `source_path`: Path to your source image
+* `target_path`: Path to your target image
