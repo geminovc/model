@@ -211,7 +211,8 @@ class TrainingWrapper(object):
             self.runner.cuda()
 
         if args.rank == 0:
-            print(self.runner)
+            pass
+            #print(self.runner)
 
     def train(self, args):
         # Reset amp
@@ -234,7 +235,6 @@ class TrainingWrapper(object):
 
         if args.use_half:
             runner.half()
-
         # Initialize optimizers, schedulers and apex
         opts = runner.get_optimizers(args)
 
@@ -388,6 +388,7 @@ class TrainingWrapper(object):
                     if args.debug:
                         break
 
+            logger.output_logs('test', runner.output_visuals(), runner.output_losses(), runner.output_metrics(), time.time() - time_start)
             
             # If creation of checkpoint is not required -- continue
             if epoch % args.checkpoint_freq and not args.debug:
