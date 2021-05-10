@@ -31,6 +31,14 @@ The model expects the frames to be located in a directory organization similar t
 
 In each of the `DATA_ROOT`s above, there are three folders `[imgs, keypoints, segs]` contating the `keypoints` as `.png` and `seg`mentations as `.npy` corresponding to the `imgs` as `.jpg`. In each of them, there are `[train, test]` data in seperate folders in the format of VoxCeleb2 `PERSON_ID/VIDEO_ID/SEQUENCE_ID`.  
 
+### Making the datasets from videos
+
+If you want to make a dataset from videos to use as your train or test data, your videos should be stored in this format:
+
+`VIDEO_ROOT/PERSON_ID/VIDEO_ID/SEQUENCE_ID[.mp4]`
+
+After formating your videos in such order, you can generate the `[imgs, keypoints, segs]` using our `` module. 
+
 
 ## Training 
 If you want to train your model from scratch, you should run:
