@@ -47,7 +47,7 @@ CUDA_VISIBLE_DEVICES=<YOUR_CUDA_ID> bash train_with_pretrained_weights_of_paper.
 
 We introduced some sets of flags for training:
 * `experiment_name`: name of your experiment, we suggest you change your name to something meaningful to distinguish between your experiments
-* `pretrained_weights_dir`: After downloading the pre-trained weights, you should edit this directory to point to the correct directory containing the pretrained weights.
+* `pretrained_weights_dir`: After downloading the [pre-trained weights](### Pre-trained Weights), you should edit this directory to point to the correct directory containing the pretrained weights.
 * `images_log_rate`: It is the rate that train images are saved in `metrics` tensorboard folder. 
 * `metrics_log_rate`: It is the rate that model metrics such as PSNR and LPIPS are saved in `metrics` tensorboard folder. 
 * `random_seed`: The random seed that is used while randomly selecting test and train images from dataset. If you want to re-run an experiment, make sure to choose the same random seed.
@@ -71,9 +71,25 @@ The used test data will be also be saved in `test_filenames.txt` in the experime
 * `networks_test`: Order of forward passes during the training of gen (or gen and dis for sim sgd).
 * `networks_train`: Order of forward passes during testing.
 * `networks_to_train`: Names of networks that are being trained.
-* ``
+* `num_epochs`: Number of epochs to train the model
+* `output_stickmen`: If you set to true, you can see the visulaized keypoints.
+* `runner_name`: The runner file that loads the networks and trains them in order.
+* `test_freq`: The frequency of testing the model on test data.
+* `visual_freq`: The frequency of storing the visual results.
+* `init_experiment_dir`: If you want to train your model from some specific checkpoint, you should set this flag to point to the directory of the experiment that you want to use for initialization of the networks. This directory should have a `checkpoints` folder in it.  
+* `init_networks`: This is the list of the networks you want to initialize with previous checkpoints. 
+* `init_which_epoch`: The epoch to initialize the wights from.
+* `which_epoch`: Epoch to continue training from, you can set the value to 1 when you want to train the network from scratch.
+* `skip_test`: If set to False, the model automatically is tested on the test data and the results will be available in `experiment_dir/runs/experiment_name/images/test`.
+* `frozen_networks`: If you want to freeze some networks, you can put their name in this list.
+
 
 ## Results folder
+
+Your expeiment results will be stored in `experiment_dir/runs/experiment_name` directory. In this directory, you can find the model checkpoints in `checkpoints` folder in the format of `<EPOCH_NUMBER>_<NETWORK_NAME>.pth`. These checkpoints can be later used for initializing another network or for inference.
+You can see the test and train images in `images` folder. 
+We currently have two tensorboards in `metrics` folder and `tensorboard_paper` folder. 
+The experiment's arguments are stored in `args.txt` and the losses are stored in `losses.pkl`. 
 
 
 ## Tensorboard
@@ -81,3 +97,12 @@ The tensorboard results are stored in two `tensorboard_paper` and `metrics` fold
 ```bash
 tensorboard --bind_all --logdir=<PATH_TO_TENSORBOARD>
 ```
+## Inference
+
+For inference, you can currently use `examples/inference.py` file. Change the followings in the file to generate a new predicted target image:
+
+* `experiment_name`: The name of the experiment that you want to test
+* `experiment_dir` : The root of experiments
+* `init_which_epoch`: The epoch that you want to test
+* `source_path`: Path to your source image
+* `target_path`: Path to your target image
