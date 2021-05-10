@@ -1,20 +1,20 @@
-cd ../
-     python  train.py \
-    --experiment_name 'embedding_networks_frozen' \
+     python  inference.py \
+    --experiment_name 'sanity_check' \
     --pretrained_weights_dir /video-conf/scratch/pantea \
-    --images_log_rate 400 \
+    --save_initial_test_before_training True \
+    --images_log_rate 100 \
     --metrics_log_rate 100 \
     --random_seed 0 \
     --save_dataset_filenames False \
     --dataset_load_from_txt False \
-    --train_load_from_filename . \
-    --test_load_from_filename . \
+    --train_load_from_filename /data/pantea/video_conf/one_person_dataset/per_video_dataset/results/runs/toy_project/reserved_train_filenames.txt \
+    --test_load_from_filename /data/pantea/video_conf/one_person_dataset/per_video_dataset/results/runs/toy_project/reserved_test_filenames.txt \
     --adam_beta1 0.5 \
     --adv_loss_weight 0.5 \
     --adv_pred_type ragan \
     --amp_loss_scale dynamic \
     --experiment_dir /video-conf/scratch/pantea_experiments_chunky \
-    --amp_opt_level  O0 \
+    --amp_opt_level O0 \
     --batch_size 2 \
     --bn_momentum 1.0 \
     --calc_stats \
@@ -26,7 +26,6 @@ cd ../
     --dis_norm_layer_type bn \
     --dis_num_blocks 6 \
     --dis_num_channels 64 \
-    --use_source_background True \
     --output_segmentation True \
     --dis_output_tensor_size 8 \
     --emb_activation_type leakyrelu \
@@ -43,6 +42,7 @@ cd ../
     --frame_num_from_paper False \
     --inf_activation_type leakyrelu \
     --inf_apply_masks False \
+    --inf_calc_grad False \
     --inf_max_channels 256 \
     --inf_norm_layer_type ada_bn \
     --inf_num_channels 32 \
@@ -68,10 +68,9 @@ cd ../
     --lrs 'identity_embedder: 2e-4, texture_generator: 2e-4, keypoints_embedder: 2e-4, inference_generator: 2e-4, discriminator: 2e-4'  \
     --networks_calc_stats 'identity_embedder, texture_generator, keypoints_embedder, inference_generator' \
     --networks_test 'identity_embedder, texture_generator, keypoints_embedder, inference_generator' \
-    --networks_to_train 'identity_embedder, texture_generator, keypoints_embedder, inference_generator, discriminator'   \
+    --networks_to_train 'identity_embedder, texture_generator, keypoints_embedder, inference_generator, discriminator' \
     --networks_train 'identity_embedder, texture_generator, keypoints_embedder, inference_generator, discriminator' \
-    --inf_calc_grad True \
-    --num_epochs 8000 \
+    --num_epochs 5000 \
     --num_gpus 1 \
     --num_keypoints 68 \
     --num_source_frames 1 \
@@ -110,25 +109,11 @@ cd ../
     --stats_calc_iters 500 \
     --stickmen_thickness 2 \
     --test_freq 50 \
-    --visual_freq '50' \
+    --visual_freq '10' \
     --wpr_loss_apply_to pred_target_delta_uvs \
     --wpr_loss_decay_schedule '-1' \
     --wpr_loss_type l1 \
     --wpr_loss_weight 0.0 \
     --wpr_loss_weight_decay 1.0 \
-    --nme_num_threads 1  \
-    --init_experiment_dir /video-conf/scratch/pantea/bilayer_paper_runs/vc2-hq_adrianb_paper_main \
-    --init_networks 'identity_embedder, texture_generator, keypoints_embedder, inference_generator, discriminator' \
-    --init_which_epoch 2225 \
+    --nme_num_threads 1 \
     --skip_test False \
-    --frozen_networks 'identity_embedder, keypoints_embedder' \
-    --unfreeze_texture_generator_last_layers True \
-    --unfreeze_inference_generator_last_layers True \
-    --replace_AdaSpade_with_conv False \
-    --freeze_discriminator False \
-    --freeze_identity_embedder False \
-    --freeze_keypoints_embedder False \
-    --freeze_inference_generator False 
-
-
-   
