@@ -31,6 +31,26 @@ The model expects the frames to be located in a directory organization similar t
 
 In each of the `DATA_ROOT`s above, there are three folders `[imgs, keypoints, segs]` contating the `keypoints` as `.png` and `seg`mentations as `.npy` corresponding to the `imgs` as `.jpg`. In each of them, there are `[train, test]` data in seperate folders in the format of VoxCeleb2 `PERSON_ID/VIDEO_ID/SEQUENCE_ID`.  
 
+### Making your datasets from videos
+
+If you want to make a dataset from videos to use as your train or test data, your videos should be stored in this format:
+
+`VIDEO_ROOT/PERSON_ID/VIDEO_ID/SEQUENCE_ID[.mp4]`
+
+After formating your videos in such order, you can generate the `[imgs, keypoints, segs]` using our `keypoints_segmentations_generator` module. Before running the bash file, there are a few arguments you need to set in `keypoints_segmentations_extract.sh` such as the following:
+
+```
+    --pretrained_weights_dir <PATH_TO_YOUR_PRETRAINED_WEIGHTS> \
+    --video_root <PATH_TO_YOUR_VIDEO_ROOT> \
+    --sampling_rate <YOUR_SAMPLING_RATE> \
+    --phase <'train' or 'test> \
+    --batch_size <YOUR_BATCH_SIZE> \
+    --data_root <PATH_TO_WHERE_YOU_WANT_TO_SAVE_DATASET>  \
+    --output_segmentation True \
+    --num_gpus <YOUR_NUM_GPUS>
+```
+Please make sure to set `video_root` the same as the `VIDEO_ROOT` where your videos are stored. If you want to save the videos as train/test dataset, set `phase` to `'train'`/`'test'`. 
+
 
 ## Training 
 If you want to train your model from scratch, you should run:
@@ -97,6 +117,7 @@ The tensorboard results are stored in two `tensorboard_paper` and `metrics` fold
 ```bash
 tensorboard --bind_all --logdir=<PATH_TO_TENSORBOARD>
 ```
+
 ## Inference
 
 For inference, you can currently use `examples/inference.py` file. Change the followings in the file to generate a new predicted target image:
