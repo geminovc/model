@@ -44,7 +44,7 @@ class Dataset(torch.utils.data.IterableDataset):
                         cap.release()
                         break
                     if frame_num % self.sampling_rate == 0:
-                        print("Gettin the frame ", frame_num , "from", str(video_path))
+                        #print("Gettin the frame ", frame_num , "from", str(video_path))
                         yield [frame , frame_num , str(filename),self.seq_id]
                     frame_num+=1
                 cap.release()

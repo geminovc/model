@@ -8,7 +8,7 @@ args_dict ={
     'segmentatio_dir':'segs',
     'num_gpus': 1,
     'image_size': 256,
-    'sampling_rate': 100,
+    'sampling_rate': 50,
     'output_segmentation':True,
     'output_stickmen': False,
     'batch_size': 48}
