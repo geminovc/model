@@ -14,30 +14,30 @@ import argparse
 
 
 
-parser = argparse.ArgumentParser()
-# General options
-parser.add_argument('--experiment_dir',default='.', type=str, help='directory to save logs')
-parser.add_argument('--pretrained_weights_dir',  default='/video_conf/scratch/pantea', type=str,help='directory for pretrained weights of loss networks (lpips , ...)')
-parser.add_argument('--experiment_dir', default='.', type=str, help='root directory of the experiments')
-# Distributed options
-parser.add_argument('--num_gpus', default=1, type=int,help='>1 enables DDP')
-# Initialization options
-parser.add_argument('--init_experiment_dir',     default='', type=str,help='directory of the experiment used for the initialization of the networks')
+# parser = argparse.ArgumentParser()
+# # General options
+# parser.add_argument('--experiment_dir',default='.', type=str, help='directory to save logs')
+# parser.add_argument('--pretrained_weights_dir',  default='/video_conf/scratch/pantea', type=str,help='directory for pretrained weights of loss networks (lpips , ...)')
+# parser.add_argument('--experiment_dir', default='.', type=str, help='root directory of the experiments')
+# # Distributed options
+# parser.add_argument('--num_gpus', default=1, type=int,help='>1 enables DDP')
+# # Initialization options
+# parser.add_argument('--init_experiment_dir',     default='', type=str,help='directory of the experiment used for the initialization of the networks')
 
-    parser.add('--init_networks',           default='', type=str,
-                                            help='list of networks to intialize')
+#     parser.add('--init_networks',           default='', type=str,
+#                                             help='list of networks to intialize')
 
-    parser.add('--init_which_epoch',        default='none', type=str,
-                                            help='epoch to initialize from')
+#     parser.add('--init_which_epoch',        default='none', type=str,
+#                                             help='epoch to initialize from')
 
-    parser.add('--psnr_loss_apply_to',      default='pred_target_delta_lf_rgbs , target_imgs', type=str,
-                                            help='psnr loss to apply') 
-args = parser.parse_args()
-print(args)
+#     parser.add('--psnr_loss_apply_to',      default='pred_target_delta_lf_rgbs , target_imgs', type=str,
+#                                             help='psnr loss to apply') 
+# args = parser.parse_args()
+# print(args)
 
-experiment_name = 'all_networks_frozen_except_after_upsampling_blocks_in_texture_generator_and_inference_generator'
+experiment_name = 'embedding_networks_frozen'
 experiment_dir = '/video-conf/scratch/pantea_experiments_chunky'
-init_which_epoch = '100'
+init_which_epoch = '2000'
 source_path = 'images/20.jpg'
 target_path = 'images/109.jpg'
 

@@ -1,7 +1,7 @@
 python  keypoints_segmentations_generator.py \
     --pretrained_weights_dir /video-conf/scratch/pantea \
     --phase 'test' \
-    --video_root /video-conf/scratch/test_dataset/mp4/ \
+    --video_root /video-conf/scratch/voxceleb2_test_videos/mp4/ \
     --sampling_rate 25 \
     --experiment_name 'extraction' \
     --batch_size 48 \
