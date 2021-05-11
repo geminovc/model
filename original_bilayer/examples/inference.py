@@ -45,13 +45,14 @@ target_path = 'images/109.jpg'
 args_dict = {
     'experiment_dir': experiment_dir,
     'pretrained_weights_dir': '/video-conf/scratch/pantea', 
-    'init_experiment_dir': project_dir + '/runs/' + experiment_name ,
+    'init_experiment_dir': experiment_dir + '/runs/' + experiment_name ,
     'init_networks': 'identity_embedder, texture_generator, keypoints_embedder, inference_generator',
     'init_which_epoch': init_which_epoch,
     'num_gpus': 1,
     'experiment_name': experiment_name,
-    'psnr_loss_apply_to': 'pred_target_delta_lf_rgbs, target_imgs',
     'spn_networks': 'identity_embedder, texture_generator, keypoints_embedder, inference_generator',
+    'output_segmentation': True, 
+    'output_stickmen': True, 
     'inf_apply_masks': False}
 
 

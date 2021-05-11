@@ -68,6 +68,7 @@ class InferenceWrapper(nn.Module):
                         / f'{self.args.init_which_epoch}_{net_name}.pth', 
                     map_location='cpu'))
 
+
         for net_name in networks_to_train:
             if net_name not in init_networks and net_name in self.runner.nets.keys():
                 self.runner.nets[net_name].load_state_dict(torch.load(
@@ -92,7 +93,9 @@ class InferenceWrapper(nn.Module):
     def preprocess_data(self, input_imgs, crop_data=True):
         imgs = []
         poses = []
+        segs = []
         stickmen = []
+        imgs_segs = []
 
         if len(input_imgs.shape) == 3:
             input_imgs = input_imgs[None]
@@ -115,6 +118,16 @@ class InferenceWrapper(nn.Module):
                     pose -= center - size
 
             else:
+
+                if self.args.output_segmentation:
+                    ## here I decided to use the non-croped version of images for segmentations
+                    ## The croped version of images would give a segmentation that has a black stripe on top
+                    img_segs = Image.fromarray(np.array(input_imgs[i]))
+                    img_segs = img_segs.resize((self.args.image_size, self.args.image_size), Image.BICUBIC)
+                    imgs_segs.append((self.to_tensor(img_segs) - 0.5) * 2)
+
+
+                
                 # Crop images and poses
                 img = Image.fromarray(input_imgs[i])
 
@@ -149,10 +162,16 @@ class InferenceWrapper(nn.Module):
 
                 if self.args.output_stickmen:
                     stickmen = stickmen.cuda()
-
+        
+        if input_imgs is not None and self.args.output_segmentation:
+            imgs_segs = torch.stack(imgs_segs, 0)[None]
+            if self.args.num_gpus > 0:        
+                imgs_segs = imgs_segs.cuda()
+        
+        # get the segmentations
         segs = None
         if hasattr(self, 'net_seg') and not isinstance(imgs, list):
-            segs = self.net_seg(imgs)[None]
+            segs = self.net_seg(imgs_segs)[None]
 
         return poses, imgs, segs, stickmen
 
