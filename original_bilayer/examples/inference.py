@@ -35,9 +35,9 @@ import argparse
 # args = parser.parse_args()
 # print(args)
 
-experiment_name = 'embedding_networks_frozen'
-experiment_dir = '/video-conf/scratch/pantea_experiments_chunky'
-init_which_epoch = '2000'
+experiment_name = 'all_networks_frozen_except_inference_generator'
+experiment_dir = '/video-conf/scratch/pantea_experiments_mapmaker'
+init_which_epoch = '500'
 source_path = 'images/20.jpg'
 target_path = 'images/109.jpg'
 
@@ -47,6 +47,7 @@ args_dict = {
     'pretrained_weights_dir': '/video-conf/scratch/pantea', 
     'init_experiment_dir': experiment_dir + '/runs/' + experiment_name ,
     'init_networks': 'identity_embedder, texture_generator, keypoints_embedder, inference_generator',
+    'nets_names_train': 'identity_embedder, texture_generator, keypoints_embedder, inference_generator',
     'init_which_epoch': init_which_epoch,
     'num_gpus': 1,
     'experiment_name': experiment_name,

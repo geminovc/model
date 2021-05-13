@@ -116,7 +116,7 @@ class NetworkWrapper(nn.Module):
 
         pred_target_delta_lf_rgbs = outputs[1]
 
-        if self.args.inf_pred_segmentation:
+        if self.args.inf_pred_segmentation and self:
             pred_target_segs_logits = outputs[2]
             pred_target_segs = torch.sigmoid(pred_target_segs_logits)
 

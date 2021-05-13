@@ -1,11 +1,11 @@
 python  keypoints_segmentations_generator.py \
     --pretrained_weights_dir /video-conf/scratch/pantea \
-    --phase 'test' \
-    --video_root /video-conf/scratch/voxceleb2_test_videos/mp4/ \
-    --sampling_rate 25 \
+    --phase 'train' \
+    --video_root /video-conf/scratch/pantea/one_person_videos \
+    --sampling_rate 1 \
     --experiment_name 'extraction' \
-    --batch_size 48 \
-    --data_root /video-conf/scratch/pantea/video_conf_datasets/general_dataset \
+    --batch_size 10000 \
+    --data_root /video-conf/scratch/pantea/uncropped_segs_one_person_dataset \
     --output_segmentation True \
     --image_size 256 \
     --num_gpus 1 \
@@ -17,3 +17,4 @@ python  keypoints_segmentations_generator.py \
     --output_stickmen False \
     --project_dir '../' \
     --random_seed 0 \
+    --segs_from_cropped_imgs True 

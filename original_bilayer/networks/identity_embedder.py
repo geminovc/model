@@ -60,7 +60,7 @@ class NetworkWrapper(nn.Module):
         inputs = data_dict['source_imgs']
         b, n = inputs.shape[:2]
 
-        if self.args.emb_apply_masks:
+        if self.args.emb_apply_masks and self.args.output_segmentation:
             inputs = inputs * data_dict['source_segs'] + (-1) * (1 - data_dict['source_segs'])
 
         if not self.args.emb_no_stickman:

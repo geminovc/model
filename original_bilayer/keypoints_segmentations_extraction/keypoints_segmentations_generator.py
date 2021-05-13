@@ -73,6 +73,11 @@ class keypoint_segmentation_generator(nn.Module):
         parser.add('--sampling_rate',           default=1, type=int, 
                                                 help='sampling rate for extracting the frames from videos')
 
+        parser.add('--segs_from_cropped_imgs',  default='True', type=rn_utils.str2bool, choices=[True, False],
+                                                help='sampling rate for extracting the frames from videos')
+
+                                            
+
         # Dataset options
         args, _ = parser.parse_known_args()
 
@@ -200,7 +205,7 @@ class keypoint_segmentation_generator(nn.Module):
         # get the segmentations
         segs = None
         if hasattr(self, 'net_seg') and not isinstance(imgs, list):
-            segs = self.net_seg(imgs_segs)[None]
+            segs = self.net_seg(imgs)[None]
         
 
         return poses, imgs, segs, stickmen
@@ -236,7 +241,7 @@ class keypoint_segmentation_generator(nn.Module):
                             img = Image.fromarray(frame)
                             img.save(imgs_save_path + '.jpg')
                             np.save(keypoints_save_path, pose)
-                            print("saved images to:", imgs_save_path)
+                            #print("saved images to:", imgs_save_path)
                             if self.args.output_segmentation:
                                 segs_save_path = str(self.segs_dir) +"/"+ str(filenames[i]) + "/" + str(int(frame_nums[i]))
                                 os.makedirs(str(self.segs_dir) +"/"+ str(filenames[i]), exist_ok=True)
@@ -244,7 +249,7 @@ class keypoint_segmentation_generator(nn.Module):
                                 rescaled = (255.0 / data.max() * (data - data.min())).astype(np.uint8)
                                 segs = Image.fromarray(rescaled)
                                 segs.save(segs_save_path + '.png')
-                                print("saved segmentation to:", segs_save_path)
+                                #print("saved segmentation to:", segs_save_path)
                 except: 
                         print("Can not read the poses or segmentations.")
 

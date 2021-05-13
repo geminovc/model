@@ -27,20 +27,22 @@ class Dataset(torch.utils.data.IterableDataset):
         while self.seq_id < len(self.sequences):
             filenames_vid = list((self.video_dir / self.sequences[self.seq_id]).glob('*'))
             self.seq_id += 1
+            self.filename_id = 0
             filenames_vid = [pathlib.Path(*filename.parts[-3:]).with_suffix('') for filename in filenames_vid]
             filenames = list(set(filenames_vid))
             filenames = sorted(filenames)
-            for filename in filenames:
+            print("these are the filenames", filenames)
+            while self.filename_id < len(filenames):
+                filename = filenames[self.filename_id]
+                self.filename_id+=1
+                print("Gotton filename:", filename)
                 video_path = pathlib.Path(self.video_dir) / filename.with_suffix('.mp4')
                 name = str(filename).split('/')[len(str(filename).split('/'))-1]                                
                 cap = cv2.VideoCapture(str(video_path))
                 frame_num = 0
                 while cap.isOpened():
                     ret, frame = cap.read()
-                    if frame is None:
-                        cap.release()
-                        break
-                    if not ret:
+                    if frame is None or not ret:
                         cap.release()
                         break
                     if frame_num % self.sampling_rate == 0:

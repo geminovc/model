@@ -47,6 +47,7 @@ class InferenceWrapper(nn.Module):
         super(InferenceWrapper, self).__init__()
         # Get a config for the network
         self.args = self.get_args(args_dict)
+        #print("Here are the args:", self.args)
         self.to_tensor = transforms.ToTensor()
 
         # Load the model

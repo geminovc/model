@@ -22,7 +22,12 @@ class InferenceWrapper(nn.Module):
     @staticmethod
     def get_args(args_dict):
         # Read and parse args of the module being loaded
-        args_path = pathlib.Path(args_dict['experiment_dir']) / 'runs' / args_dict['experiment_name'] / 'args.txt'
+
+        if args_dict['experiment_name'] == 'vc2-hq_adrianb_paper_main' or args_dict['experiment_name'] =='vc2-hq_adrianb_paper_enhancer':
+            args_path = pathlib.Path(args_dict['experiment_dir']) / 'bilayer_paper_runs' / args_dict['experiment_name'] / 'args.txt'
+            args_dict['croped_segmentation'] = True
+        else:
+            args_path = pathlib.Path(args_dict['experiment_dir']) / 'runs' / args_dict['experiment_name'] / 'args.txt'
 
         parser = argparse.ArgumentParser(conflict_handler='resolve')
         parser.add = parser.add_argument
@@ -54,7 +59,10 @@ class InferenceWrapper(nn.Module):
         self.runner.eval()
 
         # Load pretrained weights
-        checkpoints_dir = pathlib.Path(self.args.project_dir) / 'runs' / self.args.experiment_name / 'checkpoints'
+        if args_dict['experiment_name'] == 'vc2-hq_adrianb_paper_main' or args_dict['experiment_name'] =='vc2-hq_adrianb_paper_enhancer':
+            checkpoints_dir = pathlib.Path(self.args.experiment_dir) / 'bilayer_paper_runs' / self.args.experiment_name / 'checkpoints'
+        else:
+            checkpoints_dir = pathlib.Path(self.args.experiment_dir) / 'runs' / self.args.experiment_name / 'checkpoints'
 
         # Load pre-trained weights
         init_networks = rn_utils.parse_str_to_list(self.args.init_networks) if self.args.init_networks else {}
@@ -93,6 +101,8 @@ class InferenceWrapper(nn.Module):
         imgs = []
         poses = []
         stickmen = []
+        if not self.args.croped_segmentation:
+            imgs_segs = []
 
         if len(input_imgs.shape) == 3:
             input_imgs = input_imgs[None]
@@ -115,6 +125,16 @@ class InferenceWrapper(nn.Module):
                     pose -= center - size
 
             else:
+                
+                if self.args.output_segmentation and not self.args.croped_segmentation:
+                    ## here I decided to use the non-croped version of images for segmentations
+                    ## The croped version of images would give a segmentation that has a black stripe on top
+                    img_segs = Image.fromarray(np.array(input_imgs[i]))
+                    img_segs = img_segs.resize((self.args.image_size, self.args.image_size), Image.BICUBIC)
+                    imgs_segs.append((self.to_tensor(img_segs) - 0.5) * 2)
+
+
+
                 # Crop images and poses
                 img = Image.fromarray(input_imgs[i])
 
@@ -150,9 +170,19 @@ class InferenceWrapper(nn.Module):
                 if self.args.output_stickmen:
                     stickmen = stickmen.cuda()
 
+        
+        if input_imgs is not None and self.args.output_segmentation and not self.args.croped_segmentation:
+            imgs_segs = torch.stack(imgs_segs, 0)[None]
+            if self.args.num_gpus > 0:        
+                imgs_segs = imgs_segs.cuda()
+
         segs = None
         if hasattr(self, 'net_seg') and not isinstance(imgs, list):
-            segs = self.net_seg(imgs)[None]
+            if self.args.croped_segmentation:
+                segs = self.net_seg(imgs)[None]
+            else:
+                segs = self.net_seg(imgs_segs)[None]
+                
 
         return poses, imgs, segs, stickmen
 
@@ -190,6 +220,16 @@ class InferenceWrapper(nn.Module):
 
         if target_stickmen is not None:
             data_dict['target_stickmen'] = target_stickmen
+
+        # Calculate "standing" stats for the batch normalization
+        print("The dataroot is:", self.args.data_root)
+        train_dataloader = ds_utils.get_dataloader(self.args, 'train')
+        train_dataloader.dataset.shuffle()
+
+        if self.args.calc_stats:
+            print("Calculate standing stats for the batch normalization")
+            self.runner.calculate_batchnorm_stats(train_dataloader, self.args.debug)
+
 
         if no_grad:
             with torch.no_grad():
