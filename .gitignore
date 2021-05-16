@@ -8,7 +8,7 @@
 *.jpeg
 *.png
 *.json
-./source_bilayer
+source_bilayer/**
 ./SPADE/coco/
 ./SPADE/CelebAMask/
 ./SPADE/checkpoints/
