@@ -123,7 +123,7 @@ class DatasetWrapper(data.Dataset):
         # Sample source and target frames for the current sequence
         count = 0
         filenames = [1]
-        #print("Dataloader index is", index)
+        
         while len(filenames):
             count+=1
             try:
@@ -141,7 +141,6 @@ class DatasetWrapper(data.Dataset):
                     filenames_seg = [pathlib.Path(*filename.parts[-4:]).with_suffix('') for filename in filenames_seg]
 
                     filenames = list(set(filenames).intersection(set(filenames_seg)))
-                    
                 
 
                 if len(filenames)!=0:
@@ -189,7 +188,7 @@ class DatasetWrapper(data.Dataset):
             # Read images
             img_path = pathlib.Path(self.imgs_dir) / filename.with_suffix('.jpg')
             
-            
+
             try:
                 img = Image.open(img_path)
 
@@ -220,7 +219,8 @@ class DatasetWrapper(data.Dataset):
                     if len (imgs) > self.args.num_source_frames:
                         save_file = self.phase + "_filenames.txt"
                         with open(self.experiment_dir / save_file, 'a') as data_file:
-                            data_file.write('target %s:%s\n' % (str(len (imgs)-self.args.num_source_frames), str(filename.with_suffix('.jpg'))))
+                            data_file.write('target %s:%s\n' % (str(len (imgs)-self.args.num_source_frames), \
+                                    str(filename.with_suffix('.jpg'))))
                     #print("Got the raw keypoint:", keypoints)
             except:
                 imgs.pop(-1)
@@ -256,10 +256,6 @@ class DatasetWrapper(data.Dataset):
 
             sample_from_reserve = False
 
-        # save_file = self.phase + "_filenames.txt"
-        # with open(self.experiment_dir / save_file, 'a') as data_file:
-        #     data_file.write('\n')
-        
         imgs = (torch.stack(imgs)- 0.5) * 2.0
 
         poses = (torch.stack(poses) - 0.5) * 2.0

@@ -37,13 +37,17 @@ class NetworkWrapper(nn.Module):
         parser.add('--tex_skip_layer_type',      default='ada_conv', type=str,
                                                  help='skip connection layer type')
 
+        parser.add('--texture_output_dim',      default=3, type=int,
+                                                 help='texture output dimensions, 3 for usual, 16 for unet added')
+    
     def __init__(self, args):
         super(NetworkWrapper, self).__init__()
         # Initialize options
         self.args = args
 
         # Generator
-        self.gen_tex_input = nn.Parameter(torch.randn(1, args.tex_max_channels, args.tex_input_tensor_size, args.tex_input_tensor_size))
+        self.gen_tex_input = nn.Parameter(torch.randn(1, args.tex_max_channels, \
+                args.tex_input_tensor_size, args.tex_input_tensor_size))
         self.gen_tex = Generator(args)
 
         # Projector (prediction of adaptive parameters)
@@ -183,7 +187,7 @@ class Generator(nn.Module):
         self.blocks = nn.Sequential(*layers)
 
         # Get the list of required heads
-        heads = [(3, nn.Tanh)]
+        heads = [(args.texture_output_dim, nn.Tanh)]
 
         # Initialize the heads
         self.heads = nn.ModuleList()

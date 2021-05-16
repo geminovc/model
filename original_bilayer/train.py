@@ -122,6 +122,16 @@ class TrainingWrapper(object):
         parser.add('--folder_postfix',           default='2d_crop', type=str,
                                                  help='crop the stickman')
         
+        parser.add('--output_segmentation',   default='False', type=rn_utils.str2bool, choices=[True, False],
+                                              help='read segmentation mask')
+
+        parser.add('--label_run',   default='name', type=str,
+
+                                              help='name for storing in tensorboard')
+
+        parser.add('--tensorboard_dir', type=str, help='location for storing in tensorboard')
+
+        
         parser.add('--output_segmentation',     default='False', type=rn_utils.str2bool, choices=[True, False],
                                                 help='read segmentation mask')
         
@@ -248,8 +258,8 @@ class TrainingWrapper(object):
         if args.rank == 0:
             print(self.runner)
 
-        #If we are reading from the data filenames from a txt file, there is no need to store it again
-        #commented to test 
+        # If we are reading from the data filenames from a txt file, there is no need to store it again
+        # commented to test 
         # if args.dataset_load_from_txt:
         #     args.save_dataset_filenames = False
 
@@ -296,7 +306,7 @@ class TrainingWrapper(object):
 
         # Tensorboard writer init
         if args.rank == 0:
-            writer = SummaryWriter(log_dir= args.experiment_dir + '/runs/' + args.experiment_name + '/metrics/')
+            writer = SummaryWriter(log_dir = args.experiment_dir + '/runs/' + args.experiment_name + '/metrics/')
         
         # Get dataloaders
         train_dataloader = ds_utils.get_dataloader(args, 'train')
@@ -399,48 +409,8 @@ class TrainingWrapper(object):
 
                 # Perform a forward pass
                 if not args.use_closure:
-                    #loss = model(data_dict)
-                    loss, losses_dict, metrics_dict, misc_dict = model(data_dict)
-                    #print(metrics_dict)
+                    loss = model(data_dict)
                     closure = None
-                
-                #Log metrics.
-                if args.rank == 0:
-                    epoch_to_add = iter_count
-
-                    if iter_count % args.metrics_log_rate == 0:
-                        
-                        # Plot the learning rates
-                        for name, optim in opts.items():
-                            group_idx, param_idx = 0, 0
-                            current_lr = self.get_current_lr(optim, group_idx, param_idx, iter_count)
-                            writer.add_scalar("lrs/" + name, current_lr, epoch_to_add)
-
-                        writer.add_scalar("loss/train_loss", loss, epoch_to_add)
-                        
-                        for loss_dict_key in losses_dict.keys():
-                            writer.add_scalar("losses/" + loss_dict_key, losses_dict[loss_dict_key], epoch_to_add) 
-                        
-                        writer.add_scalar("metrics/PSNR", metrics_dict['G_PSNR'], epoch_to_add)
-                        writer.add_scalar("metrics/pose_matching_metric", metrics_dict['G_PME'], epoch_to_add)
-                        writer.add_scalar("metrics/lpips", metrics_dict['G_LPIPS'], epoch_to_add)
-                        
-                        # Logs times
-                        for misc_dict_key in misc_dict.keys():
-                            if "time" in misc_dict_key:
-                                writer.add_scalar("timing/" + misc_dict_key, misc_dict[misc_dict_key], epoch_to_add)
-                        
-                    if iter_count % args.images_log_rate == 0:
-                        
-                        target_img = ((misc_dict['target_image'][0,0].clamp(-1, 1).cpu().detach().numpy() + 1) / 2)
-                        
-                        source_img = ((misc_dict['source_image'][0,0].clamp(-1, 1).cpu().detach().numpy() + 1) / 2)
-                        
-                        generated_img = ((misc_dict['generated_image'][0,0].clamp(-1, 1).cpu().detach().numpy() + 1) / 2)
-                        
-                        writer.add_image('images/generated_image', generated_img, epoch_to_add)
-                        writer.add_image('images/target_image', target_img, epoch_to_add)
-                        writer.add_image('images/source_image', source_img, epoch_to_add)
 
                 if args.use_apex and args.num_gpus > 0 and args.num_gpus <= 8:
                     # Mixed precision requires a special wrapper for the loss
@@ -459,14 +429,12 @@ class TrainingWrapper(object):
                 # Perform steps for all optimizers
                 for opt in opts.values():
                     opt.step(closure)
-                
-                if iter_count%30 ==0:
-                    print("The iteration", iter_count, " for epoch ", epoch, "finished!")
 
+                print("The time for this epoch is:", time.time() - time_start)
                 if output_logs:
-            
-                    logger.output_logs('train', runner.output_visuals(), runner.output_losses(), time.time() - time_start)
-
+                    logger.output_logs('train', runner.output_visuals(), runner.output_losses(), \
+                            runner.output_metrics(), time.time() - time_start)
+ 
                     if args.debug:
                         break
 
@@ -504,9 +472,9 @@ class TrainingWrapper(object):
                     if args.debug:
                         break
 
-            # Output logs
-            logger.output_logs('test', runner.output_visuals(), runner.output_losses(), time.time() - time_start)
-            
+            logger.output_logs('test', runner.output_visuals(), runner.output_losses(), \
+                    runner.output_metrics(), time.time() - time_start)
+
             # If creation of checkpoint is not required -- continue
             if epoch % args.checkpoint_freq and not args.debug:
                 continue

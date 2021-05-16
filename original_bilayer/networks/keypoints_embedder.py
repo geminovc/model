@@ -166,7 +166,6 @@ class PoseEmbedder(nn.Module):
 
         self.mlp = nn.Sequential(*layers)
 
-
     def forward(self, inputs):
         #print("\n","This is the size of input in keypont-embedder",inputs)
         #print("\n","This is the nn sequential layers",self.mlp)

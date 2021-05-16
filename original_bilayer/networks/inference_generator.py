@@ -33,7 +33,12 @@ class NetworkWrapper(nn.Module):
 
         parser.add('--inf_upsampling_type',      default='nearest', type=str,
                                                  help='upsampling layer inside the generator')
-
+        
+        parser.add('--use_unet',          default='True', type=rn_utils.str2bool, choices=[True, False],
+                                                                 help='set to True to use unet')
+        
+        parser.add('--unet_inputs', default='hf', type=str, help='list of unet inputs as string : "hf, lf"') 
+        
         parser.add('--inf_skip_layer_type',      default='ada_conv', type=str,
                                                  help='skip connection layer type')
 
@@ -50,7 +55,6 @@ class NetworkWrapper(nn.Module):
                                                  help='apply the segmenattion mask and use the source background')
 
                                                  
-
     def __init__(self, args):
         super(NetworkWrapper, self).__init__()
         # Initialize options
@@ -113,7 +117,6 @@ class NetworkWrapper(nn.Module):
         # Parse the outputs
         pred_target_delta_uvs = outputs[0]
         pred_target_uvs = self.identity_grid + pred_target_delta_uvs.permute(0, 2, 3, 1)
-
         pred_target_delta_lf_rgbs = outputs[1]
 
         if self.args.inf_pred_segmentation:
@@ -139,46 +142,62 @@ class NetworkWrapper(nn.Module):
         pred_tex_hf_rgbs_repeated = pred_tex_hf_rgbs_repeated.view(b*t, *pred_tex_hf_rgbs.shape[1:])
 
         pred_target_delta_hf_rgbs = F.grid_sample(pred_tex_hf_rgbs_repeated, pred_target_uvs)
-
-        # Final image
-        pred_target_imgs = pred_target_delta_lf_rgbs + pred_target_delta_hf_rgbs
-
-        if 'inference_generator' in networks_to_train or self.args.inf_calc_grad:
-            # Get an image with a low-frequency component detached
-            pred_target_imgs_lf_detached = pred_target_delta_lf_rgbs.detach() + pred_target_delta_hf_rgbs
-
-        # Mask output images (if needed)
-        if self.args.inf_apply_masks and self.args.inf_pred_segmentation:
-            pred_target_masks = pred_target_segs.detach()
-
-            target_imgs = target_imgs * pred_target_masks + (-1) * (1 - pred_target_masks)
-
-            pred_target_imgs = pred_target_imgs * pred_target_masks + (-1) * (1 - pred_target_masks)
-
-            pred_target_delta_lf_rgbs = pred_target_delta_lf_rgbs * pred_target_masks + (-1) * (1 - pred_target_masks)
-
-            if 'inference_generator' in networks_to_train or self.args.inf_calc_grad:
-                pred_target_imgs_lf_detached = pred_target_imgs_lf_detached * pred_target_masks + (-1) * (1 - pred_target_masks)
-
-        if 'inference_generator' not in networks_to_train and not self.args.inf_calc_grad:
-            torch.set_grad_enabled(prev)
-
+        
         ### Store outputs ###
         reshape_target_data = lambda data: data.view(b, t, *data.shape[1:])
         reshape_source_data = lambda data: data.view(b, n, *data.shape[1:])
+        
+        if 'inference_generator' not in networks_to_train and not self.args.inf_calc_grad:
+            torch.set_grad_enabled(prev)
+        # Final image
+        if not self.args.use_unet:
+            pred_target_imgs = pred_target_delta_lf_rgbs + pred_target_delta_hf_rgbs
+        
+            if 'inference_generator' in networks_to_train or self.args.inf_calc_grad:
+                # Get an image with a low-frequency component detached
+                pred_target_imgs_lf_detached = pred_target_delta_lf_rgbs.detach() + pred_target_delta_hf_rgbs
 
-        data_dict['pred_target_imgs'] = reshape_target_data(pred_target_imgs)
+            # Mask output images (if needed)
+            if self.args.inf_apply_masks and self.args.inf_pred_segmentation:
+                pred_target_masks = pred_target_segs.detach()
+
+                target_imgs = target_imgs * pred_target_masks + (-1) * (1 - pred_target_masks)
+
+                pred_target_imgs = pred_target_imgs * pred_target_masks + (-1) * (1 - pred_target_masks)
+
+                pred_target_delta_lf_rgbs = pred_target_delta_lf_rgbs * pred_target_masks + (-1) * (1 - pred_target_masks)
+
+                if 'inference_generator' in networks_to_train or self.args.inf_calc_grad:
+                    pred_target_imgs_lf_detached = pred_target_imgs_lf_detached * pred_target_masks + (-1) * (1 - pred_target_masks)
+                
+            data_dict['pred_target_delta_hf_rgbs']=reshape_target_data(pred_target_delta_hf_rgbs)
+            data_dict['pred_target_imgs'] = reshape_target_data(pred_target_imgs)
+
         if self.args.inf_pred_segmentation:
             data_dict['pred_target_segs'] = reshape_target_data(pred_target_segs)
-
+        
+        # Unet input values
+        if self.args.use_unet:
+            # Add the code for making hte neural textures here
+            warped_neural_textures = pred_target_delta_hf_rgbs
+            # depending on wether you have the lf and hf content as inputs
+            data_dict['warped_neural_textures'] = warped_neural_textures
+            full_input = warped_neural_textures
+            data_dict['lf_detached_inputs'] = full_input
+            
+            # Default input for unet input is the neural textures unless lf component is also needed
+            if 'lf' in self.args.unet_inputs:
+                data_dict['lf_detached_inputs'] = torch.cat((full_input, pred_target_delta_lf_rgbs.detach()), dim=1)
+                full_input = torch.cat((full_input, pred_target_delta_lf_rgbs), dim=1)
+            data_dict['unet_input'] = full_input
+                    
         # Output debugging results
         data_dict['pred_target_uvs'] = reshape_target_data(pred_target_uvs)
         data_dict['pred_target_delta_lf_rgbs'] = reshape_target_data(pred_target_delta_lf_rgbs)
-        data_dict['pred_target_delta_hf_rgbs'] = reshape_target_data(pred_target_delta_hf_rgbs)
-
+        
         # Output results needed for training
-        if 'inference_generator' in networks_to_train or self.args.inf_calc_grad:
-            data_dict['pred_target_delta_uvs'] = reshape_target_data(pred_target_delta_uvs)
+        data_dict['pred_target_delta_uvs'] = reshape_target_data(pred_target_delta_uvs)
+        if not self.args.use_unet and ('inference_generator' in networks_to_train or self.args.inf_calc_grad):
             data_dict['pred_target_imgs_lf_detached'] = reshape_target_data(pred_target_imgs_lf_detached)
 
             if self.args.inf_pred_segmentation:
@@ -207,7 +226,10 @@ class NetworkWrapper(nn.Module):
 
             # Predicted source HF rgbs
             if 'pred_source_delta_hf_rgbs' in data_dict.keys():
-                visuals += [data_dict['pred_source_delta_hf_rgbs']]
+                if self.args.use_unet:
+                    pass # for now we'll not include hf content if its part of the unet.
+                else:
+                    visuals += [data_dict['pred_source_delta_hf_rgbs']]
 
             # Predicted source UVs
             pred_source_uvs = data_dict['pred_source_uvs'].permute(0, 3, 1, 2)
@@ -228,7 +250,10 @@ class NetworkWrapper(nn.Module):
                 visuals += [torch.cat([(pred_source_segs - 0.5) * 2] * 3, 1)]
 
         # Predicted textures
-        visuals += [data_dict['pred_tex_hf_rgbs']]
+        if self.args.use_unet:
+            pass # for now we'll not include hf content if its part of the unet.
+        else:
+            visuals += [data_dict['pred_tex_hf_rgbs']]
 
         if 'pred_enh_tex_hf_rgbs' in data_dict.keys():
             # Predicted enhated textures
@@ -246,13 +271,14 @@ class NetworkWrapper(nn.Module):
 
         # Predicted target LF rgbs
         visuals += [data_dict['pred_target_delta_lf_rgbs']]
+        
+        if not self.args.use_unet:
+            # Predicted target HF rgbs
+            visuals += [data_dict['pred_target_delta_hf_rgbs']]
 
-        # Predicted target HF rgbs
-        visuals += [data_dict['pred_target_delta_hf_rgbs']]
-
-        if 'pred_enh_target_delta_hf_rgbs' in data_dict.keys():
-            # Predicted enhated target HF rgbs
-            visuals += [data_dict['pred_enh_target_delta_hf_rgbs']]
+            if 'pred_enh_target_delta_hf_rgbs' in data_dict.keys():
+                # Predicted enhated target HF rgbs
+                visuals += [data_dict['pred_enh_target_delta_hf_rgbs']]
 
         # Predicted target UVs
         pred_target_uvs = data_dict['pred_target_uvs'].permute(0, 3, 1, 2)

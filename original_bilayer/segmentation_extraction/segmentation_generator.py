@@ -164,7 +164,6 @@ class Segmentation_Generator():
                 #torchvision.utils.save_image (segs, str(self.segs_dir) +"/"+ str(filename) + '.png')
                 segs.save(str(self.segs_dir) +"/"+ str(filename) + '.png')
             print("Extracting finished for ", str(self.sequences[index])) 
-              
 
 
 

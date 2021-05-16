@@ -10,6 +10,7 @@ import numpy as np
 import cv2
 import importlib
 import ssl
+
 import time
 from datasets import utils as ds_utils
 from runners import utils as rn_utils
@@ -191,14 +192,14 @@ class InferenceWrapper(nn.Module):
         if target_stickmen is not None:
             data_dict['target_stickmen'] = target_stickmen
 
-        now = time.time()
+        start_time = time.time()
         if no_grad:
             with torch.no_grad():
                 self.runner(data_dict)
 
         else:
             self.runner(data_dict)
-        now_now = time.time()
-        print("It took ", now_now-now, " s!")
+        end_time = time.time()
+        print("It took ", end_time - start_time, " s!")
 
         return self.runner.data_dict
