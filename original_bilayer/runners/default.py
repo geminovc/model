@@ -358,8 +358,8 @@ class RunnerWrapper(nn.Module):
         visuals = []
         for net_name in self.nets_names_train:
             visuals += self.nets[net_name].visualize_outputs(visuals_data_dict)
-
         visuals = torch.cat(visuals, 3) # cat w.r.t. width
+        
         visuals = torch.cat(visuals.split(1, 0), 2)[0] # cat batch dim in lines w.r.t. height
         visuals = (visuals + 1.) * 0.5 # convert back to [0, 1] range
         visuals = visuals.clamp(0, 1)
