@@ -9,7 +9,6 @@ from networks import utils as nt_utils
 class LossWrapper(nn.Module):
     @staticmethod
     def get_args(parser):
-        print('=============== used hte parser===================') 
         parser.add('--lps_model', type=str, default='net-lin')
         parser.add('--lps_net', type=str, default='vgg')
         parser.add('--lps_calc_grad',action='store_true', help='if True, the loss is differentiable')
