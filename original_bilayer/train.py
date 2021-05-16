@@ -22,6 +22,12 @@ class TrainingWrapper(object):
     @staticmethod
     def get_args(parser):
         # General options
+        parser.add('--experiment_dir',          default='.', type=str,
+                                                help='directory to save logs')
+        
+        parser.add('--pretrained_weights_dir',  default='/video_conf/scratch/pantea', type=str,
+                                                help='directory for pretrained weights of loss networks (lpips , ...)')
+        
         parser.add('--project_dir',              default='.', type=str,
                                                  help='root directory of the code')
 
@@ -118,10 +124,49 @@ class TrainingWrapper(object):
         
         parser.add('--output_segmentation',   default='False', type=rn_utils.str2bool, choices=[True, False],
                                               help='read segmentation mask')
+
         parser.add('--label_run',   default='name', type=str,
+
                                               help='name for storing in tensorboard')
+
         parser.add('--tensorboard_dir', type=str, help='location for storing in tensorboard')
 
+        
+        parser.add('--output_segmentation',     default='False', type=rn_utils.str2bool, choices=[True, False],
+                                                help='read segmentation mask')
+        
+        parser.add('--label_run',               default='name', type=str,
+                                                help='name for storing in tensorboard')
+        
+        parser.add('--metrics',                 default='PSNR, lpips, pose_matching', type=str,
+                                                help='metrics to evaluate the model while training') 
+
+        parser.add('--psnr_loss_apply_to',      default='pred_target_delta_lf_rgbs , target_imgs', type=str,
+                                                help='psnr loss to apply') 
+                                                                                              
+        parser.add('--images_log_rate',         default=100, type=int,
+                                                help='logging rate for images') 
+        
+        parser.add('--metrics_log_rate',         default=2, type=int,
+                                                help='logging rate for metrics like PSNR') 
+        
+        parser.add('--nme_num_threads',         default=1, type=int,
+                                                help='logging rate for images')     
+                
+        parser.add('--frame_num_from_paper',   default='False', type=rn_utils.str2bool, choices=[True, False],
+                                               help='The random method to sample frame numbers for source and target from dataset')
+        
+        parser.add('--dataset_load_from_txt',  default='False', type=rn_utils.str2bool, choices=[True, False],
+                                               help='If True, the train is loaded from train_load_from_filename, the test is loaded from test_load_from_filename. If false, the data is loaded from data-root')
+        
+        parser.add('--save_dataset_filenames',  default='False', type=rn_utils.str2bool, choices=[True, False],
+                                                help='If True, the train/test data is saved in train/test_filnames.txt')
+        
+        parser.add('--train_load_from_filename', default='train_filnames.txt', type=str,
+                                                help='filename that we read the training dataset images from if dataset_load_from_txt==True')                                    
+
+        parser.add('--test_load_from_filename', default='test_filnames.txt', type=str,
+                                                help='filename that we read the testing dataset images from if dataset_load_from_txt==True')  
 
         # Technical options that are set automatically
         parser.add('--local_rank', default=0, type=int)
@@ -161,15 +206,15 @@ class TrainingWrapper(object):
             raise # Not supported
 
         # Prepare experiment directories and save options
-        project_dir = pathlib.Path(args.project_dir)
+        experiment_dir = pathlib.Path(args.experiment_dir)
         
-        self.checkpoints_dir = project_dir / 'runs' / args.experiment_name / 'checkpoints'
+        self.checkpoints_dir = experiment_dir / 'runs' / args.experiment_name / 'checkpoints'
 
         # Store options
         if not args.no_disk_write_ops:
             os.makedirs(self.checkpoints_dir, exist_ok=True)
 
-        self.experiment_dir = project_dir / 'runs' / args.experiment_name
+        self.experiment_dir = experiment_dir / 'runs' / args.experiment_name
 
         if not args.no_disk_write_ops:
             # Redirect stdout
@@ -184,7 +229,7 @@ class TrainingWrapper(object):
                 print(args)
                 with open(self.experiment_dir / 'args.txt', 'wt') as args_file:
                     for k, v in sorted(vars(args).items()):
-                        args_file.write('%s: %s\n' % (str(k), str(v)))
+                        args_file.write('%s:%s\n' % (str(k), str(v)))
 
         # Initialize model
         self.runner = runner
@@ -211,9 +256,46 @@ class TrainingWrapper(object):
             self.runner.cuda()
 
         if args.rank == 0:
-            pass
+            print(self.runner)
 
-        print('======== finished init ============')
+        # If we are reading from the data filenames from a txt file, there is no need to store it again
+        # commented to test 
+        # if args.dataset_load_from_txt:
+        #     args.save_dataset_filenames = False
+
+        if args.save_dataset_filenames:
+            print("Clearing the files already stored as train_filenames.txt and test_filenames.txt.")
+            train_file = "train_filenames.txt"
+            file = open(self.experiment_dir / train_file,"w+")
+            file.truncate(0)
+            file.write('data-root:%s\n' % (str(args.data_root)))
+            file.close()
+            # with open(self.experiment_dir / train_file, 'a') as data_file:
+            #     data_file.write('\n')
+
+
+            test_file = "test_filenames.txt"
+            file = open(self.experiment_dir / test_file,"w+")
+            file.truncate(0)
+            file.write('data-root:%s\n' % (str(args.data_root)))
+            file.close()
+            # with open(self.experiment_dir / test_file, 'a') as data_file:
+            #     data_file.write('\n')
+
+
+    def get_current_lr(self, optimizer, group_idx, parameter_idx, step):
+        # Adam has different learning rates for each paramter. So we need to pick the
+        # group and paramter first.
+        group = optimizer.param_groups[group_idx]
+        p = group['params'][parameter_idx]
+
+        beta1, _ = group['betas']
+        state = optimizer.state[p]
+
+        bias_correction1 = 1 - beta1 ** step
+        current_lr = group['lr'] / bias_correction1
+        return current_lr
+
 
     def train(self, args):
         # Reset amp
@@ -224,7 +306,7 @@ class TrainingWrapper(object):
 
         # Tensorboard writer init
         if args.rank == 0:
-            writer = SummaryWriter(log_dir=args.project_dir+'logs/' + args.label_run)
+            writer = SummaryWriter(log_dir = args.experiment_dir + '/runs/' + args.experiment_name + '/metrics/')
         
         # Get dataloaders
         train_dataloader = ds_utils.get_dataloader(args, 'train')
@@ -236,6 +318,7 @@ class TrainingWrapper(object):
 
         if args.use_half:
             runner.half()
+
         # Initialize optimizers, schedulers and apex
         opts = runner.get_optimizers(args)
 
@@ -286,6 +369,7 @@ class TrainingWrapper(object):
             torch.autograd.set_detect_anomaly(True)
 
         total_iters = 1
+        iter_count = 0
 
         for epoch in range(epoch_start, args.num_epochs + 1):
             self.epoch_start = time.time()
@@ -300,8 +384,8 @@ class TrainingWrapper(object):
 
             # Shuffle the dataset before the epoch
             train_dataloader.dataset.shuffle()
-
-            for i, data_dict in enumerate(train_dataloader, 1):  
+            for i, data_dict in enumerate(train_dataloader, 1): 
+                iter_count+=1 
                 # Prepare input data
                 if args.num_gpus > 0 and args.num_gpus > 0:
                     for key, value in data_dict.items():
@@ -347,11 +431,10 @@ class TrainingWrapper(object):
                     opt.step(closure)
 
                 print("The time for this epoch is:", time.time() - time_start)
-
                 if output_logs:
-            
-                    logger.output_logs('train', runner.output_visuals(), runner.output_losses(), runner.output_metrics(), time.time() - time_start)
-
+                    logger.output_logs('train', runner.output_visuals(), runner.output_losses(), \
+                            runner.output_metrics(), time.time() - time_start)
+ 
                     if args.debug:
                         break
 
@@ -389,8 +472,9 @@ class TrainingWrapper(object):
                     if args.debug:
                         break
 
-            logger.output_logs('test', runner.output_visuals(), runner.output_losses(), runner.output_metrics(), time.time() - time_start)
-            
+            logger.output_logs('test', runner.output_visuals(), runner.output_losses(), \
+                    runner.output_metrics(), time.time() - time_start)
+
             # If creation of checkpoint is not required -- continue
             if epoch % args.checkpoint_freq and not args.debug:
                 continue

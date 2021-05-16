@@ -2,7 +2,6 @@
 import torch
 from torch import nn
 import math
-# This project
 from networks import utils
 
 
@@ -122,6 +121,7 @@ class NetworkWrapper(nn.Module):
 
         if 'target_stickmen' in data_dict.keys():
             visuals += [data_dict['target_stickmen']]
+        
         return visuals
 
     def __repr__(self):

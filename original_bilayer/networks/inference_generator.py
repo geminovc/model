@@ -33,9 +33,12 @@ class NetworkWrapper(nn.Module):
 
         parser.add('--inf_upsampling_type',      default='nearest', type=str,
                                                  help='upsampling layer inside the generator')
+        
         parser.add('--use_unet',          default='True', type=rn_utils.str2bool, choices=[True, False],
                                                                  help='set to True to use unet')
+        
         parser.add('--unet_inputs', default='hf', type=str, help='list of unet inputs as string : "hf, lf"') 
+        
         parser.add('--inf_skip_layer_type',      default='ada_conv', type=str,
                                                  help='skip connection layer type')
 
@@ -47,11 +50,16 @@ class NetworkWrapper(nn.Module):
 
         parser.add('--inf_apply_masks',          default='True', type=rn_utils.str2bool, choices=[True, False], 
                                                  help='apply segmentation masks to predicted and ground-truth images')
+       
+        parser.add('--use_source_background',    default='True', type=rn_utils.str2bool, choices=[True, False], 
+                                                 help='apply the segmenattion mask and use the source background')
 
+                                                 
     def __init__(self, args):
         super(NetworkWrapper, self).__init__()
         # Initialize options
         self.args = args
+
         # Generator
         self.gen_inf = Generator(args)
 
@@ -134,6 +142,7 @@ class NetworkWrapper(nn.Module):
         pred_tex_hf_rgbs_repeated = pred_tex_hf_rgbs_repeated.view(b*t, *pred_tex_hf_rgbs.shape[1:])
 
         pred_target_delta_hf_rgbs = F.grid_sample(pred_tex_hf_rgbs_repeated, pred_target_uvs)
+        
         ### Store outputs ###
         reshape_target_data = lambda data: data.view(b, t, *data.shape[1:])
         reshape_source_data = lambda data: data.view(b, n, *data.shape[1:])
@@ -346,6 +355,7 @@ class Generator(nn.Module):
         # Set options for the blocks
         num_blocks = int(math.log(args.image_size // args.inf_input_tensor_size, 2))
         out_channels = min(int(args.inf_num_channels * 2**num_blocks), args.inf_max_channels)
+
         # Construct the upsampling blocks
         layers = []
 

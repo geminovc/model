@@ -22,7 +22,6 @@ class LossWrapper(nn.Module):
             
 
     def forward(self, data_dict, losses_dict):
-        
         for i, (tensor_name, target_tensor_name) in enumerate(self.apply_to):
             real_imgs = data_dict[target_tensor_name]
             fake_imgs = data_dict[tensor_name]
@@ -34,6 +33,6 @@ class LossWrapper(nn.Module):
 
             real_imgs = real_imgs.view(b*t, *real_imgs.shape[2:])
             
-            losses_dict['G_PSNR'] = self.PSNR(fake_imgs.detach(), real_imgs.detach()) # Make these metrics and don't attach gradients to them
+            # Make these metrics and don't attach gradients to them
+            losses_dict['G_PSNR'] = self.PSNR(fake_imgs.detach(), real_imgs.detach()).clone()
         return losses_dict
-

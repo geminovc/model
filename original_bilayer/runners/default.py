@@ -4,6 +4,7 @@ import torch
 from torch import nn
 from torch import optim
 import torch.nn.functional as F
+import time
 from matplotlib import pyplot as plt
 
 # This project
@@ -72,8 +73,12 @@ class RunnerWrapper(nn.Module):
 
         parser.add('--adam_beta1',           default = 0.5,    type=float, 
                                              help    = 'beta1 (momentum of the gradient) parameter for Adam')
+        
         parser.add('--metrics', default = 'lpips', type=str,  help    = 'metrics evaluated always')
-        parser.add('--pretrained_weights_dir', type=str, help='location so x/pretrained_weights has all the weights')
+        
+        parser.add('--pretrained_weights_dir',  default='/video_conf/scratch/pantea', type=str,
+                                                help='directory for pretrained weights of loss networks (lpips , ...)')
+
         args, _ = parser.parse_known_args()
         
 
@@ -95,6 +100,7 @@ class RunnerWrapper(nn.Module):
             utils.parse_str_to_list(args.metrics, sep=',')))
         for metric_name in metrics_names:
             importlib.import_module(f'losses.{metric_name}').LossWrapper.get_args(parser)
+
         return parser
 
     def __init__(self, args, training=True):
@@ -102,6 +108,7 @@ class RunnerWrapper(nn.Module):
         # Store general options
         self.args = args
         self.training = training
+
         # Read names lists from the args
         self.load_names(args)
 
@@ -110,6 +117,7 @@ class RunnerWrapper(nn.Module):
         if self.training:
             nets_names += self.nets_names_train
         nets_names = list(set(nets_names))
+        print("Here are the names of networks and corresponding outputs for", str(nets_names))
 
         self.nets = nn.ModuleDict()
 
@@ -135,12 +143,13 @@ class RunnerWrapper(nn.Module):
 
             for loss_name in sorted(losses_names):
                 self.losses[loss_name] = importlib.import_module(f'losses.{loss_name}').LossWrapper(args)
+
         metrics_names = list(set(self.metrics_names))
         self.metrics = nn.ModuleDict()
 
         for metric_name in sorted(metrics_names):
             self.metrics[metric_name] = importlib.import_module(f'losses.{metric_name}').LossWrapper(args)
-        
+
         # Spectral norm
         if args.spn_layers:
             spn_layers = utils.parse_str_to_list(args.spn_layers, sep=',')
@@ -205,12 +214,6 @@ class RunnerWrapper(nn.Module):
 
         # Forward pass through all the required networks
         self.data_dict = data_dict
-        import sys
-        #print("data", data_dict, flush=True)
-        sys.stdout.flush()
-
-  
-
         for net_name in nets_names:
             self.data_dict = self.nets[net_name](self.data_dict, networks_to_train, self.nets)
             #print("Printing the data_dict here:", self.data_dict)
@@ -219,18 +222,18 @@ class RunnerWrapper(nn.Module):
         losses_dict = {}
         for loss_name in losses_names:
             if hasattr(self, 'losses') and loss_name in self.losses.keys():
-                #print("These are the loss dicts:", self.losses[loss_name](self.data_dict, losses_dict),"\n")
                 losses_dict = self.losses[loss_name](self.data_dict, losses_dict)
+        
         metrics_dict = {}
         for metric_name in metrics_names:
             if hasattr(self, 'metrics') and metric_name in self.metrics.keys():
-                #print("These are the loss dicts:", self.losses[loss_name](self.data_dict, losses_dict),"\n")
                 metrics_dict = self.metrics[metric_name](self.data_dict, metrics_dict)
 
         # Calculate the total loss and store history
         loss = self.process_losses_dict(losses_dict)
         self.process_metrics_dict(metrics_dict)
         return loss
+
 
     ########################################################
     #                     Utility functions                #
@@ -261,7 +264,7 @@ class RunnerWrapper(nn.Module):
             lr = nets_lrs[net_name]
             optim_name = optim_name.lower()
             params = self.nets[net_name].parameters()
-            print(net_name, 'opted')
+
             # Choose the required optimizer
             if optim_name == 'adam':
                 opt = optim.Adam(params, lr=lr, eps=args.eps, betas=(args.adam_beta1, 0.999))
@@ -312,6 +315,7 @@ class RunnerWrapper(nn.Module):
             
             self.metrics_history[self.training][key] += [value.item()]
             
+
     def output_losses(self):
         losses = {}
 
@@ -320,7 +324,7 @@ class RunnerWrapper(nn.Module):
 
             # Average the losses
             losses[key] = value.cpu().mean()
-        
+
         # Clear losses hist
         self.losses_history[self.training] = {}
 
@@ -345,6 +349,7 @@ class RunnerWrapper(nn.Module):
             return None
         else:
             return metrics
+
     def output_visuals(self):
         # This function creates an output grid of visuals
         visuals_data_dict = {}
@@ -359,7 +364,6 @@ class RunnerWrapper(nn.Module):
         for net_name in self.nets_names_train:
             visuals += self.nets[net_name].visualize_outputs(visuals_data_dict)
         visuals = torch.cat(visuals, 3) # cat w.r.t. width
-        
         visuals = torch.cat(visuals.split(1, 0), 2)[0] # cat batch dim in lines w.r.t. height
         visuals = (visuals + 1.) * 0.5 # convert back to [0, 1] range
         visuals = visuals.clamp(0, 1)

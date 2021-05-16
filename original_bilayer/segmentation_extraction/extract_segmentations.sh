@@ -9,7 +9,7 @@ python  segmentation_generator.py \
     --bn_momentum 1.0 \
     --calc_stats \
     --checkpoint_freq 25 \
-    --data_root /data/pantea/video_conf/minidataset \
+    --data_root /video-conf/scratch/pantea/Vedantha_dataset \
     --dis_activation_type leakyrelu \
     --dis_downsampling_type avgpool \
     --dis_max_channels 512 \
@@ -49,7 +49,7 @@ python  segmentation_generator.py \
     --tex_upsampling_type nearest \
     --tex_activation_type leakyrelu \
     --image_size 256 \
-    --label_run : name,
+    --label_run : name \
     --losses_test 'lpips, csim' \
     --losses_train 'adversarial, feature_matching, perceptual, pixelwise, warping_regularizer'  \
     --lrs 'identity_embedder: 2e-4, texture_generator: 2e-4, keypoints_embedder: 2e-4, inference_generator: 2e-4, discriminator: 2e-4'  \

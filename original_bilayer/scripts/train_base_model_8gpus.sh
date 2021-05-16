@@ -1,17 +1,25 @@
 cd ../
-python train.py \
-    --experiment_name 'trial_9' \
+     python  train.py \
+    --experiment_name 'toy_projet' \
+    --pretrained_weights_dir /video-conf/scratch/pantea \
+    --images_log_rate 400 \
+    --metrics_log_rate 100 \
+    --random_seed 0 \
+    --save_dataset_filenames False \
+    --dataset_load_from_txt False \
+    --train_load_from_filename /data/pantea/video_conf/one_person_dataset/per_video_dataset/results/runs/toy_project/reserved_train_filenames.txt \
+    --test_load_from_filename /data/pantea/video_conf/one_person_dataset/per_video_dataset/results/runs/toy_project/reserved_test_filenames.txt \
     --adam_beta1 0.5 \
     --adv_loss_weight 0.5 \
     --adv_pred_type ragan \
     --amp_loss_scale dynamic \
-    --experiment_dir /data/vision/billf/video-conf/scratch/vedantha/runs/discriminator_test_17_only_improve_unet_for_debugging \
+    --experiment_dir /video-conf/scratch/pantea/video_conf_datasets/per_person_dataset/results \
     --amp_opt_level O0 \
     --batch_size 2 \
     --bn_momentum 1.0 \
     --calc_stats \
-    --checkpoint_freq 25 \
-    --data_root /data/vision/billf/video-conf/scratch/pantea/video_conf_datasets/per_person_dataset\
+    --checkpoint_freq 100 \
+    --data_root /video-conf/scratch/pantea/video_conf_datasets/per_person_dataset \
     --dis_activation_type leakyrelu \
     --dis_downsampling_type avgpool \
     --dis_max_channels 512 \
@@ -31,8 +39,9 @@ python train.py \
     --fem_loss_type l1 \
     --fem_loss_weight 10.0 \
     --folder_postfix '2d_crop' \
+    --frame_num_from_paper False \
     --inf_activation_type leakyrelu \
-    --inf_apply_masks True \
+    --inf_apply_masks False \
     --inf_calc_grad False \
     --inf_max_channels 256 \
     --inf_norm_layer_type ada_bn \
@@ -51,23 +60,24 @@ python train.py \
     --tex_upsampling_type nearest \
     --tex_activation_type leakyrelu \
     --image_size 256 \
-    --metrics 'lpips, PSNR'\
-    --label_run general_dataset_all_losses_trial_12_with_unet_with_warping_loss \
-    --losses_test '' \
-    --losses_train 'adversarial, feature_matching, perceptual    , pixelwise, segmentation, warping_regularizer' \
-    --lrs 'identity_embedder: 2e-4, texture_generator: 2e-4, keypoints_embedder: 2e-4, inference_generator: 2e-4, unet: 2e-4, discriminator: 2e-4'  \
-    --networks_calc_stats 'identity_embedder, texture_generator, keypoints_embedder, inference_generator, unet' \
-    --networks_test 'identity_embedder, texture_generator, keypoints_embedder, inference_generator, unet' \
-    --networks_to_train 'identity_embedder, texture_generator, keypoints_embedder, inference_generator, unet, discriminator' \
-    --networks_train 'identity_embedder, texture_generator, keypoints_embedder, inference_generator, unet, discriminator' \
-    --num_epochs 5000 \
+    --label_run  'Pantea_experiment' \
+    --losses_test 'lpips, csim' \
+    --metrics: 'PSNR, lpips, pose_matching_metric' \
+    --psnr_loss_apply_to: 'pred_target_delta_lf_rgbs, target_imgs'  \
+    --losses_train 'adversarial, feature_matching, perceptual, pixelwise, warping_regularizer'  \
+    --lrs 'identity_embedder: 2e-4, texture_generator: 2e-4, keypoints_embedder: 2e-4, inference_generator: 2e-4, discriminator: 2e-4'  \
+    --networks_calc_stats 'identity_embedder, texture_generator, keypoints_embedder, inference_generator' \
+    --networks_test 'identity_embedder, texture_generator, keypoints_embedder, inference_generator' \
+    --networks_to_train 'identity_embedder, texture_generator, keypoints_embedder, inference_generator, discriminator' \
+    --networks_train 'identity_embedder, texture_generator, keypoints_embedder, inference_generator, discriminator' \
+    --num_epochs 100000 \
     --num_gpus 1 \
     --num_keypoints 68 \
     --num_source_frames 1 \
     --num_target_frames 1 \
     --num_visuals 1 \
     --num_workers_per_process 20 \
-    --optims 'identity_embedder: adam, texture_generator: adam, keypoints_embedder: adam, inference_generator: adam, unet: adam, discriminator: adam' \
+    --optims 'identity_embedder: adam, texture_generator: adam, keypoints_embedder: adam, inference_generator: adam, discriminator: adam' \
     --output_stickmen True \
     --per_full_net_names 'vgg19_imagenet_pytorch, vgg16_face_caffe' \
     --per_layer_weights '0.03125, 0.0625, 0.125, 0.25, 1.0' \
@@ -81,9 +91,7 @@ python train.py \
     --pix_loss_names L1 \
     --pix_loss_type l1 \
     --pix_loss_weights 10.0 \
-    --project_dir '/data/vision/billf/video-conf/scratch/vedantha' \
-    --pretrained_weights_dir '/data/vision/billf/video-conf/scratch/vedantha'\
-    --tensorboard_dir '/data/vision/billf/video-conf/scratch/vedantha'\
+    --project_dir '.' \
     --pse_activation_type leakyrelu \
     --pse_emb_source_pose False \
     --pse_in_channels 136 \
@@ -91,27 +99,22 @@ python train.py \
     --pse_num_blocks 4 \
     --pse_num_channels 256 \
     --pse_use_harmonic_enc False \
-    --psnr_loss_apply_to 'pred_target_imgs, target_imgs' \
-    --random_seed 0 \
     --runner_name default \
-    --seg_loss_apply_to 'pred_target_segs, target_segs' \
+    --seg_loss_apply_to 'pred_target_segs_logits, target_segs' \
     --seg_loss_names BCE \
     --seg_loss_type bce \
     --seg_loss_weights 10.0 \
     --spn_layers 'conv2d, linear' \
-    --spn_networks 'identity_embedder, texture_generator, keypoints_embedder, inference_generator, discriminator, unet' \
+    --spn_networks 'identity_embedder, texture_generator, keypoints_embedder, inference_generator, discriminator' \
     --stats_calc_iters 500 \
     --stickmen_thickness 2 \
-    --test_freq 2 \
-    --texture_output_dim 16 \
-    --use_unet True \
-    --unet_input_channels 19\
-    --unet_output_channels 3 \
-    --unet_inputs 'lf, hf' \
-    --visual_freq '-1' \
+    --test_freq 50 \
+    --visual_freq '50' \
     --wpr_loss_apply_to pred_target_delta_uvs \
     --wpr_loss_decay_schedule '-1' \
     --wpr_loss_type l1 \
-    --wpr_loss_weight 1.0 \
+    --wpr_loss_weight 0.0 \
     --wpr_loss_weight_decay 1.0 \
-    --skip_test True 
+    --nme_num_threads 1 \
+    --skip_test False 
+   

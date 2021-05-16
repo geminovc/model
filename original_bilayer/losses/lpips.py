@@ -6,12 +6,14 @@ from runners import utils as rn_utils
 from networks import utils as nt_utils
 
 
+
 class LossWrapper(nn.Module):
     @staticmethod
     def get_args(parser):
         parser.add('--lps_model', type=str, default='net-lin')
         parser.add('--lps_net', type=str, default='vgg')
-        parser.add('--lps_calc_grad',action='store_true', help='if True, the loss is differentiable')
+        parser.add('--lps_calc_grad', action='store_true', help='if True, the loss is differentiable')
+    
     def __init__(self, args):
         super(LossWrapper, self).__init__()
         self.calc_grad = args.lps_calc_grad
@@ -751,6 +753,7 @@ def print_network(net):
     num_params = 0
     for param in net.parameters():
         num_params += param.numel()
+    print('Network',net)
     print('Total number of parameters: %d' % num_params)
 
 ############################################################

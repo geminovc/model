@@ -130,11 +130,13 @@ class PoseEmbedder(nn.Module):
         norm_layer = utils.norm_layers[args.pse_norm_layer_type]
         activation = utils.activations[args.pse_activation_type]
 
+        args.pse_use_harmonic_enc = False # I added this should be removed
         # Set input number of channels
         if args.pse_use_harmonic_enc:
             in_channels = args.pse_in_channels * args.pse_num_harmonics * 2
         else:
             in_channels = args.pse_in_channels
+            print(in_channels)
 
         # Set latent number of channels
         if args.pse_num_blocks == 1:
@@ -145,6 +147,7 @@ class PoseEmbedder(nn.Module):
         # Define encoding blocks
         layers = [nn.Linear(in_channels, num_channels)]
         
+
         for i in range(1, args.pse_num_blocks - 1):
             if args.pse_norm_layer_type != 'none':
                 layers += [norm_layer(num_channels, None, eps=args.eps)]

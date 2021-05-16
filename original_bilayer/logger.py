@@ -30,8 +30,10 @@ class Logger(object):
                 else:
                     self.losses = {}
                     self.metrics = {}
+                self.writer = tensorboardX.SummaryWriter(args.experiment_dir + '/runs/' + args.experiment_name + '/tensorboard_paper/')
                 
-                self.writer = tensorboardX.SummaryWriter(args.tensorboard_dir+'/tensorboard/' + args.label_run) # Set this to an argument
+                # Set this to an argument
+                self.writer = tensorboardX.SummaryWriter(args.tensorboard_dir+'/tensorboard/' + args.label_run) 
 
     def output_logs(self, phase, visuals, losses, metrics, time):
         if not self.no_disk_write_ops:
@@ -39,7 +41,8 @@ class Logger(object):
             self.num_iter[phase] += 1
 
             # Save visuals
-            self.to_image(visuals).save(self.experiment_dir / 'images' / phase / ('%04d_%02d.jpg' % (self.num_iter[phase], self.rank)))
+            self.to_image(visuals).save(self.experiment_dir \
+                    / 'images' / phase / ('%04d_%02d.jpg' % (self.num_iter[phase], self.rank)))
 
             if self.rank != 0:
                 return
@@ -52,7 +55,6 @@ class Logger(object):
                     self.losses[key].append(value)
                 else:
                     self.losses[key] = [value]
-
                 self.writer.add_scalar(f'losses_{key}_{phase}', value, self.num_iter[phase])
 
             for key, value in metrics.items():
@@ -60,16 +62,16 @@ class Logger(object):
                     self.metrics[key].append(value)
                 else:
                     self.metrics[key] = [value]
-
                 self.writer.add_scalar(f'metrics_{key}_{phase}', value, self.num_iter[phase])
-            # Save losses
+            
+            # Save losses and metrics
             pickle.dump(self.losses, open(self.experiment_dir / 'losses.pkl', 'wb'))
             pickle.dump(self.metrics, open(self.experiment_dir / 'metrics.pkl', 'wb'))
 
         elif self.rank != 0:
             return
 
-        # Print losses
+        # Print losses and metrics
         print(', '.join('%s: %.3f' % (key, value) for key, value in losses.items()) + ', time: %.3f' % time)
         print(', '.join('%s: %.3f' % (key, value) for key, value in metrics.items()) + ', time: %.3f' % time)
 
