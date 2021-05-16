@@ -174,8 +174,9 @@ class NetworkWrapper(nn.Module):
             # depending on wether you have the lf and hf content as inputs
             data_dict['warped_neural_textures'] = warped_neural_textures
             full_input = warped_neural_textures
-            data_dict['lf_detached_predictions'] = full_input
-
+            data_dict['lf_detached_inputs'] = full_input
+            
+            # Default input for unet input is the neural textures unless lf component is also needed
             if 'lf' in self.args.unet_inputs:
                 data_dict['lf_detached_inputs'] = torch.cat((full_input, pred_target_delta_lf_rgbs.detach()), dim=1)
                 full_input = torch.cat((full_input, pred_target_delta_lf_rgbs), dim=1)
