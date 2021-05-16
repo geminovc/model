@@ -16,7 +16,7 @@ class NetworkWrapper(nn.Module):
     def __init__(self, args):
         super(NetworkWrapper, self).__init__()
         # Initialize options
-        self.oneConv = oneConv(args)
+        self.oneConv = oneConv(args.unet_input_channels,args.unet_output_channels)
 
     def forward(
             self, 
