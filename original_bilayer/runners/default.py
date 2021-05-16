@@ -304,7 +304,7 @@ class RunnerWrapper(nn.Module):
         return loss
 
     def process_metrics_dict(self, metrics_dict):
-        # This function appends loss value into losses_dict
+        # This function appends metrics value into metrics_dict
 
         for key, value in metrics_dict.items():
             if key not in self.metrics_history[self.training]: 
