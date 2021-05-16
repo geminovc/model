@@ -115,7 +115,9 @@ class NetworkWrapper(nn.Module):
         
         if 'target_stickmen' in data_dict.keys():
             visuals += [data_dict['target_stickmen']]
-        
+            visuals += [data_dict['fake_scores_gen']]
+            visuals += [data_dict['real_scores']] 
+            visuals += [data_dict['fake_scores_dis']]
         return visuals
 
     def __repr__(self):

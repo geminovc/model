@@ -212,7 +212,8 @@ class TrainingWrapper(object):
 
         if args.rank == 0:
             pass
-            #print(self.runner)
+
+        print('======== finished init ============')
 
     def train(self, args):
         # Reset amp
