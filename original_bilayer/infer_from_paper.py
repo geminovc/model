@@ -54,7 +54,8 @@ class InferenceWrapper(nn.Module):
         self.args = self.get_args(args_dict)
         self.to_tensor = transforms.ToTensor()
 
-        # Load the model
+
+        
         self.runner = importlib.import_module(f'runners.{self.args.runner_name}').RunnerWrapper(self.args, training=False)
         self.runner.eval()
 
@@ -70,18 +71,13 @@ class InferenceWrapper(nn.Module):
 
         if self.args.init_which_epoch != 'none' and self.args.init_experiment_dir:
             for net_name in init_networks:
-                self.runner.nets[net_name].load_state_dict(torch.load(
-                    pathlib.Path(self.args.init_experiment_dir) 
-                        / 'checkpoints' 
-                        / f'{self.args.init_which_epoch}_{net_name}.pth', 
-                    map_location='cpu'))
+                print("loaded ", net_name, "from ", str(pathlib.Path(self.args.init_experiment_dir) / 'checkpoints' / f'{self.args.init_which_epoch}_{net_name}.pth'))
+                self.runner.nets[net_name].load_state_dict(torch.load(pathlib.Path(self.args.init_experiment_dir) / 'checkpoints' / f'{self.args.init_which_epoch}_{net_name}.pth', map_location='cpu'))
 
         for net_name in networks_to_train:
             if net_name not in init_networks and net_name in self.runner.nets.keys():
-                self.runner.nets[net_name].load_state_dict(torch.load(
-                    checkpoints_dir 
-                        / f'{self.args.which_epoch}_{net_name}.pth', 
-                    map_location='cpu'))
+                print("loaded ", net_name, "from ", str(checkpoints_dir / f'{self.args.which_epoch}_{net_name}.pth'))
+                self.runner.nets[net_name].load_state_dict(torch.load(checkpoints_dir / f'{self.args.which_epoch}_{net_name}.pth', map_location='cpu'))
         
         # Remove spectral norm to improve the performance
         self.runner.apply(rn_utils.remove_spectral_norm)
@@ -221,14 +217,14 @@ class InferenceWrapper(nn.Module):
         if target_stickmen is not None:
             data_dict['target_stickmen'] = target_stickmen
 
-        # Calculate "standing" stats for the batch normalization
-        print("The dataroot is:", self.args.data_root)
-        train_dataloader = ds_utils.get_dataloader(self.args, 'train')
-        train_dataloader.dataset.shuffle()
+        # # Calculate "standing" stats for the batch normalization
+        # print("The dataroot is:", self.args.data_root)
+        # train_dataloader = ds_utils.get_dataloader(self.args, 'train')
+        # train_dataloader.dataset.shuffle()
 
-        if self.args.calc_stats:
-            print("Calculate standing stats for the batch normalization")
-            self.runner.calculate_batchnorm_stats(train_dataloader, self.args.debug)
+        # if self.args.calc_stats:
+        #     print("Calculate standing stats for the batch normalization")
+        #     self.runner.calculate_batchnorm_stats(train_dataloader, self.args.debug)
 
 
         if no_grad:

@@ -1,9 +1,9 @@
 cd ../
      python  train.py \
-    --experiment_name 'all_networks_frozen_except_Ginf_uncroped_segs' \
+    --experiment_name 'inference_check' \
     --pretrained_weights_dir /video-conf/scratch/pantea \
-    --images_log_rate 400 \
-    --metrics_log_rate 100 \
+    --images_log_rate 1 \
+    --metrics_log_rate 1 \
     --random_seed 0 \
     --save_dataset_filenames False \
     --dataset_load_from_txt False \
@@ -18,8 +18,8 @@ cd ../
     --batch_size 2 \
     --bn_momentum 1.0 \
     --calc_stats \
-    --checkpoint_freq 25 \
-    --data_root /video-conf/scratch/pantea/uncropped_segs_one_person_dataset \
+    --checkpoint_freq 1 \
+    --data_root /video-conf/scratch/pantea/video_conf_datasets/per_person_dataset \
     --dis_activation_type leakyrelu \
     --dis_downsampling_type avgpool \
     --dis_max_channels 512 \
@@ -68,10 +68,10 @@ cd ../
     --lrs 'identity_embedder: 2e-4, texture_generator: 2e-4, keypoints_embedder: 2e-4, inference_generator: 2e-4, discriminator: 2e-4'  \
     --networks_calc_stats 'identity_embedder, texture_generator, keypoints_embedder, inference_generator' \
     --networks_test 'identity_embedder, texture_generator, keypoints_embedder, inference_generator' \
-    --networks_to_train 'inference_generator, discriminator'   \
+    --networks_to_train 'identity_embedder, texture_generator, keypoints_embedder, inference_generator, discriminator'   \
     --networks_train 'identity_embedder, texture_generator, keypoints_embedder, inference_generator, discriminator' \
     --inf_calc_grad True \
-    --num_epochs 4000 \
+    --num_epochs 5 \
     --num_gpus 1 \
     --num_keypoints 68 \
     --num_source_frames 1 \
@@ -109,17 +109,17 @@ cd ../
     --spn_networks 'identity_embedder, texture_generator, keypoints_embedder, inference_generator, discriminator' \
     --stats_calc_iters 500 \
     --stickmen_thickness 2 \
-    --test_freq 5 \
-    --visual_freq '50' \
+    --test_freq 1 \
+    --visual_freq '1' \
     --wpr_loss_apply_to pred_target_delta_uvs \
     --wpr_loss_decay_schedule '-1' \
     --wpr_loss_type l1 \
     --wpr_loss_weight 0.1 \
     --wpr_loss_weight_decay 1.0 \
     --nme_num_threads 1  \
-    --init_experiment_dir /video-conf/scratch/pantea/bilayer_paper_runs/vc2-hq_adrianb_paper_main \
+    --init_experiment_dir /video-conf/scratch/pantea_experiments_mapmaker/runs/all_networks_frozen_except_inference_generator \
     --init_networks 'identity_embedder, texture_generator, keypoints_embedder, inference_generator, discriminator' \
-    --init_which_epoch 2225 \
+    --init_which_epoch 1200 \
     --skip_test False \
     --frozen_networks 'identity_embedder, keypoints_embedder, texture_generator' \
     --unfreeze_texture_generator_last_layers False \

@@ -123,7 +123,6 @@ class DatasetWrapper(data.Dataset):
         # Sample source and target frames for the current sequence
         count = 0
         filenames = [1]
-        #print("Dataloader index is", index)
         while len(filenames):
             count+=1
             try:
