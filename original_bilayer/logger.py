@@ -32,9 +32,6 @@ class Logger(object):
                     self.metrics = {}
                 self.writer = tensorboardX.SummaryWriter(args.experiment_dir + '/runs/' + args.experiment_name + '/tensorboard_paper/')
                 
-                # Set this to an argument
-                self.writer = tensorboardX.SummaryWriter(args.tensorboard_dir+'/tensorboard/' + args.label_run) 
-
     def output_logs(self, phase, visuals, losses, metrics, time):
         if not self.no_disk_write_ops:
             # Increment iter counter

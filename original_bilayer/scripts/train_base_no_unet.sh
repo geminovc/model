@@ -52,7 +52,6 @@ python  train.py \
     --tex_activation_type leakyrelu \
     --image_size 256 \
     --metrics 'lpips, PSNR'\
-    --label_run general_dataset_all_losses_trial_13_with_no_unet_with_warping_loss \
     --losses_test '' \
     --losses_train 'adversarial, feature_matching, perceptual    , pixelwise, segmentation, warping_regularizer' \
     --lrs 'identity_embedder: 2e-4, texture_generator: 2e-4, keypoints_embedder: 2e-4, inference_generator: 2e-4, discriminator: 2e-4'  \
@@ -83,7 +82,6 @@ python  train.py \
     --pix_loss_weights 10.0 \
     --project_dir '/data/vision/billf/video-conf/scratch/vedantha' \
     --pretrained_weights_dir '/data/vision/billf/video-conf/scratch/vedantha'\
-    --tensorboard_dir '/data/vision/billf/video-conf/scratch/vedantha'\
     --pse_activation_type leakyrelu \
     --pse_emb_source_pose False \
     --pse_in_channels 136 \

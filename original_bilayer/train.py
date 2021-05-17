@@ -125,18 +125,8 @@ class TrainingWrapper(object):
         parser.add('--output_segmentation',   default='False', type=rn_utils.str2bool, choices=[True, False],
                                               help='read segmentation mask')
 
-        parser.add('--label_run',   default='name', type=str,
-
-                                              help='name for storing in tensorboard')
-
-        parser.add('--tensorboard_dir', type=str, help='location for storing in tensorboard')
-
-        
         parser.add('--output_segmentation',     default='False', type=rn_utils.str2bool, choices=[True, False],
                                                 help='read segmentation mask')
-        
-        parser.add('--label_run',               default='name', type=str,
-                                                help='name for storing in tensorboard')
         
         parser.add('--metrics',                 default='PSNR, lpips, pose_matching', type=str,
                                                 help='metrics to evaluate the model while training') 
