@@ -176,10 +176,82 @@ class InferenceWrapper(nn.Module):
 
         return poses, imgs, segs, stickmen
 
+    def output_visuals (self, data_dict):
+        # Collect the visuals from all submodules
+        visuals = []
+
+        if self.args.inf_pred_source_data:
+            # Predicted source LF rgbs
+            visuals += [data_dict['pred_source_delta_lf_rgbs']]
+
+            # Predicted source HF rgbs
+            if 'pred_source_delta_hf_rgbs' in data_dict.keys():
+                visuals += [data_dict['pred_source_delta_hf_rgbs']]
+
+            # Predicted source segs
+            if self.args.inf_pred_segmentation:
+                pred_source_segs = data_dict['pred_source_segs']
+
+                visuals += [torch.cat([(pred_source_segs - 0.5) * 2] * 3, 1)]
+
+        # Predicted textures
+        visuals += [data_dict['pred_tex_hf_rgbs']]
+
+        if 'pred_enh_tex_hf_rgbs' in data_dict.keys():
+            # Predicted enhated textures
+            visuals += [data_dict['pred_enh_tex_hf_rgbs']]
+
+        # Target images
+        visuals += [data_dict['target_imgs']]
+
+        # Predicted images
+        visuals += [data_dict['pred_target_imgs']]
+
+        # Predicted enhated images
+        if 'pred_enh_target_imgs' in data_dict.keys():
+            visuals += [data_dict['pred_enh_target_imgs']]
+
+        # Predicted target LF rgbs
+        visuals += [data_dict['pred_target_delta_lf_rgbs']]
+
+        # Predicted target HF rgbs
+        visuals += [data_dict['pred_target_delta_hf_rgbs']]
+
+        if 'pred_enh_target_delta_hf_rgbs' in data_dict.keys():
+            # Predicted enhated target HF rgbs
+            visuals += [data_dict['pred_enh_target_delta_hf_rgbs']]
+
+
+        if self.args.inf_pred_segmentation:
+            # Target segmentation
+            target_segs = data_dict['target_segs']
+            visuals += [torch.cat([(target_segs - 0.5) * 2] * 3, 1)]
+
+            # Predicted target segmentation
+            pred_target_segs = data_dict['pred_target_segs']
+            visuals += [torch.cat([(pred_target_segs - 0.5) * 2] * 3, 1)]
+
+        import pdb 
+        pdb.set_trace()
+        #visuals = torch.cat(visuals.split(1, 0), 2)[0] # cat batch dim in lines w.r.t. height
+        visuals = [(visual + 1.) * 0.5 for visual in visuals] # convert back to [0, 1] range
+        visuals = [visual.clamp(0, 1) for visual in visuals]
+
+        return visuals.cpu()
+
     def forward(self, data_dict, crop_data=True, no_grad=True):
+
+        # Get dataloaders
+        train_dataloader = ds_utils.get_dataloader(self.args, 'train')
+
+        # Calculate "standing" stats for the batch normalization
+        if self.args.calc_stats:
+            self.runner.calculate_batchnorm_stats(train_dataloader, self.args.debug)
+
+        self.runner.eval()
+
         if 'target_imgs' not in data_dict.keys():
             data_dict['target_imgs'] = None
-
         # Inference without finetuning
         (source_poses, 
          source_imgs, 
@@ -212,13 +284,33 @@ class InferenceWrapper(nn.Module):
             data_dict['target_stickmen'] = target_stickmen
 
         now = time.time()
-        if no_grad:
-            with torch.no_grad():
+        
+        with torch.no_grad():
                 self.runner(data_dict)
 
-        else:
-            self.runner(data_dict)
+        
+        # Save visuals
+
+        img_tensor = self.runner.data_dict['pred_target_imgs'][0, 0]
+        visuals = (((img_tensor.clamp(-1, 1).cpu().numpy() + 1) / 2) * 255).transpose(1, 2, 0).astype(np.uint8)
+        visuals = Image.fromarray(visuals)
+        visuals.save("pred_target.png")
+        
+        # self.to_image = transforms.ToPILImage()
+        # import pdb
+        # pdb.set_trace()
+        # img_tensor = self.runner.data_dict['pred_target_imgs'][0, 0]
+        # visuals = (((img_tensor.clamp(-1, 1).cpu().numpy() + 1) / 2) * 255).transpose(1, 2, 0).astype(np.uint8)
+        # self.to_image(visuals).save('/home/pantea/NETS/nets_implementation/original_bilayer/examples/' + 'pred'+ "_" +str(self.args.experiment_name )+ "_" +str(self.args.init_which_epoch) + "_" + "pred_target_imgs.jpg")
+        # img_tensor = self.runner.data_dict['target_imgs'][0,0]
+        # visuals = (((img_tensor.clamp(-1, 1).cpu().numpy() + 1) / 2) * 255).transpose(1, 2, 0).astype(np.uint8)
+        # self.to_image(visuals).save('/home/pantea/NETS/nets_implementation/original_bilayer/examples/' + 'self'+ "_" +str(self.args.experiment_name )+ "_" +str(self.args.init_which_epoch) + "_" + "pred_target_imgs.jpg")
+
+        
         now_now = time.time()
         print("It took ", now_now-now, " s!")
 
         return self.runner.data_dict
+
+
+

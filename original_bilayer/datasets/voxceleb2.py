@@ -9,10 +9,9 @@ import pickle as pkl
 import cv2
 import random
 import math
-
+import pdb
 from datasets import utils as ds_utils
 from runners import utils as rn_utils
-
 
 
 class DatasetWrapper(data.Dataset):
@@ -166,6 +165,7 @@ class DatasetWrapper(data.Dataset):
         if self.phase == 'test':
             # Sample from the beginning of the sequence
             self.cur_num = 0
+        
 
         while len(imgs) < self.args.num_source_frames + self.args.num_target_frames:
             if reserve_index == len(filenames):
@@ -186,11 +186,19 @@ class DatasetWrapper(data.Dataset):
                 filename = filenames[frame_num]
 
             # Read images
-            img_path = pathlib.Path(self.imgs_dir) / filename.with_suffix('.jpg')
-
             
+            img_path = pathlib.Path(self.imgs_dir) / filename.with_suffix('.jpg')
+            
+            if self.phase == 'test':
+                print("selected test image path is: ",img_path)
+
             try:
                 img = Image.open(img_path)
+
+                # print(img_path)
+                # print("imgs",img)
+                # print("imgs.size",img.size)
+                # print("imgs.shape",img.shape)
 
                 # Preprocess an image
                 s = img.size[0]

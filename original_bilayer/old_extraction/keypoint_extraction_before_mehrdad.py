@@ -87,54 +87,54 @@ class Keypoint_Segmentation_Generator():
 
 
     def preprocess_data(self, input_imgs, crop_data=True):
-            imgs = []
-            poses = []
-            stickmen = []
+        imgs = []
+        poses = []
+        stickmen = []
 
 
-            pose = self.fa.get_landmarks(input_imgs)[0]
+        pose = self.fa.get_landmarks(input_imgs)[0]
 
-            center = ((pose.min(0) + pose.max(0)) / 2).round().astype(int)
-            size = int(max(pose[:, 0].max() - pose[:, 0].min(), pose[:, 1].max() - pose[:, 1].min()))
-            center[1] -= size // 6
+        center = ((pose.min(0) + pose.max(0)) / 2).round().astype(int)
+        size = int(max(pose[:, 0].max() - pose[:, 0].min(), pose[:, 1].max() - pose[:, 1].min()))
+        center[1] -= size // 6
 
-            if input_imgs is None:
-                # Crop poses
-                if crop_data:
-                    s = size * 2
-                    pose -= center - size
+        if input_imgs is None:
+            # Crop poses
+            if crop_data:
+                s = size * 2
+                pose -= center - size
 
-            else:
-                # Crop images and poses
-                img = Image.fromarray(input_imgs)
-
-                if crop_data:
-                    img = img.crop((center[0]-size, center[1]-size, center[0]+size, center[1]+size))
-                    s = img.size[0]
-                    pose -= center - size
-
-                img = img.resize((self.args['image_size'], self.args['image_size']), Image.BICUBIC)
-
-                imgs.append((self.to_tensor(img) - 0.5) * 2)
+        else:
+            # Crop images and poses
+            img = Image.fromarray(input_imgs)
 
             if crop_data:
-                pose = pose / float(s)
+                img = img.crop((center[0]-size, center[1]-size, center[0]+size, center[1]+size))
+                s = img.size[0]
+                pose -= center - size
 
-            poses.append(np.reshape(((pose - 0.5) * 2),-1))
+            img = img.resize((self.args['image_size'], self.args['image_size']), Image.BICUBIC)
 
-            if self.args['output_stickmen']:
-                stickmen = ds_utils.draw_stickmen(self.args, poses[0])
-                stickmen = stickmen[None]
+            imgs.append((self.to_tensor(img) - 0.5) * 2)
 
-            if input_imgs is not None:
-                imgs.append(input_imgs)
+        if crop_data:
+            pose = pose / float(s)
+
+        poses.append(np.reshape(((pose - 0.5) * 2),-1))
+
+        if self.args['output_stickmen']:
+            stickmen = ds_utils.draw_stickmen(self.args, poses[0])
+            stickmen = stickmen[None]
+
+        if input_imgs is not None:
+            imgs.append(input_imgs)
 
 
-            segs = None
-            #if hasattr(self, 'net_seg') and not isinstance(imgs, list):
-            #    segs = self.net_seg(imgs)[None]
+        segs = None
+        #if hasattr(self, 'net_seg') and not isinstance(imgs, list):
+        #    segs = self.net_seg(imgs)[None]
 
-            return poses, imgs, segs, stickmen
+        return poses, imgs, segs, stickmen
 
     def get_poses (self):
          # Sample source and target frames for the current sequence

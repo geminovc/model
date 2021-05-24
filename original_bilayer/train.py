@@ -1,6 +1,6 @@
 import torch
 from torch import nn
-
+import pdb
 import argparse
 import os
 import pathlib
@@ -262,7 +262,9 @@ class TrainingWrapper(object):
                 if net_name == "texture_generator" and net_name in frozen_networks and args.unfreeze_texture_generator_last_layers: 
                     for name, module in self.runner.nets[net_name].named_children():
                         if name == 'prj_tex':
-                            print()
+                            print("unfreezing prj_tex for texture generator in gen_tex ...")
+                            for p in module.parameters():
+                                p.requires_grad = True
                         if name =='gen_tex':
                             for subname, submodule in module.named_children():
                                 if subname == 'heads':
@@ -281,7 +283,9 @@ class TrainingWrapper(object):
                 if net_name == "inference_generator" and net_name in frozen_networks and args.unfreeze_inference_generator_last_layers: 
                     for name, module in self.runner.nets[net_name].named_children():
                         if name =='prj_inf':
-                            print()                        
+                            print("unfreezing prj_inf for inference generator in gen_inf ...")
+                            for p in module.parameters():
+                                p.requires_grad = True                  
                         if name =='gen_inf':
                             for subname, submodule in module.named_children():
                                 if subname == 'heads':
@@ -437,12 +441,12 @@ class TrainingWrapper(object):
             model.eval()
 
             test_dataloader.dataset.shuffle()
+            #pdb.set_trace()
             for data_dict in test_dataloader:
                 # Prepare input data
                 if args.num_gpus > 0:
                     for key, value in data_dict.items():
                         data_dict[key] = value.cuda()
-
                 # Forward pass
                 with torch.no_grad():
                     model(data_dict)
@@ -573,6 +577,12 @@ class TrainingWrapper(object):
             
             # Increment the epoch counter in the training dataset
             train_dataloader.dataset.epoch += 1
+            
+            # #printing for double check
+            # print("epoch",epoch," Training model values:")
+            # for name, param in model.named_parameters():
+            #     if param.requires_grad:
+            #         print('train:',name, param.data)
 
             # If testing is not required -- continue
             if epoch % args.test_freq != 0:
@@ -606,11 +616,16 @@ class TrainingWrapper(object):
 
             # Output logs
             logger.output_logs('test', runner.output_visuals(), runner.output_losses(), time.time() - time_start)
-            
+            #printing for double check
+            print("epoch",epoch," Testing model values:")
+            for name, param in model.named_parameters():
+                if param.requires_grad:
+                    print('test:',name, param.data)
+
             # If creation of checkpoint is not required -- continue
             if epoch % args.checkpoint_freq and not args.debug:
                 continue
-
+            # pdb.set_trace()
             # Create or load a checkpoint
             if args.rank == 0  and not args.no_disk_write_ops:
                 with torch.no_grad():
@@ -625,7 +640,7 @@ class TrainingWrapper(object):
                     if args.use_apex:
                         torch.save(amp.state_dict(), self.checkpoints_dir / f'{epoch}_amp.pth')
         print("The epoch", str(epoch),  "took (s):", time.time()-self.epoch_start)
-
+        
         return runner
 
 if __name__ == "__main__":
