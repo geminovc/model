@@ -1,11 +1,11 @@
-python  keypoints_segmentations_generator.py \
+python  paper_extraction.py \
     --pretrained_weights_dir /video-conf/scratch/pantea \
     --phase 'train' \
     --video_root /video-conf/scratch/pantea/temp_dataset/ \
     --sampling_rate 1 \
     --experiment_name 'extraction' \
-    --batch_size 1 \
-    --data_root /video-conf/scratch/pantea/temp_extracts\
+    --batch_size 10000 \
+    --data_root /video-conf/scratch/pantea/temp_extracts \
     --output_segmentation True \
     --image_size 256 \
     --num_gpus 1 \
