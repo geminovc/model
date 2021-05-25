@@ -52,7 +52,7 @@ class keypoint_segmentation_generator():
         parser.add('--output_segmentation',     default='True', type=rn_utils.str2bool, choices=[True, False],
                                                 help='read segmentation mask')
 
-        parser.add('--output_stickmen',         default='True', type=rn_utils.str2bool, choices=[True, False],
+        parser.add('--output_stickmen',         default='False', type=rn_utils.str2bool, choices=[True, False],
                                                 help='draw stickmen using keypoints')
         
         parser.add('--stickmen_thickness',      default=2, type=int, 
@@ -212,7 +212,7 @@ class keypoint_segmentation_generator():
                                 temp = imgs[0,0,:,:,:]
                                 save_image(temp, imgs_path + '.jpg')
                                 np.save(keypoints_path , poses[0,:,:].cpu().numpy())
-                                if args.output_segmentation:
+                                if self.args.output_segmentation:
                                     segs_path = str(self.segs_dir) +"/"+ str(filename) + "/" + str(frame_num)
                                     os.makedirs(str(self.segs_dir) +"/"+ str(filename), exist_ok=True)
                                     save_image(segs[0,0,:,:,:], segs_path + '.png')

@@ -1,8 +1,8 @@
 cd ../
      python  train.py \
-    --experiment_name 'per_person_from_base' \
+    --experiment_name 'per_person_augmentation_by_general_from_base' \
     --pretrained_weights_dir /video-conf/scratch/pantea \
-    --per_person_augmentation_by_general False \
+    --per_person_augmentation_by_general True \
     --save_initial_test_before_training True \
     --images_log_rate 100 \
     --metrics_log_rate 100 \
@@ -22,6 +22,7 @@ cd ../
     --calc_stats \
     --checkpoint_freq 50 \
     --data_root /video-conf/scratch/pantea/video_conf_datasets/per_person_dataset \
+    --general_data_root /video-conf/scratch/pantea/video_conf_datasets/general_dataset \
     --dis_activation_type leakyrelu \
     --dis_downsampling_type avgpool \
     --dis_max_channels 512 \
@@ -72,7 +73,7 @@ cd ../
     --networks_test 'identity_embedder, texture_generator, keypoints_embedder, inference_generator' \
     --networks_to_train 'identity_embedder, texture_generator, keypoints_embedder, inference_generator, discriminator' \
     --networks_train 'identity_embedder, texture_generator, keypoints_embedder, inference_generator, discriminator' \
-    --num_epochs 10000 \
+    --num_epochs 5000 \
     --num_gpus 1 \
     --num_keypoints 68 \
     --num_source_frames 1 \
@@ -110,8 +111,8 @@ cd ../
     --spn_networks 'identity_embedder, texture_generator, keypoints_embedder, inference_generator, discriminator' \
     --stats_calc_iters 500 \
     --stickmen_thickness 2 \
-    --test_freq 50 \
-    --visual_freq '10' \
+    --test_freq 5 \
+    --visual_freq '1' \
     --wpr_loss_apply_to pred_target_delta_uvs \
     --wpr_loss_decay_schedule '-1' \
     --wpr_loss_type l1 \

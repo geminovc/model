@@ -9,7 +9,7 @@ import ssl
 import time
 import copy
 import sys
-
+import random 
 from torch.utils.tensorboard import SummaryWriter
 from datasets import utils as ds_utils
 from networks import utils as nt_utils
@@ -45,6 +45,9 @@ class TrainingWrapper(object):
 
         parser.add('--data_root',               default=".", type=str,
                                                 help='root directory of the data')
+        
+        parser.add('--general_data_root',       default="/video-conf/scratch/pantea/video_conf_datasets/general_dataset", type=str,
+                                                help='root directory of the general dataset, used for varying the weight of general to personal dataset')
 
         parser.add('--debug',                   action='store_true',
                                                 help='turn on the debug mode: fast epoch, useful for testing')
@@ -168,7 +171,12 @@ class TrainingWrapper(object):
                                                                     help='set to false if you want to freeze the last layers (after up samlping blocks) in the inference generator')
 
         parser.add('--save_initial_test_before_training',           default='True', type=rn_utils.str2bool, choices=[True, False],
-                                                                    help='save how he model performs on test before training, useful for sanity check')    
+                                                                    help='save how he model performs on test before training, useful for sanity check')
+
+        parser.add('--per_person_augmentation_by_general',          default='False', type=rn_utils.str2bool, choices=[True, False],
+                                                                    help='gradually increase the weight of general dataset while training the per_person dataset')
+
+                             
 
 
         # Technical options that are set automatically
@@ -364,12 +372,26 @@ class TrainingWrapper(object):
         # Tensorboard writer init
         if args.rank == 0:
             writer = SummaryWriter(log_dir= args.experiment_dir + '/runs/' + args.experiment_name + '/metrics/')
-        
-        # Get dataloaders
-        train_dataloader = ds_utils.get_dataloader(args, 'train')
+
+        if args.per_person_augmentation_by_general and args.data_root!=args.general_data_root:
+            print("getting the per_person dataset")
+            personal_train_dataloader = ds_utils.get_dataloader(args, 'train')
+            self.gen_to_per_ratio = 1
+            # Get dataloaders
+            self.real_data_root = args.data_root
+            args.data_root = args.general_data_root
+            print("getting the general dataset")
+            general_train_dataloader = ds_utils.get_dataloader(args, 'train')
+            args.data_root = self.real_data_root
+        else:
+            # Get dataloaders
+            original_train_dataloader = ds_utils.get_dataloader(args, 'train')
 
         if not args.skip_test:
             test_dataloader = ds_utils.get_dataloader(args, 'test')
+
+
+
 
         model = runner = self.runner
 
@@ -431,6 +453,10 @@ class TrainingWrapper(object):
         # Adding the first test image on the logger for sanity check
         if args.save_initial_test_before_training:
             print("Testing the model before starts training for sanity check")
+            if args.per_person_augmentation_by_general and args.data_root!=args.general_data_root:
+                train_dataloader = personal_train_dataloader
+            else:
+                train_dataloader = original_train_dataloader
             # Calculate "standing" stats for the batch normalization
             train_dataloader.dataset.shuffle()
             if args.calc_stats:
@@ -471,8 +497,22 @@ class TrainingWrapper(object):
             # Initiate all the networks in the training mode 
             model.train() 
             time_start = time.time()
-
-
+            #pdb.set_trace()
+            if args.per_person_augmentation_by_general and args.data_root!=args.general_data_root:
+                #pdb.set_trace()
+                prob = random.uniform(0, 1)
+                self.gen_to_per_ratio = (args.num_epochs-epoch)/(args.num_epochs-epoch_start)
+                self.test_freq = 5
+                if prob < self.gen_to_per_ratio:
+                    print("selecting from the general dataset ...")
+                    train_dataloader = general_train_dataloader
+                else:
+                    print("selecting from the per_person dataset ...")
+                    train_dataloader = personal_train_dataloader
+            else:
+                train_dataloader = original_train_dataloader
+                
+            
             # Shuffle the dataset before the epoch
             train_dataloader.dataset.shuffle()
             for i, data_dict in enumerate(train_dataloader, 1):

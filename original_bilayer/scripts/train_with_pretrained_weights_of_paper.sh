@@ -21,6 +21,7 @@ cd ../
     --calc_stats \
     --checkpoint_freq 50 \
     --data_root /video-conf/scratch/pantea/video_conf_datasets/per_person_dataset \
+    --general_data_root /video-conf/scratch/pantea/video_conf_datasets/general_dataset \
     --dis_activation_type leakyrelu \
     --dis_downsampling_type avgpool \
     --dis_max_channels 512 \

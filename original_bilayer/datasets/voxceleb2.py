@@ -58,7 +58,12 @@ class DatasetWrapper(data.Dataset):
                                                 help='filename that we read the training dataset images from if dataset_load_from_txt==True')                                    
 
         parser.add('--test_load_from_filename', default='test_filnames.txt', type=str,
-                                                help='filename that we read the testing dataset images from if dataset_load_from_txt==True')                                                  
+                                                help='filename that we read the testing dataset images from if dataset_load_from_txt==True')
+
+        parser.add('--per_person_augmentation_by_general',          default='False', type=rn_utils.str2bool, choices=[True, False],
+                                                            help='gradually increase the weight of general dataset while training the per_person dataset')
+
+                                                      
 
         return parser
 
@@ -73,6 +78,10 @@ class DatasetWrapper(data.Dataset):
         self.to_tensor = transforms.ToTensor()
         self.epoch = 0 if args.which_epoch == 'none' else int(args.which_epoch)
 
+        # # varying the weight of the general dataset to the personal dataset
+        # if self.args.per_person_augmentation_by_general and args.data_root!=args.general_data_root:
+        #     self.gen_to_per_ratio = 1
+
         if self.args.dataset_load_from_txt:
 
             if self.phase == 'train':
@@ -84,11 +93,33 @@ class DatasetWrapper(data.Dataset):
             data_list = content.split("\n")
             my_file.close()
             data_root = args.data_root
-            #data_root = (data_list[0].split(":"))[1]
+            #data_root = (data_list[0].split(":"))[1]            
+            
+            # # choosing the general dataset root to sample from in training per-person approach
+            # if self.args.per_person_augmentation_by_general and args.data_root!=args.general_data_root:
+            #     general_data_root = args.general_data_root
 
 
         else:
             data_root = args.data_root
+            
+            # # choosing the general dataset root to sample from in training per-person approach
+            # if self.args.per_person_augmentation_by_general and data_root!=args.general_data_root:
+            #     general_data_root = args.general_data_root
+            #     print("general_data_root:",general_data_root)
+                
+            #     # Data paths to general
+            #     self.general_imgs_dir = pathlib.Path(general_data_root) / 'imgs' / phase
+            #     self.general_pose_dir = pathlib.Path(general_data_root) / 'keypoints' / phase
+
+            #     if args.output_segmentation:
+            #         self.general_segs_dir = pathlib.Path(general_data_root) / 'segs' / phase
+
+            #     # Video sequences list
+            #     general_sequences = self.general_imgs_dir.glob('*/*')
+            #     self.general_sequences = ['/'.join(str(seq).split('/')[-2:]) for seq in general_sequences]
+            #     print("these are self.general_sequences: ", self.general_sequences )
+
         
         # Data paths
         self.imgs_dir = pathlib.Path(data_root) / 'imgs' / phase

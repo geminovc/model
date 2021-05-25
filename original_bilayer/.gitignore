@@ -1,3 +1,4 @@
 .logs/*
 hub/*
 examples/.inference.py.swp
+examples/images/video_imgs/

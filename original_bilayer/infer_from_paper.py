@@ -62,16 +62,16 @@ class InferenceWrapper(nn.Module):
         # Load pretrained weights
         if args_dict['experiment_name'] == 'vc2-hq_adrianb_paper_main' or args_dict['experiment_name'] =='vc2-hq_adrianb_paper_enhancer':
             checkpoints_dir = pathlib.Path(self.args.experiment_dir) / 'bilayer_paper_runs' / self.args.experiment_name / 'checkpoints'
+            self.args.init_which_epoch = 2225
+            self.args.which_epoch = 2225
         else:
             checkpoints_dir = pathlib.Path(self.args.experiment_dir) / 'runs' / self.args.experiment_name / 'checkpoints'
 
         # Load pre-trained weights
         init_networks = rn_utils.parse_str_to_list(self.args.init_networks) if self.args.init_networks else {}
-        frozen_networks = rn_utils.parse_str_to_list(self.args.frozen_networks) if self.args.frozen_networks else {}
         networks_to_train = self.runner.nets_names_to_train
         print("init_networks:", init_networks)
-        #print("frozen_networks", frozen_networks)
-        #print("networks_to_train", networks_to_train)
+
 
         if self.args.init_which_epoch != 'none' and self.args.init_experiment_dir:
             for net_name in init_networks:
@@ -84,7 +84,7 @@ class InferenceWrapper(nn.Module):
                 self.runner.nets[net_name].load_state_dict(torch.load(checkpoints_dir / f'{self.args.which_epoch}_{net_name}.pth', map_location='cpu'))
         
         # Remove spectral norm to improve the performance
-        #self.runner.apply(rn_utils.remove_spectral_norm)
+        self.runner.apply(rn_utils.remove_spectral_norm)
 
         # Stickman/facemasks drawer
         self.fa = face_alignment.FaceAlignment(face_alignment.LandmarksType._2D, flip_input=True)
@@ -103,7 +103,6 @@ class InferenceWrapper(nn.Module):
         stickmen = []
         if not self.args.croped_segmentation:
             imgs_segs = []
-
         if len(input_imgs.shape) == 3:
             input_imgs = input_imgs[None]
             N = 1
@@ -186,12 +185,9 @@ class InferenceWrapper(nn.Module):
 
         return poses, imgs, segs, stickmen
 
+
     def get_images_from_dataset (self):
-        # selected test image path is:  /video-conf/scratch/pantea/video_conf_datasets/per_person_dataset/imgs/test/id/yi_qz725MjE/00163/1.jpg
-        # selected test image path is:  /video-conf/scratch/pantea/video_conf_datasets/per_person_dataset/imgs/test/id/yi_qz725MjE/00163/66.jpg
-        # selected test image path is:  /video-conf/scratch/pantea/video_conf_datasets/per_person_dataset/imgs/test/id/Z-G8-wqpxwU/00096/74.jpg
-        # selected test image path is:  /video-conf/scratch/pantea/video_conf_datasets/per_person_dataset/imgs/test/id/Z-G8-wqpxwU/00105/26.jpg
-        
+
         # Source Charactristics
         imgs = []
         poses = []
@@ -199,7 +195,6 @@ class InferenceWrapper(nn.Module):
         segs = []
 
         img = Image.open('/video-conf/scratch/pantea/video_conf_datasets/per_person_dataset/imgs/test/id/yi_qz725MjE/00163/1.jpg') # H x W x 3
-        #pdb.set_trace()
         # Preprocess an image
         s = img.size[0]
         img = img.resize((self.args.image_size, self.args.image_size), Image.BICUBIC)
@@ -230,9 +225,7 @@ class InferenceWrapper(nn.Module):
         poses = []
         stickmen = []
         segs = []
-        print("self.args.output_stickmen: ",self.args.output_stickmen)
 
-        #pdb.set_trace()
         # Target charactristics
         img = Image.open('/video-conf/scratch/pantea/video_conf_datasets/per_person_dataset/imgs/test/id/yi_qz725MjE/00163/66.jpg') # H x W x 3
         # Preprocess an image
@@ -286,89 +279,30 @@ class InferenceWrapper(nn.Module):
         
 
 
-    def my_preprocess_data(self, input_imgs, crop_data=True):
-        imgs = []
-        poses = []
-        stickmen = []
+    def get_images_from_dataset2 (self):
 
-        #pdb.set_trace()
-        pose = self.fa.get_landmarks(input_imgs)[0]
-
-        center = ((pose.min(0) + pose.max(0)) / 2).round().astype(int)
-        size = int(max(pose[:, 0].max() - pose[:, 0].min(), pose[:, 1].max() - pose[:, 1].min()))
-        center[1] -= size // 6
-
-        if input_imgs is None:
-            # Crop poses
-            if crop_data:
-                s = size * 2
-
-        else:
-            # Crop images and poses
-            img = Image.fromarray(input_imgs)
-
-            if crop_data:
-                img = img.crop((center[0]-size, center[1]-size, center[0]+size, center[1]+size))
-                s = img.size[0]
-
-            img = img.resize((self.args.image_size, self.args.image_size), Image.BICUBIC)
-
-            imgs.append((self.to_tensor(img) - 0.5) * 2)
-
-
-
-        poses.append(np.reshape(pose,-1))
-
-        # if self.args.output_stickmen:
-        #     stickmen = ds_utils.draw_stickmen(self.args, poses[0])
-        #     stickmen = stickmen[None]
-
-        if input_imgs is not None:
-            imgs.append(input_imgs)
-
-        
-        segs = None
-        #if self.args.output_segmentation:
-        #    segs = self.net_seg(imgs)[None]
-
-        return np.array(poses), imgs, segs, stickmen
-
-  
-
-    def get_images_from_path (self, source_path = '/video-conf/scratch/pantea/video_conf_datasets/per_person_dataset/imgs/test/id/yi_qz725MjE/00163/1.jpg', target_path = '/video-conf/scratch/pantea/video_conf_datasets/per_person_dataset/imgs/test/id/yi_qz725MjE/00163/66.jpg'):
-        # selected test image path is:  /video-conf/scratch/pantea/video_conf_datasets/per_person_dataset/imgs/test/id/yi_qz725MjE/00163/1.jpg
-        # selected test image path is:  /video-conf/scratch/pantea/video_conf_datasets/per_person_dataset/imgs/test/id/yi_qz725MjE/00163/66.jpg
-        # selected test image path is:  /video-conf/scratch/pantea/video_conf_datasets/per_person_dataset/imgs/test/id/Z-G8-wqpxwU/00096/74.jpg
-        # selected test image path is:  /video-conf/scratch/pantea/video_conf_datasets/per_person_dataset/imgs/test/id/Z-G8-wqpxwU/00105/26.jpg
-        
         # Source Charactristics
         imgs = []
         poses = []
         stickmen = []
         segs = []
 
-        img = Image.open(source_path) # H x W x 3
-        img_array = np.array(img)
-        poses_s, imgs_s, segs_s, stickmen_s = self.my_preprocess_data(img_array, crop_data=True)
-        #pdb.set_trace()
+        img = Image.open('/video-conf/scratch/pantea/temp_extracts/imgs/train/id00012/nRiPvNQ1GCQ/00140/101.jpg') # H x W x 3
         # Preprocess an image
         s = img.size[0]
         img = img.resize((self.args.image_size, self.args.image_size), Image.BICUBIC)
         imgs += [self.to_tensor(img)]
 
-        keypoints = poses_s
+        keypoints = np.load('/video-conf/scratch/pantea/temp_extracts/keypoints/train/id00012/nRiPvNQ1GCQ/00140/101.npy').astype('float32')
         keypoints = keypoints.reshape((68,2))
         keypoints = keypoints[:self.args.num_keypoints, :]
         keypoints[:, :2] /= s
         keypoints = keypoints[:, :2]
         poses += [torch.from_numpy(keypoints.reshape(-1))]
 
-        pdb.set_trace()
-
-        if self.args.output_segmentation:
-            seg = self.net_seg(img_array)[None]
-            seg = seg.resize((self.args.image_size, self.args.image_size), Image.BICUBIC)
-            segs += [self.to_tensor(seg)]
+        seg = Image.open('/video-conf/scratch/pantea/temp_extracts/segs/train/id00012/nRiPvNQ1GCQ/00140/101.png')
+        seg = seg.resize((self.args.image_size, self.args.image_size), Image.BICUBIC)
+        segs += [self.to_tensor(seg)]
 
 
 
@@ -384,24 +318,22 @@ class InferenceWrapper(nn.Module):
         poses = []
         stickmen = []
         segs = []
-        print("self.args.output_stickmen: ",self.args.output_stickmen)
 
-        #pdb.set_trace()
         # Target charactristics
-        img = Image.open(target_path) # H x W x 3
+        img = Image.open('/video-conf/scratch/pantea/temp_extracts/imgs/train/id00012/f0Zj2NjXeyE/00139/1.jpg') # H x W x 3
         # Preprocess an image
         s = img.size[0]
         img = img.resize((self.args.image_size, self.args.image_size), Image.BICUBIC)
         imgs += [self.to_tensor(img)]
 
-        keypoints = np.load('/video-conf/scratch/pantea/video_conf_datasets/per_person_dataset/keypoints/test/id/yi_qz725MjE/00163/66.npy').astype('float32')
+        keypoints = np.load('/video-conf/scratch/pantea/temp_extracts/keypoints/train/id00012/f0Zj2NjXeyE/00139/1.npy').astype('float32')
         keypoints = keypoints.reshape((68,2))
         keypoints = keypoints[:self.args.num_keypoints, :]
         keypoints[:, :2] /= s
         keypoints = keypoints[:, :2]
         poses += [torch.from_numpy(keypoints.reshape(-1))]
 
-        seg = Image.open('/video-conf/scratch/pantea/video_conf_datasets/per_person_dataset/segs/test/id/yi_qz725MjE/00163/66.png')
+        seg = Image.open('/video-conf/scratch/pantea/temp_extracts/segs/train/id00012/f0Zj2NjXeyE/00139/1.png')
         seg = seg.resize((self.args.image_size, self.args.image_size), Image.BICUBIC)
         segs += [self.to_tensor(seg)]
 
@@ -437,7 +369,9 @@ class InferenceWrapper(nn.Module):
             data_dict['target_stickmen'] = target_stickmen.unsqueeze(1)
 
         return data_dict
-        
+  
+
+
 
 
     def forward(self, data_dict, crop_data=True, no_grad=True , preprocess = False):
@@ -478,17 +412,17 @@ class InferenceWrapper(nn.Module):
 
         else:
             
-            data_dict = self.get_images_from_path ()
+            data_dict = self.get_images_from_dataset2 ()
 
 
-        # # Calculate "standing" stats for the batch normalization
-        print("The data_root is:", self.args.data_root)
-        train_dataloader = ds_utils.get_dataloader(self.args, 'train')
-        train_dataloader.dataset.shuffle()
+        # # # Calculate "standing" stats for the batch normalization
+        # print("The data_root is:", self.args.data_root)
+        # train_dataloader = ds_utils.get_dataloader(self.args, 'train')
+        # train_dataloader.dataset.shuffle()
 
-        if self.args.calc_stats:
-            print("Calculate standing stats for the batch normalization")
-            self.runner.calculate_batchnorm_stats(train_dataloader, self.args.debug)
+        # if self.args.calc_stats:
+        #     print("Calculate standing stats for the batch normalization")
+        #     self.runner.calculate_batchnorm_stats(train_dataloader, self.args.debug)
 
         model = self.runner
         # Test
