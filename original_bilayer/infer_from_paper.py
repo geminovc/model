@@ -25,7 +25,6 @@ class InferenceWrapper(nn.Module):
 
         if args_dict['experiment_name'] == 'vc2-hq_adrianb_paper_main' or args_dict['experiment_name'] =='vc2-hq_adrianb_paper_enhancer':
             args_path = pathlib.Path(args_dict['experiment_dir']) / 'bilayer_paper_runs' / args_dict['experiment_name'] / 'args.txt'
-            args_dict['croped_segmentation'] = True
         else:
             args_path = pathlib.Path(args_dict['experiment_dir']) / 'runs' / args_dict['experiment_name'] / 'args.txt'
 
@@ -50,14 +49,13 @@ class InferenceWrapper(nn.Module):
 
     def __init__(self, args_dict):
         super(InferenceWrapper, self).__init__()
+        
         # Get a config for the network
         self.args = self.get_args(args_dict)
         self.to_tensor = transforms.ToTensor()
 
-
-
         self.runner = importlib.import_module(f'runners.{self.args.runner_name}').RunnerWrapper(self.args, training=False)
-        #self.runner.eval()
+        self.runner.eval()
 
         # Load pretrained weights
         if args_dict['experiment_name'] == 'vc2-hq_adrianb_paper_main' or args_dict['experiment_name'] =='vc2-hq_adrianb_paper_enhancer':
@@ -89,6 +87,7 @@ class InferenceWrapper(nn.Module):
         # Stickman/facemasks drawer
         self.fa = face_alignment.FaceAlignment(face_alignment.LandmarksType._2D, flip_input=True)
 
+        # Segmentation Wrapper module
         self.net_seg = wrapper.SegmentationWrapper(self.args)
 
         if self.args.num_gpus > 0:
@@ -96,13 +95,13 @@ class InferenceWrapper(nn.Module):
 
     def change_args(self, args_dict):
         self.args = self.get_args(args_dict)
-
+    
     def preprocess_data(self, input_imgs, crop_data=True):
+        #pdb.set_trace()
         imgs = []
         poses = []
         stickmen = []
-        if not self.args.croped_segmentation:
-            imgs_segs = []
+
         if len(input_imgs.shape) == 3:
             input_imgs = input_imgs[None]
             N = 1
@@ -124,16 +123,6 @@ class InferenceWrapper(nn.Module):
                     pose -= center - size
 
             else:
-                
-                if self.args.output_segmentation and not self.args.croped_segmentation:
-                    ## here I decided to use the non-croped version of images for segmentations
-                    ## The croped version of images would give a segmentation that has a black stripe on top
-                    img_segs = Image.fromarray(np.array(input_imgs[i]))
-                    img_segs = img_segs.resize((self.args.image_size, self.args.image_size), Image.BICUBIC)
-                    imgs_segs.append((self.to_tensor(img_segs) - 0.5) * 2)
-
-
-
                 # Crop images and poses
                 img = Image.fromarray(input_imgs[i])
 
@@ -152,6 +141,7 @@ class InferenceWrapper(nn.Module):
             poses.append(torch.from_numpy((pose - 0.5) * 2).view(-1))
 
         poses = torch.stack(poses, 0)[None]
+        print(poses)
 
         if self.args.output_stickmen:
             stickmen = ds_utils.draw_stickmen(self.args, poses[0])
@@ -169,22 +159,11 @@ class InferenceWrapper(nn.Module):
                 if self.args.output_stickmen:
                     stickmen = stickmen.cuda()
 
-        
-        if input_imgs is not None and self.args.output_segmentation and not self.args.croped_segmentation:
-            imgs_segs = torch.stack(imgs_segs, 0)[None]
-            if self.args.num_gpus > 0:        
-                imgs_segs = imgs_segs.cuda()
-
         segs = None
         if hasattr(self, 'net_seg') and not isinstance(imgs, list):
-            if self.args.croped_segmentation:
-                segs = self.net_seg(imgs)[None]
-            else:
-                segs = self.net_seg(imgs_segs)[None]
-                
+            segs = self.net_seg(imgs)[None]
 
         return poses, imgs, segs, stickmen
-
 
     def get_images_from_dataset (self):
 
@@ -280,27 +259,27 @@ class InferenceWrapper(nn.Module):
 
 
     def get_images_from_dataset2 (self):
-
+        pdb.set_trace()
         # Source Charactristics
         imgs = []
         poses = []
         stickmen = []
         segs = []
 
-        img = Image.open('/video-conf/scratch/pantea/temp_extracts/imgs/train/id00012/nRiPvNQ1GCQ/00140/101.jpg') # H x W x 3
+        img = Image.open('/video-conf/scratch/pantea/temp_extracts/imgs/train/id00012/_raOc3-IRsw/00110/0.jpg') # H x W x 3
         # Preprocess an image
         s = img.size[0]
         img = img.resize((self.args.image_size, self.args.image_size), Image.BICUBIC)
         imgs += [self.to_tensor(img)]
 
-        keypoints = np.load('/video-conf/scratch/pantea/temp_extracts/keypoints/train/id00012/nRiPvNQ1GCQ/00140/101.npy').astype('float32')
+        keypoints = np.load('/video-conf/scratch/pantea/temp_extracts/keypoints/train/id00012/_raOc3-IRsw/00110/0.npy').astype('float32')
         keypoints = keypoints.reshape((68,2))
         keypoints = keypoints[:self.args.num_keypoints, :]
         keypoints[:, :2] /= s
         keypoints = keypoints[:, :2]
         poses += [torch.from_numpy(keypoints.reshape(-1))]
 
-        seg = Image.open('/video-conf/scratch/pantea/temp_extracts/segs/train/id00012/nRiPvNQ1GCQ/00140/101.png')
+        seg = Image.open('/video-conf/scratch/pantea/temp_extracts/segs/train/id00012/_raOc3-IRsw/00110/0.png')
         seg = seg.resize((self.args.image_size, self.args.image_size), Image.BICUBIC)
         segs += [self.to_tensor(seg)]
 
@@ -308,6 +287,7 @@ class InferenceWrapper(nn.Module):
 
         source_imgs = (torch.stack(imgs)- 0.5) * 2.0
         source_poses = (torch.stack(poses) - 0.5) * 2.0
+        print(source_poses)
         source_segs = torch.stack(segs)
 
         if self.args.output_stickmen:
@@ -320,20 +300,20 @@ class InferenceWrapper(nn.Module):
         segs = []
 
         # Target charactristics
-        img = Image.open('/video-conf/scratch/pantea/temp_extracts/imgs/train/id00012/f0Zj2NjXeyE/00139/1.jpg') # H x W x 3
+        img = Image.open('/video-conf/scratch/pantea/temp_extracts/imgs/train/id00012/_raOc3-IRsw/00110/1.jpg') # H x W x 3
         # Preprocess an image
         s = img.size[0]
         img = img.resize((self.args.image_size, self.args.image_size), Image.BICUBIC)
         imgs += [self.to_tensor(img)]
 
-        keypoints = np.load('/video-conf/scratch/pantea/temp_extracts/keypoints/train/id00012/f0Zj2NjXeyE/00139/1.npy').astype('float32')
+        keypoints = np.load('/video-conf/scratch/pantea/temp_extracts/keypoints/train/id00012/_raOc3-IRsw/00110/1.npy').astype('float32')
         keypoints = keypoints.reshape((68,2))
         keypoints = keypoints[:self.args.num_keypoints, :]
         keypoints[:, :2] /= s
         keypoints = keypoints[:, :2]
         poses += [torch.from_numpy(keypoints.reshape(-1))]
 
-        seg = Image.open('/video-conf/scratch/pantea/temp_extracts/segs/train/id00012/f0Zj2NjXeyE/00139/1.png')
+        seg = Image.open('/video-conf/scratch/pantea/temp_extracts/segs/train/id00012/_raOc3-IRsw/00110/1.png')
         seg = seg.resize((self.args.image_size, self.args.image_size), Image.BICUBIC)
         segs += [self.to_tensor(seg)]
 
@@ -371,44 +351,98 @@ class InferenceWrapper(nn.Module):
         return data_dict
   
 
+    def get_images_from_videos (self):
+        video_path = pathlib.Path('/video-conf/scratch/pantea/temp_dataset/id00012/_raOc3-IRsw/00110.mp4')
+        video = cv2.VideoCapture(str(video_path))
+        frame_num = 0
+        offset = 0 
+        pdb.set_trace()
+        while video.isOpened() and frame_num<2:
+            ret, frame = video.read()
+            if frame is None:
+                break
+            if offset > 0:
+                offset-= 1
+                continue
 
+            frame = frame[:,:,::-1]
+            if frame_num == 0: 
+                (source_poses, 
+                source_imgs, 
+                source_segs, 
+                source_stickmen) = self.preprocess_data(np.array(frame), crop_data=True)
 
+            elif frame_num == 1 :
+                (target_poses,
+                target_imgs, 
+                target_segs, 
+                target_stickmen) = self.preprocess_data(np.array(frame), crop_data=True)
+            else:
+                break
 
-    def forward(self, data_dict, crop_data=True, no_grad=True , preprocess = False):
+            frame_num+=1
+
+        data_dict = {
+            'source_imgs': source_imgs,
+            'source_poses': source_poses,
+            'target_poses': target_poses}
+
+        if len(target_imgs):
+            data_dict['target_imgs'] = target_imgs
+
+        if source_segs is not None:
+            data_dict['source_segs'] = source_segs
+
+        if target_segs is not None:
+            data_dict['target_segs'] = target_segs
+
+        if source_stickmen is not None:
+            data_dict['source_stickmen'] = source_stickmen
+
+        if target_stickmen is not None:
+            data_dict['target_stickmen'] = target_stickmen
+        
+        return data_dict
+        #return data_dict
+
+    def forward(self, data_dict, crop_data=True, no_grad=True , preprocess = False, from_video= True):
         if 'target_imgs' not in data_dict.keys():
             data_dict['target_imgs'] = None
 
         if preprocess:
-            # Inference without finetuning
-            (source_poses, 
-            source_imgs, 
-            source_segs, 
-            source_stickmen) = self.preprocess_data(data_dict['source_imgs'], crop_data)
+            if from_video:
+                data_dict = self.get_images_from_videos()
+            else:
+                # Inference without finetuning
+                (source_poses, 
+                source_imgs, 
+                source_segs, 
+                source_stickmen) = self.preprocess_data(data_dict['source_imgs'], crop_data)
 
-            (target_poses,
-            target_imgs, 
-            target_segs, 
-            target_stickmen) = self.preprocess_data(data_dict['target_imgs'], crop_data)
+                (target_poses,
+                target_imgs, 
+                target_segs, 
+                target_stickmen) = self.preprocess_data(data_dict['target_imgs'], crop_data)
 
-            data_dict = {
-                'source_imgs': source_imgs,
-                'source_poses': source_poses,
-                'target_poses': target_poses}
+                data_dict = {
+                    'source_imgs': source_imgs,
+                    'source_poses': source_poses,
+                    'target_poses': target_poses}
 
-            if len(target_imgs):
-                data_dict['target_imgs'] = target_imgs
+                if len(target_imgs):
+                    data_dict['target_imgs'] = target_imgs
 
-            if source_segs is not None:
-                data_dict['source_segs'] = source_segs
+                if source_segs is not None:
+                    data_dict['source_segs'] = source_segs
 
-            if target_segs is not None:
-                data_dict['target_segs'] = target_segs
+                if target_segs is not None:
+                    data_dict['target_segs'] = target_segs
 
-            if source_stickmen is not None:
-                data_dict['source_stickmen'] = source_stickmen
+                if source_stickmen is not None:
+                    data_dict['source_stickmen'] = source_stickmen
 
-            if target_stickmen is not None:
-                data_dict['target_stickmen'] = target_stickmen
+                if target_stickmen is not None:
+                    data_dict['target_stickmen'] = target_stickmen
 
         else:
             

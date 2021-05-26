@@ -75,9 +75,8 @@ class keypoint_segmentation_generator():
         self.to_tensor = transforms.ToTensor()
 
         data_root = self.args.data_root
-        
         # Data paths
-        self.video_dir = pathlib.Path("/video-conf/scratch/pantea/temp_dataset/") #'/video-conf/scratch/pantea/0
+        self.video_dir = pathlib.Path(self.args.video_root) #'/video-conf/scratch/pantea/0
         self.imgs_dir = pathlib.Path(data_root) / 'imgs' / phase
         self.pose_dir = pathlib.Path(data_root) / 'keypoints' / phase
 
@@ -87,6 +86,8 @@ class keypoint_segmentation_generator():
         # Video sequences list
         sequences = self.video_dir.glob('*/*')
         self.sequences = ['/'.join(str(seq).split('/')[-2:]) for seq in sequences]
+
+        print(self.sequences)
         
         if args.output_segmentation:
             self.segs_dir = pathlib.Path(data_root) / 'segs' / phase
@@ -179,6 +180,7 @@ class keypoint_segmentation_generator():
     def get_poses (self):
          # Sample source and target frames for the current sequence
         for index in range(0,len(self.sequences)):
+            print("Progress Percentage: ",str(index/len(self.sequences)*100))
             print("Sequences is: ", self.sequences[index])
             filenames_vid = list((self.video_dir / self.sequences[index]).glob('*'))
             filenames_vid = [pathlib.Path(*filename.parts[-3:]).with_suffix('') for filename in filenames_vid]
@@ -198,7 +200,8 @@ class keypoint_segmentation_generator():
                         offset-= 1
                         continue
                     if frame_num % self.args.sampling_rate != 0:
-                        print("skipping frame number: ",frame_num)
+                        pass
+                        #print("skipping frame number: ",frame_num)
                     
                     else:
                         frame = frame[:,:,::-1]
@@ -222,7 +225,7 @@ class keypoint_segmentation_generator():
 
                     frame_num+=1
                 video.release()
-                print("Extraction finished for ", str(video_path))
+                print("Saved images of ", str(video_path), " in ", str(self.imgs_dir) ,"/", str(filename))
               
 if __name__ == "__main__":
     ## Parse options ##
