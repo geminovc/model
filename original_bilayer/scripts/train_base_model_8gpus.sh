@@ -1,6 +1,6 @@
 cd ../
      python  train.py \
-    --experiment_name 'per_person_augmentation_by_general_from_base' \
+    --experiment_name 'new_keypoints_per_person_with_augmentation_by_general_from_base_2' \
     --pretrained_weights_dir /video-conf/scratch/pantea \
     --per_person_augmentation_by_general True \
     --save_initial_test_before_training True \
@@ -21,8 +21,8 @@ cd ../
     --bn_momentum 1.0 \
     --calc_stats \
     --checkpoint_freq 50 \
-    --data_root /video-conf/scratch/pantea/video_conf_datasets/per_person_dataset \
-    --general_data_root /video-conf/scratch/pantea/video_conf_datasets/general_dataset \
+    --data_root /video-conf/scratch/pantea/temp_one_person_extracts \
+    --general_data_root /video-conf/scratch/pantea/temp_general_extracts \
     --dis_activation_type leakyrelu \
     --dis_downsampling_type avgpool \
     --dis_max_channels 512 \
@@ -111,12 +111,12 @@ cd ../
     --spn_networks 'identity_embedder, texture_generator, keypoints_embedder, inference_generator, discriminator' \
     --stats_calc_iters 500 \
     --stickmen_thickness 2 \
-    --test_freq 5 \
-    --visual_freq '1' \
+    --test_freq 10 \
+    --visual_freq '400' \
     --wpr_loss_apply_to pred_target_delta_uvs \
     --wpr_loss_decay_schedule '-1' \
     --wpr_loss_type l1 \
-    --wpr_loss_weight 0.0 \
+    --wpr_loss_weight 0.01 \
     --wpr_loss_weight_decay 1.0 \
     --nme_num_threads 1 \
     --skip_test False \

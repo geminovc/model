@@ -204,6 +204,7 @@ class TrainingWrapper(object):
         ssl._create_default_https_context = ssl._create_unverified_context
         torch.backends.cudnn.benchmark = True
         torch.manual_seed(args.random_seed)
+        random.seed(args.random_seed)
         torch.cuda.manual_seed_all(args.random_seed)
 
         # Set distributed training options
@@ -657,10 +658,10 @@ class TrainingWrapper(object):
             # Output logs
             logger.output_logs('test', runner.output_visuals(), runner.output_losses(), time.time() - time_start)
             #printing for double check
-            print("epoch",epoch," Testing model values:")
-            for name, param in model.named_parameters():
-                if param.requires_grad:
-                    print('test:',name, param.data)
+            # print("epoch",epoch," Testing model values:")
+            # for name, param in model.named_parameters():
+            #     if param.requires_grad:
+            #         print('test:',name, param.data)
 
             # If creation of checkpoint is not required -- continue
             if epoch % args.checkpoint_freq and not args.debug:
