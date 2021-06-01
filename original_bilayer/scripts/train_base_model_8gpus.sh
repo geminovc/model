@@ -1,8 +1,8 @@
 cd ../
      python  train.py \
-    --experiment_name 'new_keypoints_per_person_with_augmentation_by_general_from_base_2' \
+    --experiment_name 'replace_Gtex_output_with_trainable_tensor_per_video' \
     --pretrained_weights_dir /video-conf/scratch/pantea \
-    --per_person_augmentation_by_general True \
+    --per_person_augmentation_by_general False \
     --save_initial_test_before_training True \
     --images_log_rate 100 \
     --metrics_log_rate 100 \
@@ -21,7 +21,7 @@ cd ../
     --bn_momentum 1.0 \
     --calc_stats \
     --checkpoint_freq 50 \
-    --data_root /video-conf/scratch/pantea/temp_one_person_extracts \
+    --data_root /video-conf/scratch/pantea/temp_per_video_extracts \
     --general_data_root /video-conf/scratch/pantea/temp_general_extracts \
     --dis_activation_type leakyrelu \
     --dis_downsampling_type avgpool \
@@ -112,7 +112,7 @@ cd ../
     --stats_calc_iters 500 \
     --stickmen_thickness 2 \
     --test_freq 10 \
-    --visual_freq '400' \
+    --visual_freq '20' \
     --wpr_loss_apply_to pred_target_delta_uvs \
     --wpr_loss_decay_schedule '-1' \
     --wpr_loss_type l1 \
@@ -120,3 +120,6 @@ cd ../
     --wpr_loss_weight_decay 1.0 \
     --nme_num_threads 1 \
     --skip_test False \
+    --replace_Gtex_output_with_trainable_tensor True \
+    --replace_source_specific_with_trainable_tensors False \
+    --lessen_general_data_loader False \

@@ -135,6 +135,12 @@ class DatasetWrapper(data.Dataset):
         sequences = self.imgs_dir.glob('*/*')
         self.sequences = ['/'.join(str(seq).split('/')[-2:]) for seq in sequences]
 
+        
+        if self.args.lessen_general_data_loader and self.args.data_root == self.args.general_data_root:
+            self.sequences = random.sample(self.sequences, 22)
+
+        print(len(self.sequences), self.sequences)
+
         #print("Got the sequences!")
 
         # Parameters of the sampling scheme

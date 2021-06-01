@@ -9,8 +9,8 @@ from matplotlib import pyplot as plt
 import time
 import argparse
 
-checkpoints_dir = '/video-conf/scratch/pantea_experiments_chunky/runs/inference_check/checkpoints'
-checkpoint_path1 = checkpoints_dir+'/'+'1_identity_embedder.pth'
+checkpoints_dir = '/video-conf/scratch/pantea_experiments_mapmaker/runs/No_frozen_network_new_keypoints_from_pretrained/checkpoints'
+checkpoint_path1 = checkpoints_dir+'/'+'100_texture_generator.pth'
 
 
 #checkpoint_path2=  checkpoints_dir+'/'+'1100_texture_generator.pth'
@@ -42,6 +42,8 @@ def print_values (checkpoint_path1):
     checkpoint1 = torch.load(checkpoint_path1, map_location='cpu')
 
     for key in checkpoint1.keys():
-        print(key, checkpoint1[key])
+        key_split = key.split(".")
+        if key_split[0]=='gen_tex' and  key_split[1]=='heads': 
+            print(key, checkpoint1[key], checkpoint1[key].shape)
 
 print_values(checkpoint_path1)

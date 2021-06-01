@@ -37,17 +37,28 @@ class NetworkWrapper(nn.Module):
         parser.add('--tex_skip_layer_type',      default='ada_conv', type=str,
                                                  help='skip connection layer type')
 
+        parser.add('--replace_Gtex_output_with_trainable_tensor',   default='Fasle', type=rn_utils.str2bool, choices=[True, False],
+                                                                    help='set to true if you want to replace all of G_tex with a tensor')
+
+
     def __init__(self, args):
         super(NetworkWrapper, self).__init__()
         # Initialize options
         self.args = args
 
-        # Generator
-        self.gen_tex_input = nn.Parameter(torch.randn(1, args.tex_max_channels, args.tex_input_tensor_size, args.tex_input_tensor_size))
-        self.gen_tex = Generator(args)
+        # Fully training the texture generator
+        if not self.args.replace_Gtex_output_with_trainable_tensor:
+            # Generator
+            self.gen_tex_input = nn.Parameter(torch.randn(1, args.tex_max_channels, args.tex_input_tensor_size, args.tex_input_tensor_size))
+            self.gen_tex = Generator(args)
+            # Projector (prediction of adaptive parameters)
+            self.prj_tex = Projector(args)
 
-        # Projector (prediction of adaptive parameters)
-        self.prj_tex = Projector(args)
+        # Replacing the texture generator with a trainable tensor
+        else:
+            self.gen_tex_output = nn.Parameter(torch.randn(1, 3, self.args.image_size , self.args.image_size))
+
+
 
     def forward(
             self, 
@@ -61,27 +72,32 @@ class NetworkWrapper(nn.Module):
             prev = torch.is_grad_enabled()
             torch.set_grad_enabled(False)
 
-        ### Prepare inputs ###
-        idt_embeds = data_dict['source_idt_embeds']
-        b = idt_embeds[0].shape[0]
+        if not self.args.replace_Gtex_output_with_trainable_tensor:
+            ### Prepare inputs ###
+            idt_embeds = data_dict['source_idt_embeds']
+            b = idt_embeds[0].shape[0]
 
-        ### Forward through the projectors ###
-        tex_weights, tex_biases = self.prj_tex(idt_embeds)
-        self.assign_adaptive_params(self.gen_tex, tex_weights, tex_biases)
+            ### Forward through the projectors ###
+            tex_weights, tex_biases = self.prj_tex(idt_embeds)
+            self.assign_adaptive_params(self.gen_tex, tex_weights, tex_biases)
 
-        ### Forward through the texture generator ###
-        tex_inputs = torch.cat([self.gen_tex_input]*b, dim=0)
-        outputs = self.gen_tex(tex_inputs)
-        pred_tex_hf_rgbs = outputs[0]
+            ### Forward through the texture generator ###
+            tex_inputs = torch.cat([self.gen_tex_input]*b, dim=0)
+            outputs = self.gen_tex(tex_inputs)
+            pred_tex_hf_rgbs = outputs[0]
 
-        if 'texture_generator' not in networks_to_train:
-            torch.set_grad_enabled(prev)
+            if 'texture_generator' not in networks_to_train:
+                torch.set_grad_enabled(prev)
 
-        ### Store outputs ###
-        reshape_target_data = lambda data: data.view(b, t, *data.shape[1:])
-        reshape_source_data = lambda data: data.view(b, n, *data.shape[1:])
+            ### Store outputs ###
+            reshape_target_data = lambda data: data.view(b, t, *data.shape[1:])
+            reshape_source_data = lambda data: data.view(b, n, *data.shape[1:])
 
-        data_dict['pred_tex_hf_rgbs'] = pred_tex_hf_rgbs[:, None]
+            data_dict['pred_tex_hf_rgbs'] = pred_tex_hf_rgbs[:, None]
+        
+        else:
+            data_dict['pred_tex_hf_rgbs']  = self.gen_tex_output [:, None]
+
 
         return data_dict
 

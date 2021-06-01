@@ -1,6 +1,6 @@
 cd ../
      python  train.py \
-    --experiment_name 'Unfreezed_projection_all_networked_frozen_except_Ginf_and_all_of_G_tex' \
+    --experiment_name 'replace_Gtex_output_with_trainable_tensor_per_video' \
     --pretrained_weights_dir /video-conf/scratch/pantea \
     --per_person_augmentation_by_general False \
     --images_log_rate 100 \
@@ -20,7 +20,7 @@ cd ../
     --bn_momentum 1.0 \
     --calc_stats \
     --checkpoint_freq 100 \
-    --data_root /video-conf/scratch/pantea/video_conf_datasets/per_person_dataset \
+    --data_root /video-conf/scratch/pantea/temp_per_video_extracts \
     --general_data_root /video-conf/scratch/pantea/video_conf_datasets/general_dataset \
     --dis_activation_type leakyrelu \
     --dis_downsampling_type avgpool \
@@ -111,8 +111,8 @@ cd ../
     --spn_networks 'identity_embedder, texture_generator, keypoints_embedder, inference_generator, discriminator' \
     --stats_calc_iters 500 \
     --stickmen_thickness 2 \
-    --test_freq 50 \
-    --visual_freq '50' \
+    --test_freq 10 \
+    --visual_freq '10' \
     --wpr_loss_apply_to pred_target_delta_uvs \
     --wpr_loss_decay_schedule '-1' \
     --wpr_loss_type l1 \
@@ -123,14 +123,10 @@ cd ../
     --init_networks 'identity_embedder, texture_generator, keypoints_embedder, inference_generator, discriminator' \
     --init_which_epoch 2225 \
     --skip_test False \
-    --frozen_networks 'identity_embedder, keypoints_embedder' \
+    --frozen_networks ' ' \
     --unfreeze_texture_generator_last_layers True \
     --unfreeze_inference_generator_last_layers True \
     --replace_AdaSpade_with_conv False \
-    --freeze_discriminator False \
-    --freeze_identity_embedder False \
-    --freeze_keypoints_embedder False \
-    --freeze_inference_generator False 
-
-
-   
+    --replace_Gtex_output_with_trainable_tensor True \
+    --replace_source_specific_with_trainable_tensors False \
+    --lessen_general_data_loader False \

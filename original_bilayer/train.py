@@ -164,8 +164,11 @@ class TrainingWrapper(object):
         parser.add('--frozen_networks',         default='', type=str,
                                                 help='list of frozen networks')
 
-        parser.add('--unfreeze_texture_generator_last_layers',     default='True', type=rn_utils.str2bool, choices=[True, False],
-                                                                   help='set to false if you want to freeze the last layers (after up samlping blocks) in the texture generator')
+        parser.add('--replace_Gtex_output_with_trainable_tensor',   default='Fasle', type=rn_utils.str2bool, choices=[True, False],
+                                                                    help='set to true if you want to replace all of G_tex with a tensor')
+
+        parser.add('--unfreeze_texture_generator_last_layers',      default='True', type=rn_utils.str2bool, choices=[True, False],
+                                                                    help='set to false if you want to freeze the last layers (after up samlping blocks) in the texture generator')
 
         parser.add('--unfreeze_inference_generator_last_layers',    default='False', type=rn_utils.str2bool, choices=[True, False],
                                                                     help='set to false if you want to freeze the last layers (after up samlping blocks) in the inference generator')
@@ -175,6 +178,13 @@ class TrainingWrapper(object):
 
         parser.add('--per_person_augmentation_by_general',          default='False', type=rn_utils.str2bool, choices=[True, False],
                                                                     help='gradually increase the weight of general dataset while training the per_person dataset')
+
+        parser.add('--replace_source_specific_with_trainable_tensors',  default='Fasle', type=rn_utils.str2bool, choices=[True, False],
+                                                                        help='set to true if you want to replace all source-specific modules with a tensor')
+
+        parser.add('--lessen_general_data_loader',                      default='Fasle', type=rn_utils.str2bool, choices=[True, False],
+                                                                        help='set to true if you want to take smaller number of data in general dataset')
+
 
                              
 

@@ -66,8 +66,11 @@ class NetworkWrapper(nn.Module):
         if not self.args.emb_no_stickman:
             inputs = torch.cat([inputs, data_dict['source_stickmen']], 2)
 
-        ### Main forward pass ###
-        source_embeds = self.net(inputs)
+        if not self.args.replace_source_specific_with_trainable_tensors:
+            ### Main forward pass ###
+            source_embeds = self.net(inputs)
+        else:
+            pass
 
         if 'identity_embedder' not in networks_to_train:
             torch.set_grad_enabled(prev)

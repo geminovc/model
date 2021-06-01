@@ -141,7 +141,7 @@ class InferenceWrapper(nn.Module):
             poses.append(torch.from_numpy((pose - 0.5) * 2).view(-1))
 
         poses = torch.stack(poses, 0)[None]
-        print(poses)
+        #print(poses)
 
         if self.args.output_stickmen:
             stickmen = ds_utils.draw_stickmen(self.args, poses[0])
@@ -259,7 +259,7 @@ class InferenceWrapper(nn.Module):
 
 
     def get_images_from_dataset2 (self):
-        pdb.set_trace()
+        #pdb.set_trace()
         # Source Charactristics
         imgs = []
         poses = []
@@ -356,7 +356,7 @@ class InferenceWrapper(nn.Module):
         video = cv2.VideoCapture(str(video_path))
         frame_num = 0
         offset = 0 
-        pdb.set_trace()
+        #pdb.set_trace()
         while video.isOpened() and frame_num<2:
             ret, frame = video.read()
             if frame is None:
