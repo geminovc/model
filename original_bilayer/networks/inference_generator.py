@@ -229,7 +229,6 @@ class NetworkWrapper(nn.Module):
 
         # Predicted textures
         visuals += [data_dict['pred_tex_hf_rgbs']]
-        #print("data_dict['pred_tex_hf_rgbs'].shape",data_dict['pred_tex_hf_rgbs'].shape)
 
         if 'pred_enh_tex_hf_rgbs' in data_dict.keys():
             # Predicted enhated textures

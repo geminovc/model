@@ -247,7 +247,6 @@ class TrainingWrapper(object):
                 sys.stderr = open(os.path.join(logs_dir, f'stderr_{args.rank}.txt'), 'w')
 
             if args.rank == 0:
-                #print(args)
                 with open(self.experiment_dir / 'args.txt', 'wt') as args_file:
                     for k, v in sorted(vars(args).items()):
                         args_file.write('%s: %s\n' % (str(k), str(v)))
@@ -332,7 +331,6 @@ class TrainingWrapper(object):
 
         if args.rank == 0:
             print()
-            #print("runner is: ",self.runner)
 
         #If we are reading from the data filenames from a txt file, there is no need to store it again
         #commented to test 
@@ -548,9 +546,7 @@ class TrainingWrapper(object):
 
                 # Perform a forward pass
                 if not args.use_closure:
-                    #loss = model(data_dict)
                     loss, losses_dict, metrics_dict, misc_dict = model(data_dict)
-                    #print(metrics_dict)
                     closure = None
                 
                 #Log metrics.
@@ -625,12 +621,6 @@ class TrainingWrapper(object):
             
             # Increment the epoch counter in the training dataset
             train_dataloader.dataset.epoch += 1
-            
-            # #printing for double check
-            # print("epoch",epoch," Training model values:")
-            # for name, param in model.named_parameters():
-            #     if param.requires_grad:
-            #         print('train:',name, param.data)
 
             # If testing is not required -- continue
             if epoch % args.test_freq != 0:

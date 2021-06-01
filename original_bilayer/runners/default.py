@@ -110,7 +110,6 @@ class RunnerWrapper(nn.Module):
         if self.training:
             nets_names += self.nets_names_train
         nets_names = list(set(nets_names))
-        print("Here are the names of networks and corresponding outputs for", str(nets_names))
 
         self.nets = nn.ModuleDict()
 
@@ -211,13 +210,11 @@ class RunnerWrapper(nn.Module):
 
         for net_name in nets_names:
             self.data_dict = self.nets[net_name](self.data_dict, networks_to_train, self.nets)
-            #print("Printing the data_dict here:", self.data_dict)
 
         # Forward pass through all the losses
         losses_dict = {}
         for loss_name in losses_names:
             if hasattr(self, 'losses') and loss_name in self.losses.keys():
-                #print("These are the loss dicts:", self.losses[loss_name](self.data_dict, losses_dict),"\n")
                 losses_dict = self.losses[loss_name](self.data_dict, losses_dict)
 
         # Calculate the total loss and store history

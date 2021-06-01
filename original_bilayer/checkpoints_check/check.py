@@ -36,7 +36,13 @@ def match_checkpoints(checkpoint_path1, checkpoint_path2):
             #return False
     return unmatched_keys
 
+def print_values (checkpoint_path1):
+    checkpoint1 = torch.load(checkpoint_path1, map_location='cpu')
 
+    for key in checkpoint1.keys():
+        key_split = key.split(".")
+        if key_split[0]=='gen_tex' and  key_split[1]=='heads': 
+            print(key, checkpoint1[key], checkpoint1[key].shape)
 
 unmatched_keys = match_checkpoints(checkpoint_path1, checkpoint_path2)
 print("Which keys don't match?", str(unmatched_keys))

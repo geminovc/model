@@ -103,30 +103,12 @@ class DatasetWrapper(data.Dataset):
         else:
             data_root = args.data_root
             
-            # # choosing the general dataset root to sample from in training per-person approach
-            # if self.args.per_person_augmentation_by_general and data_root!=args.general_data_root:
-            #     general_data_root = args.general_data_root
-            #     print("general_data_root:",general_data_root)
-                
-            #     # Data paths to general
-            #     self.general_imgs_dir = pathlib.Path(general_data_root) / 'imgs' / phase
-            #     self.general_pose_dir = pathlib.Path(general_data_root) / 'keypoints' / phase
 
-            #     if args.output_segmentation:
-            #         self.general_segs_dir = pathlib.Path(general_data_root) / 'segs' / phase
-
-            #     # Video sequences list
-            #     general_sequences = self.general_imgs_dir.glob('*/*')
-            #     self.general_sequences = ['/'.join(str(seq).split('/')[-2:]) for seq in general_sequences]
-            #     print("these are self.general_sequences: ", self.general_sequences )
-
-        
         # Data paths
         self.imgs_dir = pathlib.Path(data_root) / 'imgs' / phase
         self.pose_dir = pathlib.Path(data_root) / 'keypoints' / phase
 
-        #print("imgs_Dir", self.imgs_dir)
-        #print("pose_Dir", self.pose_dir)
+
 
         if args.output_segmentation:
             self.segs_dir = pathlib.Path(data_root) / 'segs' / phase
@@ -141,7 +123,6 @@ class DatasetWrapper(data.Dataset):
 
         print(len(self.sequences), self.sequences)
 
-        #print("Got the sequences!")
 
         # Parameters of the sampling scheme
         self.delta = math.sqrt(5)
@@ -232,11 +213,6 @@ class DatasetWrapper(data.Dataset):
             try:
                 img = Image.open(img_path)
 
-                # print(img_path)
-                # print("imgs",img)
-                # print("imgs.size",img.size)
-                # print("imgs.shape",img.shape)
-
                 # Preprocess an image
                 s = img.size[0]
                 img = img.resize((self.args.image_size, self.args.image_size), Image.BICUBIC)
@@ -250,7 +226,6 @@ class DatasetWrapper(data.Dataset):
 
             # Read keypoints
             keypoints_path = pathlib.Path(self.pose_dir) / filename.with_suffix('.npy')
-            #print(str(keypoints_path))
             try:
                 keypoints = np.load(keypoints_path).astype('float32')
                 
@@ -265,7 +240,6 @@ class DatasetWrapper(data.Dataset):
                         save_file = self.phase + "_filenames.txt"
                         with open(self.experiment_dir / save_file, 'a') as data_file:
                             data_file.write('target %s:%s\n' % (str(len (imgs)-self.args.num_source_frames), str(filename.with_suffix('.jpg'))))
-                    #print("Got the raw keypoint:", keypoints)
             except:
                 imgs.pop(-1)
 
@@ -278,7 +252,6 @@ class DatasetWrapper(data.Dataset):
             keypoints[:, :2] /= s
             keypoints = keypoints[:, :2]
 
-            #print("This is not the raw keypoint!", keypoints)
 
             poses += [torch.from_numpy(keypoints.reshape(-1))]
 
