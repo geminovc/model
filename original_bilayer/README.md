@@ -126,7 +126,7 @@ Mapmaker: http://128.30.198.25:<TENSORBOARD_PORT>/
 
 ## Inference
 
-For inference, you can currently use `examples/inference.py` file. Change the followings in the file to generate a new predicted target image:
+For inference, you can currently use `examples/ifer_test.py` file. Change the followings in the file to generate a new predicted target image:
 
 * `experiment_name`: The name of the experiment that you want to test
 * `experiment_dir` : The root of experiments
