@@ -1,9 +1,9 @@
 cd ../
      python  train.py \
-    --experiment_name 'replace_Gtex_output_with_trainable_tensor_per_video' \
+    --experiment_name 'sanity_check_personal_from_base' \
     --pretrained_weights_dir /video-conf/scratch/pantea \
     --per_person_augmentation_by_general False \
-    --save_initial_test_before_training True \
+    --save_initial_test_before_training False \
     --images_log_rate 100 \
     --metrics_log_rate 100 \
     --random_seed 0 \
@@ -21,7 +21,7 @@ cd ../
     --bn_momentum 1.0 \
     --calc_stats \
     --checkpoint_freq 50 \
-    --data_root /video-conf/scratch/pantea/temp_per_video_extracts \
+    --data_root /video-conf/scratch/pantea/temp_one_person_extracts \
     --general_data_root /video-conf/scratch/pantea/temp_general_extracts \
     --dis_activation_type leakyrelu \
     --dis_downsampling_type avgpool \
@@ -73,7 +73,7 @@ cd ../
     --networks_test 'identity_embedder, texture_generator, keypoints_embedder, inference_generator' \
     --networks_to_train 'identity_embedder, texture_generator, keypoints_embedder, inference_generator, discriminator' \
     --networks_train 'identity_embedder, texture_generator, keypoints_embedder, inference_generator, discriminator' \
-    --num_epochs 5000 \
+    --num_epochs 20000 \
     --num_gpus 1 \
     --num_keypoints 68 \
     --num_source_frames 1 \
@@ -120,6 +120,6 @@ cd ../
     --wpr_loss_weight_decay 1.0 \
     --nme_num_threads 1 \
     --skip_test False \
-    --replace_Gtex_output_with_trainable_tensor True \
+    --replace_Gtex_output_with_trainable_tensor False \
     --replace_source_specific_with_trainable_tensors False \
     --lessen_general_data_loader False \

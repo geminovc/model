@@ -478,7 +478,6 @@ class TrainingWrapper(object):
             model.eval()
 
             test_dataloader.dataset.shuffle()
-            #pdb.set_trace()
             for data_dict in test_dataloader:
                 # Prepare input data
                 if args.num_gpus > 0:
@@ -508,9 +507,7 @@ class TrainingWrapper(object):
             # Initiate all the networks in the training mode 
             model.train() 
             time_start = time.time()
-            #pdb.set_trace()
             if args.per_person_augmentation_by_general and args.data_root!=args.general_data_root:
-                #pdb.set_trace()
                 prob = random.uniform(0, 1)
                 self.gen_to_per_ratio = (args.num_epochs-epoch)/(args.num_epochs-epoch_start)
                 self.test_freq = 5
@@ -667,16 +664,10 @@ class TrainingWrapper(object):
 
             # Output logs
             logger.output_logs('test', runner.output_visuals(), runner.output_losses(), time.time() - time_start)
-            #printing for double check
-            # print("epoch",epoch," Testing model values:")
-            # for name, param in model.named_parameters():
-            #     if param.requires_grad:
-            #         print('test:',name, param.data)
 
             # If creation of checkpoint is not required -- continue
             if epoch % args.checkpoint_freq and not args.debug:
                 continue
-            # pdb.set_trace()
             # Create or load a checkpoint
             if args.rank == 0  and not args.no_disk_write_ops:
                 with torch.no_grad():

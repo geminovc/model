@@ -1,11 +1,11 @@
-python  paper_extraction.py \
+python  extract.py \
     --pretrained_weights_dir /video-conf/scratch/pantea \
-    --phase 'train' \
-    --video_root /video-conf/vedantha/voxceleb2/dev/mp4/\
+    --phase 'test' \
+    --video_root /video-conf/scratch/voxceleb2_test_videos/mp4 \
     --sampling_rate 50 \
     --experiment_name 'extraction' \
     --batch_size 10000 \
-    --data_root /video-conf/scratch/pantea/temp_general_extracts_2 \
+    --data_root /video-conf/scratch/pantea/temp_general_extracts_test \
     --output_segmentation True \
     --image_size 256 \
     --num_gpus 1 \

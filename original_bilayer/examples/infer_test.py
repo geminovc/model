@@ -8,7 +8,7 @@ import numpy as np
 from PIL import Image
 from matplotlib import pyplot as plt
 import time
-from infer_from_paper import InferenceWrapper
+from infer import InferenceWrapper
 import argparse
 from natsort import natsorted
 from torchvision import transforms
