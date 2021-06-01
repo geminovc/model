@@ -117,6 +117,12 @@ The tensorboard results are stored in two `tensorboard_paper` and `metrics` fold
 ```bash
 tensorboard --bind_all --logdir=<PATH_TO_TENSORBOARD>
 ```
+After that you can view the results in your brower by the following urls:
+
+```
+Chunky: http://chunky.csail.mit.edu:<TENSORBOARD_PORT>/
+Mapmaker: http://128.30.198.25:<TENSORBOARD_PORT>/
+```
 
 ## Inference
 
