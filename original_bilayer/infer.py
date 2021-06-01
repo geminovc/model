@@ -97,7 +97,6 @@ class InferenceWrapper(nn.Module):
         self.args = self.get_args(args_dict)
     
     def preprocess_data(self, input_imgs, crop_data=True):
-        #pdb.set_trace()
         imgs = []
         poses = []
         stickmen = []
@@ -259,7 +258,6 @@ class InferenceWrapper(nn.Module):
 
 
     def get_images_from_dataset2 (self):
-        #pdb.set_trace()
         # Source Charactristics
         imgs = []
         poses = []
@@ -356,7 +354,6 @@ class InferenceWrapper(nn.Module):
         video = cv2.VideoCapture(str(video_path))
         frame_num = 0
         offset = 0 
-        #pdb.set_trace()
         while video.isOpened() and frame_num<2:
             ret, frame = video.read()
             if frame is None:
