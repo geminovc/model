@@ -49,7 +49,7 @@ After formating your videos in such order, you can generate the `[imgs, keypoint
     --output_segmentation True \
     --num_gpus <YOUR_NUM_GPUS>
 ```
-Please make sure to set `video_root` the same as the `VIDEO_ROOT` where your videos are stored. If you want to save the videos as train/test dataset, set `phase` to `'train'`/`'test'`. 
+Please make sure to set `video_root` the same as the `VIDEO_ROOT` where your videos are stored. If you want to save the videos as train/test dataset, set `phase` to `'train'` or `'test'`. 
 
 
 ## Training 
