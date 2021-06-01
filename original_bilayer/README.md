@@ -92,7 +92,7 @@ The used test data will be also be saved in `test_filenames.txt` in the experime
 * `networks_train`: Order of forward passes during testing.
 * `networks_to_train`: Names of networks that are being trained.
 * `num_epochs`: Number of epochs to train the model
-* `output_stickmen`: If you set to true, you can see the visulaized keypoints.
+* `output_stickmen`: If you set to true, you can see the visualized keypoints.
 * `runner_name`: The runner file that loads the networks and trains them in order.
 * `test_freq`: The frequency of testing the model on test data.
 * `visual_freq`: The frequency of storing the visual results.
