@@ -87,7 +87,7 @@ The used test data will be also be saved in `test_filenames.txt` in the experime
 * `emb_apply_masks`: If you want the embedding network to use the segmentation mask, set this variable to True. 
 * `frame_num_from_paper`: If you want to use the paper's approach in selecting the train and test images, set this variable to True. If you set this variable to `False`, the source and the target images are randomly picked from all the sessions of one video.   
 * `losses_test`: You can choose what losses to compute when testing the model; for example:  `--losses_test 'lpips, csim'`.
-* `metrics`: You can choose what metrics you want to store; for example:  `metrics: 'PSNR, lpips, pose_matching_metric'`.
+* `metrics`: You can choose what metrics you want to store; for example:  `--metrics 'PSNR, lpips, pose_matching_metric'`.
 * `networks_test`: Order of forward passes during the training of gen (or gen and dis for sim sgd).
 * `networks_train`: Order of forward passes during testing.
 * `networks_to_train`: Names of networks that are being trained.
