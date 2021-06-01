@@ -27,6 +27,9 @@ class keypoint_segmentation_generator():
         
         parser.add('--keypoint_dir',            default="keypoint", type=str,
                                                 help='root directory of the stored keypoints')
+
+        parser.add('--phase',                   default="test", type=str,
+                                                help='train of test phase')
         
         parser.add('--video_root',              default="/video-conf/vedantha/voxceleb2/dev/mp4/", type=str,
                                                 help='root directory of the raw videos')        
@@ -66,10 +69,11 @@ class keypoint_segmentation_generator():
 
         return parser
 
-    def __init__(self, args, phase):        
+    def __init__(self, args):        
         # Store options
-        self.phase = phase
+
         self.args = args
+        self.phase = self.args.phase
 
 
         self.to_tensor = transforms.ToTensor()
@@ -77,8 +81,8 @@ class keypoint_segmentation_generator():
         data_root = self.args.data_root
         # Data paths
         self.video_dir = pathlib.Path(self.args.video_root) #'/video-conf/scratch/pantea/0
-        self.imgs_dir = pathlib.Path(data_root) / 'imgs' / phase
-        self.pose_dir = pathlib.Path(data_root) / 'keypoints' / phase
+        self.imgs_dir = pathlib.Path(data_root) / 'imgs' / self.phase
+        self.pose_dir = pathlib.Path(data_root) / 'keypoints' / self.phase
 
         print("imgs_dir", self.imgs_dir)
         print("pose_dir", self.pose_dir)
@@ -90,7 +94,7 @@ class keypoint_segmentation_generator():
         print(self.sequences)
         
         if args.output_segmentation:
-            self.segs_dir = pathlib.Path(data_root) / 'segs' / phase
+            self.segs_dir = pathlib.Path(data_root) / 'segs' / self.phase
         
         self.to_tensor = transforms.ToTensor()
 
@@ -237,5 +241,5 @@ if __name__ == "__main__":
     args, _ = parser.parse_known_args()
 
     # initialize the model
-    generator = keypoint_segmentation_generator(args, 'test')
+    generator = keypoint_segmentation_generator(args)
     generator.get_poses()
