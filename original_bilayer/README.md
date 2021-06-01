@@ -37,7 +37,7 @@ If you want to make a dataset from videos to use as your train or test data, you
 
 `VIDEO_ROOT/PERSON_ID/VIDEO_ID/SEQUENCE_ID[.mp4]`
 
-After formating your videos in such order, you can generate the `[imgs, keypoints, segs]` using our `keypoints_segmentations_generator` module. Before running the bash file, there are a few arguments you need to set in `keypoints_segmentations_extract.sh` such as the following:
+After formating your videos in such order, you can generate the `[imgs, keypoints, segs]` using our `keypoints_segmentations_generator` module. Before running the bash file `extract.sh` in `keypoints_segmentations_generator` folder, there are a few arguments you need to set in `extract.sh` such as the following:
 
 ```
     --pretrained_weights_dir <PATH_TO_YOUR_PRETRAINED_WEIGHTS> \
