@@ -37,7 +37,7 @@ If you want to make a dataset from videos to use as your train or test data, you
 
 `VIDEO_ROOT/PERSON_ID/VIDEO_ID/SEQUENCE_ID[.mp4]`
 
-After formating your videos in such order, you can generate the `[imgs, keypoints, segs]` using our `keypoints_segmentations_generator` module. Before running the bash file, there are a few arguments you need to set in `keypoints_segmentations_extract.sh` such as the following:
+After formating your videos in such order, you can generate the `[imgs, keypoints, segs]` using our `keypoints_segmentations_generator` module. Before running the bash file `extract.sh` in `keypoints_segmentations_generator` folder, there are a few arguments you need to set in `extract.sh` such as the following:
 
 ```
     --pretrained_weights_dir <PATH_TO_YOUR_PRETRAINED_WEIGHTS> \
@@ -49,7 +49,7 @@ After formating your videos in such order, you can generate the `[imgs, keypoint
     --output_segmentation True \
     --num_gpus <YOUR_NUM_GPUS>
 ```
-Please make sure to set `video_root` the same as the `VIDEO_ROOT` where your videos are stored. If you want to save the videos as train/test dataset, set `phase` to `'train'`/`'test'`. 
+Please make sure to set `video_root` the same as the `VIDEO_ROOT` where your videos are stored. If you want to save the videos as train/test dataset, set `phase` to `'train'` or `'test'`. 
 
 
 ## Training 
@@ -87,12 +87,11 @@ The used test data will be also be saved in `test_filenames.txt` in the experime
 * `emb_apply_masks`: If you want the embedding network to use the segmentation mask, set this variable to True. 
 * `frame_num_from_paper`: If you want to use the paper's approach in selecting the train and test images, set this variable to True. If you set this variable to `False`, the source and the target images are randomly picked from all the sessions of one video.   
 * `losses_test`: You can choose what losses to compute when testing the model; for example:  `--losses_test 'lpips, csim'`.
-* `metrics`: You can choose what metrics you want to store; for example:  `metrics: 'PSNR, lpips, pose_matching_metric'`.
+* `metrics`: You can choose what metrics you want to store; for example:  `--metrics 'PSNR, lpips, pose_matching_metric'`.
 * `networks_test`: Order of forward passes during the training of gen (or gen and dis for sim sgd).
 * `networks_train`: Order of forward passes during testing.
-* `networks_to_train`: Names of networks that are being trained.
 * `num_epochs`: Number of epochs to train the model
-* `output_stickmen`: If you set to true, you can see the visulaized keypoints.
+* `output_stickmen`: If you set to true, you can see the visualized keypoints.
 * `runner_name`: The runner file that loads the networks and trains them in order.
 * `test_freq`: The frequency of testing the model on test data.
 * `visual_freq`: The frequency of storing the visual results.
@@ -126,10 +125,11 @@ Mapmaker: http://128.30.198.25:<TENSORBOARD_PORT>/
 
 ## Inference
 
-For inference, you can currently use `examples/inference.py` file. Change the followings in the file to generate a new predicted target image:
+For inference, you can currently use `examples/infer_test.py` file. Change the followings in the file to generate a new predicted target image:
 
 * `experiment_name`: The name of the experiment that you want to test
 * `experiment_dir` : The root of experiments
 * `init_which_epoch`: The epoch that you want to test
-* `source_path`: Path to your source image
-* `target_path`: Path to your target image
+* `preprocess`: If you want to preprocess two images, put this to `True`, if not the code will use preprocessed images and keypoints. 
+* `source_imgs`: Path to your source image. Make sure to set it when you use `preprocess = True`.
+* `target_imgs`: Path to your target image. Make sure to set it when you use `preprocess = True`.
