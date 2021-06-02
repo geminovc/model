@@ -108,19 +108,13 @@ class KeypointSegmentationGenerator():
     def get_args(parser):
         # Common properties
         parser.add('--data_root',               default="/video-conf/scratch/pantea/temp_extracts", type=str,
-                                                help='root directory of the train data')
-        
-        parser.add('--keypoint_dir',            default="keypoint", type=str,
-                                                help='root directory of the stored keypoints')
+                                                help='root directory to save the dataset')
 
-        parser.add('--phase',                   default="test", type=str,
-                                                help='train of test phase')
+        parser.add('--phase',                   default='test', type=str,
+                                                help='train or test phase')
         
         parser.add('--video_root',              default="/video-conf/vedantha/voxceleb2/dev/mp4/", type=str,
-                                                help='root directory of the raw videos')        
-        
-        parser.add('--segmentatio_dir',         default="segs", type=str,
-                                                help='root directory of the data')                                                                                             
+                                                help='root directory of the raw videos')                                                                                                     
         
         parser.add('--num_source_frames',       default=1, type=int,
                                                 help='number of frames used for initialization of the model')
@@ -155,31 +149,29 @@ class KeypointSegmentationGenerator():
         return parser
 
     def __init__(self, args):        
-        # Store options
 
+        # Retriving inputs from arguments
         self.args = args
-        self.phase = self.args.phase
+        self.phase = self.args.phase  # could either be test or train
 
-
-        self.to_tensor = transforms.ToTensor()
-
-        data_root = self.args.data_root
         # Data paths
-        self.video_dir = pathlib.Path(self.args.video_root) #'/video-conf/scratch/pantea/0
-        self.imgs_dir = pathlib.Path(data_root) / 'imgs' / self.phase
-        self.pose_dir = pathlib.Path(data_root) / 'keypoints' / self.phase
+        self.video_dir = pathlib.Path(self.args.video_root) 
+        self.imgs_dir = pathlib.Path(self.args.data_root) / 'imgs' / self.phase
+        self.pose_dir = pathlib.Path(self.args.data_root) / 'keypoints' / self.phase
 
         print("imgs_dir", self.imgs_dir)
         print("pose_dir", self.pose_dir)
 
         # Video sequences list
+        # Finding all of the video ids (or simply all the PERSON_ID/VIDEO_ID combinations in the VIDEO_ROOT/PERSON_ID/VIDEO_ID/)
         sequences = self.video_dir.glob('*/*')
         self.sequences = ['/'.join(str(seq).split('/')[-2:]) for seq in sequences]
-
+        
+        # self.sequences is the relative address of all videos in under VIDEO_ROOT
         print(self.sequences)
         
         if args.output_segmentation:
-            self.segs_dir = pathlib.Path(data_root) / 'segs' / self.phase
+            self.segs_dir = pathlib.Path(self.args.data_root) / 'segs' / self.phase
         
         self.to_tensor = transforms.ToTensor()
 
@@ -192,11 +184,27 @@ class KeypointSegmentationGenerator():
 
 
     def preprocess_data(self, input_imgs, crop_data=True):
+        """Generates dataset images, keypoints (also called poses), and segmenatations from input_imgs/ frames
+
+        Inputs
+        ----------
+        input_imgs: list of images
+        crop_data : A flag used center-crop output images and poses (the original paper used crop_data=True,
+                    so for consistency we use crop_data=True as well) 
+
+        Returns
+        -------
+        poses: tensor of keypoints 
+        imgs : tensor of images 
+        segs : tensor of segmentations
+
+        """        
         imgs = []
         poses = []
         segs = []
         imgs_segs = []
 
+        # Finding the batch-size of the input imgs
         if len(input_imgs.shape) == 3:
             input_imgs = input_imgs[None]
             N = 1
@@ -204,45 +212,54 @@ class KeypointSegmentationGenerator():
         else:
             N = input_imgs.shape[0]
 
+        # Iterate over all the images in the batch
         for i in range(N):
+            
+            # Get the pose of the i-th image in the batch 
             pose = self.fa.get_landmarks(input_imgs[i])[0]
 
+            # Finding the center of the face using the pose coordinates
             center = ((pose.min(0) + pose.max(0)) / 2).round().astype(int)
+
+            # Finding the maximum between the width and height of the image 
             size = int(max(pose[:, 0].max() - pose[:, 0].min(), pose[:, 1].max() - pose[:, 1].min()))
             center[1] -= size // 6
 
             if input_imgs is None:
-                # Crop poses
                 if crop_data:
+                    # Crop poses
                     s = size * 2
                     pose -= center - size
 
             else:
                 
-                # Crop images and poses
                 img = Image.fromarray(np.array(input_imgs[i]))
 
                 if crop_data:
+                    # Crop images and poses
                     img = img.crop((center[0]-size, center[1]-size, center[0]+size, center[1]+size))
                     s = img.size[0]
                     pose -= center - size
                 
+                # Resizing the image before storing it. If the image is small, this action would add black border around the image
                 img = img.resize((self.args.image_size, self.args.image_size), Image.BICUBIC)
                 imgs.append((self.to_tensor(img)))
+                
+                # The images that are used to find segmentations, are 
                 if self.args.output_segmentation:
                     imgs_segs.append((self.to_tensor(img) - 0.5) * 2)
             
-            # Must not remove comment, done in the voxceleb2.py
-            # if crop_data:
-            #     pose = pose / float(s)
+            # This following action (scaling the poses) is done in training pipeline, and should not be done for generating the dataset. 
+            ## if crop_data:
+            ##     pose = pose / float(s)
+            ## poses.append(torch.from_numpy((pose - 0.5) * 2).view(-1))            
             
             poses.append(torch.from_numpy((pose)).view(-1))
-            # Must not remove comment, normalization in the voxceleb2.py            
-            # poses.append(torch.from_numpy((pose - 0.5) * 2).view(-1))
 
+        # Stack the poses from different images
         poses = torch.stack(poses, 0)[None]
 
-
+        # Use cuda if possible
         if input_imgs is not None:
             imgs = torch.stack(imgs, 0)[None]
 
@@ -252,7 +269,6 @@ class KeypointSegmentationGenerator():
             if input_imgs is not None:
                 imgs = imgs.cuda()
 
-        
         if input_imgs is not None and self.args.output_segmentation:
             imgs_segs = torch.stack(imgs_segs, 0)[None]
             if self.args.num_gpus > 0:        
@@ -267,44 +283,70 @@ class KeypointSegmentationGenerator():
         return poses, imgs, segs
 
     def get_poses (self):
-         # Sample source and target frames for the current sequence
+        """Stores dataset images, keypoints (also called poses), and segmenatations from input_imgs/ frames of videos
+
+        Inputs
+        ----------
+        Arguments in parser
+
+        Returns
+        -------
+        Prints the percentage of progress in the code
+        Prints the video sequene in progress
+        Prints the success or the failure of finding the poses, images, or segmentations
+
+        """ 
+        # For loop over all the videos in the VIDEO_ROOT
         for index in range(0,len(self.sequences)):
             print("Progress Percentage: ",str(index/len(self.sequences)*100))
             print("Sequences is: ", self.sequences[index])
+
+            # Get all the video sequences in VIDEO_ROOT/PERSON_ID/VIDEO_ID [index]
+            # self.sequences[index] = VIDEO_ROOT/PERSON_ID/VIDEO_ID [index]
             filenames_vid = list((self.video_dir / self.sequences[index]).glob('*'))
             filenames_vid = [pathlib.Path(*filename.parts[-3:]).with_suffix('') for filename in filenames_vid]
+
+            # filenames are the name of all the video files in VIDEO_ROOT/PERSON_ID/VIDEO_ID [index] directory
             filenames = list(set(filenames_vid))
             filenames = sorted(filenames)
+
+            # Iterate over all the videos in the folder
             for filename in filenames:
+
+                # The path to the video: VIDEO_ROOT/PERSON_ID/VIDEO_ID [index]/ filename
                 video_path = pathlib.Path(self.video_dir) / filename.with_suffix('.mp4')
-                name = str(filename).split('/')[len(str(filename).split('/'))-1]                                
                 video = cv2.VideoCapture(str(video_path))
                 frame_num = 0
-                offset = 0 
+
+                # Capturing the video frames 
                 while video.isOpened():
                     ret, frame = video.read()
                     if frame is None:
                         break
-                    if offset > 0:
-                        offset-= 1
-                        continue
+
+                    # Sample the frames with sampling_rate argument
                     if frame_num % self.args.sampling_rate != 0:
                         pass
-                        #print("skipping frame number: ",frame_num)
                     
                     else:
+                        # Reformat to proper RGB/BGR
                         frame = frame[:,:,::-1]
+                        
+                        # Find the keypoints and segmentations of the frame, process frame by frame 
                         try: 
                             poses, imgs, segs = self.preprocess_data(frame, crop_data=True)
                             if poses is not None and len(poses) == 1:
+                                # Paths to save imgs and segs
                                 imgs_path = str(self.imgs_dir) +"/"+ str(filename) + "/" + str(frame_num)
                                 keypoints_path = str(self.pose_dir) +"/"+ str(filename) + "/" + str(frame_num)
+                                # Make the corresponding directories to save dataset
                                 os.makedirs(str(self.imgs_dir) +"/"+ str(filename), exist_ok=True)
                                 os.makedirs(str(self.pose_dir) +"/"+ str(filename), exist_ok=True)
-                                temp = imgs[0,0,:,:,:]
-                                save_image(temp, imgs_path + '.jpg')
+                                # Save the images and keypoints
+                                save_image(imgs[0,0,:,:,:], imgs_path + '.jpg')
                                 np.save(keypoints_path , poses[0,:,:].cpu().numpy())
                                 if self.args.output_segmentation:
+                                    # Saving the segmentations
                                     segs_path = str(self.segs_dir) +"/"+ str(filename) + "/" + str(frame_num)
                                     os.makedirs(str(self.segs_dir) +"/"+ str(filename), exist_ok=True)
                                     save_image(segs[0,0,:,:,:], segs_path + '.png')
@@ -317,14 +359,16 @@ class KeypointSegmentationGenerator():
                 print("Saved images of ", str(video_path), " in ", str(self.imgs_dir) ,"/", str(filename))
               
 if __name__ == "__main__":
-    ## Parse options ##
+
+    # Parse options 
     parser = argparse.ArgumentParser(conflict_handler='resolve')
     parser.add = parser.add_argument
 
+    # Instanciate the keypoint-segmentation generator
     KeypointSegmentationGenerator.get_args(parser)
 
     args, _ = parser.parse_known_args()
 
-    # initialize the model
+    # initialize the model and save the imgs, poses, and segmentations
     generator = KeypointSegmentationGenerator(args)
     generator.get_poses()
