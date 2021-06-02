@@ -452,7 +452,7 @@ class TrainingWrapper(object):
                 continue
 
             # If skip test flag is set -- only check if a checkpoint if required
-            if not args.skip_test:
+            if not args.skip_test and not epoch % args.test_freq:
                 # Calculate "standing" stats for the batch normalization
                 if args.calc_stats:
                     runner.calculate_batchnorm_stats(train_dataloader, args.debug)
@@ -474,7 +474,7 @@ class TrainingWrapper(object):
                     if args.debug:
                         break
             # If skip test flag is set -- only check if a checkpoint if required
-            if not args.skip_metrics:
+            if not args.skip_metrics and not epoch % args.metrics_freq:
                 # Calculate "standing" stats for the batch normalization
                 if args.calc_stats:
                     runner.calculate_batchnorm_stats(train_dataloader, args.debug)
