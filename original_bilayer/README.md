@@ -194,7 +194,7 @@ For inference, you can currently use `examples/infer_test.py` file. Change the f
 
 * `experiment_name`: The name of the experiment that you want to test
 * `experiment_dir` : The root of experiments
-* `init_which_epoch`: The epoch that you want to test
+* `which_epoch`: The epoch that you want to test
 * `preprocess`: If you want to preprocess two images, put this to `True`, if not the code will use preprocessed images and keypoints. 
 * `source_imgs`: Path to your source image. Make sure to set it when you use `preprocess = True`.
 * `target_imgs`: Path to your target image. Make sure to set it when you use `preprocess = True`.
