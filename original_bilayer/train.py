@@ -364,7 +364,7 @@ class TrainingWrapper(object):
         logger = Logger(args, self.experiment_dir)
         logger.set_num_iter(
             train_iter=train_iter, 
-            test_iter=(epoch_start - 1) // args.test_freq
+            test_iter=(epoch_start - 1) // args.test_freq,
             metrics_iter=(epoch_start - 1) // args.metrics_freq)
 
         if args.debug and not args.use_apex:
