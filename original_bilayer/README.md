@@ -37,6 +37,27 @@ If you want to make a dataset from videos to use as your train or test data, you
 
 `VIDEO_ROOT/PERSON_ID/VIDEO_ID/SEQUENCE_ID[.mp4]`
 
+An example of the video structure is:
+
+"""
+        VIDEO_ROOT - id00012 - abc - 00001.mp4
+                   |         |
+                   |         |- def  - 00001.mp4
+                   |                |- 00002.mp4
+                   |               
+                   |- id00013 - lmn - 00001.mp4
+                   |          |
+                   |          |- opq  - 00001.mp4
+                   |                 |- 00002.mp4
+                   |                 |- 00003.mp4
+                   |
+                   |- id00014 - rst - 00001.mp4
+                              |    |- 00002.mp4
+                              |
+                              |- uvw  - 00001.mp4
+                                     |- 00002.mp4
+                                     |- 00003.mp4
+ """
 After formating your videos in such order, you can generate the `[imgs, keypoints, segs]` using our `keypoints_segmentations_generator` module. Before running the bash file `extract.sh` in `keypoints_segmentations_generator` folder, there are a few arguments you need to set in `extract.sh` such as the following:
 
 ```
