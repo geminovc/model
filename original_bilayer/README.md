@@ -114,7 +114,8 @@ The final dataset structure would be similar to:
                                                                         |_ 00003 _ 0 [.jpg, .npy, .png]
                                                                                 |_ ...
                                                                                 |_ 100 [.jpg, .npy, .png]
-        ```
+ ```
+
 
 ## Training 
 If you want to train your model from scratch, you should run:
