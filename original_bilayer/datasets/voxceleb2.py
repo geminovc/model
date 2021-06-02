@@ -90,11 +90,14 @@ class DatasetWrapper(data.Dataset):
 
         else:
             data_root = args.data_root
+
+        if phase == 'metrics':
+            data_root = args.metrics_root
         
         # Data paths
         self.imgs_dir = pathlib.Path(data_root) / 'imgs' / phase
         self.pose_dir = pathlib.Path(data_root) / 'keypoints' / phase
-
+        
         #print("imgs_Dir", self.imgs_dir)
         #print("pose_Dir", self.pose_dir)
 
@@ -122,9 +125,9 @@ class DatasetWrapper(data.Dataset):
     def __getitem__(self, index):
         # Sample source and target frames for the current sequence
         count = 0
-        filenames = [1]
+        filenames = []
         
-        while len(filenames):
+        while True:
             count+=1
             try:
                 filenames_img = list((self.imgs_dir / self.sequences[index]).glob('*/*'))
@@ -163,9 +166,13 @@ class DatasetWrapper(data.Dataset):
         reserve_index = -1 # take this element of the sequence if loading fails
         sample_from_reserve = False
 
-        if self.phase == 'test':
+        if self.phase == 'test' or self.phase == 'metrics':
             # Sample from the beginning of the sequence
             self.cur_num = 0
+        
+        if self.phase == 'metrics':
+            # Ensure that the output image is image 2 by setting delta to ~1
+            self.delta = 0.999
 
         while len(imgs) < self.args.num_source_frames + self.args.num_target_frames:
             if reserve_index == len(filenames):

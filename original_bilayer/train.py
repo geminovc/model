@@ -43,6 +43,9 @@ class TrainingWrapper(object):
         parser.add('--dataset_name',             default='voxceleb2_512px', type=str,
                                                  help='name of the dataset in the data root folder')
 
+        parser.add('--metrics_root',                default=".", type=str,
+                                                 help='root directory of the metrics')
+        
         parser.add('--data_root',                default=".", type=str,
                                                  help='root directory of the data')
 
@@ -88,6 +91,9 @@ class TrainingWrapper(object):
         parser.add('--test_freq',                default=5, type=int, 
                                                  help='frequency of testing in epochs')
         
+        parser.add('--metrics_freq',             default=5, type=int, 
+                                                 help='frequency of metrics in epochs')
+        
         parser.add('--batch_size',               default=1, type=int,
                                                  help='batch size across all GPUs')
         
@@ -95,6 +101,9 @@ class TrainingWrapper(object):
                                                  help='number of workers used for data loading in each process')
         
         parser.add('--skip_test',                action='store_true',
+                                                 help='do not perform testing')
+        
+        parser.add('--skip_metrics',                action='store_true',
                                                  help='do not perform testing')
         
         parser.add('--calc_stats',               action='store_true',
@@ -303,6 +312,8 @@ class TrainingWrapper(object):
 
         if not args.skip_test:
             test_dataloader = ds_utils.get_dataloader(args, 'test')
+        if not args.skip_metrics:
+            metrics_dataloader = ds_utils.get_dataloader(args, 'metrics')
 
         model = runner = self.runner
 
@@ -353,7 +364,8 @@ class TrainingWrapper(object):
         logger = Logger(args, self.experiment_dir)
         logger.set_num_iter(
             train_iter=train_iter, 
-            test_iter=(epoch_start - 1) // args.test_freq)
+            test_iter=(epoch_start - 1) // args.test_freq
+            metrics_iter=(epoch_start - 1) // args.metrics_freq)
 
         if args.debug and not args.use_apex:
             torch.autograd.set_detect_anomaly(True)
@@ -461,9 +473,31 @@ class TrainingWrapper(object):
                     
                     if args.debug:
                         break
+            # If skip test flag is set -- only check if a checkpoint if required
+            if not args.skip_metrics:
+                # Calculate "standing" stats for the batch normalization
+                if args.calc_stats:
+                    runner.calculate_batchnorm_stats(train_dataloader, args.debug)
 
-            logger.output_logs('test', runner.output_visuals(), runner.output_losses(), \
-                    runner.output_metrics(), time.time() - time_start)
+                # Test
+                time_start = time.time()
+                model.eval()
+
+                for data_dict in metrics_dataloader:
+                    # Prepare input data
+                    if args.num_gpus > 0:
+                        for key, value in data_dict.items():
+                            data_dict[key] = value.cuda()
+
+                    # Forward pass
+                    with torch.no_grad():
+                        model(data_dict)
+                    
+                    if args.debug:
+                        break
+
+                logger.output_logs('metrics', runner.output_visuals(), runner.output_losses(), \
+                        runner.output_metrics(), time.time() - time_start)
 
             # If creation of checkpoint is not required -- continue
             if epoch % args.checkpoint_freq and not args.debug:

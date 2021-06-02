@@ -248,6 +248,9 @@ class NetworkWrapper(nn.Module):
                 pred_source_segs = data_dict['pred_source_segs']
 
                 visuals += [torch.cat([(pred_source_segs - 0.5) * 2] * 3, 1)]
+        
+        # Target images
+        visuals += [data_dict['target_imgs']]
 
         # Predicted textures
         if self.args.use_unet:
@@ -259,8 +262,6 @@ class NetworkWrapper(nn.Module):
             # Predicted enhated textures
             visuals += [data_dict['pred_enh_tex_hf_rgbs']]
 
-        # Target images
-        visuals += [data_dict['target_imgs']]
 
         # Predicted images
         visuals += [data_dict['pred_target_imgs']]
