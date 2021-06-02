@@ -1,4 +1,89 @@
+"""
+This file generates a dataset from videos. The main dataset structure that we use is the voxceleb2 dataset structure.
 
+Inputs:
+    --pretrained_weights_dir <PATH_TO_YOUR_PRETRAINED_WEIGHTS> 
+    --video_root <PATH_TO_YOUR_VIDEO_ROOT> 
+    --sampling_rate <YOUR_SAMPLING_RATE> 
+    --phase <'train' or 'test> 
+    --batch_size <YOUR_BATCH_SIZE> 
+    --data_root <PATH_TO_WHERE_YOU_WANT_TO_SAVE_DATASET>  
+    --output_segmentation True 
+    --num_gpus <YOUR_NUM_GPUS>
+
+The video files should be in the format of: VIDEO_ROOT/PERSON_ID/VIDEO_ID/SEQUENCE_ID[.mp4]
+
+Example of video structure:
+        
+        VIDEO_ROOT _ id00012 _ abc _ 00001.mp4
+                   |         |
+                   |         |_ def  _ 00001.mp4
+                   |                |_ 00002.mp4
+                   |               
+                   |_ id00013 _ lmn _ 00001.mp4
+                   |          |
+                   |          |_ opq  _ 00001.mp4
+                   |                 |_ 00002.mp4
+                   |                 |_ 00003.mp4
+                   |
+                   |_ id00014 _ rst _ 00001.mp4
+                              |    |_ 00002.mp4
+                              |
+                              |_ uvw  _ 00001.mp4
+                                     |_ 00002.mp4
+                                     |_ 00003.mp4
+
+
+
+Outputs:
+The output is a dataset in the format of: 
+DATA_ROOT/[imgs, keypoints, segs]/[train, test]/PERSON_ID/VIDEO_ID/SEQUENCE_ID/FRAME_NUM[.jpg, .npy, .png]
+
+Example of the dataset structure:
+
+                 DATA_ROOT - [imgs, keypoints, segs] _ phase _ id00012 _ abc _ 00001 _ 0 [.jpg, .npy, .png]
+                                                            |         |            |_ 1 [.jpg, .npy, .png]
+                                                            |         |            |_ ...
+                                                            |         |            |_ 99 [.jpg, .npy, .png]
+                                                            |         |
+                                                            |         |_ def  _ 00001 _ 0 [.jpg, .npy, .png]
+                                                            |                |       |_ 1 [.jpg, .npy, .png]
+                                                            |                |       |_ ...
+                                                            |                |       |_ 150 [.jpg, .npy, .png]
+                                                            |                |
+                                                            |                |_ 00002 _ 0 [.jpg, .npy, .png]
+                                                            |                        |_ 1 [.jpg, .npy, .png]
+                                                            |                        |_ ... 
+                                                            |                        |_ 89 [.jpg, .npy, .png]
+                                                            |               
+                                                            |_ id00013 _ lmn _ 00001 _ 0 [.jpg, .npy, .png]
+                                                            |          |             |_ 1 [.jpg, .npy, .png]
+                                                            |          |             |_ ... 
+                                                            |          |             |_ 89 [.jpg, .npy, .png]
+                                                            |          |
+                                                            |          |_ opq  _ 00001 _ ...
+                                                            |                 |_ 00002 _ ...
+                                                            |                 |_ 00003 _ ...
+                                                            |
+                                                            |_ id00014 _ rst _ 00001 _ ...
+                                                                        |    |_ 00002 _ ...
+                                                                        |
+                                                                        |_ uvw  _ 00001 _ 0 [.jpg, .npy, .png]
+                                                                                |       |_ 1 [.jpg, .npy, .png]
+                                                                                |       |_ ... 
+                                                                                |       |_ 68 [.jpg, .npy, .png]
+                                                                                |
+                                                                                |_ 00002 _ 0 [.jpg, .npy, .png]
+                                                                                |       |_ ...
+                                                                                |       |_ 299 [.jpg, .npy, .png]
+                                                                                |
+                                                                                |_ 00003 _ 0 [.jpg, .npy, .png]
+                                                                                        |_ ...
+                                                                                        |_ 100 [.jpg, .npy, .png]
+
+"""
+
+# Importing libraries
 import argparse
 import torch
 from torch import nn
@@ -18,7 +103,7 @@ from external.Graphonomy import wrapper
 import face_alignment
 from torchvision.utils import save_image
 
-class keypoint_segmentation_generator():
+class KeypointSegmentationGenerator():
     @staticmethod
     def get_args(parser):
         # Common properties
@@ -236,10 +321,10 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(conflict_handler='resolve')
     parser.add = parser.add_argument
 
-    keypoint_segmentation_generator.get_args(parser)
+    KeypointSegmentationGenerator.get_args(parser)
 
     args, _ = parser.parse_known_args()
 
     # initialize the model
-    generator = keypoint_segmentation_generator(args)
+    generator = KeypointSegmentationGenerator(args)
     generator.get_poses()

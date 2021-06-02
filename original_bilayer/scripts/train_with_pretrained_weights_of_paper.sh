@@ -118,7 +118,7 @@ cd ../
     --wpr_loss_weight 0.1 \
     --wpr_loss_weight_decay 1.0 \
     --nme_num_threads 1  \
-    --init_experiment_dir /video-conf/scratch/pantea/bilayer_paper_runs/vc2-hq_adrianb_paper_main \
+    --init_experiment_dir /video-conf/scratch/pantea/bilayer_paper_released/runs/vc2-hq_adrianb_paper_main \
     --init_networks 'identity_embedder, texture_generator, keypoints_embedder, inference_generator, discriminator' \
     --init_which_epoch 2225 \
     --skip_test False \

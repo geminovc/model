@@ -23,10 +23,7 @@ class InferenceWrapper(nn.Module):
     def get_args(args_dict):
         # Read and parse args of the module being loaded
 
-        if args_dict['experiment_name'] == 'vc2-hq_adrianb_paper_main' or args_dict['experiment_name'] =='vc2-hq_adrianb_paper_enhancer':
-            args_path = pathlib.Path(args_dict['experiment_dir']) / 'bilayer_paper_runs' / args_dict['experiment_name'] / 'args.txt'
-        else:
-            args_path = pathlib.Path(args_dict['experiment_dir']) / 'runs' / args_dict['experiment_name'] / 'args.txt'
+        args_path = pathlib.Path(args_dict['experiment_dir']) / 'runs' / args_dict['experiment_name'] / 'args.txt'
 
         parser = argparse.ArgumentParser(conflict_handler='resolve')
         parser.add = parser.add_argument
@@ -58,12 +55,7 @@ class InferenceWrapper(nn.Module):
         self.runner.eval()
 
         # Load pretrained weights
-        if args_dict['experiment_name'] == 'vc2-hq_adrianb_paper_main' or args_dict['experiment_name'] =='vc2-hq_adrianb_paper_enhancer':
-            checkpoints_dir = pathlib.Path(self.args.experiment_dir) / 'bilayer_paper_runs' / self.args.experiment_name / 'checkpoints'
-            self.args.init_which_epoch = 2225
-            self.args.which_epoch = 2225
-        else:
-            checkpoints_dir = pathlib.Path(self.args.experiment_dir) / 'runs' / self.args.experiment_name / 'checkpoints'
+        checkpoints_dir = pathlib.Path(self.args.experiment_dir) / 'runs' / self.args.experiment_name / 'checkpoints'
 
         # Load pre-trained weights
         init_networks = rn_utils.parse_str_to_list(self.args.init_networks) if self.args.init_networks else {}

@@ -17,4 +17,3 @@ python  extract.py \
     --output_stickmen False \
     --project_dir '../' \
     --random_seed 0 \
-    --segs_from_cropped_imgs True 
