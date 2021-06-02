@@ -1,3 +1,7 @@
+# Since we tried to freeze some of the networks, to check wether the corresponding networks are actually frozen, this file manually loads the 
+# checkpoints and compares them. 
+
+
 import sys
 sys.path.append('../')
 import torch
@@ -15,25 +19,16 @@ checkpoint_path2=  checkpoints_dir+'/'+'1100_texture_generator.pth'
 def match_checkpoints(checkpoint_path1, checkpoint_path2):
     unmatched_keys = []
     checkpoint1 = torch.load(checkpoint_path1, map_location='cpu')
-    metadata = getattr(checkpoint1, '_metadata', None)
-    #print("checkpoint1 :",metadata, '\n\n')
     checkpoint2 = torch.load(checkpoint_path2, map_location='cpu')
-    metadata = getattr(checkpoint2, '_metadata', None)
-    #print("checkpoint2 :",metadata, '\n\n')
-    #print(checkpoint.keys(), checkpoint.values())
+
     for key in checkpoint1.keys():
 
         if torch.all(torch.eq(checkpoint1[key], checkpoint2[key])):
-            pass
-            #print("key", key, "matches.")
+            print("key", key, "matches.")
         else:
             unmatched_keys.append(key)
-            #if key == 'gen_tex.blocks.3.block.0.weight_v':
-            #print("Found unmatched keys!", key, '\n\n')
             print(key)
             print("diff:", torch.abs(checkpoint1[key]-checkpoint2[key]).sum())
-            #print("second:",checkpoint2[key])
-            #return False
     return unmatched_keys
 
 def print_values (checkpoint_path1):
@@ -46,4 +41,3 @@ def print_values (checkpoint_path1):
 
 unmatched_keys = match_checkpoints(checkpoint_path1, checkpoint_path2)
 print("Which keys don't match?", str(unmatched_keys))
-#print("All the keys?", torch.load(checkpoint_path1, map_location='cpu').keys())

@@ -1,3 +1,5 @@
+# Inference on the trained models. This file, loads two images as target and source image and performs inference on the checkpoints of a trained 
+# model.
 import sys
 sys.path.append('../')
 import os
@@ -58,7 +60,7 @@ input_data_dict = {
 
 # 'target_imgs': np.array(target_image_list) } # B x H x W x # 3
 
-from_video = True
+from_video = False
 output_data_dict = module(input_data_dict,  preprocess= preprocess, from_video = from_video) 
 
 def to_image(img_tensor, seg_tensor=None):

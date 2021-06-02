@@ -60,8 +60,8 @@ class DatasetWrapper(data.Dataset):
         parser.add('--test_load_from_filename', default='test_filnames.txt', type=str,
                                                 help='filename that we read the testing dataset images from if dataset_load_from_txt==True')
 
-        parser.add('--per_person_augmentation_by_general',          default='False', type=rn_utils.str2bool, choices=[True, False],
-                                                            help='gradually increase the weight of general dataset while training the per_person dataset')
+        parser.add('--augmentation_by_general', default='False', type=rn_utils.str2bool, choices=[True, False],
+                                                help='gradually increase the weight of general dataset while training the per_person dataset')
 
                                                       
 
@@ -78,9 +78,6 @@ class DatasetWrapper(data.Dataset):
         self.to_tensor = transforms.ToTensor()
         self.epoch = 0 if args.which_epoch == 'none' else int(args.which_epoch)
 
-        # # varying the weight of the general dataset to the personal dataset
-        # if self.args.per_person_augmentation_by_general and args.data_root!=args.general_data_root:
-        #     self.gen_to_per_ratio = 1
 
         if self.args.dataset_load_from_txt:
 
@@ -96,7 +93,7 @@ class DatasetWrapper(data.Dataset):
             #data_root = (data_list[0].split(":"))[1]            
             
             # # choosing the general dataset root to sample from in training per-person approach
-            # if self.args.per_person_augmentation_by_general and args.data_root!=args.general_data_root:
+            # if self.args.augmentation_by_general and args.data_root!=args.general_data_root:
             #     general_data_root = args.general_data_root
 
 
@@ -117,8 +114,8 @@ class DatasetWrapper(data.Dataset):
         sequences = self.imgs_dir.glob('*/*')
         self.sequences = ['/'.join(str(seq).split('/')[-2:]) for seq in sequences]
 
-        
-        if self.args.lessen_general_data_loader and self.args.data_root == self.args.general_data_root:
+        # Since the general dataset is too big, if self.args.sample_general_dataset is set to True       
+        if self.args.sample_general_dataset and self.args.data_root == self.args.general_data_root:
             self.sequences = random.sample(self.sequences, 22)
 
         print(len(self.sequences), self.sequences)

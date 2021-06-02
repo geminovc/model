@@ -1,8 +1,8 @@
 cd ../
      python  train.py \
-    --experiment_name 'replace_Gtex_output_with_trainable_tensor_per_video' \
+    --experiment_name 'debug' \
     --pretrained_weights_dir /video-conf/scratch/pantea \
-    --per_person_augmentation_by_general False \
+    --augmentation_by_general False \
     --images_log_rate 100 \
     --metrics_log_rate 100 \
     --random_seed 0 \
@@ -70,7 +70,6 @@ cd ../
     --lrs 'identity_embedder: 2e-4, texture_generator: 2e-4, keypoints_embedder: 2e-4, inference_generator: 2e-4, discriminator: 2e-4'  \
     --networks_calc_stats 'identity_embedder, texture_generator, keypoints_embedder, inference_generator' \
     --networks_test 'identity_embedder, texture_generator, keypoints_embedder, inference_generator' \
-    --networks_to_train 'identity_embedder, texture_generator, keypoints_embedder, inference_generator, discriminator'   \
     --networks_train 'identity_embedder, texture_generator, keypoints_embedder, inference_generator, discriminator' \
     --inf_calc_grad True \
     --num_epochs 10000 \
@@ -123,10 +122,10 @@ cd ../
     --init_networks 'identity_embedder, texture_generator, keypoints_embedder, inference_generator, discriminator' \
     --init_which_epoch 2225 \
     --skip_test False \
-    --frozen_networks ' ' \
+    --frozen_networks 'texture_generator, inference_generator' \
     --unfreeze_texture_generator_last_layers True \
     --unfreeze_inference_generator_last_layers True \
     --replace_AdaSpade_with_conv False \
-    --replace_Gtex_output_with_trainable_tensor True \
+    --replace_Gtex_output_with_trainable_tensor False \
     --replace_source_specific_with_trainable_tensors False \
-    --lessen_general_data_loader False \
+    --sample_general_dataset False \

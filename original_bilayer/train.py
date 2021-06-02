@@ -164,7 +164,10 @@ class TrainingWrapper(object):
         parser.add('--frozen_networks',         default='', type=str,
                                                 help='list of frozen networks')
 
-        parser.add('--replace_Gtex_output_with_trainable_tensor',   default='Fasle', type=rn_utils.str2bool, choices=[True, False],
+        parser.add('--networks_to_train',       default='identity_embedder, texture_generator, keypoints_embedder, inference_generator, discriminator' , type=str,
+                                                help='networks that are being trained')
+
+        parser.add('--replace_Gtex_output_with_trainable_tensor',   default='False', type=rn_utils.str2bool, choices=[True, False],
                                                                     help='set to true if you want to replace all of G_tex with a tensor')
 
         parser.add('--unfreeze_texture_generator_last_layers',      default='True', type=rn_utils.str2bool, choices=[True, False],
@@ -176,13 +179,13 @@ class TrainingWrapper(object):
         parser.add('--save_initial_test_before_training',           default='True', type=rn_utils.str2bool, choices=[True, False],
                                                                     help='save how he model performs on test before training, useful for sanity check')
 
-        parser.add('--per_person_augmentation_by_general',          default='False', type=rn_utils.str2bool, choices=[True, False],
+        parser.add('--augmentation_by_general',                     default='False', type=rn_utils.str2bool, choices=[True, False],
                                                                     help='gradually increase the weight of general dataset while training the per_person dataset')
 
-        parser.add('--replace_source_specific_with_trainable_tensors',  default='Fasle', type=rn_utils.str2bool, choices=[True, False],
+        parser.add('--replace_source_specific_with_trainable_tensors',  default='False', type=rn_utils.str2bool, choices=[True, False],
                                                                         help='set to true if you want to replace all source-specific modules with a tensor')
 
-        parser.add('--lessen_general_data_loader',                      default='Fasle', type=rn_utils.str2bool, choices=[True, False],
+        parser.add('--sample_general_dataset',                      default='False', type=rn_utils.str2bool, choices=[True, False],
                                                                         help='set to true if you want to take smaller number of data in general dataset')
 
 
@@ -275,8 +278,7 @@ class TrainingWrapper(object):
                     #for unfreezed_layer_name in frozen_networks[net_name]['unfreezed_layers']:
                     #    getattr(self.runner.nets[net_name], unfreezed_layer_name).requires_grad=True
                     #    --frozen_networks '{'texture_generator': {'unfreezed_layers':['layer_1','layer_2']}}'
-
-                        #frozen_networks ={'texture_generator': {'unfreezed_layers':['layer_1','layer_2']}}
+                    #frozen_networks ={'texture_generator': {'unfreezed_layers':['layer_1','layer_2']}}
                 if net_name == "texture_generator" and net_name in frozen_networks and args.unfreeze_texture_generator_last_layers: 
                     for name, module in self.runner.nets[net_name].named_children():
                         if name == 'prj_tex':
@@ -382,18 +384,17 @@ class TrainingWrapper(object):
         if args.rank == 0:
             writer = SummaryWriter(log_dir= args.experiment_dir + '/runs/' + args.experiment_name + '/metrics/')
 
-        if args.per_person_augmentation_by_general and args.data_root!=args.general_data_root:
+        # Get relevant dataloaders for augmentation by general or the vanilla case
+        if args.augmentation_by_general and args.data_root!=args.general_data_root:
             print("getting the per_person dataset")
             personal_train_dataloader = ds_utils.get_dataloader(args, 'train')
             self.gen_to_per_ratio = 1
-            # Get dataloaders
             self.real_data_root = args.data_root
             args.data_root = args.general_data_root
             print("getting the general dataset")
             general_train_dataloader = ds_utils.get_dataloader(args, 'train')
             args.data_root = self.real_data_root
         else:
-            # Get dataloaders
             original_train_dataloader = ds_utils.get_dataloader(args, 'train')
 
         if not args.skip_test:
@@ -462,7 +463,7 @@ class TrainingWrapper(object):
         # Adding the first test image on the logger for sanity check
         if args.save_initial_test_before_training:
             print("Testing the model before starts training for sanity check")
-            if args.per_person_augmentation_by_general and args.data_root!=args.general_data_root:
+            if args.augmentation_by_general and args.data_root!=args.general_data_root:
                 train_dataloader = personal_train_dataloader
             else:
                 train_dataloader = original_train_dataloader
@@ -505,7 +506,7 @@ class TrainingWrapper(object):
             # Initiate all the networks in the training mode 
             model.train() 
             time_start = time.time()
-            if args.per_person_augmentation_by_general and args.data_root!=args.general_data_root:
+            if args.augmentation_by_general and args.data_root!=args.general_data_root:
                 prob = random.uniform(0, 1)
                 self.gen_to_per_ratio = (args.num_epochs-epoch)/(args.num_epochs-epoch_start)
                 self.test_freq = 5

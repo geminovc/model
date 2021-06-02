@@ -2,7 +2,7 @@ cd ../
      python  train.py \
     --experiment_name 'sanity_check_personal_from_base' \
     --pretrained_weights_dir /video-conf/scratch/pantea \
-    --per_person_augmentation_by_general False \
+    --augmentation_by_general False \
     --save_initial_test_before_training False \
     --images_log_rate 100 \
     --metrics_log_rate 100 \
@@ -71,7 +71,6 @@ cd ../
     --lrs 'identity_embedder: 2e-4, texture_generator: 2e-4, keypoints_embedder: 2e-4, inference_generator: 2e-4, discriminator: 2e-4'  \
     --networks_calc_stats 'identity_embedder, texture_generator, keypoints_embedder, inference_generator' \
     --networks_test 'identity_embedder, texture_generator, keypoints_embedder, inference_generator' \
-    --networks_to_train 'identity_embedder, texture_generator, keypoints_embedder, inference_generator, discriminator' \
     --networks_train 'identity_embedder, texture_generator, keypoints_embedder, inference_generator, discriminator' \
     --num_epochs 20000 \
     --num_gpus 1 \
@@ -122,4 +121,4 @@ cd ../
     --skip_test False \
     --replace_Gtex_output_with_trainable_tensor False \
     --replace_source_specific_with_trainable_tensors False \
-    --lessen_general_data_loader False \
+    --sample_general_dataset False \
