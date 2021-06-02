@@ -40,23 +40,23 @@ If you want to make a dataset from videos to use as your train or test data, you
 An example of the video structure is:
 
 ```
-        VIDEO_ROOT _ id00012 _ abc _ 00001.mp4
-                   |         |
-                   |         |_ def  _ 00001.mp4
-                   |                |_ 00002.mp4
-                   |               
-                   |_ id00013 _ lmn _ 00001.mp4
-                   |          |
-                   |          |_ opq  _ 00001.mp4
-                   |                 |_ 00002.mp4
-                   |                 |_ 00003.mp4
-                   |
-                   |_ id00014 _ rst _ 00001.mp4
-                              |    |_ 00002.mp4
-                              |
-                              |_ uvw  _ 00001.mp4
-                                     |_ 00002.mp4
-                                     |_ 00003.mp4
+VIDEO_ROOT _ id00012 _ abc _ 00001.mp4
+           |         |
+           |         |_ def  _ 00001.mp4
+           |                |_ 00002.mp4
+           |               
+           |_ id00013 _ lmn _ 00001.mp4
+           |          |
+           |          |_ opq  _ 00001.mp4
+           |                 |_ 00002.mp4
+           |                 |_ 00003.mp4
+           |
+           |_ id00014 _ rst _ 00001.mp4
+                      |    |_ 00002.mp4
+                      |
+                      |_ uvw  _ 00001.mp4
+                             |_ 00002.mp4
+                             |_ 00003.mp4
  ```
 After formating your videos in such order, you can generate the `[imgs, keypoints, segs]` using our `keypoints_segmentations_generator` module. Before running the bash file `extract.sh` in `keypoints_segmentations_generator` folder, there are a few arguments you need to set in `extract.sh` such as the following:
 
@@ -75,45 +75,45 @@ Please make sure to set `video_root` the same as the `VIDEO_ROOT` where your vid
 The final dataset structure would be similar to:
 
 ```
-         DATA_ROOT - [imgs, keypoints, segs] _ phase _ id00012 _ abc _ 00001 _ 0 [.jpg, .npy, .png]
-                                                    |         |            |_ 1 [.jpg, .npy, .png]
-                                                    |         |            |_ ...
-                                                    |         |            |_ 99 [.jpg, .npy, .png]
-                                                    |         |
-                                                    |         |_ def  _ 00001 _ 0 [.jpg, .npy, .png]
-                                                    |                |       |_ 1 [.jpg, .npy, .png]
-                                                    |                |       |_ ...
-                                                    |                |       |_ 150 [.jpg, .npy, .png]
-                                                    |                |
-                                                    |                |_ 00002 _ 0 [.jpg, .npy, .png]
-                                                    |                        |_ 1 [.jpg, .npy, .png]
-                                                    |                        |_ ... 
-                                                    |                        |_ 89 [.jpg, .npy, .png]
-                                                    |               
-                                                    |_ id00013 _ lmn _ 00001 _ 0 [.jpg, .npy, .png]
-                                                    |          |             |_ 1 [.jpg, .npy, .png]
-                                                    |          |             |_ ... 
-                                                    |          |             |_ 89 [.jpg, .npy, .png]
-                                                    |          |
-                                                    |          |_ opq  _ 00001 _ ...
-                                                    |                 |_ 00002 _ ...
-                                                    |                 |_ 00003 _ ...
-                                                    |
-                                                    |_ id00014 _ rst _ 00001 _ ...
-                                                                |    |_ 00002 _ ...
+ DATA_ROOT - [imgs, keypoints, segs] _ phase _ id00012 _ abc _ 00001 _ 0 [.jpg, .npy, .png]
+                                            |         |            |_ 1 [.jpg, .npy, .png]
+                                            |         |            |_ ...
+                                            |         |            |_ 99 [.jpg, .npy, .png]
+                                            |         |
+                                            |         |_ def  _ 00001 _ 0 [.jpg, .npy, .png]
+                                            |                |       |_ 1 [.jpg, .npy, .png]
+                                            |                |       |_ ...
+                                            |                |       |_ 150 [.jpg, .npy, .png]
+                                            |                |
+                                            |                |_ 00002 _ 0 [.jpg, .npy, .png]
+                                            |                        |_ 1 [.jpg, .npy, .png]
+                                            |                        |_ ... 
+                                            |                        |_ 89 [.jpg, .npy, .png]
+                                            |               
+                                            |_ id00013 _ lmn _ 00001 _ 0 [.jpg, .npy, .png]
+                                            |          |             |_ 1 [.jpg, .npy, .png]
+                                            |          |             |_ ... 
+                                            |          |             |_ 89 [.jpg, .npy, .png]
+                                            |          |
+                                            |          |_ opq  _ 00001 _ ...
+                                            |                 |_ 00002 _ ...
+                                            |                 |_ 00003 _ ...
+                                            |
+                                            |_ id00014 _ rst _ 00001 _ ...
+                                                        |    |_ 00002 _ ...
+                                                        |
+                                                        |_ uvw  _ 00001 _ 0 [.jpg, .npy, .png]
+                                                                |       |_ 1 [.jpg, .npy, .png]
+                                                                |       |_ ... 
+                                                                |       |_ 68 [.jpg, .npy, .png]
                                                                 |
-                                                                |_ uvw  _ 00001 _ 0 [.jpg, .npy, .png]
-                                                                        |       |_ 1 [.jpg, .npy, .png]
-                                                                        |       |_ ... 
-                                                                        |       |_ 68 [.jpg, .npy, .png]
-                                                                        |
-                                                                        |_ 00002 _ 0 [.jpg, .npy, .png]
-                                                                        |       |_ ...
-                                                                        |       |_ 299 [.jpg, .npy, .png]
-                                                                        |
-                                                                        |_ 00003 _ 0 [.jpg, .npy, .png]
-                                                                                |_ ...
-                                                                                |_ 100 [.jpg, .npy, .png]
+                                                                |_ 00002 _ 0 [.jpg, .npy, .png]
+                                                                |       |_ ...
+                                                                |       |_ 299 [.jpg, .npy, .png]
+                                                                |
+                                                                |_ 00003 _ 0 [.jpg, .npy, .png]
+                                                                        |_ ...
+                                                                        |_ 100 [.jpg, .npy, .png]
  ```
 
 
