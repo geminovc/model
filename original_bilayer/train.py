@@ -483,7 +483,7 @@ class TrainingWrapper(object):
                 time_start = time.time()
                 model.eval()
 
-                for data_dict in metrics_dataloader:
+                for i, data_dict in enumerate(metrics_dataloader, 1):
                     # Prepare input data
                     if args.num_gpus > 0:
                         for key, value in data_dict.items():
@@ -496,8 +496,8 @@ class TrainingWrapper(object):
                     if args.debug:
                         break
 
-                logger.output_logs('metrics', runner.output_visuals(), runner.output_losses(), \
-                        runner.output_metrics(), time.time() - time_start)
+                    logger.output_logs('metrics', runner.output_visuals(), runner.output_losses(), \
+                            runner.output_metrics(), time.time() - time_start)
 
             # If creation of checkpoint is not required -- continue
             if epoch % args.checkpoint_freq and not args.debug:

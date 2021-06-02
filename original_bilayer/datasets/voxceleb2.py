@@ -108,6 +108,10 @@ class DatasetWrapper(data.Dataset):
         sequences = self.imgs_dir.glob('*/*')
         self.sequences = ['/'.join(str(seq).split('/')[-2:]) for seq in sequences]
 
+        # If you are using metrics, sort the Sequences so it's easier
+        # to keep track of them between runs
+        if phase == 'metrics':
+            self.sequences = sorted(self.sequences)
         #print("Got the sequences!")
 
         # Parameters of the sampling scheme
@@ -303,4 +307,5 @@ class DatasetWrapper(data.Dataset):
         return len(self.sequences)
 
     def shuffle(self):
-        self.sequences = [self.sequences[i] for i in torch.randperm(len(self.sequences)).tolist()]
+        if self.phase != 'metrics': # Don't shuffle metrics
+            self.sequences = [self.sequences[i] for i in torch.randperm(len(self.sequences)).tolist()]
