@@ -85,6 +85,9 @@ class TrainingWrapper(object):
         parser.add('--num_epochs',               default=1, type=int,
                                                  help='number of epochs for training')
 
+        parser.add('--num_metrics_images',       default=9, type=int,
+                                                 help='number of pairs of images in your metrics dir')
+
         parser.add('--checkpoint_freq',          default=25, type=int,
                                                  help='frequency of checkpoints creation in epochs')
 
@@ -446,10 +449,6 @@ class TrainingWrapper(object):
             
             # Increment the epoch counter in the training dataset
             train_dataloader.dataset.epoch += 1
-
-            # If testing is not required -- continue
-            if epoch % args.test_freq:
-                continue
 
             # If skip test flag is set -- only check if a checkpoint if required
             if not args.skip_test and not epoch % args.test_freq:

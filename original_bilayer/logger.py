@@ -20,7 +20,9 @@ class Logger(object):
 
             for phase in ['train', 'test', 'metrics']: # Added metrics phase here
                 os.makedirs(experiment_dir / 'images' / phase, exist_ok=True)
-
+            for index in range(1, args.num_metrics_images+1):
+                os.makedirs(experiment_dir / 'images' / 'metrics' / index, exist_ok=True)
+            
             self.to_image = transforms.ToPILImage()
 
             if args.rank == 0:
@@ -32,22 +34,30 @@ class Logger(object):
                     self.metrics = {}
                 self.writer = tensorboardX.SummaryWriter(args.experiment_dir + '/runs/' + args.experiment_name + '/tensorboard_paper/')
                 
-    def output_logs(self, phase, visuals, losses, metrics, time, metrics_index=None):
+    def output_logs(self, phase_, visuals, losses, metrics, time, metrics_index=None):
         # Allows you to separate out the metrics on the tensorboards for easy viewing
-        if phase == 'metrics':
-            phase = f'{phase}_{metrics_index}'
+        if phase_ == 'metrics':
+            phase = f'{phase_}_{metrics_index}'
+        else:
+            phase = phase_
         if not self.no_disk_write_ops:
             # Increment iter counter
-            self.num_iter[phase] += 1
+            if phase_ != 'metrics' or (phase_ == 'metrics' and metrics_index == 1):
+                self.num_iter[phase_] += 1
 
             # Save visuals
-            self.to_image(visuals).save(self.experiment_dir \
-                    / 'images' / phase / ('%04d_%02d.jpg' % (self.num_iter[phase], self.rank)))
+            # Make the necessary metrics directories if you are in metrics
+            if phase_ != 'metrics':
+                self.to_image(visuals).save(self.experiment_dir \
+                        / 'images' / phase_ / ('%04d_%02d.jpg' % (self.num_iter[phase_], self.rank)))
+            else:
+                self.to_image(visuals).save(self.experiment_dir \
+                        / 'images' / phase_ / metrics_index / ('%04d_%02d.jpg' % (self.num_iter[phase_], self.rank)))
 
             if self.rank != 0:
                 return
 
-            self.writer.add_image(f'results_{phase}', visuals, self.num_iter[phase])
+            self.writer.add_image(f'results_{phase}', visuals, self.num_iter[phase_])
 
             # Save losses
             for key, value in losses.items():
@@ -55,14 +65,14 @@ class Logger(object):
                     self.losses[key].append(value)
                 else:
                     self.losses[key] = [value]
-                self.writer.add_scalar(f'losses_{key}_{phase}', value, self.num_iter[phase])
+                self.writer.add_scalar(f'losses_{key}_{phase}', value, self.num_iter[phase_])
 
             for key, value in metrics.items():
                 if key in self.metrics:
                     self.metrics[key].append(value)
                 else:
                     self.metrics[key] = [value]
-                self.writer.add_scalar(f'metrics_{key}_{phase}', value, self.num_iter[phase])
+                self.writer.add_scalar(f'metrics_{key}_{phase}', value, self.num_iter[phase_])
             
             # Save losses and metrics
             pickle.dump(self.losses, open(self.experiment_dir / 'losses.pkl', 'wb'))
