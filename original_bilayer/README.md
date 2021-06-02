@@ -198,3 +198,32 @@ For inference, you can currently use `examples/infer_test.py` file. Change the f
 * `preprocess`: If you want to preprocess two images, put this to `True`, if not the code will use preprocessed images and keypoints. 
 * `source_img_path`: Path to your source image. Make sure to set it when you use `preprocess = True`.
 * `target_img_path`: Path to your target image. Make sure to set it when you use `preprocess = True`.
+
+If you set `preprocess` and `from_video` to True, you will use two frames from a video as source and target images. You need to change the following variables:
+*`video_path` : Path to the video (Example: `'/video-conf/scratch/pantea/temp_dataset/id00012/_raOc3-IRsw/00110.mp4'`)
+*`source_frame_num` : The frame number of the source  (Example: `0`)
+*`target_frame_num` : The frame number of the target  (Example: `10`)
+
+If you set `preprocess` to True and `from_video` to False, you will use to images as source and target imges. You need to define these paths like:
+* `source_img_path` : Full path to the source image (Example: `'/home/pantea/NETS/nets_implementation/original_bilayer/examples/images/video_imgs/train_frames/0.jpg'`)
+* `target_img_path` : Full path to the source image (Example: `'/home/pantea/NETS/nets_implementation/original_bilayer/examples/images/video_imgs/train_frames/1.jpg'`)
+
+If you set `preprocess` and `from_video` to False, you will load the images, keypoints, and segmentations from stored datasets: 
+* `dataset_root` : The dataset root (Example: `'/video-conf/scratch/pantea/temp_extracts'`)
+* `source_relative_path` : The source image's relative path to dataset_root/imgs (Example: `'train/id00012/_raOc3-IRsw/00110/0'`)
+* `target_relative_path` : The target image's relative path to dataset_root/imgs (Example: `'train/id00012/_raOc3-IRsw/00110/1'`)
+
+```
+
++------------+------------+----------------------------------------------------------------------------------------------------------------------------------------------+
+| preprocess | from_video |                                                        Source & Target                                                                       |
++============+============+==============================================================================================================================================+
+|            |    True    |  Picks two frames (source_frame_num and target_frame_num) from video in video_path preprocess them to find the keypoints                     |
+|   True     |============+==============================================================================================================================================+
+|            |   False    |  Picks the images in source_img_path and target_img_path and preprocess them to find the keypoints                                           |
++------------+------------+----------------------------------------------------------------------------------------------------------------------------------------------+
+|            |    True    |  Not applicable                                                                                                                              |
+|   False    |============+==============================================================================================================================================+
+|            |   False    |  Loads preprocessed and save keypoints, images, and segmentations from dataset_root/[imgs, keypoints, segs]/{source or target}_relative_path |
++------------+------------+----------------------------------------------------------------------------------------------------------------------------------------------+
+```
