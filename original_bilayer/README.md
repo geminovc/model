@@ -200,9 +200,9 @@ For inference, you can currently use `examples/infer_test.py` file. Change the f
 * `target_img_path`: Path to your target image. Make sure to set it when you use `preprocess = True`.
 
 If you set `preprocess` and `from_video` to True, you will use two frames from a video as source and target images. You need to change the following variables:
-*`video_path` : Path to the video (Example: `'/video-conf/scratch/pantea/temp_dataset/id00012/_raOc3-IRsw/00110.mp4'`)
-*`source_frame_num` : The frame number of the source  (Example: `0`)
-*`target_frame_num` : The frame number of the target  (Example: `10`)
+* `video_path` : Path to the video (Example: `'/video-conf/scratch/pantea/temp_dataset/id00012/_raOc3-IRsw/00110.mp4'`)
+* `source_frame_num` : The frame number of the source  (Example: `0`)
+* `target_frame_num` : The frame number of the target  (Example: `10`)
 
 If you set `preprocess` to True and `from_video` to False, you will use to images as source and target imges. You need to define these paths like:
 * `source_img_path` : Full path to the source image (Example: `'/home/pantea/NETS/nets_implementation/original_bilayer/examples/images/video_imgs/train_frames/0.jpg'`)
