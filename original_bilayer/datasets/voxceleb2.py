@@ -117,6 +117,9 @@ class DatasetWrapper(data.Dataset):
         # Parameters of the sampling scheme
         self.delta = math.sqrt(5)
         self.cur_num = torch.rand(1).item()
+        if self.phase == 'metrics':
+            # Ensure that the output image is image 2 by setting delta to ~1
+            self.delta = 0.999
 
         #make a directory to save test and train paths
         # Prepare experiment directories and save options
@@ -161,7 +164,6 @@ class DatasetWrapper(data.Dataset):
 
 
         filenames = sorted(filenames)
-
         imgs = []
         poses = []
         stickmen = []
@@ -174,10 +176,6 @@ class DatasetWrapper(data.Dataset):
             # Sample from the beginning of the sequence
             self.cur_num = 0
         
-        if self.phase == 'metrics':
-            # Ensure that the output image is image 2 by setting delta to ~1
-            self.delta = 0.999
-
         while len(imgs) < self.args.num_source_frames + self.args.num_target_frames:
             if reserve_index == len(filenames):
                 raise # each element of the filenames list is unavailable for load
@@ -187,7 +185,8 @@ class DatasetWrapper(data.Dataset):
                 filename = filenames[reserve_index]
 
             else:
-                if self.args.frame_num_from_paper:
+                if self.args.frame_num_from_paper or self.phase == 'metrics': # Enforce use of frame_num_from_paper when 
+                    # using metrics because thats the only way to ensure we get the same input output every time
                     frame_num = int(round(self.cur_num * (len(filenames) - 1)))
                     self.cur_num = (self.cur_num + self.delta) % 1
                 else:

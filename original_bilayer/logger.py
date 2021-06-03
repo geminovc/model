@@ -21,7 +21,7 @@ class Logger(object):
             for phase in ['train', 'test', 'metrics']: # Added metrics phase here
                 os.makedirs(experiment_dir / 'images' / phase, exist_ok=True)
             for index in range(1, args.num_metrics_images+1):
-                os.makedirs(experiment_dir / 'images' / 'metrics' / index, exist_ok=True)
+                os.makedirs(experiment_dir / 'images' / 'metrics' / str(index), exist_ok=True)
             
             self.to_image = transforms.ToPILImage()
 
@@ -52,7 +52,7 @@ class Logger(object):
                         / 'images' / phase_ / ('%04d_%02d.jpg' % (self.num_iter[phase_], self.rank)))
             else:
                 self.to_image(visuals).save(self.experiment_dir \
-                        / 'images' / phase_ / metrics_index / ('%04d_%02d.jpg' % (self.num_iter[phase_], self.rank)))
+                        / 'images' / phase_ / str(metrics_index) / ('%04d_%02d.jpg' % (self.num_iter[phase_], self.rank)))
 
             if self.rank != 0:
                 return
