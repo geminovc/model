@@ -1,5 +1,7 @@
-# Since we tried to freeze some of the networks, to check wether the corresponding networks are actually frozen, this file manually loads the 
-# checkpoints and compares them. 
+"""
+This script validates that the networks intended to be frozen are frozen by 
+comparing checkpoints across epochs. Prints out the matching checkpoints and differing ones.
+"""
 
 
 import sys

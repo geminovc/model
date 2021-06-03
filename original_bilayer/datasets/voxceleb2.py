@@ -114,7 +114,7 @@ class DatasetWrapper(data.Dataset):
         sequences = self.imgs_dir.glob('*/*')
         self.sequences = ['/'.join(str(seq).split('/')[-2:]) for seq in sequences]
 
-        # Since the general dataset is too big, if self.args.sample_general_dataset is set to True       
+        # Since the general dataset is too big, we sample 22 items if sample is chosen
         if self.args.sample_general_dataset and self.args.data_root == self.args.general_data_root:
             self.sequences = random.sample(self.sequences, 22)
 
