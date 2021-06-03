@@ -103,10 +103,10 @@ class TrainingWrapper(object):
         parser.add('--num_workers_per_process',  default=20, type=int,
                                                  help='number of workers used for data loading in each process')
         
-        parser.add('--skip_test',                action='store_true',
+        parser.add('--skip_test',                action='store_true', # use panteas version here
                                                  help='do not perform testing')
         
-        parser.add('--skip_metrics',                action='store_true',
+        parser.add('--skip_metrics',             action='store_true', # use panteas version here
                                                  help='do not perform testing')
         
         parser.add('--calc_stats',               action='store_true',
@@ -472,6 +472,9 @@ class TrainingWrapper(object):
                     
                     if args.debug:
                         break
+                logger.output_logs('test', runner.output_visuals(), runner.output_losses(), \
+                    runner.output_metrics(), time.time() - time_start)
+
             # If skip test flag is set -- only check if a checkpoint if required
             if not args.skip_metrics and not epoch % args.metrics_freq:
                 # Calculate "standing" stats for the batch normalization

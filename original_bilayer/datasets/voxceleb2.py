@@ -117,9 +117,6 @@ class DatasetWrapper(data.Dataset):
         # Parameters of the sampling scheme
         self.delta = math.sqrt(5)
         self.cur_num = torch.rand(1).item()
-        if self.phase == 'metrics':
-            # Ensure that the output image is image 2 by setting delta to ~1
-            self.delta = 0.999
 
         #make a directory to save test and train paths
         # Prepare experiment directories and save options
@@ -185,10 +182,20 @@ class DatasetWrapper(data.Dataset):
                 filename = filenames[reserve_index]
 
             else:
-                if self.args.frame_num_from_paper or self.phase == 'metrics': # Enforce use of frame_num_from_paper when 
-                    # using metrics because thats the only way to ensure we get the same input output every time
+                if self.phase == 'metrics':
+                    # If you are taking the metrics, you want to return frame_num 0 then frame_num 1
+                    # we can check which one to return in this iteration by checking the length of imgs
+                    if len(imgs) == 0:
+                        # This is the first image
+                        frame_num = 0
+                    if len(imgs) == 1:
+                        # This is the second image
+                        frame_num = 1
+
+                if self.args.frame_num_from_paper:
                     frame_num = int(round(self.cur_num * (len(filenames) - 1)))
                     self.cur_num = (self.cur_num + self.delta) % 1
+
                 else:
                     frame_num = random.randint(0, (len(filenames) - 1))
                     # If you want to use parallel learning, use torch (not numpy)

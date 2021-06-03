@@ -101,8 +101,8 @@ The used test data will be also be saved in `test_filenames.txt` in the experime
 * `init_networks`: This is the list of the networks you want to initialize with previous checkpoints. 
 * `init_which_epoch`: The epoch to initialize the wights from.
 * `which_epoch`: Epoch to continue training from, you can set the value to 1 when you want to train the network from scratch.
-* `skip_test`: If used it assumes you want to skip the tests (even if set to False!). If not, the model automatically is tested on the test data and the results will be available in `experiment_dir/runs/experiment_name/images/test`.
-* `skip_metrics`: If used it assumes you want to skip the metrics (even if set to False). If not, the model automatically is tested on the test data and the results will be available in `experiment_dir/runs/experiment_name/images/metrics`.
+* `skip_test`: Flag which when used prevents model from being automatically tested on the test data and storing results at `experiment_dir/runs/experiment_name/images/test`.
+* `skip_metrics`: Flag which when used prevents model from being automatically tested on the metrics data and storing results at `experiment_dir/runs/experiment_name/images/metrics`.
 * `frozen_networks`: If you want to freeze some networks, you can put their name in this list.
 
 
