@@ -1,7 +1,11 @@
 """
 This file generates a dataset from videos. The main dataset structure that we use is the voxceleb2 dataset structure.
 
-Inputs:
+Inputs
+----------
+
+Inputs are set in extract.sh file as the following:
+
     --pretrained_weights_dir <PATH_TO_YOUR_PRETRAINED_WEIGHTS> 
     --video_root <PATH_TO_YOUR_VIDEO_ROOT> 
     --sampling_rate <YOUR_SAMPLING_RATE> 
@@ -35,7 +39,9 @@ Example of video structure:
 
 
 
-Outputs:
+Outputs
+----------
+
 The output is a dataset in the format of: 
 DATA_ROOT/[imgs, keypoints, segs]/[train, test]/PERSON_ID/VIDEO_ID/SEQUENCE_ID/FRAME_NUM[.jpg, .npy, .png]
 
