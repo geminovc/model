@@ -76,9 +76,9 @@ from torchvision import transforms
 
 # Inputs 
 preprocess = True
-from_video = False
-experiment_dir = '/video-conf/scratch/pantea_experiments_chunky'
-experiment_name = 'new_keypoints_per_person_with_augmentation_by_general_from_base_lessen_general_data_loader'
+from_video = True
+experiment_dir = '/video-conf/scratch/pantea_experiments_mapmaker'
+experiment_name = 'No_frozen_network_new_keypoints_from_pretrained'
 which_epoch = '1800'
 
 # Path to the saved dataset when preprocess is False
@@ -92,7 +92,7 @@ target_img_path = '/home/pantea/NETS/nets_implementation/original_bilayer/exampl
 
 
 # Video options if both preprocess and from_video are True
-video_path = '/video-conf/scratch/pantea/temp_dataset/id00012/_raOc3-IRsw/00110.mp4'
+video_path = '/video-conf/scratch/pantea/one_person_videos/id00012/Z-G8-wqpxwU/00094.mp4'
 source_frame_num=0
 target_frame_num=1
 
@@ -116,7 +116,8 @@ args_dict = {
     'enh_apply_masks': False,
     'inf_apply_masks': True,
     'dataset_load_from_txt': False,
-    'replace_Gtex_output_with_trainable_tensor': False}
+    'replace_Gtex_output_with_trainable_tensor': False,
+    'replace_source_specific_with_trainable_tensors': False}
 
 input_data_dict = {
     'source_imgs': np.asarray(Image.open(source_img_path)), # H x W x 3

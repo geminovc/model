@@ -407,7 +407,16 @@ class InferenceWrapper(nn.Module):
         return data_dict
 
 
-    def forward(self, data_dict, crop_data=True, no_grad=True , preprocess = False, from_video= True, video_path, source_frame_num=0, target_frame_num=1, source_relative_path, target_relative_path):
+    def forward(self, data_dict,
+                      preprocess,
+                      from_video ,
+                      video_path ,
+                      source_frame_num,
+                      target_frame_num,
+                      dataset_root,
+                      source_relative_path,
+                      terget_relative_path,
+                      crop_data = True):
         """ Giving the data_dict to the model and retrieving the outputs of the model
 
         Inputs
