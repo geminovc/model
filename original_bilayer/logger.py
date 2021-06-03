@@ -69,8 +69,8 @@ class Logger(object):
             return
 
         # Print losses and metrics
-        print(', '.join('%s: %.3f' % (key, value) for key, value in losses.items()) + ', time: %.3f' % time)
-        print(', '.join('%s: %.3f' % (key, value) for key, value in metrics.items()) + ', time: %.3f' % time)
+        print(phase, 'losses:', ', '.join('%s: %.3f' % (key, value) for key, value in losses.items()) + ', time: %.3f' % time)
+        print(phase, 'metrics:', ', '.join('%s: %.3f' % (key, value) for key, value in metrics.items()) + ', time: %.3f' % time)
 
     def set_num_iter(self, train_iter, test_iter):
         self.num_iter = {

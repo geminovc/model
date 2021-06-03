@@ -117,7 +117,6 @@ class RunnerWrapper(nn.Module):
         if self.training:
             nets_names += self.nets_names_train
         nets_names = list(set(nets_names))
-        print("Here are the names of networks and corresponding outputs for", str(nets_names))
 
         self.nets = nn.ModuleDict()
 
@@ -216,7 +215,6 @@ class RunnerWrapper(nn.Module):
         self.data_dict = data_dict
         for net_name in nets_names:
             self.data_dict = self.nets[net_name](self.data_dict, networks_to_train, self.nets)
-            #print("Printing the data_dict here:", self.data_dict)
 
         # Forward pass through all the losses
         losses_dict = {}

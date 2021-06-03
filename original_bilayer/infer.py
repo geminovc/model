@@ -1,3 +1,32 @@
+"""
+This file is for inference on the saved checkpoints
+
+Arguments
+----------
+
+args_dict = {
+    'experiment_dir': The root of experiments,
+    'experiment_name': The name of the experiment that you want to test,
+    'which_epoch': The epoch that you want to test}
+
+
+Outputs
+----------
+
+The output is model.data_dict after tesing which contains source and target related images as well as predicted images and segmentations such as:
+'pred_target_imgs'
+'target_stickmen'  
+'source_stickmen'  
+'source_imgs'  
+'target_imgs'  
+'source_segs'  
+'target_segs'  
+
+
+"""
+
+
+# Loading libraries
 import argparse
 import torch
 from torch import nn
@@ -10,7 +39,7 @@ import numpy as np
 import cv2
 import importlib
 import ssl
-
+import pdb
 import time
 from datasets import utils as ds_utils
 from runners import utils as rn_utils
@@ -22,12 +51,14 @@ import face_alignment
 class InferenceWrapper(nn.Module):
     @staticmethod
     def get_args(args_dict):
-        # Read and parse args of the module being loaded
-        args_path = pathlib.Path(args_dict['project_dir']) / 'runs' / args_dict['experiment_name'] / 'args.txt'
+
+        # Read and parse args of the model being loaded from experiment directory
+        args_path = pathlib.Path(args_dict['experiment_dir']) / 'runs' / args_dict['experiment_name'] / 'args.txt'
 
         parser = argparse.ArgumentParser(conflict_handler='resolve')
         parser.add = parser.add_argument
-
+        
+        # Reading the arguments
         with open(args_path, 'rt') as args_file:
             lines = args_file.readlines()
             for line in lines:
@@ -46,35 +77,33 @@ class InferenceWrapper(nn.Module):
 
     def __init__(self, args_dict):
         super(InferenceWrapper, self).__init__()
+        
         # Get a config for the network
         self.args = self.get_args(args_dict)
         self.to_tensor = transforms.ToTensor()
 
-        # Load the model
+        # Load the runner file and set it to the evaluation(test) mode
         self.runner = importlib.import_module(f'runners.{self.args.runner_name}').RunnerWrapper(self.args, training=False)
         self.runner.eval()
 
-        # Load pretrained weights
-        checkpoints_dir = pathlib.Path(self.args.project_dir) / 'runs' / self.args.experiment_name / 'checkpoints'
+        # Load checkpoints from experiment
+        checkpoints_dir = pathlib.Path(self.args.experiment_dir) / 'runs' / self.args.experiment_name / 'checkpoints'
 
         # Load pre-trained weights
         init_networks = rn_utils.parse_str_to_list(self.args.init_networks) if self.args.init_networks else {}
         networks_to_train = self.runner.nets_names_to_train
+        print("init_networks:", init_networks)
 
+        # Initialize the model with experiment weights
         if self.args.init_which_epoch != 'none' and self.args.init_experiment_dir:
             for net_name in init_networks:
-                self.runner.nets[net_name].load_state_dict(torch.load(
-                    pathlib.Path(self.args.init_experiment_dir) 
-                        / 'checkpoints' 
-                        / f'{self.args.init_which_epoch}_{net_name}.pth', 
-                    map_location='cpu'))
+                print("loaded ", net_name, "from ", str(pathlib.Path(self.args.init_experiment_dir) / 'checkpoints' / f'{self.args.init_which_epoch}_{net_name}.pth'))
+                self.runner.nets[net_name].load_state_dict(torch.load(pathlib.Path(self.args.init_experiment_dir) / 'checkpoints' / f'{self.args.init_which_epoch}_{net_name}.pth', map_location='cpu'))
 
         for net_name in networks_to_train:
             if net_name not in init_networks and net_name in self.runner.nets.keys():
-                self.runner.nets[net_name].load_state_dict(torch.load(
-                    checkpoints_dir 
-                        / f'{self.args.which_epoch}_{net_name}.pth', 
-                    map_location='cpu'))
+                print("loaded ", net_name, "from ", str(checkpoints_dir / f'{self.args.which_epoch}_{net_name}.pth'))
+                self.runner.nets[net_name].load_state_dict(torch.load(checkpoints_dir / f'{self.args.which_epoch}_{net_name}.pth', map_location='cpu'))
         
         # Remove spectral norm to improve the performance
         self.runner.apply(rn_utils.remove_spectral_norm)
@@ -82,6 +111,7 @@ class InferenceWrapper(nn.Module):
         # Stickman/facemasks drawer
         self.fa = face_alignment.FaceAlignment(face_alignment.LandmarksType._2D, flip_input=True)
 
+        # Segmentation Wrapper module
         self.net_seg = wrapper.SegmentationWrapper(self.args)
 
         if self.args.num_gpus > 0:
@@ -89,12 +119,33 @@ class InferenceWrapper(nn.Module):
 
     def change_args(self, args_dict):
         self.args = self.get_args(args_dict)
-
+    
     def preprocess_data(self, input_imgs, crop_data=True):
+        """Generates images, keypoints (also called poses), and segmenatations from input_imgs/ frames for *Inference* not *training*
+
+        Inputs
+        ----------
+        input_imgs: list of images
+        crop_data : A flag used center-crop output images and poses (the original paper used crop_data=True,
+                    so for consistency we use crop_data=True as well) 
+
+        Returns
+        -------
+        poses: tensor of keypoints 
+        imgs : tensor of images 
+        segs : tensor of segmentations
+        stickmen: the 2D representation of keypoints
+
+        Note: This function performs more operations for the images than the keypoints_segmentations_extraction method, because training performs some scaling and normalizing
+        on the dataset (the dataset is made with keypoints_segmentations_extraction), thus there are more steps in this preprocess_data in comparison to the preprocess_data in 
+        keypoints_segmentations_extraction module. 
+
+        """  
         imgs = []
         poses = []
-        stickmen = []
-
+        stickmen = []        
+        
+        # Finding the batch-size of the input imgs
         if len(input_imgs.shape) == 3:
             input_imgs = input_imgs[None]
             N = 1
@@ -102,37 +153,48 @@ class InferenceWrapper(nn.Module):
         else:
             N = input_imgs.shape[0]
 
+        # Iterate over all the images in the batch
         for i in range(N):
+
+            # Get the pose of the i-th image in the batch 
             pose = self.fa.get_landmarks(input_imgs[i])[0]
 
+            # Finding the center of the face using the pose coordinates
             center = ((pose.min(0) + pose.max(0)) / 2).round().astype(int)
+
+            # Finding the maximum between the width and height of the image 
             size = int(max(pose[:, 0].max() - pose[:, 0].min(), pose[:, 1].max() - pose[:, 1].min()))
             center[1] -= size // 6
 
             if input_imgs is None:
-                # Crop poses
-                if crop_data:
+                if crop_data:    
+                     # Crop poses
                     s = size * 2
                     pose -= center - size
 
             else:
-                # Crop images and poses
+
                 img = Image.fromarray(input_imgs[i])
 
                 if crop_data:
+                    # Crop images and poses
                     img = img.crop((center[0]-size, center[1]-size, center[0]+size, center[1]+size))
                     s = img.size[0]
                     pose -= center - size
 
                 img = img.resize((self.args.image_size, self.args.image_size), Image.BICUBIC)
-
+                
+                # This step is not done in keypoints_segmentations_extraction module
                 imgs.append((self.to_tensor(img) - 0.5) * 2)
-
+            
+            # This step is not done in keypoints_segmentations_extraction module
             if crop_data:
                 pose = pose / float(s)
-
+            
+            # This step is not done in keypoints_segmentations_extraction module
             poses.append(torch.from_numpy((pose - 0.5) * 2).view(-1))
-
+        
+        # Stack the poses from different images
         poses = torch.stack(poses, 0)[None]
 
         if self.args.output_stickmen:
@@ -150,35 +212,186 @@ class InferenceWrapper(nn.Module):
 
                 if self.args.output_stickmen:
                     stickmen = stickmen.cuda()
-
+        
+        # Get the segmentations
         segs = None
         if hasattr(self, 'net_seg') and not isinstance(imgs, list):
             segs = self.net_seg(imgs)[None]
 
         return poses, imgs, segs, stickmen
 
-    def forward(self, data_dict, crop_data=True, no_grad=True):
-        if 'target_imgs' not in data_dict.keys():
-            data_dict['target_imgs'] = None
 
-        # Inference without finetuning
-        (source_poses, 
-         source_imgs, 
-         source_segs, 
-         source_stickmen) = self.preprocess_data(data_dict['source_imgs'], crop_data)
+    def load_images_from_dataset (self, dataset_root, source_relative_path, target_relative_path):
 
-        (target_poses,
-         target_imgs, 
-         target_segs, 
-         target_stickmen) = self.preprocess_data(data_dict['target_imgs'], crop_data)
+        """Loads images, keypoints (also called poses), and segmenatations from preprocessed and saved datasets (like the trainng pipeline)
+        
+        Inputs
+        ----------
+        dataset_root : The dataset root (Example: '/video-conf/scratch/pantea/temp_extracts')
+        source_relative_path : The source image's relative path to dataset_root/imgs (Example: 'train/id00012/_raOc3-IRsw/00110/0')
+        target_relative_path : The target image's relative path to dataset_root/imgs (Example: 'train/id00012/_raOc3-IRsw/00110/1')
 
+        Returns
+        -------
+        data_dict: dictionary containing all the images necessary for inference; such as, source_imgs, source_poses, target_poses
+
+        """   
+        ## Source image
+        
+        imgs = []
+        poses = []
+        stickmen = []
+        segs = []
+
+        # Loading and preprocessing the source image
+        img = Image.open(dataset_root + '/imgs/'+source_relative_path+'.jpg') # H x W x 3
+        s = img.size[0]
+        img = img.resize((self.args.image_size, self.args.image_size), Image.BICUBIC)
+        imgs += [self.to_tensor(img)]
+
+        # Loading and preprocessing the source keypints
+        keypoints = np.load(dataset_root + '/keypoints/'+source_relative_path+'.npy').astype('float32')
+        keypoints = keypoints.reshape((68,2))
+        keypoints = keypoints[:self.args.num_keypoints, :]
+        keypoints[:, :2] /= s
+        keypoints = keypoints[:, :2]
+        poses += [torch.from_numpy(keypoints.reshape(-1))]
+
+        # Loading and preprocessing the source segmentations
+        seg = Image.open(dataset_root + '/segs/'+source_relative_path+'.png')
+        seg = seg.resize((self.args.image_size, self.args.image_size), Image.BICUBIC)
+        segs += [self.to_tensor(seg)]
+
+        # Scaling and normalizing the imgs and poses
+        source_imgs = (torch.stack(imgs)- 0.5) * 2.0
+        source_poses = (torch.stack(poses) - 0.5) * 2.0
+        source_segs = torch.stack(segs)
+
+        # Finding the 2D version of source poses
+        if self.args.output_stickmen:
+            stickmen = ds_utils.draw_stickmen(self.args, source_poses)
+        source_stickmen = stickmen
+
+        ## Target image
+        imgs = []
+        poses = []
+        stickmen = []
+        segs = []
+
+        # Loading and preprocessing the target image
+        img = Image.open(dataset_root + '/imgs/'+target_relative_path+'.jpg') # H x W x 3
+        s = img.size[0]
+        img = img.resize((self.args.image_size, self.args.image_size), Image.BICUBIC)
+        imgs += [self.to_tensor(img)]
+
+        # Loading and preprocessing the target keypints
+        keypoints = np.load(dataset_root + '/keypoints/'+target_relative_path+'.npy').astype('float32')
+        keypoints = keypoints.reshape((68,2))
+        keypoints = keypoints[:self.args.num_keypoints, :]
+        keypoints[:, :2] /= s
+        keypoints = keypoints[:, :2]
+        poses += [torch.from_numpy(keypoints.reshape(-1))]
+
+        # Loading and preprocessing the target segmentations
+        seg = Image.open(dataset_root + '/segs/'+target_relative_path+'.png')
+        seg = seg.resize((self.args.image_size, self.args.image_size), Image.BICUBIC)
+        segs += [self.to_tensor(seg)]
+
+
+        # Scaling and normalizing the imgs and poses
+        target_imgs = (torch.stack(imgs)- 0.5) * 2.0
+        target_poses = (torch.stack(poses) - 0.5) * 2.0
+        target_segs = torch.stack(segs)
+        
+        # Finding the 2D version of target poses
+        if self.args.output_stickmen:
+            stickmen = ds_utils.draw_stickmen(self.args, target_poses)
+        target_stickmen = stickmen
+
+        # Assigning the values to the dictionary
+        data_dict = {}
+
+        data_dict['source_imgs'] = source_imgs.unsqueeze(1)
+        data_dict['target_imgs'] = target_imgs.unsqueeze(1)
+        
+    
+        data_dict['source_poses'] = source_poses.unsqueeze(1)
+        data_dict['target_poses'] = target_poses.unsqueeze(1)
+
+
+        data_dict['source_segs'] = source_segs.unsqueeze(1)
+        data_dict['target_segs'] = target_segs.unsqueeze(1)
+
+        if source_stickmen is not None:
+            data_dict['source_stickmen'] = source_stickmen.unsqueeze(1)
+
+        if target_stickmen is not None:
+            data_dict['target_stickmen'] = target_stickmen.unsqueeze(1)
+
+        return data_dict
+  
+
+    def get_images_from_videos (self, video_path, source_frame_num, target_frame_num):
+
+        """Generates images, keypoints (also called poses), and segmenatations from 
+        source image = source_frame_num-th frame from video with the path of video_path
+        target image = target_frame_num-th frame from video with the path of video_path
+        
+        Inputs
+        ----------
+        video_path: The video path
+        source_frame_num: The video frame number assigned for source
+        target_frame_num: The video frame number assigned for target
+
+        Returns
+        -------
+        data_dict: dictionary containing all the images necessary for inference; such as, source_imgs, source_poses, target_poses
+
+        """   
+        # Opening the video
+        video_path = pathlib.Path(video_path)
+        video = cv2.VideoCapture(str(video_path))
+        frame_num = 0
+
+        # Flag showing that souce and target frames have been retrieved
+        done = 0
+
+        # Reading the video frame by frame
+        while video.isOpened():
+            ret, frame = video.read()
+            if frame is None:
+                break
+            frame = frame[:,:,::-1]
+
+            # Generating imgs, keypoints, segs for source
+            if frame_num == source_frame_num: 
+                (source_poses, 
+                source_imgs, 
+                source_segs, 
+                source_stickmen) = self.preprocess_data(np.array(frame), crop_data=True)
+                done+=1
+
+            # Generating imgs, keypoints, segs for target
+            if frame_num == target_frame_num :
+                (target_poses,
+                target_imgs, 
+                target_segs, 
+                target_stickmen) = self.preprocess_data(np.array(frame), crop_data=True)
+                done+=1
+            
+            if done >=2:
+                break
+
+            frame_num+=1
+
+        # Assigning the values to data dictionary    
         data_dict = {
             'source_imgs': source_imgs,
             'source_poses': source_poses,
             'target_poses': target_poses}
 
         if len(target_imgs):
-           data_dict['target_imgs'] = target_imgs
+            data_dict['target_imgs'] = target_imgs
 
         if source_segs is not None:
             data_dict['source_segs'] = source_segs
@@ -191,15 +404,110 @@ class InferenceWrapper(nn.Module):
 
         if target_stickmen is not None:
             data_dict['target_stickmen'] = target_stickmen
+        
+        return data_dict
 
-        start_time = time.time()
-        if no_grad:
-            with torch.no_grad():
-                self.runner(data_dict)
+
+    def forward(self, data_dict,
+                      preprocess,
+                      from_video ,
+                      video_path ,
+                      source_frame_num,
+                      target_frame_num,
+                      dataset_root,
+                      source_relative_path,
+                      target_relative_path,
+                      crop_data = True):
+        """ Giving the data_dict to the model and retrieving the outputs of the model
+
+        Inputs
+        ----------
+        data_dict: The dictionary of the source and target images
+        crop_data : A flag used center-crop output images and poses (the original paper used crop_data=True,
+                    so for consistency we use crop_data=True as well) 
+        preprocess : If you want to preprocess two images, put this to True, if not the code will load preprocessed images and keypoints.
+        from_video : If preprocess==True, you have the option two choose two frames from a video as source and target frames by setting this flag to True.
+        video_path: The video path for when from_video is True
+        source_frame_num: The video frame number assigned for source
+        target_frame_num: The video frame number assigned for target
+        dataset_root : The dataset root (Example: '/video-conf/scratch/pantea/temp_extracts')
+        source_relative_path : The source image's relative path to dataset_root/imgs (Example: 'train/id00012/_raOc3-IRsw/00110/0')
+        target_relative_path : The target image's relative path to dataset_root/imgs (Example: 'train/id00012/_raOc3-IRsw/00110/1')
+
+        +------------+------------+----------------------------------------------------------------------------------------------------------------------------------------------+
+        | preprocess | from_video |                                                        Source & Target                                                                       |
+        +============+============+==============================================================================================================================================+
+        |            |    True    |  Picks two frames (source_frame_num and target_frame_num) from video in video_path preprocess them to find the keypoints                     |
+        |   True     |============+==============================================================================================================================================+
+        |            |   False    |  Picks the images in source_img_path and target_img_path and preprocess them to find the keypoints                                           |
+        +------------+------------+----------------------------------------------------------------------------------------------------------------------------------------------+
+        |            |    True    |  Not applicable                                                                                                                              |
+        |   False    |============+==============================================================================================================================================+
+        |            |   False    |  Loads preprocessed and save keypoints, images, and segmentations from dataset_root/[imgs, keypoints, segs]/{source or target}_relative_path |
+        +------------+------------+----------------------------------------------------------------------------------------------------------------------------------------------+
+
+
+        Returns
+        -------
+        data_dict: dictionary containing all the images necessary for inference; such as, source_imgs, source_poses, target_poses
+
+        """  
+        
+        if 'target_imgs' not in data_dict.keys():
+            data_dict['target_imgs'] = None
+
+        # Preparing the target and source imgs, segs, and keypoints
+        if preprocess:
+            if from_video:
+                # Picks two frames (source_frame_num and target_frame_num) from video in video_path preprocess them to find the keypoints    
+                data_dict = self.get_images_from_videos( video_path = video_path, source_frame_num=source_frame_num, target_frame_num=target_frame_num)
+            else:
+                # Picks the images in source_img_path and target_img_path and preprocess them to find the keypoints
+                (source_poses, 
+                source_imgs, 
+                source_segs, 
+                source_stickmen) = self.preprocess_data(data_dict['source_imgs'], crop_data)
+
+                (target_poses,
+                target_imgs, 
+                target_segs, 
+                target_stickmen) = self.preprocess_data(data_dict['target_imgs'], crop_data)
+
+                data_dict = {
+                    'source_imgs': source_imgs,
+                    'source_poses': source_poses,
+                    'target_poses': target_poses}
+
+                if len(target_imgs):
+                    data_dict['target_imgs'] = target_imgs
+
+                if source_segs is not None:
+                    data_dict['source_segs'] = source_segs
+
+                if target_segs is not None:
+                    data_dict['target_segs'] = target_segs
+
+                if source_stickmen is not None:
+                    data_dict['source_stickmen'] = source_stickmen
+
+                if target_stickmen is not None:
+                    data_dict['target_stickmen'] = target_stickmen
 
         else:
-            self.runner(data_dict)
-        end_time = time.time()
-        print("It took ", end_time - start_time, " s!")
+            # Loads preprocessed and save keypoints, images, and segmentations from dataset_root/[imgs, keypoints, segs]/{source or target}_relative_path
+            data_dict = self.load_images_from_dataset(dataset_root, source_relative_path, target_relative_path)
 
-        return self.runner.data_dict
+        # Setting the model in test mode
+        model = self.runner
+        model.eval()
+
+        # Prepare input data
+        if self.args.num_gpus > 0:
+            for key, value in data_dict.items():
+                data_dict[key] = value.cuda()
+
+        # Forward pass
+        with torch.no_grad():
+            model(data_dict)
+
+        return model.data_dict

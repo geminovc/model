@@ -130,13 +130,13 @@ class PoseEmbedder(nn.Module):
         norm_layer = utils.norm_layers[args.pse_norm_layer_type]
         activation = utils.activations[args.pse_activation_type]
 
+        print("Set args.pse_use_harmonic_enc = False, should be removed in later versions ...")
         args.pse_use_harmonic_enc = False # I added this should be removed
         # Set input number of channels
         if args.pse_use_harmonic_enc:
             in_channels = args.pse_in_channels * args.pse_num_harmonics * 2
         else:
             in_channels = args.pse_in_channels
-            print(in_channels)
 
         # Set latent number of channels
         if args.pse_num_blocks == 1:
@@ -167,8 +167,7 @@ class PoseEmbedder(nn.Module):
         self.mlp = nn.Sequential(*layers)
 
     def forward(self, inputs):
-        #print("\n","This is the size of input in keypont-embedder",inputs)
-        #print("\n","This is the nn sequential layers",self.mlp)
+
         pose_embeds = self.mlp(inputs)
 
         pose_embeds = pose_embeds.view(-1, self.num_channels, self.spatial_size, self.spatial_size)

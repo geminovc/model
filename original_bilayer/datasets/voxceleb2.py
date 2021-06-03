@@ -9,10 +9,9 @@ import pickle as pkl
 import cv2
 import random
 import math
-
+import pdb
 from datasets import utils as ds_utils
 from runners import utils as rn_utils
-
 
 
 class DatasetWrapper(data.Dataset):
@@ -59,7 +58,12 @@ class DatasetWrapper(data.Dataset):
                                                 help='filename that we read the training dataset images from if dataset_load_from_txt==True')                                    
 
         parser.add('--test_load_from_filename', default='test_filnames.txt', type=str,
-                                                help='filename that we read the testing dataset images from if dataset_load_from_txt==True')                                                  
+                                                help='filename that we read the testing dataset images from if dataset_load_from_txt==True')
+
+        parser.add('--augmentation_by_general', default='False', type=rn_utils.str2bool, choices=[True, False],
+                                                help='gradually increase the weight of general dataset while training the per_person dataset')
+
+                                                      
 
         return parser
 
@@ -74,6 +78,7 @@ class DatasetWrapper(data.Dataset):
         self.to_tensor = transforms.ToTensor()
         self.epoch = 0 if args.which_epoch == 'none' else int(args.which_epoch)
 
+
         if self.args.dataset_load_from_txt:
 
             if self.phase == 'train':
@@ -85,18 +90,22 @@ class DatasetWrapper(data.Dataset):
             data_list = content.split("\n")
             my_file.close()
             data_root = args.data_root
-            #data_root = (data_list[0].split(":"))[1]
+            #data_root = (data_list[0].split(":"))[1]            
+            
+            # # choosing the general dataset root to sample from in training per-person approach
+            # if self.args.augmentation_by_general and args.data_root!=args.general_data_root:
+            #     general_data_root = args.general_data_root
 
 
         else:
             data_root = args.data_root
-        
+            
+
         # Data paths
         self.imgs_dir = pathlib.Path(data_root) / 'imgs' / phase
         self.pose_dir = pathlib.Path(data_root) / 'keypoints' / phase
 
-        #print("imgs_Dir", self.imgs_dir)
-        #print("pose_Dir", self.pose_dir)
+
 
         if args.output_segmentation:
             self.segs_dir = pathlib.Path(data_root) / 'segs' / phase
@@ -105,7 +114,12 @@ class DatasetWrapper(data.Dataset):
         sequences = self.imgs_dir.glob('*/*')
         self.sequences = ['/'.join(str(seq).split('/')[-2:]) for seq in sequences]
 
-        #print("Got the sequences!")
+        # Since the general dataset is too big, we sample 22 items if sample is chosen
+        if self.args.sample_general_dataset and self.args.data_root == self.args.general_data_root:
+            self.sequences = random.sample(self.sequences, 22)
+
+        print(len(self.sequences), self.sequences)
+
 
         # Parameters of the sampling scheme
         self.delta = math.sqrt(5)
@@ -166,6 +180,7 @@ class DatasetWrapper(data.Dataset):
         if self.phase == 'test':
             # Sample from the beginning of the sequence
             self.cur_num = 0
+        
 
         while len(imgs) < self.args.num_source_frames + self.args.num_target_frames:
             if reserve_index == len(filenames):
@@ -186,8 +201,11 @@ class DatasetWrapper(data.Dataset):
                 filename = filenames[frame_num]
 
             # Read images
+            
             img_path = pathlib.Path(self.imgs_dir) / filename.with_suffix('.jpg')
             
+            if self.phase == 'test':
+                print("selected test image path is: ",img_path)
 
             try:
                 img = Image.open(img_path)
@@ -205,7 +223,6 @@ class DatasetWrapper(data.Dataset):
 
             # Read keypoints
             keypoints_path = pathlib.Path(self.pose_dir) / filename.with_suffix('.npy')
-            #print(str(keypoints_path))
             try:
                 keypoints = np.load(keypoints_path).astype('float32')
                 
@@ -221,7 +238,7 @@ class DatasetWrapper(data.Dataset):
                         with open(self.experiment_dir / save_file, 'a') as data_file:
                             data_file.write('target %s:%s\n' % (str(len (imgs)-self.args.num_source_frames), \
                                     str(filename.with_suffix('.jpg'))))
-                    #print("Got the raw keypoint:", keypoints)
+            
             except:
                 imgs.pop(-1)
 
@@ -234,7 +251,6 @@ class DatasetWrapper(data.Dataset):
             keypoints[:, :2] /= s
             keypoints = keypoints[:, :2]
 
-            #print("This is not the raw keypoint!", keypoints)
 
             poses += [torch.from_numpy(keypoints.reshape(-1))]
 

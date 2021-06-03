@@ -295,11 +295,13 @@ class NetworkWrapper(nn.Module):
         if self.args.inf_pred_segmentation:
             # Target segmentation
             target_segs = data_dict['target_segs']
-            visuals += [torch.cat([(target_segs - 0.5) * 2] * 3, 1)]
+            print("changed * 3 to * 1!")
+            visuals += [torch.cat([(target_segs - 0.5) * 2] * 1, 1)]
 
             # Predicted target segmentation
             pred_target_segs = data_dict['pred_target_segs']
             visuals += [torch.cat([(pred_target_segs - 0.5) * 2] * 3, 1)]
+
 
         return visuals
 
