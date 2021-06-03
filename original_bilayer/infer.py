@@ -415,7 +415,7 @@ class InferenceWrapper(nn.Module):
                       target_frame_num,
                       dataset_root,
                       source_relative_path,
-                      terget_relative_path,
+                      target_relative_path,
                       crop_data = True):
         """ Giving the data_dict to the model and retrieving the outputs of the model
 

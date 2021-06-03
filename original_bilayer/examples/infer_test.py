@@ -75,14 +75,14 @@ from torchvision import transforms
 
 
 # Inputs 
-preprocess = True
-from_video = True
+preprocess = False
+from_video = False
 experiment_dir = '/video-conf/scratch/pantea_experiments_mapmaker'
 experiment_name = 'No_frozen_network_new_keypoints_from_pretrained'
 which_epoch = '1800'
 
 # Path to the saved dataset when preprocess is False
-dataset_root = '/video-conf/scratch/pantea/temp_extracts'
+dataset_root = '/video-conf/scratch/pantea/temp_one_person_extracts'
 source_relative_path = 'train/id00012/_raOc3-IRsw/00110/0'
 target_relative_path = 'train/id00012/_raOc3-IRsw/00110/1'
 
@@ -170,7 +170,7 @@ output_data_dict = module(input_data_dict,
                           target_frame_num=target_frame_num,
                           dataset_root = dataset_root,
                           source_relative_path=source_relative_path,
-                          terget_relative_path=target_relative_path) 
+                          target_relative_path=target_relative_path) 
     
 # Save the output images
 if not os.path.exists("results/"):
