@@ -1,6 +1,6 @@
 cd ../
 python  train.py \
-    --experiment_name 'pantea_code_2' \
+    --experiment_name 'no_unet_per_person_3' \
     --adam_beta1 0.5 \
     --adv_loss_weight 0.5 \
     --adv_pred_type ragan \
@@ -32,7 +32,7 @@ python  train.py \
     --fem_loss_weight 10.0 \
     --folder_postfix '2d_crop' \
     --inf_activation_type leakyrelu \
-    --inf_apply_masks True \
+    --inf_apply_masks False \
     --inf_calc_grad False \
     --inf_max_channels 256 \
     --inf_norm_layer_type ada_bn \
@@ -59,7 +59,7 @@ python  train.py \
     --networks_test 'identity_embedder, texture_generator, keypoints_embedder, inference_generator' \
     --networks_to_train 'identity_embedder, texture_generator, keypoints_embedder, inference_generator, discriminator' \
     --networks_train 'identity_embedder, texture_generator, keypoints_embedder, inference_generator, discriminator' \
-    --num_epochs 5000 \
+    --num_epochs 50000 \
     --num_gpus 1 \
     --num_keypoints 68 \
     --num_source_frames 1 \
@@ -77,7 +77,7 @@ python  train.py \
     --per_net_layers '1,6,11,20,29; 1,6,11,18,25' \
     --per_pooling avgpool \
     --pix_loss_apply_to 'pred_target_delta_lf_rgbs, target_imgs' \
-    --pix_loss_names L1 \ 
+    --pix_loss_names L1 \
     --pix_loss_type l1 \
     --pix_loss_weights 10.0 \
     --project_dir '/data/vision/billf/video-conf/scratch/vedantha' \
@@ -100,7 +100,8 @@ python  train.py \
     --spn_networks 'identity_embedder, texture_generator, keypoints_embedder, inference_generator, discriminator' \
     --stats_calc_iters 500 \
     --stickmen_thickness 2 \
-    --test_freq 2 \
+    --test_freq 10 \
+    --metrics_freq 1 \
     --texture_output_dim 3 \
     --use_unet False \
     --unet_input_channels 16\
@@ -112,4 +113,4 @@ python  train.py \
     --wpr_loss_type l1 \
     --wpr_loss_weight 1.0 \
     --wpr_loss_weight_decay 1.0 \
-    --skip_test False 
+    --metrics_root /data/vision/billf/video-conf/scratch/vedantha/metrics_dataset

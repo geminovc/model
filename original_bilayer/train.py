@@ -43,6 +43,9 @@ class TrainingWrapper(object):
         parser.add('--dataset_name',            default='voxceleb2_512px', type=str,
                                                 help='name of the dataset in the data root folder')
 
+        parser.add('--metrics_root',            default=".", type=str,
+                                                help='root directory of the metrics')
+        
         parser.add('--data_root',               default=".", type=str,
                                                 help='root directory of the data')
         
@@ -85,11 +88,17 @@ class TrainingWrapper(object):
         parser.add('--num_epochs',              default=1, type=int,
                                                 help='number of epochs for training')
 
+        parser.add('--num_metrics_images',      default=9, type=int,
+                                                help='number of pairs of images in your metrics dir')
+
         parser.add('--checkpoint_freq',         default=25, type=int,
                                                 help='frequency of checkpoints creation in epochs')
 
         parser.add('--test_freq',               default=5, type=int, 
                                                 help='frequency of testing in epochs')
+        
+        parser.add('--metrics_freq',            default=5, type=int, 
+                                                help='frequency of metrics in epochs')
         
         parser.add('--batch_size',              default=1, type=int,
                                                 help='batch size across all GPUs')
@@ -99,6 +108,9 @@ class TrainingWrapper(object):
         
         parser.add('--skip_test',               default='False', type=rn_utils.str2bool, choices=[True, False],
                                                 help='do not perform testing')
+        
+        parser.add('--skip_metrics',            default='False', type=rn_utils.str2bool, choices=[True, False],
+                                                help='do not perform metrics assessment')
         
         parser.add('--calc_stats',              action='store_true',
                                                 help='calculate batch norm standing stats')
@@ -399,6 +411,8 @@ class TrainingWrapper(object):
 
         if not args.skip_test:
             test_dataloader = ds_utils.get_dataloader(args, 'test')
+        if not args.skip_metrics:
+            metrics_dataloader = ds_utils.get_dataloader(args, 'metrics')
 
 
 
@@ -452,7 +466,8 @@ class TrainingWrapper(object):
         logger = Logger(args, self.experiment_dir)
         logger.set_num_iter(
             train_iter=train_iter, 
-            test_iter=(epoch_start - 1) // args.test_freq)
+            test_iter=(epoch_start - 1) // args.test_freq,
+            metrics_iter=(epoch_start - 1) // args.metrics_freq)
 
         if args.debug and not args.use_apex:
             torch.autograd.set_detect_anomaly(True)
@@ -583,12 +598,8 @@ class TrainingWrapper(object):
             # Increment the epoch counter in the training dataset
             train_dataloader.dataset.epoch += 1
 
-            # If testing is not required -- continue
-            if epoch % args.test_freq != 0:
-                continue
             # If skip test flag is set -- only check if a checkpoint if required
-            if not args.skip_test:
-                print("Testing the model in epoch ", epoch)
+            if not args.skip_test and not epoch % args.test_freq:
                 # Calculate "standing" stats for the batch normalization
                 if args.calc_stats:
                     runner.calculate_batchnorm_stats(train_dataloader, args.debug)
@@ -612,9 +623,34 @@ class TrainingWrapper(object):
                     
                     if args.debug:
                         break
-
-            logger.output_logs('test', runner.output_visuals(), runner.output_losses(), \
+                logger.output_logs('test', runner.output_visuals(), runner.output_losses(), \
                     runner.output_metrics(), time.time() - time_start)
+
+            # If skip test flag is set -- only check if a checkpoint if required
+            if not args.skip_metrics and not epoch % args.metrics_freq:
+                # Calculate "standing" stats for the batch normalization
+                if args.calc_stats:
+                    runner.calculate_batchnorm_stats(train_dataloader, args.debug)
+
+                # Test
+                time_start = time.time()
+                model.eval()
+
+                for i, data_dict in enumerate(metrics_dataloader, 1):
+                    # Prepare input data
+                    if args.num_gpus > 0:
+                        for key, value in data_dict.items():
+                            data_dict[key] = value.cuda()
+
+                    # Forward pass
+                    with torch.no_grad():
+                        model(data_dict)
+                    
+                    if args.debug:
+                        break
+
+                    logger.output_logs('metrics', runner.output_visuals(), runner.output_losses(), \
+                            runner.output_metrics(), time.time() - time_start, i)
 
             # If creation of checkpoint is not required -- continue
             if epoch % args.checkpoint_freq and not args.debug:

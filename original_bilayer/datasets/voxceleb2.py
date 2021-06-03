@@ -99,13 +99,13 @@ class DatasetWrapper(data.Dataset):
 
         else:
             data_root = args.data_root
-            
 
+        if phase == 'metrics':
+            data_root = args.metrics_root
+        
         # Data paths
         self.imgs_dir = pathlib.Path(data_root) / 'imgs' / phase
         self.pose_dir = pathlib.Path(data_root) / 'keypoints' / phase
-
-
 
         if args.output_segmentation:
             self.segs_dir = pathlib.Path(data_root) / 'segs' / phase
@@ -118,8 +118,12 @@ class DatasetWrapper(data.Dataset):
         if self.args.sample_general_dataset and self.args.data_root == self.args.general_data_root:
             self.sequences = random.sample(self.sequences, 22)
 
+        # If you are using metrics, sort the Sequences so it's easier
+        # to keep track of them between runs
+        if phase == 'metrics':
+            self.sequences = sorted(self.sequences)
+        
         print(len(self.sequences), self.sequences)
-
 
         # Parameters of the sampling scheme
         self.delta = math.sqrt(5)
@@ -136,9 +140,9 @@ class DatasetWrapper(data.Dataset):
     def __getitem__(self, index):
         # Sample source and target frames for the current sequence
         count = 0
-        filenames = [1]
+        filenames = []
         
-        while len(filenames):
+        while True:
             count+=1
             try:
                 filenames_img = list((self.imgs_dir / self.sequences[index]).glob('*/*'))
@@ -168,7 +172,6 @@ class DatasetWrapper(data.Dataset):
 
 
         filenames = sorted(filenames)
-
         imgs = []
         poses = []
         stickmen = []
@@ -181,7 +184,6 @@ class DatasetWrapper(data.Dataset):
             # Sample from the beginning of the sequence
             self.cur_num = 0
         
-
         while len(imgs) < self.args.num_source_frames + self.args.num_target_frames:
             if reserve_index == len(filenames):
                 raise # each element of the filenames list is unavailable for load
@@ -191,9 +193,14 @@ class DatasetWrapper(data.Dataset):
                 filename = filenames[reserve_index]
 
             else:
+                if self.phase == 'metrics':
+                    # If you are taking the metrics, you want to return frame_num 0 then frame_num 1
+                    # we can check which one to return in this iteration by checking the length of imgs
+                    frame_num = len(imgs)
                 if self.args.frame_num_from_paper:
                     frame_num = int(round(self.cur_num * (len(filenames) - 1)))
                     self.cur_num = (self.cur_num + self.delta) % 1
+
                 else:
                     frame_num = random.randint(0, (len(filenames) - 1))
                     # If you want to use parallel learning, use torch (not numpy)
@@ -312,4 +319,5 @@ class DatasetWrapper(data.Dataset):
         return len(self.sequences)
 
     def shuffle(self):
-        self.sequences = [self.sequences[i] for i in torch.randperm(len(self.sequences)).tolist()]
+        if self.phase != 'metrics': # Don't shuffle metrics
+            self.sequences = [self.sequences[i] for i in torch.randperm(len(self.sequences)).tolist()]
