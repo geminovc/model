@@ -1,6 +1,7 @@
 """
 This script validates that the networks intended to be frozen are frozen by 
 comparing checkpoints across epochs. Prints out the matching checkpoints and differing ones.
+
 """
 
 

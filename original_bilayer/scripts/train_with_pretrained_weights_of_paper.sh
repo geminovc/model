@@ -1,6 +1,6 @@
 cd ../
      python  train.py \
-    --experiment_name 'metrics_new_keypoints_G_inf_and_last_G_tex_unfrozen' \
+    --experiment_name 'metrics_new_keypoints_no_frozen_per_person' \
     --pretrained_weights_dir /video-conf/scratch/pantea \
     --augmentation_by_general False \
     --images_log_rate 100 \
@@ -71,7 +71,7 @@ cd ../
     --networks_test 'identity_embedder, texture_generator, keypoints_embedder, inference_generator' \
     --networks_train 'identity_embedder, texture_generator, keypoints_embedder, inference_generator, discriminator' \
     --inf_calc_grad True \
-    --num_epochs 5000 \
+    --num_epochs 10000 \
     --num_gpus 1 \
     --num_keypoints 68 \
     --num_source_frames 1 \
@@ -133,7 +133,7 @@ cd ../
     --unet_input_channels 16 \
     --unet_output_channels 3 \
     --unet_inputs 'lf, hf' \
-    --metrics_freq 1 \
+    --metrics_freq 5 \
     --metrics_root /video-conf/scratch/pantea/metrics_dataset \
     --skip_metrics False \
 

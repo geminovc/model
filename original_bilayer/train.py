@@ -137,8 +137,8 @@ class TrainingWrapper(object):
         parser.add('--folder_postfix',          default='2d_crop', type=str,
                                                 help='crop the stickman')
         
-        parser.add('--output_segmentation',   default='False', type=rn_utils.str2bool, choices=[True, False],
-                                              help='read segmentation mask')
+        parser.add('--output_segmentation',     default='False', type=rn_utils.str2bool, choices=[True, False],
+                                                help='read segmentation mask')
 
         parser.add('--output_segmentation',     default='False', type=rn_utils.str2bool, choices=[True, False],
                                                 help='read segmentation mask')
