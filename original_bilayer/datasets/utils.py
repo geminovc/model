@@ -36,7 +36,6 @@ def merge_parts(part_even, part_odd):
 # Function for stickman and facemasks drawing
 def draw_stickmen(args, poses):
     ### Define drawing options ###
-    #print("args.folder_postfix", args.folder_postfix )
     if not '2d' in args.folder_postfix and not '3d' in args.folder_postfix:
         # Arcsoft keypoints
         edges_parts  = [
