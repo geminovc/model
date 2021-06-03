@@ -169,7 +169,7 @@ class DatasetWrapper(data.Dataset):
         reserve_index = -1 # take this element of the sequence if loading fails
         sample_from_reserve = False
 
-        if self.phase == 'test' or self.phase == 'metrics':
+        if self.phase == 'test':
             # Sample from the beginning of the sequence
             self.cur_num = 0
         
