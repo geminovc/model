@@ -95,12 +95,14 @@ The used test data will be also be saved in `test_filenames.txt` in the experime
 * `output_stickmen`: If you set to true, you can see the visulaized keypoints.
 * `runner_name`: The runner file that loads the networks and trains them in order.
 * `test_freq`: The frequency of testing the model on test data.
+* `metrics_freq`: The frequency of testing the model on metrics data.
 * `visual_freq`: The frequency of storing the visual results.
 * `init_experiment_dir`: If you want to train your model from some specific checkpoint, you should set this flag to point to the directory of the experiment that you want to use for initialization of the networks. This directory should have a `checkpoints` folder in it.  
 * `init_networks`: This is the list of the networks you want to initialize with previous checkpoints. 
 * `init_which_epoch`: The epoch to initialize the wights from.
 * `which_epoch`: Epoch to continue training from, you can set the value to 1 when you want to train the network from scratch.
-* `skip_test`: If set to False, the model automatically is tested on the test data and the results will be available in `experiment_dir/runs/experiment_name/images/test`.
+* `skip_test`: If used it assumes you want to skip the tests (even if set to False!). If not, the model automatically is tested on the test data and the results will be available in `experiment_dir/runs/experiment_name/images/test`.
+* `skip_metrics`: If used it assumes you want to skip the metrics (even if set to False). If not, the model automatically is tested on the test data and the results will be available in `experiment_dir/runs/experiment_name/images/metrics`.
 * `frozen_networks`: If you want to freeze some networks, you can put their name in this list.
 
 
