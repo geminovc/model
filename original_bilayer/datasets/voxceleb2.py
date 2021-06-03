@@ -185,13 +185,7 @@ class DatasetWrapper(data.Dataset):
                 if self.phase == 'metrics':
                     # If you are taking the metrics, you want to return frame_num 0 then frame_num 1
                     # we can check which one to return in this iteration by checking the length of imgs
-                    if len(imgs) == 0:
-                        # This is the first image
-                        frame_num = 0
-                    if len(imgs) == 1:
-                        # This is the second image
-                        frame_num = 1
-
+                    frame_num = len(imgs)
                 if self.args.frame_num_from_paper:
                     frame_num = int(round(self.cur_num * (len(filenames) - 1)))
                     self.cur_num = (self.cur_num + self.delta) % 1
