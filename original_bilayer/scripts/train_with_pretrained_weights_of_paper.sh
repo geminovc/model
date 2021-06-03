@@ -1,6 +1,6 @@
 cd ../
      python  train.py \
-    --experiment_name 'debug' \
+    --experiment_name 'metrics_new_keypoints_G_inf_and_last_G_tex_unfrozen' \
     --pretrained_weights_dir /video-conf/scratch/pantea \
     --augmentation_by_general False \
     --images_log_rate 100 \
@@ -20,7 +20,7 @@ cd ../
     --bn_momentum 1.0 \
     --calc_stats \
     --checkpoint_freq 100 \
-    --data_root /video-conf/scratch/pantea/temp_per_video_extracts \
+    --data_root /video-conf/scratch/pantea/temp_one_person_extracts \
     --general_data_root /video-conf/scratch/pantea/video_conf_datasets/general_dataset \
     --dis_activation_type leakyrelu \
     --dis_downsampling_type avgpool \
@@ -63,15 +63,15 @@ cd ../
     --tex_activation_type leakyrelu \
     --image_size 256 \
     --losses_test 'lpips, csim' \
-    --metrics: 'PSNR, lpips, pose_matching_metric' \
-    --psnr_loss_apply_to: 'pred_target_delta_lf_rgbs, target_imgs'  \
+    --metrics 'PSNR, lpips, pose_matching' \
+    --psnr_loss_apply_to 'pred_target_delta_lf_rgbs, target_imgs'  \
     --losses_train 'adversarial, feature_matching, perceptual, pixelwise, warping_regularizer'  \
     --lrs 'identity_embedder: 2e-4, texture_generator: 2e-4, keypoints_embedder: 2e-4, inference_generator: 2e-4, discriminator: 2e-4'  \
     --networks_calc_stats 'identity_embedder, texture_generator, keypoints_embedder, inference_generator' \
     --networks_test 'identity_embedder, texture_generator, keypoints_embedder, inference_generator' \
     --networks_train 'identity_embedder, texture_generator, keypoints_embedder, inference_generator, discriminator' \
     --inf_calc_grad True \
-    --num_epochs 10000 \
+    --num_epochs 5000 \
     --num_gpus 1 \
     --num_keypoints 68 \
     --num_source_frames 1 \
@@ -128,5 +128,13 @@ cd ../
     --replace_Gtex_output_with_trainable_tensor False \
     --replace_source_specific_with_trainable_tensors False \
     --sample_general_dataset False \
+    --texture_output_dim 3 \
+    --use_unet False \
+    --unet_input_channels 16 \
+    --unet_output_channels 3 \
+    --unet_inputs 'lf, hf' \
+    --metrics_freq 1 \
+    --metrics_root /video-conf/scratch/pantea/metrics_dataset \
+    --skip_metrics False \
 
    

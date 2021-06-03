@@ -411,6 +411,7 @@ class TrainingWrapper(object):
 
         if not args.skip_test:
             test_dataloader = ds_utils.get_dataloader(args, 'test')
+        
         if not args.skip_metrics:
             metrics_dataloader = ds_utils.get_dataloader(args, 'metrics')
 
@@ -505,7 +506,7 @@ class TrainingWrapper(object):
                     break
 
             # Output logs
-            logger.output_logs('test', runner.output_visuals(), runner.output_losses(), time.time() - time_start)
+            logger.output_logs('test', runner.output_visuals(), runner.output_losses(), runner.output_metrics(), time.time() - time_start)
             
 
 
@@ -626,7 +627,7 @@ class TrainingWrapper(object):
                 logger.output_logs('test', runner.output_visuals(), runner.output_losses(), \
                     runner.output_metrics(), time.time() - time_start)
 
-            # If skip test flag is set -- only check if a checkpoint if required
+            # If skip metrics flag is set -- only check if a checkpoint if required
             if not args.skip_metrics and not epoch % args.metrics_freq:
                 # Calculate "standing" stats for the batch normalization
                 if args.calc_stats:
