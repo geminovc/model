@@ -11,7 +11,7 @@ from runners import utils as rn_utils
 class LossWrapper(nn.Module):
     @staticmethod
     def get_args(parser):
-        pass
+        parser.add('--psnr_loss_apply_to', type=str, help='what you want to apply psnr loss to')
     
     def __init__(self, args):
         super(LossWrapper, self).__init__()
@@ -33,5 +33,6 @@ class LossWrapper(nn.Module):
 
             real_imgs = real_imgs.view(b*t, *real_imgs.shape[2:])
             
-            losses_dict['G_PSNR'] = self.PSNR(fake_imgs.detach(), real_imgs.detach()).clone() # Make these metrics and don't loss
+            # Make these metrics and don't attach gradients to them
+            losses_dict['G_PSNR'] = self.PSNR(fake_imgs.detach(), real_imgs.detach()).clone()
         return losses_dict

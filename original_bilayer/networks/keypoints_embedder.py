@@ -166,7 +166,6 @@ class PoseEmbedder(nn.Module):
 
         self.mlp = nn.Sequential(*layers)
 
-
     def forward(self, inputs):
 
         pose_embeds = self.mlp(inputs)

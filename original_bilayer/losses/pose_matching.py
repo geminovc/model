@@ -60,7 +60,7 @@ class LossWrapper(nn.Module):
             real_img = (((real_img.detach() + 1.0) / 2.0) * 255.0).cpu().numpy().astype('uint8').transpose(1, 2, 0)
             real_keypoints = torch.from_numpy(self.fa[worker_id].get_landmarks(real_img)[0])[:, :2]
 
-            # Calcualte normalization factor
+            # Calculate normalization factor
             d = ((real_keypoints[self.left_eye].mean(0) - real_keypoints[self.right_eye].mean(0))**2).sum()**0.5
 
             # Calculate the mean error

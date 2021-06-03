@@ -74,6 +74,8 @@ class RunnerWrapper(nn.Module):
         parser.add('--adam_beta1',           default = 0.5,    type=float, 
                                              help    = 'beta1 (momentum of the gradient) parameter for Adam')
         
+        parser.add('--metrics', default = 'lpips', type=str,  help    = 'metrics evaluated always')
+        
         parser.add('--pretrained_weights_dir',  default='/video_conf/scratch/pantea', type=str,
                                                 help='directory for pretrained weights of loss networks (lpips , ...)')
 
@@ -93,6 +95,11 @@ class RunnerWrapper(nn.Module):
             + utils.parse_str_to_list(args.losses_test, sep=',')))
         for loss_name in losses_names:
             importlib.import_module(f'losses.{loss_name}').LossWrapper.get_args(parser)
+
+        metrics_names = list(set(
+            utils.parse_str_to_list(args.metrics, sep=',')))
+        for metric_name in metrics_names:
+            importlib.import_module(f'losses.{metric_name}').LossWrapper.get_args(parser)
 
         return parser
 
@@ -142,7 +149,6 @@ class RunnerWrapper(nn.Module):
         for metric_name in sorted(metrics_names):
             self.metrics[metric_name] = importlib.import_module(f'losses.{metric_name}').LossWrapper(args)
 
-
         # Spectral norm
         if args.spn_layers:
             spn_layers = utils.parse_str_to_list(args.spn_layers, sep=',')
@@ -186,28 +192,27 @@ class RunnerWrapper(nn.Module):
         self.losses_history = {
             True: {}, # self.training = True
             False: {}}
+        self.metrics_history = {
+            True: {}, # self.training = True
+            False: {}}
 
     def forward(self, data_dict):
         ### Set lists of networks' and losses' names ###
         if self.training:
             nets_names = self.nets_names_train
             networks_to_train = self.nets_names_to_train
-
+            metrics_names = self.metrics_names
             losses_names = self.losses_names_train
 
         else:
             nets_names = self.nets_names_test
             networks_to_train = []
 
+            metrics_names = self.metrics_names
             losses_names = self.losses_names_test
-        metric_names = self.metrics
 
         # Forward pass through all the required networks
         self.data_dict = data_dict
-        misc_dict = {}
-
-  
-
         for net_name in nets_names:
             self.data_dict = self.nets[net_name](self.data_dict, networks_to_train, self.nets)
 
@@ -216,20 +221,17 @@ class RunnerWrapper(nn.Module):
         for loss_name in losses_names:
             if hasattr(self, 'losses') and loss_name in self.losses.keys():
                 losses_dict = self.losses[loss_name](self.data_dict, losses_dict)
+        
+        metrics_dict = {}
+        for metric_name in metrics_names:
+            if hasattr(self, 'metrics') and metric_name in self.metrics.keys():
+                metrics_dict = self.metrics[metric_name](self.data_dict, metrics_dict)
 
         # Calculate the total loss and store history
         loss = self.process_losses_dict(losses_dict)
+        self.process_metrics_dict(metrics_dict)
+        return loss
 
-        metrics_dict = {}
-        for metric in metric_names:
-            metrics_dict = self.metrics[metric](self.data_dict, metrics_dict)
-        # Calculate the total loss and store history
-        
-        misc_dict['generated_image'] = self.data_dict['pred_target_delta_lf_rgbs']
-        misc_dict['target_image'] = self.data_dict['target_imgs']
-        misc_dict['source_image'] = self.data_dict['source_imgs']
-        
-        return loss, losses_dict, metrics_dict, misc_dict # loss is a single number
 
     ########################################################
     #                     Utility functions                #
@@ -244,8 +246,8 @@ class RunnerWrapper(nn.Module):
 
         # Initialize utility lists and dicts for the networks
         self.losses_names_train = utils.parse_str_to_list(args.losses_train)
-        self.losses_names_test = utils.parse_str_to_list(args.losses_test)
         self.metrics_names = utils.parse_str_to_list(args.metrics)
+        self.losses_names_test = utils.parse_str_to_list(args.losses_test)
 
     def get_optimizers(self, args):
         # Initialize utility lists and dicts for the optimizers
@@ -297,12 +299,20 @@ class RunnerWrapper(nn.Module):
         for key, value in losses_dict.items():
             if key not in self.losses_history[self.training]: 
                 self.losses_history[self.training][key] = []
-            
             self.losses_history[self.training][key] += [value.item()]
             loss += value
-
             
         return loss
+
+    def process_metrics_dict(self, metrics_dict):
+        # This function appends metrics value into metrics_dict
+
+        for key, value in metrics_dict.items():
+            if key not in self.metrics_history[self.training]: 
+                self.metrics_history[self.training][key] = []
+            
+            self.metrics_history[self.training][key] += [value.item()]
+            
 
     def output_losses(self):
         losses = {}
@@ -321,6 +331,23 @@ class RunnerWrapper(nn.Module):
         else:
             return losses
 
+    def output_metrics(self):
+        metrics = {}
+
+        for key, values in self.metrics_history[self.training].items():
+            value = torch.FloatTensor(values)
+
+            # Average the losses
+            metrics[key] = value.cpu().mean()
+        
+        # Clear losses hist
+        self.metrics_history[self.training] = {}
+
+        if self.args.rank != 0:
+            return None
+        else:
+            return metrics
+
     def output_visuals(self):
         # This function creates an output grid of visuals
         visuals_data_dict = {}
@@ -334,7 +361,6 @@ class RunnerWrapper(nn.Module):
         visuals = []
         for net_name in self.nets_names_train:
             visuals += self.nets[net_name].visualize_outputs(visuals_data_dict)
-
         visuals = torch.cat(visuals, 3) # cat w.r.t. width
         visuals = torch.cat(visuals.split(1, 0), 2)[0] # cat batch dim in lines w.r.t. height
         visuals = (visuals + 1.) * 0.5 # convert back to [0, 1] range

@@ -2,8 +2,6 @@
 import torch
 from torch import nn
 import math
-
-# This project
 from networks import utils
 
 
@@ -111,8 +109,16 @@ class NetworkWrapper(nn.Module):
 
     @torch.no_grad()
     def visualize_outputs(self, data_dict):
-        visuals = []
+        transformer = torch.nn.Upsample(size=256, mode='nearest')
         
+        visuals = []    
+        visuals += [data_dict['fake_scores_gen'][None]]
+        visuals += [data_dict['real_scores'][None]]
+        visuals += [data_dict['fake_scores_dis'][None]]
+        for i in range(len(visuals)):
+            visuals[i] = transformer(visuals[i])
+            visuals[i] = visuals[i].expand(1,3,256,256) 
+
         if 'target_stickmen' in data_dict.keys():
             visuals += [data_dict['target_stickmen']]
         

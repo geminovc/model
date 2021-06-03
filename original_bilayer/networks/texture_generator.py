@@ -41,6 +41,9 @@ class NetworkWrapper(nn.Module):
                                                                     help='set to true if you want to replace all of G_tex with a tensor')
 
 
+        parser.add('--texture_output_dim',      default=3, type=int,
+                                                 help='texture output dimensions, 3 for usual, 16 for unet added')
+    
     def __init__(self, args):
         super(NetworkWrapper, self).__init__()
         # Initialize options
@@ -49,7 +52,8 @@ class NetworkWrapper(nn.Module):
         # Fully training the texture generator
         if not self.args.replace_Gtex_output_with_trainable_tensor:
             # Generator
-            self.gen_tex_input = nn.Parameter(torch.randn(1, args.tex_max_channels, args.tex_input_tensor_size, args.tex_input_tensor_size))
+            self.gen_tex_input = nn.Parameter(torch.randn(1, args.tex_max_channels, \
+                    args.tex_input_tensor_size, args.tex_input_tensor_size))
             self.gen_tex = Generator(args)
             # Projector (prediction of adaptive parameters)
             self.prj_tex = Projector(args)
@@ -57,7 +61,6 @@ class NetworkWrapper(nn.Module):
         # Replacing the texture generator with a trainable tensor
         else:
             self.gen_tex_output = nn.Parameter(torch.randn(1, 3, self.args.image_size , self.args.image_size))
-
 
 
     def forward(
@@ -199,7 +202,7 @@ class Generator(nn.Module):
         self.blocks = nn.Sequential(*layers)
 
         # Get the list of required heads
-        heads = [(3, nn.Tanh)]
+        heads = [(args.texture_output_dim, nn.Tanh)]
 
         # Initialize the heads
         self.heads = nn.ModuleList()

@@ -62,7 +62,6 @@ cd ../
     --tex_upsampling_type nearest \
     --tex_activation_type leakyrelu \
     --image_size 256 \
-    --label_run  'Pantea_experiment' \
     --losses_test 'lpips, csim' \
     --metrics: 'PSNR, lpips, pose_matching_metric' \
     --psnr_loss_apply_to: 'pred_target_delta_lf_rgbs, target_imgs'  \
@@ -129,3 +128,5 @@ cd ../
     --replace_Gtex_output_with_trainable_tensor False \
     --replace_source_specific_with_trainable_tensors False \
     --sample_general_dataset False \
+
+   
