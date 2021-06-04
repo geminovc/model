@@ -392,10 +392,6 @@ class TrainingWrapper(object):
             
             amp.init(False)
 
-        # Tensorboard writer init
-        if args.rank == 0:
-            writer = SummaryWriter(log_dir= args.experiment_dir + '/runs/' + args.experiment_name + '/metrics/')
-
         # Get relevant dataloaders for augmentation by general or the vanilla case
         if args.augmentation_by_general and args.data_root != args.general_data_root:
             print("getting the per_person dataset")
@@ -511,7 +507,7 @@ class TrainingWrapper(object):
 
 
 
-
+        # Iterate over epochs (main training loop)
         for epoch in range(epoch_start, args.num_epochs + 1):
             self.epoch_start = time.time()
             if args.rank == 0: 
@@ -584,7 +580,6 @@ class TrainingWrapper(object):
                 for opt in opts.values():
                     opt.step(closure)
 
-                print("The time for this epoch is:", time.time() - time_start)
                 if output_logs:
                     logger.output_logs('train', runner.output_visuals(), runner.output_losses(), \
                             runner.output_metrics(), time.time() - time_start)
@@ -669,7 +664,7 @@ class TrainingWrapper(object):
                     # Save amp
                     if args.use_apex:
                         torch.save(amp.state_dict(), self.checkpoints_dir / f'{epoch}_amp.pth')
-        print("The epoch", str(epoch),  "took (s):", time.time()-self.epoch_start)
+            print("The epoch", str(epoch),  "took (s):", time.time()-self.epoch_start)
         
         return runner
 

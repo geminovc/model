@@ -32,7 +32,7 @@ class Logger(object):
                 else:
                     self.losses = {}
                     self.metrics = {}
-                self.writer = tensorboardX.SummaryWriter(args.experiment_dir + '/runs/' + args.experiment_name + '/tensorboard_paper/')
+                self.writer = tensorboardX.SummaryWriter(args.experiment_dir + '/runs/' + args.experiment_name + '/tensorboard/')
                 
     def output_logs(self, phase, visuals, losses, metrics, time, metrics_index=None):
         # Allows you to separate out the metrics on the tensorboards for easy viewing
@@ -69,18 +69,18 @@ class Logger(object):
                     self.losses[key].append(value)
                 else:
                     self.losses[key] = [value]
-                self.writer.add_scalar(f'losses_{key}_{tensorboard_phase}', value, self.num_iter[phase])
+                self.writer.add_scalar(f'losses/{key}_{tensorboard_phase}', value, self.num_iter[phase])
 
             for key, value in metrics.items():
                 if key in self.metrics:
                     self.metrics[key].append(value)
                 else:
                     self.metrics[key] = [value]
-                self.writer.add_scalar(f'metrics_{key}_{tensorboard_phase}', value, self.num_iter[phase])
+                self.writer.add_scalar(f'metrics/{key}_{tensorboard_phase}', value, self.num_iter[phase])
             
             # Save losses and metrics
-            pickle.dump(self.losses, open(self.experiment_dir / 'losses.pkl', 'wb'))
-            pickle.dump(self.metrics, open(self.experiment_dir / 'metrics.pkl', 'wb'))
+            pickle.dump(self.losses,  open(str(self.experiment_dir) + "/" + 'losses_'  + str(phase) + '.pkl', 'wb'))
+            pickle.dump(self.metrics, open(str(self.experiment_dir) + "/" + 'metrics_' + str(phase) + '.pkl', 'wb'))
 
         elif self.rank != 0:
             return
