@@ -505,7 +505,7 @@ class TrainingWrapper(object):
                     break
 
             # Output logs
-            logger.output_logs('test', runner.output_visuals(), runner.output_losses(), time.time() - time_start)
+            logger.output_logs('test', runner.output_visuals(), runner.output_losses(), runner.output_metrics(), time.time() - time_start)
             
 
 
