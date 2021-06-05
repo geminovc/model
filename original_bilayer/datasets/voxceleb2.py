@@ -122,8 +122,6 @@ class DatasetWrapper(data.Dataset):
         # to keep track of them between runs
         if phase == 'metrics':
             self.sequences = sorted(self.sequences)
-        
-        print(len(self.sequences), self.sequences)
 
         # Parameters of the sampling scheme
         self.delta = math.sqrt(5)
@@ -276,7 +274,6 @@ class DatasetWrapper(data.Dataset):
                     continue
 
                 segs += [self.to_tensor(seg)]
-
             sample_from_reserve = False
 
         imgs = (torch.stack(imgs)- 0.5) * 2.0
