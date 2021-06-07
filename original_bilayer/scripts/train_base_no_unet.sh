@@ -20,7 +20,7 @@ python  train.py \
     --bn_momentum 1.0 \
     --calc_stats \
     --checkpoint_freq 25 \
-    --data_root /data/vision/billf/video-conf/scratch/pantea/video_conf_datasets/per_person_dataset \
+    --data_root /data/vision/billf/video-conf/scratch/pantea/temp_per_person_extracts \
     --dis_activation_type leakyrelu \
     --dis_downsampling_type avgpool \
     --dis_max_channels 512 \
