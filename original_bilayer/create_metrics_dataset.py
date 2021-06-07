@@ -18,14 +18,6 @@ if __name__ == '__main__':
     segs_dir = metrics_dir + '/segs/metrics/' + position_in_metrics + '/clip/frame/' + path_to_segs[-1]
     path_to_segs = '/'.join(path_to_segs)
     imgs_dir = metrics_dir + '/imgs/metrics/' + position_in_metrics + '/clip/frame/' + split_string[-1]
-    
-    print(path_to_keypoints)
-    print(path_to_segs)
-    print(path_to_image)
-
-    print(keypoint_dir)
-    print(segs_dir)
-    print(imgs_dir) 
-    #os.system("cp " + path_to_keypoints + " " + keypoint_dir)
-    #os.system("cp " + path_to_segs + " " + segs_dir)
-    #os.system("cp " + path_to_image + " " + imgs_dir)
+    os.system("cp " + path_to_keypoints + " " + keypoint_dir)
+    os.system("cp " + path_to_segs + " " + segs_dir)
+    os.system("cp " + path_to_image + " " + imgs_dir)
