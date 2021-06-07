@@ -25,23 +25,39 @@ def average (my_dict, key, window_size):
     float_values = float_values[-window_size:]
     return sum(float_values) / len(float_values)
     
+# This function finds the maximum over the last window_size of input dict
+def max_in_window (my_dict, key, window_size):
+    temp = my_dict[key]
+    float_values = [x.item() for x in temp]
+    float_values = float_values[-window_size:]
+    return max(float_values) 
+    
+# This function finds the minimum over the last window_size of input dict
+def min_in_window (my_dict, key, window_size):
+    temp = my_dict[key]
+    float_values = [x.item() for x in temp]
+    float_values = float_values[-window_size:]
+    return min(float_values) 
 
-#dict_metrics = load_pickle('/video-conf/scratch/pantea_experiments_mapmaker/runs/metrics_new_keypoints_from_base/metrics_metrics.pkl')
-#dict_test    = load_pickle('/video-conf/scratch/pantea_experiments_mapmaker/runs/metrics_new_keypoints_from_base/metrics_test.pkl')
-dict_train    = load_pickle('/video-conf/scratch/pantea_experiments_mapmaker/runs/metrics_new_keypoints_G_inf_and_last_G_tex_unfrozen/metrics.pkl')
-print(average (dict_train, 'G_PSNR', 10))
+data_dict = []
+data_dict.append(['G_inf',load_pickle('/video-conf/scratch/pantea_experiments_mapmaker/runs/metrics_new_keypoints_G_inf_and_last_G_tex_unfrozen/metrics.pkl')])
+data_dict.append(['No_frozen', load_pickle('/video-conf/scratch/pantea_experiments_mapmaker/runs/metrics_new_keypoints_no_frozen/metrics.pkl')])
+window = 10
 
-field_names = dict_train.keys()
-# with open('metrics.csv', 'w') as f:
-#     for key in my_dict.keys():
-#         temp = my_dict[key]
-#         float_values = [x.item() for x in temp]
-#         print(float_values)
-#         #f.write("%s,%s\n"%(key,my_dict[key].item()))
+# Write the value in the csv format
+with open('metrics.csv', 'w') as f:
+    f.write("%s,%s,%s,%s,%s,%s,%s,%s,%s,%s\n"%('experiment','G_PSNR_min', 'G_PSNR_mean', 'G_PSNR_max', 'G_LPIPS_min','G_LPIPS_mean','G_LPIPS_max', 'G_PME_min', 'G_PME_mean','G_PME_max'))
+    for i in range(0, len(data_dict)):
+        experiment_name = data_dict[i][0]
+        experiment_data = data_dict[i][1]
+        f.write("%s,%s,%s,%s,%s,%s,%s,%s,%s,%s\n"%(experiment_name, min_in_window (experiment_data, 'G_PSNR', window),
+                                                  average (experiment_data, 'G_PSNR', window),
+                                                  max_in_window (experiment_data, 'G_PSNR', window),
+                                                  min_in_window (experiment_data, 'G_LPIPS', window),
+                                                  average (experiment_data, 'G_LPIPS', window),
+                                                  max_in_window (experiment_data, 'G_LPIPS', window),
+                                                  min_in_window (experiment_data, 'G_PME', window),
+                                                  average (experiment_data, 'G_PME', window),
+                                                  max_in_window (experiment_data, 'G_PME', window),
+                                                  ))
 
-with open('metrics.csv', 'w') as csvfile:
-    writer = csv.DictWriter(csvfile, fieldnames = ['G_PSNR', 'G_LPIPS', 'G_PME'])
-    writer.writeheader()
-    #writer.writerows(dict_train)
-    for data in dict_train:
-        writer.writerow(data)
