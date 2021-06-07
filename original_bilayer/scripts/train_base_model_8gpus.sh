@@ -1,21 +1,21 @@
 cd ../
      python  train.py \
-    --experiment_name 'sanity_check_personal_from_base' \
+    --experiment_name 'metrics_new_keypoints_from_base' \
     --pretrained_weights_dir /video-conf/scratch/pantea \
-    --augmentation_by_general False \
+    --augment_with_general False \
     --save_initial_test_before_training False \
     --images_log_rate 100 \
     --metrics_log_rate 100 \
     --random_seed 0 \
     --save_dataset_filenames False \
     --dataset_load_from_txt False \
-    --train_load_from_filename /data/pantea/video_conf/one_person_dataset/per_video_dataset/results/runs/toy_project/reserved_train_filenames.txt \
-    --test_load_from_filename /data/pantea/video_conf/one_person_dataset/per_video_dataset/results/runs/toy_project/reserved_test_filenames.txt \
+    --train_load_from_filename . \
+    --test_load_from_filename . \
     --adam_beta1 0.5 \
     --adv_loss_weight 0.5 \
     --adv_pred_type ragan \
     --amp_loss_scale dynamic \
-    --experiment_dir /video-conf/scratch/pantea_experiments_chunky \
+    --experiment_dir /video-conf/scratch/pantea_experiments_mapmaker \
     --amp_opt_level O0 \
     --batch_size 2 \
     --bn_momentum 1.0 \
@@ -122,3 +122,12 @@ cd ../
     --replace_Gtex_output_with_trainable_tensor False \
     --replace_source_specific_with_trainable_tensors False \
     --sample_general_dataset False \
+    --texture_output_dim 3 \
+    --use_unet False \
+    --unet_input_channels 16 \
+    --unet_output_channels 3 \
+    --unet_inputs 'lf, hf' \
+    --metrics_freq 5 \
+    --metrics_root /video-conf/scratch/pantea/metrics_dataset \
+    --skip_metrics False \
+

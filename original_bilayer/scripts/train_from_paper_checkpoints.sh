@@ -1,8 +1,32 @@
+MAIN_DIR="${HOME}/lightning_routing/simulations/dag_optimality"
+machine=$1
+experiment_name=$2
+dataset_name=$3
+num_epochs = $4
+
+augment_with_general=$5
+sample_general_dataset=$6
+
+if [[ "$machine" == "chunky" ]]; then
+    experiment_dir = /video-conf/scratch/pantea_experiments_chunky
+elif [[ "$machine" == "mapmaker" ]]; then
+    experiment_dir = /video-conf/scratch/pantea_experiments_mapmaker
+fi 
+
+
+if [[ "$dataset_name" == "general" ]]; then
+    data_root = /video-conf/scratch/pantea/temp_general_extracts
+elif [[ "$dataset_name" == "per_person" ]]; then
+    data_root = /video-conf/scratch/pantea/temp_per_person_extracts
+elif [[ "$dataset_name" == "per_video" ]]; then
+    data_root = /video-conf/scratch/pantea/temp_per_video_extracts
+fi 
+
 cd ../
      python  train.py \
-    --experiment_name 'metrics_new_keypoints_no_frozen_per_person' \
+    --experiment_name ${experiment_name} \
     --pretrained_weights_dir /video-conf/scratch/pantea \
-    --augment_with_general False \
+    --augment_with_general ${augment_with_general} \
     --images_log_rate 100 \
     --metrics_log_rate 100 \
     --random_seed 0 \
@@ -14,14 +38,14 @@ cd ../
     --adv_loss_weight 0.5 \
     --adv_pred_type ragan \
     --amp_loss_scale dynamic \
-    --experiment_dir /video-conf/scratch/pantea_experiments_chunky \
+    --experiment_dir ${experiment_dir} \
     --amp_opt_level  O0 \
     --batch_size 2 \
     --bn_momentum 1.0 \
     --calc_stats \
     --checkpoint_freq 100 \
-    --data_root /video-conf/scratch/pantea/temp_one_person_extracts \
-    --general_data_root /video-conf/scratch/pantea/video_conf_datasets/general_dataset \
+    --data_root ${data_root} \
+    --general_data_root /video-conf/scratch/pantea/temp_general_extracts \
     --dis_activation_type leakyrelu \
     --dis_downsampling_type avgpool \
     --dis_max_channels 512 \
@@ -71,7 +95,7 @@ cd ../
     --networks_test 'identity_embedder, texture_generator, keypoints_embedder, inference_generator' \
     --networks_train 'identity_embedder, texture_generator, keypoints_embedder, inference_generator, discriminator' \
     --inf_calc_grad True \
-    --num_epochs 10000 \
+    --num_epochs ${num_epochs} \
     --num_gpus 1 \
     --num_keypoints 68 \
     --num_source_frames 1 \
@@ -121,13 +145,13 @@ cd ../
     --init_networks 'identity_embedder, texture_generator, keypoints_embedder, inference_generator, discriminator' \
     --init_which_epoch 2225 \
     --skip_test False \
-    --frozen_networks 'texture_generator, inference_generator' \
+    --frozen_networks ' ' \
     --unfreeze_texture_generator_last_layers True \
     --unfreeze_inference_generator_last_layers True \
     --replace_AdaSpade_with_conv False \
     --replace_Gtex_output_with_trainable_tensor False \
     --replace_source_specific_with_trainable_tensors False \
-    --sample_general_dataset False \
+    --sample_general_dataset ${sample_general_dataset} \
     --texture_output_dim 3 \
     --use_unet False \
     --unet_input_channels 16 \

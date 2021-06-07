@@ -60,7 +60,7 @@ class DatasetWrapper(data.Dataset):
         parser.add('--test_load_from_filename',  default='test_filnames.txt', type=str,
                                                  help='filename that we read the testing dataset images from if dataset_load_from_txt==True')
 
-        parser.add('--augmentation_by_general',  default='False', type=rn_utils.str2bool, choices=[True, False],
+        parser.add('--augment_with_general',     default='False', type=rn_utils.str2bool, choices=[True, False],
                                                  help='gradually increase the weight of general dataset while training the per_person dataset')
 
                                                       
@@ -93,7 +93,7 @@ class DatasetWrapper(data.Dataset):
             #data_root = (data_list[0].split(":"))[1]            
             
             # # choosing the general dataset root to sample from in training per-person approach
-            # if self.args.augmentation_by_general and args.data_root!=args.general_data_root:
+            # if self.args.augment_with_general and args.data_root!=args.general_data_root:
             #     general_data_root = args.general_data_root
 
 

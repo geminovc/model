@@ -191,7 +191,7 @@ class TrainingWrapper(object):
         parser.add('--save_initial_test_before_training',           default='True', type=rn_utils.str2bool, choices=[True, False],
                                                                     help='save how he model performs on test before training, useful for sanity check')
 
-        parser.add('--augmentation_by_general',                     default='False', type=rn_utils.str2bool, choices=[True, False],
+        parser.add('--augment_with_general',                     default='False', type=rn_utils.str2bool, choices=[True, False],
                                                                     help='gradually increase the weight of general dataset while training the per_person dataset')
 
         parser.add('--replace_source_specific_with_trainable_tensors',  default='False', type=rn_utils.str2bool, choices=[True, False],
@@ -393,7 +393,7 @@ class TrainingWrapper(object):
             amp.init(False)
 
         # Get relevant dataloaders for augmentation by general or the vanilla case
-        if args.augmentation_by_general and args.data_root != args.general_data_root:
+        if args.augment_with_general and args.data_root != args.general_data_root:
             print("getting the per_person dataset")
             personal_train_dataloader = ds_utils.get_dataloader(args, 'train')
             self.gen_to_per_ratio = 1
@@ -475,7 +475,7 @@ class TrainingWrapper(object):
         # Adding the first test image on the logger for sanity check
         if args.save_initial_test_before_training:
             print("Testing the model before starts training for sanity check")
-            if args.augmentation_by_general and args.data_root!=args.general_data_root:
+            if args.augment_with_general and args.data_root!=args.general_data_root:
                 train_dataloader = personal_train_dataloader
             else:
                 train_dataloader = original_train_dataloader
@@ -518,7 +518,7 @@ class TrainingWrapper(object):
             # Initiate all the networks in the training mode 
             model.train() 
             time_start = time.time()
-            if args.augmentation_by_general and args.data_root!=args.general_data_root:
+            if args.augment_with_general and args.data_root!=args.general_data_root:
                 prob = random.uniform(0, 1)
                 self.gen_to_per_ratio = (args.num_epochs-epoch)/(args.num_epochs-epoch_start)
                 self.test_freq = 5
