@@ -18,11 +18,18 @@ def load_pickle(path_string):
     file.close()
     return my_dict
 
-
+# This function averages over the last window_size of input dict
+def average (my_dict, key, window_size):
+    temp = my_dict[key]
+    float_values = [x.item() for x in temp]
+    float_values = float_values[-window_size:]
+    return sum(float_values) / len(float_values)
+    
 
 #dict_metrics = load_pickle('/video-conf/scratch/pantea_experiments_mapmaker/runs/metrics_new_keypoints_from_base/metrics_metrics.pkl')
 #dict_test    = load_pickle('/video-conf/scratch/pantea_experiments_mapmaker/runs/metrics_new_keypoints_from_base/metrics_test.pkl')
 dict_train    = load_pickle('/video-conf/scratch/pantea_experiments_mapmaker/runs/metrics_new_keypoints_G_inf_and_last_G_tex_unfrozen/metrics.pkl')
+print(average (dict_train, 'G_PSNR', 10))
 
 field_names = dict_train.keys()
 # with open('metrics.csv', 'w') as f:
