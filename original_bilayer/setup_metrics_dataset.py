@@ -2,7 +2,7 @@ import os
 import sys
 
 if __name__ == '__main__':
-    metrics_dir = sys.argv[3]
+    metrics_dir = sys.argv[1]
     types = ['imgs', 'keypoints', 'segs']
     
     options = ['general', 'per_person', 'per_video']
