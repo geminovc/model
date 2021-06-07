@@ -1,25 +1,24 @@
-MAIN_DIR="${HOME}/lightning_routing/simulations/dag_optimality"
 machine=$1
 experiment_name=$2
 dataset_name=$3
-num_epochs = $4
-
+num_epochs=$4
 augment_with_general=$5
 sample_general_dataset=$6
 
+
 if [[ "$machine" == "chunky" ]]; then
-    experiment_dir = /video-conf/scratch/pantea_experiments_chunky
+    experiment_dir=/video-conf/scratch/pantea_experiments_chunky
 elif [[ "$machine" == "mapmaker" ]]; then
-    experiment_dir = /video-conf/scratch/pantea_experiments_mapmaker
+    experiment_dir=/video-conf/scratch/pantea_experiments_mapmaker
 fi 
 
 
 if [[ "$dataset_name" == "general" ]]; then
-    data_root = /video-conf/scratch/pantea/temp_general_extracts
+    data_root=/video-conf/scratch/pantea/temp_general_extracts
 elif [[ "$dataset_name" == "per_person" ]]; then
-    data_root = /video-conf/scratch/pantea/temp_per_person_extracts
+    data_root=/video-conf/scratch/pantea/temp_per_person_extracts
 elif [[ "$dataset_name" == "per_video" ]]; then
-    data_root = /video-conf/scratch/pantea/temp_per_video_extracts
+    data_root=/video-conf/scratch/pantea/temp_per_video_extracts
 fi 
 
 cd ../

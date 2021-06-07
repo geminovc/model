@@ -1,1 +1,0 @@
-./train_from_paper_checkpoints.sh  chunky "No_frozen_with_metrics" "per_person" 5000 False False
