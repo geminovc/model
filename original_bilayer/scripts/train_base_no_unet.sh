@@ -109,8 +109,8 @@ python  train.py \
     --spn_networks 'identity_embedder, texture_generator, keypoints_embedder, inference_generator, discriminator' \
     --stats_calc_iters 500 \
     --stickmen_thickness 2 \
-    --test_freq 10 \
-    --metrics_freq 10 \
+    --test_freq 1 \
+    --metrics_freq 1 \
     --texture_output_dim 3 \
     --use_unet False \
     --unet_input_channels 16\

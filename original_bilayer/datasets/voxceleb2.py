@@ -273,7 +273,7 @@ class DatasetWrapper(data.Dataset):
                     reserve_index += 1
                     continue
 
-                segs += [self.to_tensor(seg)]
+                segs += [self.to_tensor(seg)[0][None]] # Weird segmentation fix to change RGB into b/w
             sample_from_reserve = False
 
         imgs = (torch.stack(imgs)- 0.5) * 2.0
