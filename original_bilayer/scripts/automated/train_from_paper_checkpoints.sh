@@ -1,10 +1,10 @@
+MAIN_DIR="${HOME}/NETS/nets_implementation/original_bilayer"
 machine=$1
 experiment_name=$2
 dataset_name=$3
 num_epochs=$4
 augment_with_general=$5
 sample_general_dataset=$6
-
 
 if [[ "$machine" == "chunky" ]]; then
     experiment_dir=/video-conf/scratch/pantea_experiments_chunky
@@ -21,7 +21,7 @@ elif [[ "$dataset_name" == "per_video" ]]; then
     data_root=/video-conf/scratch/pantea/temp_per_video_extracts
 fi 
 
-cd ../
+cd $MAIN_DIR
      python  train.py \
     --experiment_name ${experiment_name} \
     --pretrained_weights_dir /video-conf/scratch/pantea \
