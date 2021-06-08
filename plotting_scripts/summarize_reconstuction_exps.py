@@ -1,5 +1,9 @@
 """
 This script loads the saved pickle files from multiple experiments and saves them in csv format.
+Sample usage:
+
+python summarize_reconstuction_exps.py --result-file-list pkl_path_1 pkl_path_2 
+--experiment-name-list scheme_1 scheme_2 --result-file-name metrics.csv
 """
 
 #Importing libraries

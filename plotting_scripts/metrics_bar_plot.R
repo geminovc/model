@@ -1,6 +1,7 @@
 #!/usr/bin/env Rscript
 # This script can be run using:
-# ./overall_tpt_comparison.R <data> <pdf prefix>
+# Usage: ./metrics_bar_plot.R metrics.csv original_bilayer_knobs
+# result: original_bilayer_knobs_metrics.pdf with all three plots
 
 library(ggplot2)
 library(cowplot, warn.conflicts = FALSE)
