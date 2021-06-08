@@ -1,4 +1,5 @@
-MAIN_DIR="${HOME}/NETS/nets_implementation/original_bilayer"
+#MAIN_DIR="${HOME}/NETS/nets_implementation/original_bilayer"
+MAIN_DIR=../../
 machine=$1
 experiment_name=$2
 dataset_name=$3
@@ -85,10 +86,10 @@ cd $MAIN_DIR
     --tex_upsampling_type nearest \
     --tex_activation_type leakyrelu \
     --image_size 256 \
-    --losses_test 'lpips, csim' \
-    --metrics 'PSNR, lpips, pose_matching' \
-    --psnr_loss_apply_to 'pred_target_delta_lf_rgbs, target_imgs'  \
-    --losses_train 'adversarial, feature_matching, perceptual, pixelwise, warping_regularizer'  \
+    --losses_test 'PSNR, lpips, pose_matching, csim, ssim, pixelwise' \
+    --metrics 'PSNR, lpips, pose_matching, csim, ssim' \
+    --psnr_loss_apply_to 'pred_target_imgs, target_imgs'  \
+    --losses_train 'adversarial, feature_matching, perceptual, pixelwise, warping_regularizer, segmentation'  \
     --lrs 'identity_embedder: 2e-4, texture_generator: 2e-4, keypoints_embedder: 2e-4, inference_generator: 2e-4, discriminator: 2e-4'  \
     --networks_calc_stats 'identity_embedder, texture_generator, keypoints_embedder, inference_generator' \
     --networks_test 'identity_embedder, texture_generator, keypoints_embedder, inference_generator' \
@@ -132,7 +133,7 @@ cd $MAIN_DIR
     --spn_networks 'identity_embedder, texture_generator, keypoints_embedder, inference_generator, discriminator' \
     --stats_calc_iters 500 \
     --stickmen_thickness 2 \
-    --test_freq 10 \
+    --test_freq 1 \
     --visual_freq '10' \
     --wpr_loss_apply_to pred_target_delta_uvs \
     --wpr_loss_decay_schedule '-1' \
@@ -156,7 +157,7 @@ cd $MAIN_DIR
     --unet_input_channels 16 \
     --unet_output_channels 3 \
     --unet_inputs 'lf, hf' \
-    --metrics_freq 5 \
+    --metrics_freq 1 \
     --metrics_root /video-conf/scratch/pantea/metrics_dataset \
     --skip_metrics False \
 

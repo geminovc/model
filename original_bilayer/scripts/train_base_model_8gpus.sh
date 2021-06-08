@@ -63,10 +63,9 @@ cd ../
     --tex_upsampling_type nearest \
     --tex_activation_type leakyrelu \
     --image_size 256 \
-    --label_run  'Pantea_experiment' \
     --losses_test 'lpips, csim' \
-    --metrics: 'PSNR, lpips, pose_matching_metric' \
-    --psnr_loss_apply_to: 'pred_target_delta_lf_rgbs, target_imgs'  \
+    --metrics 'PSNR, lpips, pose_matching' \
+    --psnr_loss_apply_to 'pred_target_delta_lf_rgbs, target_imgs'  \
     --losses_train 'adversarial, feature_matching, perceptual, pixelwise, warping_regularizer'  \
     --lrs 'identity_embedder: 2e-4, texture_generator: 2e-4, keypoints_embedder: 2e-4, inference_generator: 2e-4, discriminator: 2e-4'  \
     --networks_calc_stats 'identity_embedder, texture_generator, keypoints_embedder, inference_generator' \

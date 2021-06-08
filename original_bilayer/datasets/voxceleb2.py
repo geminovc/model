@@ -275,7 +275,10 @@ class DatasetWrapper(data.Dataset):
                     reserve_index += 1
                     continue
 
-                segs += [self.to_tensor(seg)]
+
+                # Convert 3-channel segmentations to 1 grayscale image
+                # segs += [self.to_tensor(seg)]
+                segs += [self.to_tensor(seg)[0][None]]
 
             sample_from_reserve = False
 
