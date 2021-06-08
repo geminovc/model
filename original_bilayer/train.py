@@ -13,7 +13,7 @@ import random
 from torch.utils.tensorboard import SummaryWriter
 from datasets import utils as ds_utils
 from networks import utils as nt_utils
-from runners import utils as rn_utils
+from runners  import utils as rn_utils
 from logger import Logger
 
 
@@ -148,7 +148,7 @@ class TrainingWrapper(object):
 
         parser.add('--psnr_loss_apply_to',      default='pred_target_delta_lf_rgbs , target_imgs', type=str,
                                                 help='psnr loss to apply') 
-                                                                                              
+
         parser.add('--images_log_rate',         default=100, type=int,
                                                 help='logging rate for images') 
         
@@ -191,14 +191,14 @@ class TrainingWrapper(object):
         parser.add('--save_initial_test_before_training',           default='True', type=rn_utils.str2bool, choices=[True, False],
                                                                     help='save how he model performs on test before training, useful for sanity check')
 
-        parser.add('--augment_with_general',                     default='False', type=rn_utils.str2bool, choices=[True, False],
+        parser.add('--augment_with_general',                        default='False', type=rn_utils.str2bool, choices=[True, False],
                                                                     help='gradually increase the weight of general dataset while training the per_person dataset')
 
         parser.add('--replace_source_specific_with_trainable_tensors',  default='False', type=rn_utils.str2bool, choices=[True, False],
                                                                         help='set to true if you want to replace all source-specific modules with a tensor')
 
-        parser.add('--sample_general_dataset',                      default='False', type=rn_utils.str2bool, choices=[True, False],
-                                                                        help='set to true if you want to take smaller number of data in general dataset')
+        parser.add('--sample_general_dataset',                       default='False', type=rn_utils.str2bool, choices=[True, False],
+                                                                     help='set to true if you want to take smaller number of data in general dataset')
 
 
                              

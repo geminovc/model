@@ -5,8 +5,9 @@ experiment_name=$2
 dataset_name=$3
 num_epochs=$4
 test_freq=$5
-augment_with_general=$6
-sample_general_dataset=$7
+metrics_freq=$6
+augment_with_general=$7
+sample_general_dataset=$8
 
 
 if [[ "$machine" == "chunky" ]]; then
@@ -158,7 +159,7 @@ cd $MAIN_DIR
     --unet_input_channels 16 \
     --unet_output_channels 3 \
     --unet_inputs 'lf, hf' \
-    --metrics_freq 1 \
+    --metrics_freq ${metrics_freq} \
     --metrics_root /video-conf/scratch/pantea/metrics_dataset \
     --skip_metrics False \
 
