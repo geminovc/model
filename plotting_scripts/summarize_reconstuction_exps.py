@@ -7,21 +7,25 @@ import pickle
 import os 
 import csv
 import pdb
-import argsparse
+import argparse
 
-parser.ArgumentParser("Data Summarizer")
+parser= argparse.ArgumentParser("Data Summarizer")
 parser.add_argument('--result-file-list',
         type=str,
         nargs='+',
-        help="list of result files to aggregate data into csv for")
+        help='list of result files to aggregate data into csv for')
 parser.add_argument('--experiment-name-list',
         type=str,
         nargs='+',
-        help="associated names for diff experiments when aggregating into csv")
+        help='associated names for diff experiments when aggregating into csv')
 parser.add_argument('--result-file-name',
         type=str,
         required=True,
-        help="name of csv file to write results out to")
+        help='name of csv file to write results out to')
+parser.add_argument('--window',
+        type=int,
+        default=10,
+        help='number of epochs to compute metrics over')
 args = parser.parse_args()
 window = args.window
 
@@ -55,7 +59,7 @@ def min_in_window (my_dict, key, window_size):
     return min(float_values) 
 
 # Load the pickle files one at a time and write to csv
-with open(args.result_file, 'w') as f:
+with open(args.result_file_name, 'w') as f:
     f.write("%s,%s,%s,%s,%s,%s,%s,%s,%s,%s\n"%('experiment_name','G_PSNR_min', 'G_PSNR_mean', 
             'G_PSNR_max', 'G_LPIPS_min','G_LPIPS_mean','G_LPIPS_max', 'G_PME_min', 'G_PME_mean','G_PME_max'))
     
