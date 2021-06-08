@@ -4,8 +4,10 @@ machine=$1
 experiment_name=$2
 dataset_name=$3
 num_epochs=$4
-augment_with_general=$5
-sample_general_dataset=$6
+test_freq=$5
+augment_with_general=$6
+sample_general_dataset=$7
+
 
 if [[ "$machine" == "chunky" ]]; then
     experiment_dir=/video-conf/scratch/pantea_experiments_chunky
@@ -27,8 +29,8 @@ cd $MAIN_DIR
     --experiment_name ${experiment_name} \
     --pretrained_weights_dir /video-conf/scratch/pantea \
     --augment_with_general ${augment_with_general} \
-    --images_log_rate 100 \
-    --metrics_log_rate 100 \
+    --images_log_rate 50 \
+    --metrics_log_rate 50 \
     --random_seed 0 \
     --save_dataset_filenames False \
     --dataset_load_from_txt False \
@@ -43,7 +45,7 @@ cd $MAIN_DIR
     --batch_size 2 \
     --bn_momentum 1.0 \
     --calc_stats \
-    --checkpoint_freq 100 \
+    --checkpoint_freq 50 \
     --data_root ${data_root} \
     --general_data_root /video-conf/scratch/pantea/temp_general_extracts \
     --dis_activation_type leakyrelu \
@@ -123,7 +125,6 @@ cd $MAIN_DIR
     --pse_input_tensor poses \
     --pse_num_blocks 4 \
     --pse_num_channels 256 \
-    --pse_use_harmonic_enc False \
     --runner_name default \
     --seg_loss_apply_to 'pred_target_segs_logits, target_segs' \
     --seg_loss_names BCE \
@@ -133,7 +134,7 @@ cd $MAIN_DIR
     --spn_networks 'identity_embedder, texture_generator, keypoints_embedder, inference_generator, discriminator' \
     --stats_calc_iters 500 \
     --stickmen_thickness 2 \
-    --test_freq 1 \
+    --test_freq ${test_freq} \
     --visual_freq '10' \
     --wpr_loss_apply_to pred_target_delta_uvs \
     --wpr_loss_decay_schedule '-1' \

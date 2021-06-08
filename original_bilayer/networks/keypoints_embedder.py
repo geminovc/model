@@ -130,8 +130,10 @@ class PoseEmbedder(nn.Module):
         norm_layer = utils.norm_layers[args.pse_norm_layer_type]
         activation = utils.activations[args.pse_activation_type]
 
-        print("Set args.pse_use_harmonic_enc = False, should be removed in later versions ...")
-        args.pse_use_harmonic_enc = False # I added this should be removed
+        if args.pse_use_harmonic_enc:
+            print("Set args.pse_use_harmonic_enc = False in the code!")
+            args.pse_use_harmonic_enc = False
+        
         # Set input number of channels
         if args.pse_use_harmonic_enc:
             in_channels = args.pse_in_channels * args.pse_num_harmonics * 2
