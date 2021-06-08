@@ -1,5 +1,5 @@
 #!/usr/bin/env Rscript
-# This script can be run using:
+# This script produces a bar plot of the different metrics
 # Usage: ./metrics_bar_plot.R metrics.csv original_bilayer_knobs
 # result: original_bilayer_knobs_metrics.pdf with all three plots
 
