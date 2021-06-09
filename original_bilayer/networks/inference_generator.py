@@ -34,10 +34,11 @@ class NetworkWrapper(nn.Module):
         parser.add('--inf_upsampling_type',      default='nearest', type=str,
                                                  help='upsampling layer inside the generator')
         
-        parser.add('--use_unet',          default='True', type=rn_utils.str2bool, choices=[True, False],
-                                                                 help='set to True to use unet')
+        parser.add('--use_unet',                 default='True', type=rn_utils.str2bool, choices=[True, False],
+                                                 help='set to True to use unet')
         
-        parser.add('--unet_inputs', default='hf', type=str, help='list of unet inputs as string : "hf, lf"') 
+        parser.add('--unet_inputs',              default='hf', type=str,
+                                                 help='list of unet inputs as string : "hf, lf"') 
         
         parser.add('--inf_skip_layer_type',      default='ada_conv', type=str,
                                                  help='skip connection layer type')
@@ -296,8 +297,7 @@ class NetworkWrapper(nn.Module):
         if self.args.inf_pred_segmentation:
             # Target segmentation
             target_segs = data_dict['target_segs']
-            print("changed * 3 to * 1!")
-            visuals += [torch.cat([(target_segs - 0.5) * 2] * 1, 1)]
+            visuals += [torch.cat([(target_segs - 0.5) * 2] * 3, 1)]
 
             # Predicted target segmentation
             pred_target_segs = data_dict['pred_target_segs']

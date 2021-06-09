@@ -13,8 +13,8 @@ from networks import utils as nt_utils
 class NetworkWrapper(nn.Module):
     @staticmethod
     def get_args(parser):
-        parser.add('--unet_input_channels', default = 16, type=int, help='unet input channels')
-        parser.add('--unet_output_channels', default = 3, type=int, help='unet output channels')
+        parser.add('--unet_input_channels',  default = 16, type=int, help='unet input channels')
+        parser.add('--unet_output_channels', default = 3,  type=int, help='unet output channels')
         args, _ = parser.parse_known_args()
     def __init__(self, args):
         super(NetworkWrapper, self).__init__()
