@@ -130,6 +130,7 @@ class PoseEmbedder(nn.Module):
         norm_layer = utils.norm_layers[args.pse_norm_layer_type]
         activation = utils.activations[args.pse_activation_type]
 
+        # We set pse_use_harmonic_enc to False because setting it to True caused us errors in running the code
         if args.pse_use_harmonic_enc:
             print("Set args.pse_use_harmonic_enc = False in the code!")
             args.pse_use_harmonic_enc = False
