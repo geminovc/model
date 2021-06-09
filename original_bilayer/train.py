@@ -43,6 +43,9 @@ class TrainingWrapper(object):
         parser.add('--dataset_name',            default='voxceleb2_512px', type=str,
                                                 help='name of the dataset in the data root folder')
 
+        parser.add('--frame_num_from_paper',    default='False', type=rn_utils.str2bool, choices=[True, False],
+                                                help='The random method to sample frame numbers for source and target from dataset')
+
         parser.add('--metrics_root',            default=".", type=str,
                                                 help='root directory of the metrics')
         
@@ -146,6 +149,7 @@ class TrainingWrapper(object):
         parser.add('--metrics',                 default='PSNR, lpips, pose_matching', type=str,
                                                 help='metrics to evaluate the model while training') 
 
+        # Saving and logging options
         parser.add('--psnr_loss_apply_to',      default='pred_target_delta_lf_rgbs , target_imgs', type=str,
                                                 help='psnr loss to apply') 
 
@@ -153,13 +157,13 @@ class TrainingWrapper(object):
                                                 help='logging rate for images') 
         
         parser.add('--metrics_log_rate',        default=2, type=int,
-                                                help='logging rate for metrics like PSNR') 
+                                                help='logging rate for metrics like PSNR')
+
+        parser.add('--save_initial_test_before_training',           default='True', type=rn_utils.str2bool, choices=[True, False],
+                                                                    help='save how he model performs on test before training, useful for sanity check') 
         
         parser.add('--nme_num_threads',         default=1, type=int,
                                                 help='logging rate for images')     
-                
-        parser.add('--frame_num_from_paper',    default='False', type=rn_utils.str2bool, choices=[True, False],
-                                                help='The random method to sample frame numbers for source and target from dataset')
         
         parser.add('--dataset_load_from_txt',   default='False', type=rn_utils.str2bool, choices=[True, False],
                                                 help='If True, the train is loaded from train_load_from_filename, the test is loaded from test_load_from_filename. If false, the data is loaded from data-root')
@@ -172,15 +176,13 @@ class TrainingWrapper(object):
 
         parser.add('--test_load_from_filename', default='test_filnames.txt', type=str,
                                                 help='filename that we read the testing dataset images from if dataset_load_from_txt==True')  
-        
+
+        # Freezing options        
         parser.add('--frozen_networks',         default='', type=str,
                                                 help='list of frozen networks')
 
         parser.add('--networks_to_train',       default='identity_embedder, texture_generator, keypoints_embedder, inference_generator, discriminator' , type=str,
                                                 help='networks that are being trained')
-
-        parser.add('--replace_Gtex_output_with_trainable_tensor',   default='False', type=rn_utils.str2bool, choices=[True, False],
-                                                                    help='set to true if you want to replace all of G_tex with a tensor')
 
         parser.add('--unfreeze_texture_generator_last_layers',      default='True', type=rn_utils.str2bool, choices=[True, False],
                                                                     help='set to false if you want to freeze the last layers (after up samlping blocks) in the texture generator')
@@ -188,19 +190,22 @@ class TrainingWrapper(object):
         parser.add('--unfreeze_inference_generator_last_layers',    default='False', type=rn_utils.str2bool, choices=[True, False],
                                                                     help='set to false if you want to freeze the last layers (after up samlping blocks) in the inference generator')
 
-        parser.add('--save_initial_test_before_training',           default='True', type=rn_utils.str2bool, choices=[True, False],
-                                                                    help='save how he model performs on test before training, useful for sanity check')
-
-        parser.add('--augment_with_general',                        default='False', type=rn_utils.str2bool, choices=[True, False],
-                                                                    help='gradually increase the weight of general dataset while training the per_person dataset')
-
+        # Structure change options
         parser.add('--replace_source_specific_with_trainable_tensors',  default='False', type=rn_utils.str2bool, choices=[True, False],
                                                                         help='set to true if you want to replace all source-specific modules with a tensor')
+                                                                        
+        parser.add('--replace_Gtex_output_with_trainable_tensor',   default='False', type=rn_utils.str2bool, choices=[True, False],
+                                                                    help='set to true if you want to replace all of G_tex with a tensor')
+        
+        # Augentation opions
+        parser.add('--sample_general_dataset',                      default='False', type=rn_utils.str2bool, choices=[True, False],
+                                                                    help='set to true if you want to take smaller number of data in general dataset')
 
-        parser.add('--sample_general_dataset',                       default='False', type=rn_utils.str2bool, choices=[True, False],
-                                                                     help='set to true if you want to take smaller number of data in general dataset')
+        parser.add('--augment_with_general',                        default='False', type=rn_utils.str2bool, choices=[True, False],
+                                                                    help='augment the personal dataset with general dataset while training the per_person dataset')
 
-
+        parser.add('--augment_with_general_ratio',                  default=0.5, type=float,
+                                                                    help='augmentation ratio for augmenting the personal dataset with general dataset while training')
                              
 
 
@@ -396,7 +401,7 @@ class TrainingWrapper(object):
         if args.augment_with_general and args.data_root != args.general_data_root:
             print("getting the per_person dataset")
             personal_train_dataloader = ds_utils.get_dataloader(args, 'train')
-            self.gen_to_per_ratio = 1
+            self.augment_with_general_ratio = args.augment_with_general_ratio
             self.real_data_root = args.data_root
             args.data_root = args.general_data_root
             print("getting the general dataset")
@@ -520,9 +525,8 @@ class TrainingWrapper(object):
             time_start = time.time()
             if args.augment_with_general and args.data_root!=args.general_data_root:
                 prob = random.uniform(0, 1)
-                self.gen_to_per_ratio = (args.num_epochs-epoch)/(args.num_epochs-epoch_start)
-                self.test_freq = 5
-                if prob < self.gen_to_per_ratio:
+                #self.gen_to_per_ratio = (args.num_epochs-epoch)/(args.num_epochs-epoch_start)
+                if prob < self.augment_with_general_ratio:
                     print("selecting from the general dataset ...")
                     train_dataloader = general_train_dataloader
                 else:

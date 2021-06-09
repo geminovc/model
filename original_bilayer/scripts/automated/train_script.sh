@@ -11,7 +11,8 @@ test_freq=${7}
 metrics_freq=${8}
 augment_with_general=${9}
 sample_general_dataset=${10}
-inf_apply_masks=${11}
+augment_with_general_ratio=${11}
+inf_apply_masks=${12}
 
 
 # Depending on the machine you run the code from, the directory to save experiments is different due to write access
@@ -49,7 +50,6 @@ cd $MAIN_DIR/
 python train.py \
     --experiment_name ${experiment_name} \
     --pretrained_weights_dir /video-conf/scratch/pantea \
-    --augment_with_general ${augment_with_general} \
     --images_log_rate 50 \
     --metrics_log_rate 50 \
     --random_seed 0 \
@@ -170,7 +170,9 @@ python train.py \
     --replace_AdaSpade_with_conv False \
     --replace_Gtex_output_with_trainable_tensor False \
     --replace_source_specific_with_trainable_tensors False \
+    --augment_with_general ${augment_with_general} \
     --sample_general_dataset ${sample_general_dataset} \
+    --augment_with_general_ratio ${augment_with_general_ratio} \
     --texture_output_dim 3 \
     --use_unet False \
     --unet_input_channels 16 \
