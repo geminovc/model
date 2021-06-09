@@ -1,8 +1,16 @@
-# training from released checkpoints
-./train_from_paper_checkpoints.sh  "chunky" "No_frozen_with_metrics" "per_person" 7000 10 5 False False
+# MAIN_DIR=../..
+# machine=${1}
+# experiment_name=${2}
+# initialization=${3}
+# dataset_name=${4}
+# batch_size=${5}
+# num_epochs=${6}
+# test_freq=${7}
+# metrics_freq=${8}
+# augment_with_general=${9}
+# sample_general_dataset=${10}
+# inf_apply_masks=${11}
 
-# training from base
-./train_from_base.sh  "chunky" "base_with_metrics" "per_person" 7000 10 5 False False
 
-# debugging
-./train_from_paper_checkpoints.sh  "chunky" "debug" "per_person" 7000 1 1 False False
+#
+CUDA_VISIBLE_DEVICES=2 ./train_from_paper_checkpoints.sh  "chunky" "debug_dd" "from_base" "per_person" 2 7000 1 1 False False False

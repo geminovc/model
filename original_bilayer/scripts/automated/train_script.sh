@@ -1,22 +1,27 @@
+# Variables from the user
 #MAIN_DIR="${HOME}/NETS/nets_implementation/original_bilayer"
-MAIN_DIR=../../
-machine=$1
-experiment_name=$2
-dataset_name=$3
-num_epochs=$4
-test_freq=$5
-metrics_freq=$6
-augment_with_general=$7
-sample_general_dataset=$8
+MAIN_DIR=../..
+machine=${1}
+experiment_name=${2}
+initialization=${3}
+dataset_name=${4}
+batch_size=${5}
+num_epochs=${6}
+test_freq=${7}
+metrics_freq=${8}
+augment_with_general=${9}
+sample_general_dataset=${10}
+inf_apply_masks=${11}
 
 
+# Depending on the machine you run the code from, the directory to save experiments is different due to write access
 if [[ "$machine" == "chunky" ]]; then
-    experiment_dir=/video-conf/scratch/pantea_experiments_chunky
+    experiment_dir=/video-conf/scratch/pantea_experiments_chunky/${dataset_name}/${initialization}
 elif [[ "$machine" == "mapmaker" ]]; then
-    experiment_dir=/video-conf/scratch/pantea_experiments_mapmaker
+    experiment_dir=/video-conf/scratch/pantea_experiments_mapmaker/${dataset_name}/${initialization}
 fi 
 
-
+# The dataset options for experiment
 if [[ "$dataset_name" == "general" ]]; then
     data_root=/video-conf/scratch/pantea/temp_general_extracts
 elif [[ "$dataset_name" == "per_person" ]]; then
@@ -25,8 +30,23 @@ elif [[ "$dataset_name" == "per_video" ]]; then
     data_root=/video-conf/scratch/pantea/temp_per_video_extracts
 fi 
 
-cd $MAIN_DIR
-     python  train.py \
+
+# Add initialization options
+if [[ "$initialization" == "from_base" ]]; then
+    init_networks=' '
+    init_experiment_dir='.'
+    init_which_epoch='none'
+
+elif [[ "$initialization" == "from_paper" ]]; then
+    init_networks='identity_embedder, texture_generator, keypoints_embedder, inference_generator, discriminator'
+    init_experiment_dir=/video-conf/scratch/pantea/bilayer_paper_released/runs/vc2-hq_adrianb_paper_main
+    init_which_epoch=2225
+
+fi
+
+cd $MAIN_DIR/
+
+python train.py \
     --experiment_name ${experiment_name} \
     --pretrained_weights_dir /video-conf/scratch/pantea \
     --augment_with_general ${augment_with_general} \
@@ -35,15 +55,15 @@ cd $MAIN_DIR
     --random_seed 0 \
     --save_dataset_filenames False \
     --dataset_load_from_txt False \
-    --train_load_from_filename . \
-    --test_load_from_filename . \
+    --train_load_from_filename ${MAIN_DIR}/train_filenames.txt \
+    --test_load_from_filename ${MAIN_DIR}/test_filenames.txt \
     --adam_beta1 0.5 \
     --adv_loss_weight 0.5 \
     --adv_pred_type ragan \
     --amp_loss_scale dynamic \
     --experiment_dir ${experiment_dir} \
     --amp_opt_level  O0 \
-    --batch_size 2 \
+    --batch_size ${batch_size} \
     --bn_momentum 1.0 \
     --calc_stats \
     --checkpoint_freq 50 \
@@ -71,7 +91,7 @@ cd $MAIN_DIR
     --folder_postfix '2d_crop' \
     --frame_num_from_paper False \
     --inf_activation_type leakyrelu \
-    --inf_apply_masks False \
+    --inf_apply_masks ${inf_apply_masks} \
     --inf_max_channels 256 \
     --inf_norm_layer_type ada_bn \
     --inf_num_channels 32 \
@@ -80,6 +100,7 @@ cd $MAIN_DIR
     --inf_pred_source_data False \
     --inf_skip_layer_type ada_conv \
     --inf_upsampling_type nearest \
+    --inf_calc_grad True \
     --tex_max_channels 512 \
     --tex_norm_layer_type ada_spade_bn \
     --tex_num_channels 64 \
@@ -89,7 +110,7 @@ cd $MAIN_DIR
     --tex_upsampling_type nearest \
     --tex_activation_type leakyrelu \
     --image_size 256 \
-    --losses_test 'PSNR, lpips, pose_matching, csim, ssim, pixelwise' \
+    --losses_test 'PSNR, lpips, csim, ssim' \
     --metrics 'PSNR, lpips, pose_matching, csim, ssim' \
     --psnr_loss_apply_to 'pred_target_imgs, target_imgs'  \
     --losses_train 'adversarial, feature_matching, perceptual, pixelwise, warping_regularizer, segmentation'  \
@@ -97,7 +118,6 @@ cd $MAIN_DIR
     --networks_calc_stats 'identity_embedder, texture_generator, keypoints_embedder, inference_generator' \
     --networks_test 'identity_embedder, texture_generator, keypoints_embedder, inference_generator' \
     --networks_train 'identity_embedder, texture_generator, keypoints_embedder, inference_generator, discriminator' \
-    --inf_calc_grad True \
     --num_epochs ${num_epochs} \
     --num_gpus 1 \
     --num_keypoints 68 \
@@ -136,16 +156,13 @@ cd $MAIN_DIR
     --stats_calc_iters 500 \
     --stickmen_thickness 2 \
     --test_freq ${test_freq} \
-    --visual_freq '10' \
+    --visual_freq 10 \
     --wpr_loss_apply_to pred_target_delta_uvs \
     --wpr_loss_decay_schedule '-1' \
     --wpr_loss_type l1 \
     --wpr_loss_weight 0.1 \
     --wpr_loss_weight_decay 1.0 \
     --nme_num_threads 1  \
-    --init_experiment_dir /video-conf/scratch/pantea/bilayer_paper_released/runs/vc2-hq_adrianb_paper_main \
-    --init_networks 'identity_embedder, texture_generator, keypoints_embedder, inference_generator, discriminator' \
-    --init_which_epoch 2225 \
     --skip_test False \
     --frozen_networks ' ' \
     --unfreeze_texture_generator_last_layers True \
@@ -162,5 +179,11 @@ cd $MAIN_DIR
     --metrics_freq ${metrics_freq} \
     --metrics_root /video-conf/scratch/pantea/metrics_dataset \
     --skip_metrics False \
+    --init_experiment_dir ${init_experiment_dir} \
+    --init_networks 'identity_embedder, texture_generator, keypoints_embedder, inference_generator, discriminator' \
+    --init_which_epoch ${init_which_epoch} \
 
+
+
+   
    
