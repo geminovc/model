@@ -55,8 +55,6 @@ python train.py \
     --random_seed 0 \
     --save_dataset_filenames False \
     --dataset_load_from_txt False \
-    --train_load_from_filename ${MAIN_DIR}/train_filenames.txt \
-    --test_load_from_filename ${MAIN_DIR}/test_filenames.txt \
     --adam_beta1 0.5 \
     --adv_loss_weight 0.5 \
     --adv_pred_type ragan \
