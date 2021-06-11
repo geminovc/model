@@ -282,7 +282,10 @@ class TrainingWrapper(object):
 
         if args.init_which_epoch != 'none' and args.init_experiment_dir:
             for net_name in init_networks:
-                self.runner.nets[net_name].load_state_dict(torch.load(pathlib.Path(args.init_experiment_dir) / 'checkpoints' / f'{args.init_which_epoch}_{net_name}.pth', map_location='cpu'))    
+                try:
+                    self.runner.nets[net_name].load_state_dict(torch.load(pathlib.Path(args.init_experiment_dir) / 'checkpoints' / f'{args.init_which_epoch}_{net_name}.pth', map_location='cpu'))    
+                except:
+                    pass # For the texture generator with a different shape case
                 if net_name in frozen_networks: #dictionary
                     for p in self.runner.nets[net_name].parameters():
                         p.requires_grad = False
