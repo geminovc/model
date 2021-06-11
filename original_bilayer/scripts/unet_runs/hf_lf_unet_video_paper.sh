@@ -1,6 +1,6 @@
-cd ../
+cd ../../
 python train.py \
-    --experiment_name 'per_person_hf_unet' \
+    --experiment_name 'per_video_hf_lf_unet' \
     --augmentation_by_general False \
     --save_initial_test_before_training False \
     --images_log_rate 100 \
@@ -20,7 +20,7 @@ python train.py \
     --bn_momentum 1.0 \
     --calc_stats \
     --checkpoint_freq 25 \
-    --data_root /data/vision/billf/video-conf/scratch/pantea/video_conf_datasets/per_person_dataset \
+    --data_root /data/vision/billf/video-conf/scratch/pantea/video_conf_datasets/per_video_dataset \
     --dis_activation_type leakyrelu \
     --dis_downsampling_type avgpool \
     --dis_max_channels 512 \
@@ -41,7 +41,7 @@ python train.py \
     --fem_loss_weight 10.0 \
     --folder_postfix '2d_crop' \
     --inf_activation_type leakyrelu \
-    --inf_apply_masks True \
+    --inf_apply_masks False \
     --inf_calc_grad False \
     --inf_max_channels 256 \
     --inf_norm_layer_type ada_bn \
@@ -62,7 +62,7 @@ python train.py \
     --image_size 256 \
     --metrics 'lpips, PSNR, ssim'\
     --losses_test '' \
-    --losses_train 'adversarial, feature_matching, perceptual    , pixelwise, segmentation, warping_regularizer' \
+    --losses_train 'adversarial, feature_matching, perceptual, pixelwise, segmentation, warping_regularizer' \
     --lrs 'identity_embedder: 2e-4, texture_generator: 2e-4, keypoints_embedder: 2e-4, inference_generator: 2e-4, unet: 2e-4, discriminator: 2e-4'  \
     --networks_calc_stats 'identity_embedder, texture_generator, keypoints_embedder, inference_generator, unet' \
     --networks_test 'identity_embedder, texture_generator, keypoints_embedder, inference_generator, unet' \
@@ -110,20 +110,23 @@ python train.py \
     --stats_calc_iters 500 \
     --stickmen_thickness 2 \
     --metrics_freq 10 \
-    --texture_output_dim 16 \
+    --texture_output_dim 16\
     --use_unet True \
-    --unet_input_channels 16\
+    --unet_input_channels 19\
     --unet_output_channels 3 \
-    --unet_inputs 'hf' \
+    --unet_inputs 'lf, hf' \
     --visual_freq '-1' \
     --wpr_loss_apply_to pred_target_delta_uvs \
     --wpr_loss_decay_schedule '-1' \
     --wpr_loss_type l1 \
     --wpr_loss_weight 1.0 \
     --wpr_loss_weight_decay 1.0 \
-    --skip_test True \
+    --skip_test False \
     --skip_metrics False \
-    --metrics_root /data/vision/billf/video-conf/scratch/vedantha/metrics_dataset \
+    --init_experiment_dir /data/vision/billf/video-conf/scratch/pantea/bilayer_paper_released/runs/vc2-hq_adrianb_paper_main \
+    --init_networks 'identity_embedder, texture_generator, keypoints_embedder, inference_generator, discriminator' \
+    --init_which_epoch 2225 \
+    --metrics_root /data/vision/billf/video-conf/scratch/pantea/metrics_dataset \
     --skip_test True \
     --skip_metrics False \
     --replace_Gtex_output_with_trainable_tensor False \

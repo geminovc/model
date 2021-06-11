@@ -1,6 +1,6 @@
-cd ../
+cd ../../
 python train.py \
-    --experiment_name 'per_person_hf_lf_unet' \
+    --experiment_name 'per_video_hf_lf_unet' \
     --augmentation_by_general False \
     --save_initial_test_before_training False \
     --images_log_rate 100 \
@@ -20,7 +20,7 @@ python train.py \
     --bn_momentum 1.0 \
     --calc_stats \
     --checkpoint_freq 25 \
-    --data_root /data/vision/billf/video-conf/scratch/pantea/video_conf_datasets/per_person_dataset \
+    --data_root /data/vision/billf/video-conf/scratch/pantea/video_conf_datasets/per_video_dataset \
     --dis_activation_type leakyrelu \
     --dis_downsampling_type avgpool \
     --dis_max_channels 512 \
@@ -123,7 +123,7 @@ python train.py \
     --wpr_loss_weight_decay 1.0 \
     --skip_test False \
     --skip_metrics False \
-    --metrics_root /data/vision/billf/video-conf/scratch/vedantha/metrics_dataset \
+    --metrics_root /data/vision/billf/video-conf/scratch/pantea/metrics_dataset \
     --skip_test True \
     --skip_metrics False \
     --replace_Gtex_output_with_trainable_tensor False \
