@@ -64,12 +64,14 @@ def min_in_window (my_dict, key, window_size):
 
 # Load the pickle files one at a time and write to csv
 with open(args.result_file_name, 'w') as f:
-    f.write("%s,%s,%s,%s,%s,%s,%s,%s,%s,%s\n"%('experiment_name','G_PSNR_min', 'G_PSNR_mean', 
-            'G_PSNR_max', 'G_LPIPS_min','G_LPIPS_mean','G_LPIPS_max', 'G_PME_min', 'G_PME_mean','G_PME_max'))
+    f.write("%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s\n"%('experiment_name','G_PSNR_min', 'G_PSNR_mean', 
+            'G_PSNR_max', 'G_LPIPS_min','G_LPIPS_mean','G_LPIPS_max', 'G_PME_min', 'G_PME_mean','G_PME_max',
+            'G_CSIM_min','G_CSIM_mean','G_CSIM_max','G_SSIM_min','G_SSIM_mean','G_SSIM_max'))
     
     for experiment_name, result_file in zip(args.experiment_name_list, args.result_file_list):
         experiment_data = load_pickle(result_file)
-        f.write("%s,%s,%s,%s,%s,%s,%s,%s,%s,%s\n" % (experiment_name, min_in_window (experiment_data, 'G_PSNR', window),
+        f.write("%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s\n" % (experiment_name, \
+                                                  min_in_window (experiment_data, 'G_PSNR', window),
                                                   average (experiment_data, 'G_PSNR', window),
                                                   max_in_window (experiment_data, 'G_PSNR', window),
                                                   min_in_window (experiment_data, 'G_LPIPS', window),
@@ -78,6 +80,12 @@ with open(args.result_file_name, 'w') as f:
                                                   min_in_window (experiment_data, 'G_PME', window),
                                                   average (experiment_data, 'G_PME', window),
                                                   max_in_window (experiment_data, 'G_PME', window),
+                                                  min_in_window (experiment_data, 'G_CSIM', window),
+                                                  average (experiment_data, 'G_CSIM', window),
+                                                  max_in_window (experiment_data, 'G_CSIM', window),
+                                                  min_in_window (experiment_data, 'G_SSIM', window),
+                                                  average (experiment_data, 'G_SSIM', window),
+                                                  max_in_window (experiment_data, 'G_SSIM', window),
                                                   ))
 
 print('Saving to file Successfully done!')
