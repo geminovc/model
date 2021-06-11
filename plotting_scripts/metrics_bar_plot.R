@@ -16,14 +16,14 @@ file <- args[1]
 plot_filename <- args[2]
 data<-read.csv(file)
 data$experiment_name <- factor(data$experiment_name, 
-                               levels=c("G_inf", "No_frozen"), 
-                               labels=c("Inference\ntraining", "End-to-end\ntraining"))
+                               levels=c("augment_0.5", "augment_0.3", "augment_0.2", "augment_0.1"), 
+                               labels=c("0.5", "0.3", "0.2", "0.1"))
 
 psnr_plot <- ggplot(data, aes(x=experiment_name,y=G_PSNR_mean,fill=experiment_name)) + 
         geom_bar(stat="identity", width=0.5) + 
         geom_errorbar(aes(ymin=G_PSNR_min, ymax=G_PSNR_max), width=0.2) +
 
-        labs(x="Scheme", y="PSNR (dB)") +
+        labs(x="Augmentation", y="PSNR (dB)") +
         
         theme_minimal(base_size=15) +
         theme(axis.text.x=element_text(size=rel(1.0)), axis.text.y=element_text(size=rel(1.0))) +
@@ -37,7 +37,7 @@ lpips_plot <- ggplot(data, aes(x=experiment_name,y=G_LPIPS_mean,fill=experiment_
         geom_bar(stat="identity", width=0.5) + 
         geom_errorbar(aes(ymin=G_LPIPS_min, ymax=G_LPIPS_max), width=0.2) +
 
-        labs(x="Scheme", y="LPIPS") +
+        labs(x="Augmentation", y="LPIPS") +
         
         theme_minimal(base_size=15) +
         theme(axis.text.x=element_text(size=rel(1.0)), axis.text.y=element_text(size=rel(1.0))) +
@@ -51,7 +51,7 @@ pme_plot <- ggplot(data, aes(x=experiment_name,y=G_PME_mean,fill=experiment_name
         geom_bar(stat="identity", width=0.5) + 
         geom_errorbar(aes(ymin=G_PME_min, ymax=G_PME_max), width=0.2) +
 
-        labs(x="Scheme", y="PME") +
+        labs(x="Augmentation", y="PME") +
         
         theme_minimal(base_size=15) +
         theme(axis.text.x=element_text(size=rel(1.0)), axis.text.y=element_text(size=rel(1.0))) +
@@ -65,7 +65,7 @@ csim_plot <- ggplot(data, aes(x=experiment_name,y=G_CSIM_mean,fill=experiment_na
         geom_bar(stat="identity", width=0.5) + 
         geom_errorbar(aes(ymin=G_CSIM_min, ymax=G_CSIM_max), width=0.2) +
 
-        labs(x="Scheme", y="CSIM") +
+        labs(x="Augmentation", y="CSIM") +
         
         theme_minimal(base_size=15) +
         theme(axis.text.x=element_text(size=rel(1.0)), axis.text.y=element_text(size=rel(1.0))) +
@@ -79,7 +79,7 @@ ssim_plot <- ggplot(data, aes(x=experiment_name,y=G_SSIM_mean,fill=experiment_na
         geom_bar(stat="identity", width=0.5) + 
         geom_errorbar(aes(ymin=G_SSIM_min, ymax=G_SSIM_max), width=0.2) +
 
-        labs(x="Scheme", y="SSIM") +
+        labs(x="Augmentation", y="SSIM") +
         
         theme_minimal(base_size=15) +
         theme(axis.text.x=element_text(size=rel(1.0)), axis.text.y=element_text(size=rel(1.0))) +
