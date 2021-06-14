@@ -261,6 +261,9 @@ class DatasetWrapper(data.Dataset):
             keypoints = keypoints[:, :2]
             update_seg = torch.ones(1,256,256)
             if self.args.cutoff_shirt:
+                # Cuts off everything below the bottom most keypoint. 
+                # When combined with the segmentation mask which cuts off all the background, this
+                # leaves only the face part remaining in the image
                 update_seg[:,boundary:, :] = 0
             poses += [torch.from_numpy(keypoints.reshape(-1))]
 
