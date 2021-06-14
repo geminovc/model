@@ -31,32 +31,42 @@ class NetworkWrapper(nn.Module):
         pred_target_imgs =  self.unet(data_dict['unet_input'], data_dict) 
         pred_target_delta_lf_rgbs_detached = self.unet(data_dict['lf_detached_inputs'], data_dict) 
         target_pose_embeds = data_dict['target_pose_embeds']
+
+        # Needed to reshape the outputs
         b, t = target_pose_embeds.shape[:2]
         reshape_target_data = lambda data: data.view(b, t, *data.shape[1:])
+
+        # If we are going to apply masks to focus on the foreground or the face
         if self.args.inf_apply_masks and self.args.inf_pred_segmentation:
             # Predicted segmentation masks are applied to target images
             target_imgs = data_dict['target_imgs']
             pred_target_segs = data_dict['pred_target_segs']
             pred_target_masks = pred_target_segs.detach()
+
+            # Apply masks to target imgs
             target_imgs = target_imgs * pred_target_masks + (-1) * (1 - pred_target_masks)
 
+            # Apply masks to predicted version of target images
             pred_target_imgs = pred_target_imgs * pred_target_masks + (-1) * (1 - pred_target_masks)
 
+            # Apply masks to the hf-only version of target imgs
             pred_target_delta_lf_rgbs_detached = pred_target_delta_lf_rgbs_detached * pred_target_masks + (-1) * (1 - pred_target_masks)
 
+            # Save the results (no reshaping needed because target images are already reshaped)
             data_dict['target_imgs'] = target_imgs
-        output_mean = torch.mean(pred_target_imgs, dim=(0,1, 3, 4))
+
+        # Shift the mean of the output images to match the target
+        output_mean = torch.mean(pred_target_imgs, dim=(0, 1, 3, 4))
         target_mean = torch.mean(target_imgs, dim=(0, 1, 3, 4))
-        pred_target_imgs = pred_target_imgs - output_mean.view(1,1, 3, 1, 1) + target_mean.view(1, 1,3, 1, 1)      
+        pred_target_imgs = pred_target_imgs - output_mean.view(1, 1, 3, 1, 1) + target_mean.view(1, 1,3, 1, 1)      
         output_mean_d = torch.mean(pred_target_delta_lf_rgbs_detached, dim=(0,1, 3, 4))
-        pred_target_delta_lf_rgbs_detached = pred_target_delta_lf_rgbs_detached - output_mean_d.view(1,1, 3, 1, 1) + target_mean.view(1, 1,3, 1, 1)      
-        # Information we need:        
-        # Final images but with only the low frequency componenets
-        # Done in inference generator because it makes more sense there.
+        pred_target_delta_lf_rgbs_detached = pred_target_delta_lf_rgbs_detached - output_mean_d.view(1, 1, 3, 1, 1) + target_mean.view(1, 1, 3, 1, 1)      
+        
+        # Save the resulting images
         data_dict['pred_target_imgs'] = pred_target_imgs
         data_dict['unet_input'] = reshape_target_data(data_dict['unet_input'])
-
         data_dict['pred_target_imgs_lf_detached'] = pred_target_delta_lf_rgbs_detached
+
         return data_dict
     
     @torch.no_grad()
