@@ -1,3 +1,8 @@
+# Code to run the unet trials from thousandeyes
+
+# Look at the unet_experiments.sh file and run one of the commands there.
+# It'll call this file
+
 # Variables from the user
 #MAIN_DIR="${HOME}/NETS/nets_implementation/original_bilayer"
 MAIN_DIR=../../
@@ -10,7 +15,7 @@ num_epochs=${6}
 test_freq=${7}
 metrics_freq=${8}
 inf_apply_masks=${9}
-if [[ "$use_unet" == "True"]]; then
+if [[ $use_unet]]; then
     unet_inputs=${10}
     unet_input_channels=${11}
 elif [[ "$use_unet" == "False"]]; then
@@ -35,7 +40,11 @@ if [[ "$initialization" == "from_base" ]]; then
     init_which_epoch='none'
 
 elif [[ "$initialization" == "from_paper" ]]; then
-    init_networks='identity_embedder, texture_generator, keypoints_embedder, inference_generator, discriminator'
+    if [[ $use_unet]];then
+        init_networks='identity_embedder, keypoints_embedder, inference_generator, discriminator'
+    else; then
+        init_networks='identity_embedder, texture_generator, keypoints_embedder, inference_generator, discriminator'
+    fi
     init_experiment_dir=/data/vision/billf/video-conf/scratch/pantea/bilayer_paper_released/runs/vc2-hq_adrianb_paper_main
     init_which_epoch=2225
 
