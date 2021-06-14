@@ -1,6 +1,8 @@
 import os
 import sys
-
+# Sets up the vox celeb folder structure for metrics
+# Pass in the root directory as the first argument and then it should create
+# root -> imgs/keypoints/segs -> metrics -> general/per_person/... -> clip -> frame
 if __name__ == '__main__':
     metrics_dir = sys.argv[1]
     types = ['imgs', 'keypoints', 'segs']
