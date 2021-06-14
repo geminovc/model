@@ -1,10 +1,10 @@
-# Code to run the unet trials from thousandeyes
+# Code to run the unet trials from thousandeyes machines
+# If running on chunky or mapmaker you need to remove all the /data/vision/billf
 
 # Look at the unet_experiments.sh file and run one of the commands there.
 # It'll call this file
 
 # Variables from the user
-#MAIN_DIR="${HOME}/NETS/nets_implementation/original_bilayer"
 MAIN_DIR=../../
 use_unet=${1}
 experiment_name=${2}
