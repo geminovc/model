@@ -15,10 +15,10 @@ num_epochs=${6}
 test_freq=${7}
 metrics_freq=${8}
 inf_apply_masks=${9}
-if [[ $use_unet]]; then
+if [[ "$use_unet" == "True" ]]; then
     unet_inputs=${10}
     unet_input_channels=${11}
-elif [[ "$use_unet" == "False"]]; then
+elif [[ "$use_unet" == "False" ]]; then
     unet_inputs="hf"
     unet_input_channels="16"
 fi
@@ -35,14 +35,14 @@ fi
 
 # Add initialization options
 if [[ "$initialization" == "from_base" ]]; then
-    init_networks=' '
+    init_networks=''
     init_experiment_dir='.'
     init_which_epoch='none'
 
 elif [[ "$initialization" == "from_paper" ]]; then
-    if [[ $use_unet]];then
+    if [[ "$use_unet" == "True" ]];then
         init_networks='identity_embedder, keypoints_embedder, inference_generator, discriminator'
-    else; then
+    else
         init_networks='identity_embedder, texture_generator, keypoints_embedder, inference_generator, discriminator'
     fi
     init_experiment_dir=/data/vision/billf/video-conf/scratch/pantea/bilayer_paper_released/runs/vc2-hq_adrianb_paper_main
@@ -184,5 +184,5 @@ python train.py \
     --metrics_root /data/vision/billf/video-conf/scratch/pantea/metrics_dataset \
     --skip_metrics False \
     --init_experiment_dir ${init_experiment_dir} \
-    --init_networks ${init_networks} \
+    --init_networks "$init_networks" \
     --init_which_epoch ${init_which_epoch} \

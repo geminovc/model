@@ -10,13 +10,13 @@
 ./unet_run_script.sh False "no_unet_from_paper" "from_paper" "per_person" 2 10000 10 10 True
 
 # Now the hf input unet from base
-./unet_run_script.sh False "hf_unet_from_base" "from_base" "per_person" 2 10000 10 10 True 16 "hf"
+./unet_run_script.sh True "hf_unet_from_base" "from_base" "per_person" 2 10000 10 10 True 16 "hf"
 
 # Hf input unet from paper
-./unet_run_script.sh False "hf_unet_from_paper" "from_paper" "per_person" 2 10000 10 10 True 16 "hf"
+./unet_run_script.sh True "hf_unet_from_paper" "from_paper" "per_person" 2 10000 10 10 True 16 "hf"
 
 # Now the hf and lf input unet from base
-./unet_run_script.sh False "hf_lf_unet_from_base" "from_base" "per_person" 2 10000 10 10 True 16 "hf, lf"
+./unet_run_script.sh True "hf_lf_unet_from_base" "from_base" "per_person" 2 10000 10 10 True 16 "hf, lf"
 
 # Hf and lf input unet from paper
-./unet_run_script.sh False "hf_lf_unet_from_paper" "from_paper" "per_person" 2 10000 10 10 True 16 "hf, lf"
+./unet_run_script.sh True "hf_lf_unet_from_paper" "from_paper" "per_person" 2 10000 10 10 True 16 "hf, lf"
