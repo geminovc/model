@@ -13,7 +13,7 @@ augment_with_general=${9}
 sample_general_dataset=${10}
 augment_with_general_ratio=${11}
 inf_apply_masks=${12}
-
+use_dropout=${13}
 
 # Depending on the machine you run the code from, the directory to save experiments is different due to write access
 if [[ "$machine" == "chunky" ]]; then
@@ -182,6 +182,7 @@ python train.py \
     --init_experiment_dir ${init_experiment_dir} \
     --init_networks 'identity_embedder, texture_generator, keypoints_embedder, inference_generator, discriminator' \
     --init_which_epoch ${init_which_epoch} \
+    --use_dropout ${use_dropout} \
 
 
 

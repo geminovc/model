@@ -211,8 +211,8 @@ class TrainingWrapper(object):
         parser.add('--use_dropout',                                     default='False', type=rn_utils.str2bool, choices=[True, False],
                                                                         help='use dropout in the convolutional layers')
 
-        parser.add('--dropout_rate',                                    default=0.5, type=float,
-                                                                        help='the rate of dropout in convolutional layers')
+        parser.add('--dropout_networks',                                default='texture_generator: 0.5' ,
+                                                                        help='networks to use dropout in: the dropout rate')
            
 
         # Technical options that are set automatically
