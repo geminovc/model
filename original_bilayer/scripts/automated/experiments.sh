@@ -24,3 +24,6 @@ CUDA_VISIBLE_DEVICES=2 ./train_script.sh  "chunky" "dropout_G_tex_0.5"  "from_pa
 
 # Debugging experiment
 CUDA_VISIBLE_DEVICES=2 ./train_script.sh  "chunky" "debug" "from_base" "per_person" 2 7000 1 1 False False 0.1 False False
+
+# Dropout experiment 
+CUDA_VISIBLE_DEVICES=2 ./train_script.sh  "chunky" "debug" "from_base" "per_person" 2 7000 1 1 False False 0.1 False True 'texture_generator: 0.5'

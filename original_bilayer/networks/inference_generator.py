@@ -384,6 +384,12 @@ class Generator(nn.Module):
         layers += [
             norm_layer(out_channels, spatial_size=1, eps=args.eps),
             activation(inplace=True)]
+        
+        # Drop out layer before the final conv. layer
+        nets_dropout = rn_utils.parse_str_to_dict(args.dropout_networks, value_type=float)
+        if args.use_dropout and 'inference_generator' in nets_dropout.keys():
+            dropout_rate = nets_dropout['inference_generator']
+            layers += [nn.Dropout(p=dropout_rate, inplace=False)]
 
         self.blocks = nn.Sequential(*layers)
 

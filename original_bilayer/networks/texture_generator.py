@@ -212,8 +212,8 @@ class Generator(nn.Module):
             activation(inplace=True)]
         
         # Drop out layer before the final conv. layer
-        if args.use_dropout:
-            nets_dropout = rn_utils.parse_str_to_dict(args.dropout_networks, value_type=float)
+        nets_dropout = rn_utils.parse_str_to_dict(args.dropout_networks, value_type=float)
+        if args.use_dropout and 'texture_generator' in nets_dropout.keys():
             dropout_rate = nets_dropout['texture_generator']
             layers += [nn.Dropout(p=dropout_rate, inplace=False)]
 

@@ -15,6 +15,16 @@ augment_with_general_ratio=${11}
 inf_apply_masks=${12}
 use_dropout=${13}
 
+# Must be the last variable or remove it from user input and put default 
+dropout_networks=${14}
+
+
+if [ -z "$dropout_networks" ]
+then
+    dropout_networks='texture_generator: 0.5'
+fi
+echo $dropout_networks
+
 # Depending on the machine you run the code from, the directory to save experiments is different due to write access
 if [[ "$machine" == "chunky" ]]; then
     experiment_dir=/video-conf/scratch/pantea_experiments_chunky/${dataset_name}/${initialization}
@@ -183,6 +193,7 @@ python train.py \
     --init_networks 'identity_embedder, texture_generator, keypoints_embedder, inference_generator, discriminator' \
     --init_which_epoch ${init_which_epoch} \
     --use_dropout ${use_dropout} \
+    --dropout_networks "${dropout_networks}"
 
 
 
