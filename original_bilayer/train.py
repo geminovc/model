@@ -206,8 +206,14 @@ class TrainingWrapper(object):
 
         parser.add('--augment_with_general_ratio',                      default=0.5, type=float,
                                                                         help='augmentation ratio for augmenting the personal dataset with general dataset while training')
-                             
 
+        # Dropout options
+        parser.add('--use_dropout',                                     default='False', type=rn_utils.str2bool, choices=[True, False],
+                                                                        help='use dropout in the convolutional layers')
+
+        parser.add('--dropout_rate',                                    default=0.5, type=float,
+                                                                        help='the rate of dropout in convolutional layers')
+           
 
         # Technical options that are set automatically
         parser.add('--local_rank', default=0, type=int)
@@ -283,7 +289,6 @@ class TrainingWrapper(object):
         init_networks = rn_utils.parse_str_to_list(args.init_networks) if args.init_networks else {}
         frozen_networks = rn_utils.parse_str_to_list(args.frozen_networks) if args.frozen_networks else {}
         networks_to_train = self.runner.nets_names_to_train
-        #nets_frozen_networks_dict= rn_utils.parse_str_to_dict(args.frozen_networks_dict)
 
         if args.init_which_epoch != 'none' and args.init_experiment_dir:
             for net_name in init_networks:
@@ -291,11 +296,7 @@ class TrainingWrapper(object):
                 if net_name in frozen_networks: #dictionary
                     for p in self.runner.nets[net_name].parameters():
                         p.requires_grad = False
-                    
-                    #for unfreezed_layer_name in frozen_networks[net_name]['unfreezed_layers']:
-                    #    getattr(self.runner.nets[net_name], unfreezed_layer_name).requires_grad=True
-                    #    --frozen_networks '{'texture_generator': {'unfreezed_layers':['layer_1','layer_2']}}'
-                    #frozen_networks ={'texture_generator': {'unfreezed_layers':['layer_1','layer_2']}}
+
                 if net_name == "texture_generator" and net_name in frozen_networks and args.unfreeze_texture_generator_last_layers: 
                     for name, module in self.runner.nets[net_name].named_children():
                         if name == 'prj_tex':
