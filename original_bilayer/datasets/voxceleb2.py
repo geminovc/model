@@ -1,4 +1,6 @@
 import torch
+import datasets, hopenet, utils
+import cv2
 from torch.utils import data
 from torchvision import transforms
 import glob
@@ -19,6 +21,10 @@ class DatasetWrapper(data.Dataset):
     def get_args(parser):
         # Common properties
         parser.add('--experiment_dir',          default='.', type=str,
+                                                help='directory to save logs')
+        parser.add('--bin_path',          default='.', type=str,
+                                                help='directory to save logs')
+        parser.add('--angles_root',          default='.', type=str,
                                                 help='directory to save logs')
 
         parser.add('--experiment_name',          default='test', type=str,
@@ -105,9 +111,10 @@ class DatasetWrapper(data.Dataset):
 
         if phase == 'metrics':
             data_root = args.metrics_root
-        
+        self.bings = np.load(args.bin_path) 
         # Data paths
         self.imgs_dir = pathlib.Path(data_root) / 'imgs' / phase
+        self.angles_dir = pathlib.Path(angles_root) / 'angles' / phase
         self.pose_dir = pathlib.Path(data_root) / 'keypoints' / phase
 
         if args.output_segmentation:
@@ -137,6 +144,87 @@ class DatasetWrapper(data.Dataset):
 
         # if self.args.dataset_load_from_txt:
         #     self.args.save_dataset_filenames = False
+        # ===============================================================
+        #                        angles online inference because offline is taking literally 4 days
+        # ===============================================================
+
+        self.model = hopenet.Hopenet(torchvision.models.resnet.Bottleneck, [3, 4, 6, 3], 66)
+
+        # Dlib face detection model
+        self.cnn_face_detector = dlib.cnn_face_detection_model_v1(args.face_model)
+
+        print('Loading snapshot.')
+        # Load snapshot
+        saved_state_dict = torch.load(snapshot_path)
+        self.model.load_state_dict(saved_state_dict)
+        self.model.cuda(0)
+        self.model.eval()  # Change model to 'eval' mode (BN uses moving mean/var).
+
+        print('Loading data.')
+
+        self.idx_tensor = [idx for idx in range(66)]
+        self.idx_tensor = torch.FloatTensor(idx_tensor).cuda(gpu)
+        self.transformations = transforms.Compose([transforms.Scale(224),
+        transforms.CenterCrop(224), transforms.ToTensor(),
+        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])])
+        self.all_bins = np.zeros_like(np.arange(-90,90,spacing))
+
+    def angle_calculator(img):
+
+        idx_tensor=self.idx_tensor
+        transformations = self.transformations
+        model = self.model
+        cnn_face_detector = self.cnn_face_detector
+        frame = image
+
+        # Dlib detect
+        dets = cnn_face_detector(cv2_frame, 1)
+        # Ensure only one face in frame
+        if len(dets) != 1:
+            return 0
+        for idx, det in enumerate(dets):
+            # Get x_min, y_min, x_max, y_max, conf
+            x_min = det.rect.left()
+            y_min = det.rect.top()
+            x_max = det.rect.right()
+            y_max = det.rect.bottom()
+            conf = det.confidence
+
+            if True: 
+                bbox_width = abs(x_max - x_min)
+                bbox_height = abs(y_max - y_min)
+                x_min -= 2 * bbox_width / 4
+                x_max += 2 * bbox_width / 4
+                y_min -= 3 * bbox_height / 4
+                y_max += bbox_height / 4
+                x_min = max(x_min, 0); y_min = max(y_min, 0)
+                x_max = min(frame.shape[1], x_max); y_max = min(frame.shape[0], y_max)
+                # Crop image
+                x_min = int(x_min)
+                x_max = int(x_max)
+                y_min = int(y_min)
+                y_max = int(y_max)
+
+                img = cv2_frame[y_min:y_max,x_min:x_max]
+                img = Image.fromarray(img)
+
+                # Transform
+                img = transformations(img)
+                img_shape = img.size()
+                img = img.view(1, img_shape[0], img_shape[1], img_shape[2])
+                img = Variable(img).cuda(gpu)
+
+                yaw, pitch, roll = model(img)
+
+                yaw_predicted = F.softmax(yaw)
+                pitch_predicted = F.softmax(pitch)
+                roll_predicted = F.softmax(roll)
+                # Get continuous predictions in degrees.
+                yaw_predicted = torch.sum(yaw_predicted.data[0] * idx_tensor) * 3 - 99
+                pitch_predicted = torch.sum(pitch_predicted.data[0] * idx_tensor) * 3 - 99
+                roll_predicted = torch.sum(roll_predicted.data[0] * idx_tensor) * 3 - 99
+        return np.asarray([yaw_predicted, pitch_predicted, roll_predicted])
+
 
     def __getitem__(self, index):
         # Sample source and target frames for the current sequence
@@ -209,8 +297,8 @@ class DatasetWrapper(data.Dataset):
                 filename = filenames[frame_num]
 
             # Read images
-            
             img_path = pathlib.Path(self.imgs_dir) / filename.with_suffix('.jpg')
+
             
             if self.phase == 'test':
                 print("selected test image path is: ",img_path)
@@ -227,6 +315,12 @@ class DatasetWrapper(data.Dataset):
                 reserve_index += 1
                 continue
 
+            angle = self.angle_calculater(img)[1]
+            self.all_bins[int(angle//10)] += 1
+            p = np.min(np.nonzero(self.all_bins)*4)/(self.all_bins[int(angle//10)]+1)
+            if random.random() > p:
+                continue
+            
             imgs += [self.to_tensor(img)]
 
             # Read keypoints
