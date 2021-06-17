@@ -13,7 +13,7 @@ augment_with_general=${9}
 sample_general_dataset=${10}
 augment_with_general_ratio=${11}
 inf_apply_masks=${12}
-
+#dataloader_name=${13}
 
 # Depending on the machine you run the code from, the directory to save experiments is different due to write access
 if [[ "$machine" == "chunky" ]]; then

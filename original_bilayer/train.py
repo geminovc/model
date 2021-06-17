@@ -37,7 +37,7 @@ class TrainingWrapper(object):
         parser.add('--experiment_name',                                 default='test', type=str,
                                                                         help='name of the experiment used for logging')
 
-        parser.add('--dataloader_name',                                 default='voxceleb2', type=str,
+        parser.add('--dataloader_name',                                 default='l2_distance.py', type=str,
                                                                         help='name of the file in dataset directory which is used for data loading')
 
         parser.add('--dataset_name',                                    default='voxceleb2_512px', type=str,
