@@ -1,3 +1,93 @@
+"""
+This file is for picking the source and target frames that have keypoints with L2 disance less than a threshold.
+Before using this dataloader, you need to do a preprocess on the dataset using the difficult_poses module.
+
+The structure of input dataset is:
+
+ROOT_TO_CLOSE_KEYPOINTS/[train, test]/PERSON_ID/VIDEO_ID/SEQUENCE_ID/L2_Distances.pkl
+
+Each L2_Distances.pkl file contains a dictionary with the following structure:
+
+{
+('-1','-1'): 'data_root of the dataset that the keypoints belong to',
+('frame_num_1','frame_num_1'): 'L2_distance (keypoint_1, keypoint_2)',
+...
+}
+
+Example of the close_keypoints structure:
+
+                     ROOT_TO_CLOSE_KEYPOINTS _ phase _ id00012 _ abc _ 00001 _ L2_Distances.pkl
+                                                    |         |            
+                                                    |         |           
+                                                    |         |            
+                                                    |         |
+                                                    |         |_ def  _ 00001 _ L2_Distances.pkl
+                                                    |                |       
+                                                    |                |     
+                                                    |                |       
+                                                    |                |
+                                                    |                |_ 00002 _ L2_Distances.pkl
+                                                    |                        
+                                                    |                      
+                                                    |                        
+                                                    |               
+                                                    |_ id00013 _ lmn _ 00001 _ L2_Distances.pkl
+                                                    |          |            
+                                                    |          |       
+                                                    |          |           
+                                                    |          |
+                                                    |          |_ opq  _ 00001 _ ...
+                                                    |                 |_ 00002 _ ...
+                                                    |                 |_ 00003 _ ...
+                                                    |
+                                                    |_ id00014 _ rst _ 00001 _ ...
+                                                                |    |_ 00002 _ ...
+                                                                |
+                                                                |_ uvw  _ 00001 _ L2_Distances.pkl
+                                                                        |      
+                                                                        |     
+                                                                        |      
+                                                                        |
+                                                                        |_ 00002 _ L2_Distances.pkl
+                                                                        |     
+                                                                        |     
+                                                                        |
+                                                                        |_ 00003 _L2_Distances.pkl
+
+Note that the last folder of ROOT_TO_CLOSE_KEYPOINTS has the same name as DATA_ROOT, meaning that the L2 distances of ROOT_TO_CLOSE_KEYPOINTS belong to datset in DATA_ROOT. 
+
+Example:
+ROOT_TO_CLOSE_KEYPOINTS = /data/pantea/close_keypoints/per_person_extracts
+DATA_ROOT = /video-conf/scratch/pantea/per_person_extracts
+
+In find_l2_distance module we have:
+
+ROOT_TO_CLOSE_KEYPOINTS = RESULTS_FOLDER/DATASET_NAME
+
+Arguments
+----------
+
+root_to_close_keypoints: The root directory to where the L2_distances of the input data_root is stored. 
+        
+close_keypoints_threshold: The threshold with which we call two keypoints close. 
+
+
+
+Outputs
+----------
+
+The output is data_dict which contains source and target images with L2 keypoint distance of less than close_keypoints_threshold. It contains: 
+'target_stickmen'  
+'source_stickmen'  
+'source_imgs'  
+'target_imgs'  
+'source_segs'  
+'target_segs'  
+
+The script is failful to the papers implementation and it picks one random source/target pair, with keyponits having L2 distance of less than close_keypoints_threshold, from each video.
+
+"""
+
 import torch
 from torch.utils import data
 from torchvision import transforms
@@ -100,7 +190,6 @@ class DatasetWrapper(data.Dataset):
             data_list = content.split("\n")
             my_file.close()
             data_root = args.data_root
-            #data_root = (data_list[0].split(":"))[1]            
             
         else:
             data_root = args.data_root
@@ -147,6 +236,7 @@ class DatasetWrapper(data.Dataset):
         # if self.args.dataset_load_from_txt:
         #     self.args.save_dataset_filenames = False
 
+    # Load the pickle files as dictionary
     def load_pickle(self, path_string):
         pkl_file = open(path_string, 'rb')
         my_dict = pickle.load(pkl_file)
@@ -154,6 +244,7 @@ class DatasetWrapper(data.Dataset):
         return my_dict
 
     def find_close_keypoints (self, keypoints_dict, threshold):
+        # The ('-1','-1') key contains the data_root of the keypoints
         keypoints_dict.pop(('-1', '-1'), None)
         return [k for k,v in keypoints_dict.items() if float(v) >= threshold and k!= ('-1', '-1')]
 
@@ -161,24 +252,59 @@ class DatasetWrapper(data.Dataset):
 
     def __getitem__(self, index):
         
-        # Sample source and target frames for the current video sequence
-        filenames = []
+        # No close keypoints for metrics loader
+        if self.phase == 'metrics':
+            while True:
+                count+=1
+                try:
+                    filenames_img = list((self.imgs_dir / self.sequences[index]).glob('*/*'))
+                    filenames_img = [pathlib.Path(*filename.parts[-4:]).with_suffix('') for filename in filenames_img]
 
-        # Load all pickle file for the current video 
-        keypoints_pickles = list(pathlib.Path(self.close_keypoints_dir + '/' + self.sequences[index]).glob('*/*'))
+
+                    filenames_npy = list((self.pose_dir / self.sequences[index]).glob('*/*'))
+                    filenames_npy = [pathlib.Path(*filename.parts[-4:]).with_suffix('') for filename in filenames_npy]
+
+                    filenames = list(set(filenames_img).intersection(set(filenames_npy)))
+
+                    if self.args.output_segmentation:
+                        filenames_seg = list((self.segs_dir / self.sequences[index]).glob('*/*'))
+                        filenames_seg = [pathlib.Path(*filename.parts[-4:]).with_suffix('') for filename in filenames_seg]
+
+                        filenames = list(set(filenames).intersection(set(filenames_seg)))
+                    
+
+                    if len(filenames)!=0:
+                        break
+                    else:
+                        raise # the length of filenames is zero.
+
+                except Exception as e:
+                    print("# Exception is raised if filenames list is empty or there was an error during read")
+                    index = (index + 1) % len(self)
+
+
+            filenames = sorted(filenames)
         
-        # Sample one session from the video
-        keypoints_pickle_path = random.sample(keypoints_pickles, 1)[0]
-        keypoints_dict =  self.load_pickle(keypoints_pickle_path)
-        close_keys = self.find_close_keypoints(keypoints_dict, self.args.close_keypoints_threshold)
-        
-        
-        # The source and target relative paths (sample one pair from the close keypoints in a session)
-        relative_path = '/'.join(str(keypoints_pickle_path).split('/')[-4:-1])
-        source_target_pair = random.sample(close_keys, 1)[0]
-        filenames = [pathlib.Path(relative_path+'/'+source_target_pair[0]), pathlib.Path(relative_path+'/'+source_target_pair[1])]
-        random.shuffle(filenames)
-        print(filenames)
+        # If 'train' or 'test' phase, find pairs with close keypoints
+        else: 
+            # Sample source and target frames for the current video sequence
+            filenames = []
+
+            # Load all pickle file for the current video 
+            keypoints_pickles = list(pathlib.Path(self.close_keypoints_dir + '/' + self.sequences[index]).glob('*/*'))
+            
+            # Sample one session from the video
+            keypoints_pickle_path = random.sample(keypoints_pickles, 1)[0]
+            keypoints_dict =  self.load_pickle(keypoints_pickle_path)
+            close_keys = self.find_close_keypoints(keypoints_dict, self.args.close_keypoints_threshold)
+            
+            
+            # The source and target relative paths (sample one pair from the close keypoints in a session)
+            relative_path = '/'.join(str(keypoints_pickle_path).split('/')[-4:-1])
+            source_target_pair = random.sample(close_keys, 1)[0]
+            filenames = [pathlib.Path(relative_path+'/'+source_target_pair[0]), pathlib.Path(relative_path+'/'+source_target_pair[1])]
+            random.shuffle(filenames)
+            print(filenames)
 
         imgs = []
         poses = []
@@ -200,6 +326,7 @@ class DatasetWrapper(data.Dataset):
             if sample_from_reserve:
                 filename = filenames[reserve_index]
 
+            # Added shuffle to the filenames for test and train phase
             else:
                 frame_num = len(imgs)
                 filename = filenames[frame_num]

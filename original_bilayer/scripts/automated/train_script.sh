@@ -165,7 +165,7 @@ python train.py \
     --stats_calc_iters 500 \
     --stickmen_thickness 2 \
     --test_freq ${test_freq} \
-    --visual_freq 10 \
+    --visual_freq 100 \
     --wpr_loss_apply_to pred_target_delta_uvs \
     --wpr_loss_decay_schedule '-1' \
     --wpr_loss_type l1 \
