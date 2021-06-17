@@ -10,7 +10,16 @@ import cv2
 import random
 import math
 import pdb
+import os
 
+parser= argparse.ArgumentParser("Difficult pose finder")
+parser.add_argument('--keypoint_directory',
+        default= '/video-conf/scratch/pantea/temp_per_person_extracts/keypoints/train',
+        type=str,
+        help='keypoints directory')
+
+
+args = parser.parse_args()
 
 # Function for stickman and facemasks drawing
 def draw_stickmen(poses):
@@ -119,138 +128,49 @@ def save_stickmen(input_keypoints, name='stickmen.png'):
     im = Image.fromarray(rescaled[0].transpose(1, 2, 0))
     im.save(name)
 
-print("good")
 
-keypoints_path = '/video-conf/scratch/pantea/temp_per_person_extracts/keypoints/test/id00012/yi_qz725MjE/00163/78.npy'
-keypoints = np.load(keypoints_path).astype('float32')
-keypoints = keypoints.reshape((68,2)) #I added this
-#save_as_image(keypoints, name='good.png')
-#save_stickmen(keypoints, name='good_stickmen.png')
+keypoint_directory=pathlib.Path(args.keypoint_directory)
+keypoints_paths = keypoint_directory.glob('*/*/*/*')
+keypoints_paths = sorted([str(seq) for seq in keypoints_paths])
 
-nose_top = keypoints[28]
-nose_bottom = keypoints[34]
-left_side = keypoints[3]
-right_side = keypoints[15]
+number_of_difficult_poses = 0
+for keypoint_path in keypoints_paths:
+    print(keypoint_path) 
+    keypoints = np.load(keypoint_path).astype('float32')
+    keypoints = keypoints.reshape((68,2)) 
 
-##print("nose_top",nose_top)
-#print("nose_bottom",nose_bottom)
-#print("right_side",right_side)
-#print("left_side",left_side)
 
-nose_vector  = nose_top - nose_bottom
-right_vector = right_side - nose_bottom
-left_vector  = left_side  - nose_bottom
-
-#print("nose_vector",nose_vector)
-#print("right_vector",right_vector)
-#print('left_vector',left_vector)
-
-right_angle = -math.atan2(right_vector[1], right_vector[0]) + math.atan2(nose_vector[1], nose_vector[0])
-left_angle  = -math.atan2(left_vector[1], left_vector[0])   + math.atan2(nose_vector[1], nose_vector[0])
-#print("nose to right ",180/3.14*normalizeAngle(right_angle))
-#print("nose to left " ,180/3.14*normalizeAngle(left_angle))
-
-left_width = (keypoints[30,1]-keypoints[2,1])**2 + (keypoints[30,0]-keypoints[2,0])**2
-right_width = (keypoints[30,1]-keypoints[14,1])**2 + (keypoints[30,0]-keypoints[14,0])**2
-
-# left-tilted pose
-for i in range(1,4):
-    if keypoints[30,0]-keypoints[33,0] != 0:
-        if left_width < right_width and keypoints[i,1]<(keypoints[30,1]-keypoints[33,1])/(keypoints[30,0]-keypoints[33,0])*(keypoints[i,0]-keypoints[33,0])+keypoints[33,1]:
-            if keypoints[i,0] >= min(keypoints[30,0],keypoints[33,0]) and keypoints[i,0] <= max(keypoints[30,0],keypoints[33,0]):
+    left_width = (keypoints[30,1]-keypoints[2,1])**2 + (keypoints[30,0]-keypoints[2,0])**2
+    right_width = (keypoints[30,1]-keypoints[14,1])**2 + (keypoints[30,0]-keypoints[14,0])**2
+    difficulty = 0
+    
+    # left-tilted pose
+    for i in range(1,4):
+        if keypoints[30,0]-keypoints[33,0] != 0:
+            if left_width < right_width and keypoints[i,1]<(keypoints[30,1]-keypoints[33,1])/(keypoints[30,0]-keypoints[33,0])*(keypoints[i,0]-keypoints[33,0])+keypoints[33,1]:
+                if keypoints[i,0] >= min(keypoints[30,0],keypoints[33,0]) and keypoints[i,0] <= max(keypoints[30,0],keypoints[33,0]):
+                #if keypoints[i,1] >= min(keypoints[30,1],keypoints[33,1]) and keypoints[i,1] <= max(keypoints[30,1],keypoints[33,1]):
+                    print("danger")
+                    difficulty+=1
+        else:
+            if left_width < right_width  and keypoints[i,0] >= keypoints[30,0]:
             #if keypoints[i,1] >= min(keypoints[30,1],keypoints[33,1]) and keypoints[i,1] <= max(keypoints[30,1],keypoints[33,1]):
                 print("danger!")
-    else:
-        if left_width < right_width  and keypoints[i,0] >= keypoints[30,0]:
-        #if keypoints[i,1] >= min(keypoints[30,1],keypoints[33,1]) and keypoints[i,1] <= max(keypoints[30,1],keypoints[33,1]):
-            print("danger!")
+                difficulty+=1
 
-    if keypoints[30,0]-keypoints[27,0] != 0:
-        if left_width < right_width and keypoints[i,1]>(keypoints[30,1]-keypoints[27,1])/(keypoints[30,0]-keypoints[27,0])*(keypoints[i,0]-keypoints[27,0])+keypoints[27,1]:
-            if keypoints[i,0] >= min(keypoints[30,0],keypoints[33,0]) and keypoints[i,0] <= max(keypoints[30,0],keypoints[33,0]):
+        if keypoints[30,0]-keypoints[27,0] != 0:
+            if left_width < right_width and keypoints[i,1]>(keypoints[30,1]-keypoints[27,1])/(keypoints[30,0]-keypoints[27,0])*(keypoints[i,0]-keypoints[27,0])+keypoints[27,1]:
+                if keypoints[i,0] >= min(keypoints[30,0],keypoints[33,0]) and keypoints[i,0] <= max(keypoints[30,0],keypoints[33,0]):
+                #if keypoints[i,1] >= min(keypoints[30,1],keypoints[27,1]) and keypoints[i,1] <= max(keypoints[30,1],keypoints[27,1]):
+                    print("danger!")
+                    difficulty+=1
+        else:
+            if left_width < right_width  and keypoints[i,0] >= keypoints[27,0]:
             #if keypoints[i,1] >= min(keypoints[30,1],keypoints[27,1]) and keypoints[i,1] <= max(keypoints[30,1],keypoints[27,1]):
                 print("danger!")
-    else:
-        if left_width < right_width  and keypoints[i,0] >= keypoints[27,0]:
-        #if keypoints[i,1] >= min(keypoints[30,1],keypoints[27,1]) and keypoints[i,1] <= max(keypoints[30,1],keypoints[27,1]):
-            print("danger!")
+                difficulty+=1
 
+    if difficulty >0:
+        number_of_difficult_poses+=1
 
-# # right-tilted pose
-# for i in range(12,16):
-#     if left_width > right_width and keypoints[i,1]>(keypoints[30,1]-keypoints[33,1])/(keypoints[30,0]-keypoints[33,0])*(keypoints[i,0]-keypoints[33,0])+keypoints[33,1]:
-#         print("danger!")
-#     if left_width > right_width and keypoints[i,1]<(keypoints[30,1]-keypoints[27,1])/(keypoints[30,0]-keypoints[27,0])*(keypoints[i,0]-keypoints[27,0])+keypoints[27,1]:
-#         print("danger!")
-    # left_vector  = left_side  - nose_bottom
-    # left_angle  = math.atan2(left_vector[1], left_vector[0])   - math.atan2(nose_vector[1], nose_vector[0])
-    # #print(left_side)
-    # #print("nose to left " ,180/3.14*normalizeAngle(left_angle))
-
-print("bad")
-poses = []
-keypoints_path = '/video-conf/scratch/pantea/temp_per_person_extracts/keypoints/test/id00012/Z-G8-wqpxwU/00091/0.npy'
-keypoints = np.load(keypoints_path).astype('float32')
-keypoints = keypoints.reshape((68,2)) #I added this
-#save_as_image(keypoints, name='bad.png')
-#save_stickmen(keypoints, name='bad_stickmen.png')
-
-
-nose_top = keypoints[28]
-nose_bottom = keypoints[34]
-left_side = keypoints[3]
-right_side = keypoints[15]
-
-#print("nose_top",nose_top)
-#print("nose_bottom",nose_bottom)
-#print("right_side",right_side)
-#print("left_side",left_side)
-
-nose_vector  = nose_top - nose_bottom
-right_vector = right_side - nose_bottom
-left_vector  = left_side  - nose_bottom
-
-#print("nose_vector",nose_vector)
-#print("right_vector",right_vector)
-#print('left_vector',left_vector)
-
-right_angle = -math.atan2(right_vector[1], right_vector[0]) + math.atan2(nose_vector[1], nose_vector[0])
-left_angle  = -math.atan2(left_vector[1], left_vector[0])   + math.atan2(nose_vector[1], nose_vector[0])
-#print("nose to right ",180/3.14*normalizeAngle(right_angle))
-#print("nose to left " ,180/3.14*normalizeAngle(left_angle))
-
-
-left_width = (keypoints[30,1]-keypoints[2,1])**2 + (keypoints[30,0]-keypoints[2,0])**2
-right_width = (keypoints[30,1]-keypoints[14,1])**2 + (keypoints[30,0]-keypoints[14,0])**2
-
-# left-tilted pose
-for i in range(1,4):
-    if keypoints[30,0]-keypoints[33,0] != 0:
-        if left_width < right_width and keypoints[i,1]<(keypoints[30,1]-keypoints[33,1])/(keypoints[30,0]-keypoints[33,0])*(keypoints[i,0]-keypoints[33,0])+keypoints[33,1]:
-            if keypoints[i,0] >= min(keypoints[30,0],keypoints[33,0]) and keypoints[i,0] <= max(keypoints[30,0],keypoints[33,0]):
-            #if keypoints[i,1] >= min(keypoints[30,1],keypoints[33,1]) and keypoints[i,1] <= max(keypoints[30,1],keypoints[33,1]):
-                print("danger!")
-    else:
-        if left_width < right_width  and keypoints[i,0] >= keypoints[30,0]:
-        #if keypoints[i,1] >= min(keypoints[30,1],keypoints[33,1]) and keypoints[i,1] <= max(keypoints[30,1],keypoints[33,1]):
-            print("danger!")
-
-    if keypoints[30,0]-keypoints[27,0] != 0:
-        if left_width < right_width and keypoints[i,1]>(keypoints[30,1]-keypoints[27,1])/(keypoints[30,0]-keypoints[27,0])*(keypoints[i,0]-keypoints[27,0])+keypoints[27,1]:
-            if keypoints[i,0] >= min(keypoints[30,0],keypoints[33,0]) and keypoints[i,0] <= max(keypoints[30,0],keypoints[33,0]):
-            #if keypoints[i,1] >= min(keypoints[30,1],keypoints[27,1]) and keypoints[i,1] <= max(keypoints[30,1],keypoints[27,1]):
-                print("danger!")
-    else:
-        if left_width < right_width  and keypoints[i,0] >= keypoints[27,0]:
-        #if keypoints[i,1] >= min(keypoints[30,1],keypoints[27,1]) and keypoints[i,1] <= max(keypoints[30,1],keypoints[27,1]):
-            print("danger!")
-# # right-tilted pose
-# for i in range(12,16):
-#     if left_width > right_width and keypoints[i,1]>(keypoints[30,1]-keypoints[33,1])/(keypoints[30,0]-keypoints[33,0])*(keypoints[i,0]-keypoints[33,0])+keypoints[33,1]:
-#         print("danger!")
-#     if left_width > right_width and keypoints[i,1]<(keypoints[30,1]-keypoints[27,1])/(keypoints[30,0]-keypoints[27,0])*(keypoints[i,0]-keypoints[27,0])+keypoints[27,1]:
-#         print("danger!")
-#     # left_vector  = left_side  - nose_bottom
-#     # left_angle  = math.atan2(left_vector[1], left_vector[0])   - math.atan2(nose_vector[1], nose_vector[0])
-#     # #print(left_side)
-#     # #print("nose to left " ,180/3.14*normalizeAngle(left_angle))
+print("percentage of difficult poses: ", str(number_of_difficult_poses/len(keypoints_paths)))
