@@ -1,3 +1,27 @@
+"""
+This file finds the percentage of left-tilted difficult poses in a keypoint directory.
+Difficult poses are poses where the cheeks are behind the nose and you can not see a part of them.
+
+To run this file use:
+
+python find_l2_distance.py --keypoint_directory <'KEYPOINTS_DIR'>
+
+Example:
+python find_l2_distance.py --keypoint_directory '/video-conf/scratch/pantea/temp_per_person_extracts/keypoints/train'
+
+Inputs
+----------
+keypoint_directory: path to keypoints
+
+Outputs
+----------
+
+It prints the percentage of difficult left-tilted poses.
+
+
+"""
+
+
 import torch
 from torch.utils import data
 from torchvision import transforms
