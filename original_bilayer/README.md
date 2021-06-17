@@ -16,7 +16,11 @@ If you are using the system's anaconda and you don't have write permission, you 
 ```
 conda env create --prefix /tmp/test-env  -f environment.yml
 ```
+If you can not create an environment because of root privilages, you can use one of the existing environments. On mapmaker use:
 
+```
+conda activate torch
+```
 ### Pre-trained Weights 
 Download the `pretrained-weights` folder from [here](https://drive.google.com/drive/folders/11SwIYnk3KY61d8qa17Nlb0BN9j57B3L6). You should put the name of this downloaded directory in `--pretrained_weights_dir` in the scripts. 
 The pre-trained weights are courtesy [Fast Bi-layer Neural Synthesis of One-Shot Realistic Head Avatars](https://arxiv.org/abs/2008.10174) by Zakharov et. al.
