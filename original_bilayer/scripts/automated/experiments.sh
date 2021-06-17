@@ -19,6 +19,7 @@ CUDA_VISIBLE_DEVICES=2 ./train_script.sh  "chunky" "no_augmentation_with_mask" "
 CUDA_VISIBLE_DEVICES=2 ./train_script.sh  "chunky" "no_augmentation_no_mask"   "from_paper" "per_person" 2 7000 1 1 False False 0.1 False
 CUDA_VISIBLE_DEVICES=2 ./train_script.sh  "chunky" "no_augmentation_with_mask" "from_paper" "per_person" 2 7000 1 1 False False 0.1 True
 CUDA_VISIBLE_DEVICES=2 ./train_script.sh  "chunky" "augmented_no_sampling_0.6_no_mask"      "from_paper" "per_person" 2 7000 1 1 True False 0.6 False
+CUDA_VISIBLE_DEVICES=2 ./train_script.sh  "chunky" "augmented_0.3_with_mask" "from_paper" "per_person" 1 7000 10 10 True True 0.3 True
 
 # Debugging experiment
 CUDA_VISIBLE_DEVICES=2 ./train_script.sh  "chunky" "debug" "from_base" "per_person" 2 7000 1 1 False False 0.1 False
