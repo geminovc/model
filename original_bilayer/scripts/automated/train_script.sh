@@ -13,11 +13,11 @@ augment_with_general=${9}
 sample_general_dataset=${10}
 augment_with_general_ratio=${11}
 inf_apply_masks=${12}
-#dataloader_name=${13}
+dataloader_name=${13}
 
 # Depending on the machine you run the code from, the directory to save experiments is different due to write access
 if [[ "$machine" == "chunky" ]]; then
-    experiment_dir=/video-conf/scratch/pantea_experiments_chunky/${dataset_name}/${initialization}
+    experiment_dir=/data/pantea/pantea_experiments_chunky/${dataset_name}/${initialization}
 elif [[ "$machine" == "mapmaker" ]]; then
     experiment_dir=/video-conf/scratch/pantea_experiments_mapmaker/${dataset_name}/${initialization}
 fi 
@@ -44,6 +44,17 @@ elif [[ "$initialization" == "from_paper" ]]; then
     init_which_epoch=2225
 
 fi
+
+# # Dataloader options
+# if [[ "$dataloader_name" == "voxceleb" ]]; then
+#     dataloader_name='voxceleb2'
+# elif [[ "$dataset_name" == "l2" ]]; then
+#     dataloader_name='l2_distance'
+# else; 
+#     dataloader_name='voxceleb2'
+# fi 
+
+echo ${dataloader_name}
 
 cd $MAIN_DIR/
 
@@ -178,10 +189,11 @@ python train.py \
     --unet_inputs 'lf, hf' \
     --metrics_freq ${metrics_freq} \
     --metrics_root /video-conf/scratch/pantea/metrics_dataset \
-    --skip_metrics False \
+    --skip_metrics True \
     --init_experiment_dir ${init_experiment_dir} \
     --init_networks 'identity_embedder, texture_generator, keypoints_embedder, inference_generator, discriminator' \
     --init_which_epoch ${init_which_epoch} \
+    --dataloader_name ${dataloader_name}
 
 
 

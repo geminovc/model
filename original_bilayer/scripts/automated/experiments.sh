@@ -10,6 +10,7 @@
 # sample_general_dataset=${10}
 # augment_with_general_ratio=${11}
 # inf_apply_masks=${12}
+# dataloader_name=${13}
 
 # From base experiment
 CUDA_VISIBLE_DEVICES=2 ./train_script.sh  "chunky" "no_augmentation_no_mask"   "from_base" "per_person" 2 7000 1 1 False False 0.1 False
@@ -22,3 +23,6 @@ CUDA_VISIBLE_DEVICES=2 ./train_script.sh  "chunky" "augmented_no_sampling_0.6_no
 
 # Debugging experiment
 CUDA_VISIBLE_DEVICES=2 ./train_script.sh  "chunky" "debug" "from_base" "per_person" 2 7000 1 1 False False 0.1 False
+
+# L2_dataloader
+CUDA_VISIBLE_DEVICES=0 ./train_script.sh  "chunky" "l2_dataloader_500" "from_paper" "per_person" 2 3000 50 50 False False 0.6 True 'l2_distance'

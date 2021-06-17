@@ -12,6 +12,7 @@ import math
 import pdb
 from datasets import utils as ds_utils
 from runners import utils as rn_utils
+import pickle
 
 
 class DatasetWrapper(data.Dataset):
@@ -67,11 +68,12 @@ class DatasetWrapper(data.Dataset):
                                                  help='gradually increase the weight of general dataset while training the per_person dataset')
 
         # Paired target and source (close keypoints)                              
-        parser.add('--pick_close_keypoints',     default='False', type=rn_utils.str2bool, choices=[True, False],
-                                                 help='If True, the images, keypoints, and segs are picked from files')                                               
-        
-        parser.add('--root_to_close_keypoints',  default='/data4/pantea/nets_implementation/original_bilayer/difficult_poses/results/temp_per_person_extracts', type=str, 
+
+        parser.add('--root_to_close_keypoints',  default='/data/pantea/close_keypoints/temp_per_person_extracts', type=str, 
                                                  help='If True, the images, keypoints, and segs are picked from files')
+        
+        parser.add('--close_keypoints_threshold',default=500, type=float,
+                                                 help='threshold of defining two close keypoints')
         
         return parser
 
@@ -112,7 +114,9 @@ class DatasetWrapper(data.Dataset):
 
         if args.output_segmentation:
             self.segs_dir = pathlib.Path(data_root) / 'segs' / phase
-
+        
+        self.close_keypoints_dir = self.args.root_to_close_keypoints + '/' + self.phase
+        
         # Video sequences list
         # Please don't mix the sequence, which is the total number of videos, with sessions (which are essentially short video clips).
         # Each sequence, is made up of multiple sessions.
@@ -143,46 +147,39 @@ class DatasetWrapper(data.Dataset):
         # if self.args.dataset_load_from_txt:
         #     self.args.save_dataset_filenames = False
 
+    def load_pickle(self, path_string):
+        pkl_file = open(path_string, 'rb')
+        my_dict = pickle.load(pkl_file)
+        pkl_file.close()
+        return my_dict
+
+    def find_close_keypoints (self, keypoints_dict, threshold):
+        keypoints_dict.pop(('-1', '-1'), None)
+        return [k for k,v in keypoints_dict.items() if float(v) >= threshold and k!= ('-1', '-1')]
+
+
+
     def __getitem__(self, index):
-        # Sample source and target frames for the current sequence
-        count = 0
+        
+        # Sample source and target frames for the current video sequence
         filenames = []
-        current_sequence = self.sequences[index]
-        filenames_keypoints = list((self.self.args.root_to_close_keypoints / self.sequences[index]).glob('*/*'))
-        print(current_sequence)
-        print(self.args.root_to_close_keypoints)
-        print(filenames_keypoints) 
 
-        # while True:
-        #     count+=1
-        #     try:
-        #         filenames_img = list((self.imgs_dir / self.sequences[index]).glob('*/*'))
-        #         filenames_img = [pathlib.Path(*filename.parts[-4:]).with_suffix('') for filename in filenames_img]
+        # Load all pickle file for the current video 
+        keypoints_pickles = list(pathlib.Path(self.close_keypoints_dir + '/' + self.sequences[index]).glob('*/*'))
+        
+        # Sample one session from the video
+        keypoints_pickle_path = random.sample(keypoints_pickles, 1)[0]
+        keypoints_dict =  self.load_pickle(keypoints_pickle_path)
+        close_keys = self.find_close_keypoints(keypoints_dict, self.args.close_keypoints_threshold)
+        
+        
+        # The source and target relative paths (sample one pair from the close keypoints in a session)
+        relative_path = '/'.join(str(keypoints_pickle_path).split('/')[-4:-1])
+        source_target_pair = random.sample(close_keys, 1)[0]
+        filenames = [pathlib.Path(relative_path+'/'+source_target_pair[0]), pathlib.Path(relative_path+'/'+source_target_pair[1])]
+        random.shuffle(filenames)
+        print(filenames)
 
-
-        #         filenames_npy = list((self.pose_dir / self.sequences[index]).glob('*/*'))
-        #         filenames_npy = [pathlib.Path(*filename.parts[-4:]).with_suffix('') for filename in filenames_npy]
-
-        #         filenames = list(set(filenames_img).intersection(set(filenames_npy)))
-
-        #         if self.args.output_segmentation:
-        #             filenames_seg = list((self.segs_dir / self.sequences[index]).glob('*/*'))
-        #             filenames_seg = [pathlib.Path(*filename.parts[-4:]).with_suffix('') for filename in filenames_seg]
-
-        #             filenames = list(set(filenames).intersection(set(filenames_seg)))
-                
-
-        #         if len(filenames)!=0:
-        #             break
-        #         else:
-        #             raise # the length of filenames is zero.
-
-        #     except Exception as e:
-        #         print("# Exception is raised if filenames list is empty or there was an error during read")
-        #         index = (index + 1) % len(self)
-
-
-        filenames = 
         imgs = []
         poses = []
         stickmen = []
@@ -204,18 +201,7 @@ class DatasetWrapper(data.Dataset):
                 filename = filenames[reserve_index]
 
             else:
-                if self.phase == 'metrics':
-                    # If you are taking the metrics, you want to return frame_num 0 then frame_num 1
-                    # we can check which one to return in this iteration by checking the length of imgs
-                    frame_num = len(imgs)
-                elif self.args.frame_num_from_paper:
-                    frame_num = int(round(self.cur_num * (len(filenames) - 1)))
-                    self.cur_num = (self.cur_num + self.delta) % 1
-
-                else:
-                    frame_num = random.randint(0, (len(filenames) - 1))
-                    # If you want to use parallel learning, use torch (not numpy)
-
+                frame_num = len(imgs)
                 filename = filenames[frame_num]
 
             # Read images
