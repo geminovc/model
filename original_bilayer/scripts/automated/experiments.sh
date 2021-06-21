@@ -18,7 +18,7 @@ CUDA_VISIBLE_DEVICES=2 ./train_script.sh  "chunky" "no_augmentation_with_mask" "
 
 # From paper's released checkpoint experiment
 CUDA_VISIBLE_DEVICES=2 ./train_script.sh  "chunky" "no_augmentation_no_mask"   "from_paper" "per_person" 2 7000 1 1 False False 0.1 False False
-CUDA_VISIBLE_DEVICES=2 ./train_script.sh  "chunky" "no_augmentation_with_mask" "from_paper" "per_person" 2 7000 1 1 False False 0.1 True False
+CUDA_VISIBLE_DEVICES=2 ./train_script.sh  "chunky" "new_person_no_frozen" "from_paper" "per_person" 2 5000 20 20 False False 0.1 True False
 CUDA_VISIBLE_DEVICES=2 ./train_script.sh  "chunky" "augmented_no_sampling_0.6_no_mask"      "from_paper" "per_person" 2 7000 1 1 True False 0.6 False False
 CUDA_VISIBLE_DEVICES=2 ./train_script.sh  "chunky" "dropout_G_tex_0.5"  "from_paper" "per_person" 2 7000 10 10 False False 0.6 True True
 
