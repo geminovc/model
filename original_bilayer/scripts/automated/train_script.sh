@@ -35,7 +35,7 @@ fi
 if [[ "$dataset_name" == "general" ]]; then
     data_root=/video-conf/scratch/pantea/temp_general_extracts
 elif [[ "$dataset_name" == "per_person" ]]; then
-    data_root=/video-conf/scratch/pantea/temp_per_person_extracts
+    data_root=/video-conf/scratch/pantea/random_sampled_per_person
 elif [[ "$dataset_name" == "per_video" ]]; then
     data_root=/video-conf/scratch/pantea/temp_per_video_extracts
 fi 
