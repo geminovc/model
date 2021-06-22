@@ -19,7 +19,7 @@ dataloader_name=${13}
 if [[ "$machine" == "chunky" ]]; then
     experiment_dir=/data/pantea/pantea_experiments_chunky/${dataset_name}/${initialization}
 elif [[ "$machine" == "mapmaker" ]]; then
-    experiment_dir=/data4/pantea/pantea_experiments_mapmaker/${dataset_name}/${initialization}
+    experiment_dir=/video-conf/scratch/pantea_experiments_mapmaker/${dataset_name}/${initialization}
 fi 
 
 # The dataset options for experiment
@@ -75,7 +75,7 @@ python train.py \
     --batch_size ${batch_size} \
     --bn_momentum 1.0 \
     --calc_stats \
-    --checkpoint_freq 50 \
+    --checkpoint_freq 1000 \
     --data_root ${data_root} \
     --general_data_root /video-conf/scratch/pantea/temp_general_extracts \
     --dis_activation_type leakyrelu \

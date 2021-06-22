@@ -159,7 +159,7 @@ class DatasetWrapper(data.Dataset):
 
         # Paired target and source (close keypoints)                              
 
-        parser.add('--root_to_close_keypoints',  default='/data/pantea/close_keypoints/temp_per_person_extracts', type=str, 
+        parser.add('--root_to_close_keypoints',  default='/data4/pantea/nets_implementation/original_bilayer/difficult_poses/results/temp_per_person_extracts', type=str, 
                                                  help='If True, the images, keypoints, and segs are picked from files')
         
         parser.add('--close_keypoints_threshold',default=500, type=float,
