@@ -165,7 +165,7 @@ parser.add_argument('--phase',
         help='phase of the dataset, train or test')
 parser.add_argument('--results_folder',
         type=str,
-        default='./results',
+        default='./results/L2_distances',
         help='phase of the dataset, train or test')
 
 args = parser.parse_args()
