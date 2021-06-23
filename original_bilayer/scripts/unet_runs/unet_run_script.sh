@@ -27,7 +27,7 @@ fi
 if [[ "$dataset_name" == "general" ]]; then
     data_root=/data/vision/billf/video-conf/scratch/pantea/temp_general_extracts
 elif [[ "$dataset_name" == "per_person" ]]; then
-    data_root=/data/vision/billf/video-conf/scratch/pantea/temp_per_person_extracts
+    data_root=/data/vision/billf/video-conf/scratch/pantea/temp_per_person_1_extracts
 elif [[ "$dataset_name" == "per_video" ]]; then
     data_root=/data/vision/billf/video-conf/scratch/pantea/temp_per_video_extracts
 fi 
@@ -69,7 +69,7 @@ python train.py \
     --batch_size ${batch_size} \
     --bn_momentum 1.0 \
     --calc_stats \
-    --checkpoint_freq 50 \
+    --checkpoint_freq 500 \
     --data_root ${data_root} \
     --general_data_root /data/vision/billf/video-conf/scratch/pantea/temp_general_extracts \
     --dis_activation_type leakyrelu \
@@ -182,7 +182,8 @@ python train.py \
     --unet_inputs ${unet_inputs} \
     --metrics_freq ${metrics_freq} \
     --metrics_root /data/vision/billf/video-conf/scratch/pantea/metrics_dataset \
-    --skip_metrics False \
+    --skip_metrics True \
     --init_experiment_dir ${init_experiment_dir} \
     --init_networks "$init_networks" \
     --init_which_epoch ${init_which_epoch} \
+    --bin_path '/data/vision/billf/video-conf/scratch/vedantha/bins.pkl' \

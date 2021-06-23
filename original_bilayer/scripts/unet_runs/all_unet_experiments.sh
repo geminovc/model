@@ -19,4 +19,4 @@
 ./unet_run_script.sh True "hf_lf_unet_from_base" "from_base" "per_person" 2 10000 10 10 True 16 "hf, lf"
 
 # Hf and lf input unet from paper
-./unet_run_script.sh True "hf_lf_unet_from_paper" "from_paper" "per_person" 2 10000 10 10 True 16 "hf, lf"
+./unet_run_script.sh True "hf_lf_unet_from_paper_2" "from_paper" "per_person" 2 10000 10 10 True 16 "hf, lf"
