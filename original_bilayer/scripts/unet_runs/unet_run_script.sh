@@ -4,7 +4,7 @@
 # It'll call this file
 
 # Variables from the user
-MAIN_DIR=../../
+MAIN_DIR=../../ # Change made in other branch
 use_unet=${1}
 experiment_name=${2}
 initialization=${3}
