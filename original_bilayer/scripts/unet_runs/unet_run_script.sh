@@ -51,6 +51,8 @@ elif [[ "$dataset_name" == "per_person" ]]; then
     data_root="${root_loc}/video-conf/scratch/pantea/temp_per_person_1_extracts"
 elif [[ "$dataset_name" == "per_video" ]]; then
     data_root="${root_loc}/video-conf/scratch/pantea/temp_per_video_extracts"
+elif [[ "$dataset_name" == "vedantha" ]]; then
+    data_root="${root_loc}/video-conf/scratch/vedantha/vedantha_extracts"
 fi 
 
 
@@ -90,7 +92,7 @@ python train.py \
     --batch_size ${batch_size} \
     --bn_momentum 1.0 \
     --calc_stats \
-    --checkpoint_freq 50 \
+    --checkpoint_freq 1000 \
     --data_root ${data_root} \
     --general_data_root  "${root_loc}/video-conf/scratch/pantea/temp_general_extracts" \
     --dis_activation_type leakyrelu \

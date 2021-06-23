@@ -256,10 +256,10 @@ class KeypointSegmentationGenerator():
                     imgs_segs.append((self.to_tensor(img) - 0.5) * 2)
             
             # This following action (scaling the poses) is done in training pipeline, and should not be done for generating the dataset. 
-            ## if crop_data:
-            ##     pose = pose / float(s)
+            if crop_data:
+                # This sets the range of pose to 0-256. This is what is needed for voxceleb.py 
+                pose = args.image_size*pose / float(s)
             ## poses.append(torch.from_numpy((pose - 0.5) * 2).view(-1))            
-            
             poses.append(torch.from_numpy((pose)).view(-1))
 
         # Stack the poses from different images
@@ -327,6 +327,7 @@ class KeypointSegmentationGenerator():
                 # Capturing the video frames 
                 while video.isOpened():
                     ret, frame = video.read()
+                    print(frame_num)
                     if frame is None:
                         break
 
@@ -357,8 +358,9 @@ class KeypointSegmentationGenerator():
                                     os.makedirs(str(self.segs_dir) +"/"+ str(filename), exist_ok=True)
                                     save_image(segs[0,0,:,:,:], segs_path + '.png')
 
-                        except: 
-                            print("Excaption happened in reading the poses of the frame.") 
+                        except Exception as e:
+                            raise(e) 
+                            print("Excaption happened in reading the poses of the frame.")
 
                     frame_num+=1
                 video.release()

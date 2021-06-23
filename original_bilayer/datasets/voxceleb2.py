@@ -112,7 +112,8 @@ class DatasetWrapper(data.Dataset):
         if phase == 'metrics':
             data_root = args.metrics_root
 
-        if phase != 'metrics':
+        if phase != 'metrics' and args.rebalance:
+            print('Loaded bins\n')
             self.bins = pickle.load(open(args.bin_path, "rb"))
 
         # Data paths
