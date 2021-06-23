@@ -1,3 +1,4 @@
+# not complete, change to delete the video when all the sessions become empty
 import glob
 import pathlib
 import numpy as np

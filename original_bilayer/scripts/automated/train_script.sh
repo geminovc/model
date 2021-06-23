@@ -189,7 +189,7 @@ python train.py \
     --unet_inputs 'lf, hf' \
     --metrics_freq ${metrics_freq} \
     --metrics_root /video-conf/scratch/pantea/metrics_dataset \
-    --skip_metrics True \
+    --skip_metrics False \
     --init_experiment_dir ${init_experiment_dir} \
     --init_networks 'identity_embedder, texture_generator, keypoints_embedder, inference_generator, discriminator' \
     --init_which_epoch ${init_which_epoch} \
