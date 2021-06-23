@@ -179,7 +179,7 @@ class NetworkWrapper(nn.Module):
         
         # Unet input values
         if self.args.use_unet:
-            # Add the code for making hte neural textures here
+            # Add the code for making the neural textures here
             warped_neural_textures = pred_target_delta_hf_rgbs
             # depending on wether you have the lf and hf content as inputs
             data_dict['warped_neural_textures'] = warped_neural_textures

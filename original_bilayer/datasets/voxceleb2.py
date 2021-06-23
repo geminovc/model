@@ -219,7 +219,7 @@ class DatasetWrapper(data.Dataset):
                 else:
                     frame_num = random.randint(0, (len(filenames) - 1))
                     filename = filenames[frame_num]
-                    if args.rebalance:
+                    if self.args.rebalance:
                         bins = self.bins
                         bin_index = random.randint(0, (len(bins)-1))
                         if len(bins[bin_index]) == 0:
