@@ -221,10 +221,10 @@ class DatasetWrapper(data.Dataset):
                     filename = filenames[frame_num]
                     if self.args.rebalance:
                         bins = self.bins
-                        bin_index = random.randint(0, (len(bins)-1))
+                        bin_index = torch.randint(0, len(bins), (1,))
                         if len(bins[bin_index]) == 0:
                             continue
-                        frame_num = random.randint(0, (len(bins[bin_index])-1))
+                        frame_num = torch.randint(0, len(bins[bin_index]), (1,))
                         filename_ = bins[bin_index][frame_num]
                         tmp = filename_.split('/')
                         p = tmp[10:-1] + [tmp[13][:-4]]
