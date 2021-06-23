@@ -74,6 +74,8 @@ class DatasetWrapper(data.Dataset):
         parser.add('--augmentation_by_general', default='False', type=rn_utils.str2bool, choices=[True, False],
                                                 help='gradually increase the weight of general dataset while training the per_person dataset')
 
+        parser.add('--rebalance', default='False', type=rn_utils.str2bool, choices=[True, False],
+                                                help='rebalance the dataset?')
         return parser
 
     def __init__(self, args, phase):
@@ -216,17 +218,19 @@ class DatasetWrapper(data.Dataset):
                     filename = filenames[frame_num]
                 else:
                     frame_num = random.randint(0, (len(filenames) - 1))
-                    bins = self.bins
-                    bin_index = random.randint(0, (len(bins)-1))
-                    if len(bins[bin_index]) == 0:
-                        continue
-                    frame_num = random.randint(0, (len(bins[bin_index])-1))
-                    filename_ = bins[bin_index][frame_num]
-                    tmp = filename_.split('/')
-                    p = tmp[10:-1] + [tmp[13][:-4]]
-                    l = '/'.join(p)
-                    filename = pathlib.Path(l)
-                    # If you want to use parallel learning, use torch (not numpy)
+                    filename = filenames[frame_num]
+                    if args.rebalance:
+                        bins = self.bins
+                        bin_index = random.randint(0, (len(bins)-1))
+                        if len(bins[bin_index]) == 0:
+                            continue
+                        frame_num = random.randint(0, (len(bins[bin_index])-1))
+                        filename_ = bins[bin_index][frame_num]
+                        tmp = filename_.split('/')
+                        p = tmp[10:-1] + [tmp[13][:-4]]
+                        l = '/'.join(p)
+                        filename = pathlib.Path(l)
+                        # If you want to use parallel learning, use torch (not numpy)
 
 
             # Read images
