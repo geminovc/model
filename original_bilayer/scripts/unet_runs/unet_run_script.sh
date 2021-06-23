@@ -5,7 +5,7 @@
 # It'll call this file
 
 # Variables from the user
-MAIN_DIR=../../
+MAIN_DIR="${HOME}/nets_implementation/original_bilayer"
 use_unet=${1}
 experiment_name=${2}
 initialization=${3}
