@@ -201,8 +201,8 @@ class NetworkWrapper(nn.Module):
         if not self.args.use_unet and ('inference_generator' in networks_to_train or self.args.inf_calc_grad):
             data_dict['pred_target_imgs_lf_detached'] = reshape_target_data(pred_target_imgs_lf_detached)
 
-            if self.args.inf_pred_segmentation:
-                data_dict['pred_target_segs_logits'] = reshape_target_data(pred_target_segs_logits)
+        if self.args.inf_pred_segmentation:
+            data_dict['pred_target_segs_logits'] = reshape_target_data(pred_target_segs_logits)
 
         if self.args.inf_apply_masks and self.args.inf_pred_segmentation:
             data_dict['target_imgs'] = reshape_target_data(target_imgs)

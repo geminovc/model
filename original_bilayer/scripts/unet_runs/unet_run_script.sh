@@ -25,6 +25,7 @@ fi
 if [[ "$use_unet" == "True" ]]; then
     unet_inputs=${12}
     unet_input_channels=${13}
+    texture_output_dim="16"
     lrs="identity_embedder: 2e-4, texture_generator: 2e-4, keypoints_embedder: 2e-4, inference_generator: 2e-4, discriminator: 2e-4, unet: 2e-4"
     optims="identity_embedder: adam, texture_generator: adam, keypoints_embedder: adam, inference_generator: adam, discriminator: adam, unet: adam"
     networks_calc_stats="identity_embedder, texture_generator, keypoints_embedder, inference_generator, unet"
@@ -34,6 +35,7 @@ if [[ "$use_unet" == "True" ]]; then
 elif [[ "$use_unet" == "False" ]]; then
     unet_inputs="hf"
     unet_input_channels="16"
+    texture_output_dim="3"
     lrs="identity_embedder: 2e-4, texture_generator: 2e-4, keypoints_embedder: 2e-4, inference_generator: 2e-4, discriminator: 2e-4"
     optims="identity_embedder: adam, texture_generator: adam, keypoints_embedder: adam, inference_generator: adam, discriminator: adam"
     networks_calc_stats="identity_embedder, texture_generator, keypoints_embedder, inference_generator"
@@ -194,9 +196,9 @@ python train.py \
     --replace_source_specific_with_trainable_tensors False \
     --augment_with_general False \
     --sample_general_dataset False \
-    --texture_output_dim 3 \
+    --texture_output_dim "$texture_output_dim" \
     --use_unet "$use_unet" \
-    --unet_input_channels 16 \
+    --unet_input_channels "$unet_input_channels" \
     --unet_output_channels 3 \
     --unet_inputs "$unet_inputs" \
     --metrics_freq "$metrics_freq" \
