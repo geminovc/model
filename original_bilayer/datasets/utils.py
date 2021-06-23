@@ -25,7 +25,7 @@ def get_dataloader(args, phase):
     return DataLoader(dataset, 
         batch_size=batch_size, 
         sampler=DistributedSampler(dataset, args.world_size, args.rank, shuffle=False), # shuffling is done inside the dataset
-        num_workers=args.num_workers_per_process,
+        num_workers= args.num_workers_per_process,
         drop_last=False)
 
 # Required to draw a stickman for ArcSoft keypoints
