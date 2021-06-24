@@ -18,53 +18,53 @@ class DatasetWrapper(data.Dataset):
     @staticmethod
     def get_args(parser):
         # Common properties
-        parser.add('--experiment_dir',          default='.', type=str,
-                                                help='directory to save logs')
+        parser.add('--experiment_dir',           default='.', type=str,
+                                                 help='directory to save logs')
 
         parser.add('--experiment_name',          default='test', type=str,
                                                  help='name of the experiment used for logging')
 
         parser.add('--num_source_frames',        default=1, type=int,
-                                                help='number of frames used for initialization of the model')
+                                                 help='number of frames used for initialization of the model')
 
-        parser.add('--num_target_frames',     default=1, type=int,
-                                              help='number of frames per identity used for training')
+        parser.add('--num_target_frames',        default=1, type=int,
+                                                 help='number of frames per identity used for training')
 
-        parser.add('--image_size',            default=256, type=int,
-                                              help='output image size in the model')
+        parser.add('--image_size',               default=256, type=int,
+                                                 help='output image size in the model')
 
-        parser.add('--num_keypoints',         default=68, type=int,
-                                              help='number of keypoints (depends on keypoints detector)')
+        parser.add('--num_keypoints',            default=68, type=int,
+                                                 help='number of keypoints (depends on keypoints detector)')
 
-        parser.add('--output_segmentation',   default='True', type=rn_utils.str2bool, choices=[True, False],
-                                              help='read segmentation mask')
+        parser.add('--output_segmentation',      default='True', type=rn_utils.str2bool, choices=[True, False],
+                                                 help='read segmentation mask')
 
-        parser.add('--output_stickmen',       default='True', type=rn_utils.str2bool, choices=[True, False],
-                                              help='draw stickmen using keypoints')
+        parser.add('--output_stickmen',          default='True', type=rn_utils.str2bool, choices=[True, False],
+                                                 help='draw stickmen using keypoints')
         
-        parser.add('--stickmen_thickness',    default=2, type=int, 
-                                              help='thickness of lines in the stickman')
+        parser.add('--stickmen_thickness',       default=2, type=int, 
+                                                 help='thickness of lines in the stickman')
         
-        parser.add('--frame_num_from_paper',   default='False', type=rn_utils.str2bool, choices=[True, False],
-                                               help='The random method to sample frame numbers for source and target from dataset')
+        parser.add('--frame_num_from_paper',     default='False', type=rn_utils.str2bool, choices=[True, False],
+                                                 help='The random method to sample frame numbers for source and target from dataset')
         
-        parser.add('--dataset_load_from_txt',  default='False', type=rn_utils.str2bool, choices=[True, False],
-                                               help='If True, the train is loaded from train_load_from_filename, the test is loaded from test_load_from_filename. If false, the data is loaded from data-root')
+        parser.add('--dataset_load_from_txt',    default='False', type=rn_utils.str2bool, choices=[True, False],
+                                                 help='If True, the train is loaded from train_load_from_filename, the test is loaded from test_load_from_filename. If false, the data is loaded from data-root')
         
-        parser.add('--save_dataset_filenames',  default='False', type=rn_utils.str2bool, choices=[True, False],
-                                                help='If True, the train/test data is saved in train/test_filnames.txt')
+        parser.add('--cutoff_shirt',             default='False', type=rn_utils.str2bool, choices=[True, False],
+                                                 help='If True, cuts off shirt in segmentation')
         
-        parser.add('--cutoff_shirt',            default='False', type=rn_utils.str2bool, choices=[True, False],
-                                                help='If True, cuts off shirt in segmentation')
+        parser.add('--save_dataset_filenames',   default='False', type=rn_utils.str2bool, choices=[True, False],
+                                                 help='If True, the train/test data is saved in train/test_filnames.txt')
 
         parser.add('--train_load_from_filename', default='train_filnames.txt', type=str,
-                                                help='filename that we read the training dataset images from if dataset_load_from_txt==True')                                    
+                                                 help='filename that we read the training dataset images from if dataset_load_from_txt==True')                                    
 
-        parser.add('--test_load_from_filename', default='test_filnames.txt', type=str,
-                                                help='filename that we read the testing dataset images from if dataset_load_from_txt==True')
+        parser.add('--test_load_from_filename',  default='test_filnames.txt', type=str,
+                                                 help='filename that we read the testing dataset images from if dataset_load_from_txt==True')
 
-        parser.add('--augmentation_by_general', default='False', type=rn_utils.str2bool, choices=[True, False],
-                                                help='gradually increase the weight of general dataset while training the per_person dataset')
+        parser.add('--augment_with_general',     default='False', type=rn_utils.str2bool, choices=[True, False],
+                                                 help='gradually increase the weight of general dataset while training the per_person dataset')
 
                                                       
 
@@ -96,7 +96,7 @@ class DatasetWrapper(data.Dataset):
             #data_root = (data_list[0].split(":"))[1]            
             
             # # choosing the general dataset root to sample from in training per-person approach
-            # if self.args.augmentation_by_general and args.data_root!=args.general_data_root:
+            # if self.args.augment_with_general and args.data_root!=args.general_data_root:
             #     general_data_root = args.general_data_root
 
 
@@ -281,7 +281,9 @@ class DatasetWrapper(data.Dataset):
                     reserve_index += 1
                     continue
 
+                # Convert 3-channel segmentations to 1 grayscale image
                 segs += [self.to_tensor(seg)[0][None]*update_seg] # Weird segmentation fix to change RGB into b/w
+
             sample_from_reserve = False
 
         imgs = (torch.stack(imgs)- 0.5) * 2.0
