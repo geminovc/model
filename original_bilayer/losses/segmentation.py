@@ -44,7 +44,6 @@ class LossWrapper(nn.Module):
                 real_segs = real_segs.type(fake_segs.type())
 
             real_segs = real_segs.view(b*t, *real_segs.shape[2:])
-
             losses_dict['G_' + self.names[i]] = self.loss(fake_segs, real_segs) * self.weights
 
         return losses_dict
