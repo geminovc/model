@@ -69,11 +69,6 @@ class NetworkWrapper(nn.Module):
         else:
             self.gen_tex_output = nn.Parameter(torch.randn(1, 3, self.args.image_size , self.args.image_size))
         
-        # Get the dropout values
-        if self.args.use_dropout:
-            nets_dropout = rn_utils.parse_str_to_dict(args.dropout_networks, value_type=float)
-            self.dropout_rate = nets_dropout['texture_generator']
-
 
     def forward(
             self, 
