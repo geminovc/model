@@ -17,7 +17,7 @@ inf_apply_masks=${12}
 
 # Depending on the machine you run the code from, the directory to save experiments is different due to write access
 if [[ "$machine" == "chunky" ]]; then
-    experiment_dir=/video-conf/scratch/pantea_experiments_chunky/${dataset_name}/${initialization}
+    experiment_dir=/data/pantea/pantea_experiments_chunky/${dataset_name}/${initialization}
 elif [[ "$machine" == "mapmaker" ]]; then
     experiment_dir=/video-conf/scratch/pantea_experiments_mapmaker/${dataset_name}/${initialization}
 fi 
@@ -64,7 +64,7 @@ python train.py \
     --batch_size ${batch_size} \
     --bn_momentum 1.0 \
     --calc_stats \
-    --checkpoint_freq 50 \
+    --checkpoint_freq 500 \
     --data_root ${data_root} \
     --general_data_root /video-conf/scratch/pantea/temp_general_extracts \
     --dis_activation_type leakyrelu \
@@ -154,7 +154,7 @@ python train.py \
     --stats_calc_iters 500 \
     --stickmen_thickness 2 \
     --test_freq ${test_freq} \
-    --visual_freq 10 \
+    --visual_freq 100 \
     --wpr_loss_apply_to pred_target_delta_uvs \
     --wpr_loss_decay_schedule '-1' \
     --wpr_loss_type l1 \

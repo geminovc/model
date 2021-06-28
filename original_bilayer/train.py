@@ -118,7 +118,7 @@ class TrainingWrapper(object):
         parser.add('--calc_stats',                                      action='store_true',
                                                                         help='calculate batch norm standing stats')
         
-        parser.add('--visual_freq',                                     default=-1, type=int, 
+        parser.add('--visual_freq',                                     default=100, type=int, 
                                                                         help='in iterations, -1 -- output logs every epoch')
 
         # Mixed precision options
