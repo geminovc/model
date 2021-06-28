@@ -9,26 +9,23 @@ batch_size=${5}
 num_epochs=${6}
 test_freq=${7}
 metrics_freq=${8}
-augment_with_general=${9}
-sample_general_dataset=${10}
-augment_with_general_ratio=${11}
-inf_apply_masks=${12}
-use_dropout=${13}
+inf_apply_masks=${9}
+use_dropout=${10}
 
 # Must be the last variable or remove it from user input and put default 
-dropout_networks=${14}
+dropout_networks=${11}
 
 
 if [ -z "$dropout_networks" ]
 then
-    dropout_networks='texture_generator: 0'
+    dropout_networks='texture_generator: 0.5'
 fi
 
 # Depending on the machine you run the code from, the directory to save experiments is different due to write access
 if [[ "$machine" == "chunky" ]]; then
     experiment_dir=/data/pantea/pantea_experiments_chunky/${dataset_name}/${initialization}
 elif [[ "$machine" == "mapmaker" ]]; then
-    experiment_dir=/video-conf/scratch/pantea_experiments_mapmaker/${dataset_name}/${initialization}
+    experiment_dir=/data4/pantea/pantea_experiments_mapmaker/${dataset_name}/${initialization}
 fi 
 
 # The dataset options for experiment
@@ -177,9 +174,8 @@ python train.py \
     --replace_AdaSpade_with_conv False \
     --replace_Gtex_output_with_trainable_tensor False \
     --replace_source_specific_with_trainable_tensors False \
-    --augment_with_general ${augment_with_general} \
-    --sample_general_dataset ${sample_general_dataset} \
-    --augment_with_general_ratio ${augment_with_general_ratio} \
+    --augment_with_general False \
+    --sample_general_dataset False \
     --texture_output_dim 3 \
     --use_unet False \
     --unet_input_channels 16 \
