@@ -18,6 +18,7 @@ dropout_networks=${10}
 if [ -z "$dropout_networks" ]
 then
     dropout_networks='texture_generator: 0.5'
+    use_dropout=False
 fi
 
 # Depending on the machine you run the code from, the directory to save experiments is different due to write access
