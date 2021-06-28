@@ -207,8 +207,11 @@ class TrainingWrapper(object):
         parser.add('--augment_with_general_ratio',                      default=0.5, type=float,
                                                                         help='augmentation ratio for augmenting the personal dataset with general dataset while training')
                              
+        # Mask the source and target before the pipeline
+        parser.add('--mask_source_target',                              default='True', type=rn_utils.str2bool, choices=[True, False],
+                                                                        help='mask the souce and target from the beginning')
 
-
+     
         # Technical options that are set automatically
         parser.add('--local_rank', default=0, type=int)
         parser.add('--rank',       default=0, type=int)

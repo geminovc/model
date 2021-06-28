@@ -9,17 +9,14 @@ batch_size=${5}
 num_epochs=${6}
 test_freq=${7}
 metrics_freq=${8}
-augment_with_general=${9}
-sample_general_dataset=${10}
-augment_with_general_ratio=${11}
-inf_apply_masks=${12}
+mask_source_target=${9}
 
 
 # Depending on the machine you run the code from, the directory to save experiments is different due to write access
 if [[ "$machine" == "chunky" ]]; then
     experiment_dir=/data/pantea/pantea_experiments_chunky/${dataset_name}/${initialization}
 elif [[ "$machine" == "mapmaker" ]]; then
-    experiment_dir=/video-conf/scratch/pantea_experiments_mapmaker/${dataset_name}/${initialization}
+    experiment_dir=/data4/pantea/pantea_experiments_mapmaker/${dataset_name}/${initialization}
 fi 
 
 # The dataset options for experiment
@@ -89,7 +86,7 @@ python train.py \
     --folder_postfix '2d_crop' \
     --frame_num_from_paper False \
     --inf_activation_type leakyrelu \
-    --inf_apply_masks ${inf_apply_masks} \
+    --inf_apply_masks True\
     --inf_max_channels 256 \
     --inf_norm_layer_type ada_bn \
     --inf_num_channels 32 \
@@ -168,9 +165,8 @@ python train.py \
     --replace_AdaSpade_with_conv False \
     --replace_Gtex_output_with_trainable_tensor False \
     --replace_source_specific_with_trainable_tensors False \
-    --augment_with_general ${augment_with_general} \
-    --sample_general_dataset ${sample_general_dataset} \
-    --augment_with_general_ratio ${augment_with_general_ratio} \
+    --augment_with_general False \
+    --sample_general_dataset False \
     --texture_output_dim 3 \
     --use_unet False \
     --unet_input_channels 16 \
@@ -182,6 +178,7 @@ python train.py \
     --init_experiment_dir ${init_experiment_dir} \
     --init_networks 'identity_embedder, texture_generator, keypoints_embedder, inference_generator, discriminator' \
     --init_which_epoch ${init_which_epoch} \
+    --mask_source_target ${mask_source_target} \
 
 
 
