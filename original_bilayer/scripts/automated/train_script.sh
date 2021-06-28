@@ -9,11 +9,10 @@ batch_size=${5}
 num_epochs=${6}
 test_freq=${7}
 metrics_freq=${8}
-inf_apply_masks=${9}
-use_dropout=${10}
+use_dropout=${9}
 
 # Must be the last variable or remove it from user input and put default 
-dropout_networks=${11}
+dropout_networks=${10}
 
 
 if [ -z "$dropout_networks" ]
@@ -95,7 +94,7 @@ python train.py \
     --folder_postfix '2d_crop' \
     --frame_num_from_paper False \
     --inf_activation_type leakyrelu \
-    --inf_apply_masks ${inf_apply_masks} \
+    --inf_apply_masks True \
     --inf_max_channels 256 \
     --inf_norm_layer_type ada_bn \
     --inf_num_channels 32 \
