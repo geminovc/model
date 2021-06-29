@@ -14,7 +14,7 @@ import torchvision
 import torch.nn.functional as F
 from PIL import Image
 
-import datasets, hopenet, utils
+import hopenet
 
 from skimage import io
 import dlib
@@ -33,6 +33,7 @@ def parse_args():
     parser.add_argument('--face_model', dest='face_model', help='Path of DLIB face detection model.',
           default='/data/vision/billf/video-conf/scratch/vedantha/hope_weights/mmod_human_face_detector.dat', type=str)
     parser.add_argument('--root', dest='root', help='Path of videos', default='/data/vision/billf/video-conf/scratch/pantea/temp_per_person_1_extracts')
+    parser.add_argument('--save_path', dest='save_path', help='Path of angles', default='/data/vision/billf/video-conf/scratch/pantea/temp_per_person_1_extracts')
     args = parser.parse_args()
     return args
 def get_angles_from_path(args, idx_tensor, transformations, cnn_face_detector, model):
@@ -162,7 +163,7 @@ if __name__ == '__main__':
         
         img_path  = args.img_path
         split_string = img_path.split('/')
-        path_to_angles = ['/data/vision/billf/video-conf/scratch/vedantha']+ ['stabilizing_test_3'] + ['angles'] + split_string[-5:-1] + [split_string[-1][:-3] + 'npy']
+        path_to_angles = [args.save_path] + ['angles'] + split_string[-5:-1] + [split_string[-1][:-3] + 'npy']
         path_to_angles_dir = '/'.join(path_to_angles)
         
         if not os.path.exists('/'.join(path_to_angles[:-1])):
