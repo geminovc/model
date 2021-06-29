@@ -206,8 +206,14 @@ class TrainingWrapper(object):
 
         parser.add('--augment_with_general_ratio',                      default=0.5, type=float,
                                                                         help='augmentation ratio for augmenting the personal dataset with general dataset while training')
-                             
 
+        # Dropout options
+        parser.add('--use_dropout',                                     default='False', type=rn_utils.str2bool, choices=[True, False],
+                                                                        help='use dropout in the convolutional layers')
+
+        parser.add('--dropout_networks',                                default='texture_generator: 0.5' ,
+                                                                        help='networks to use dropout in: the dropout rate')
+           
 
         # Technical options that are set automatically
         parser.add('--local_rank', default=0, type=int)

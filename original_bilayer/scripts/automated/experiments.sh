@@ -6,20 +6,25 @@
 # num_epochs=${6}
 # test_freq=${7}
 # metrics_freq=${8}
-# augment_with_general=${9}
-# sample_general_dataset=${10}
-# augment_with_general_ratio=${11}
-# inf_apply_masks=${12}
+# use_dropout=${9}
+# dropout_networks={10}
 
-# From base experiment
-CUDA_VISIBLE_DEVICES=2 ./train_script.sh  "chunky" "no_augmentation_no_mask"   "from_base" "per_person" 2 7000 1 1 False False 0.1 False
-CUDA_VISIBLE_DEVICES=2 ./train_script.sh  "chunky" "no_augmentation_with_mask" "from_base" "per_person" 2 7000 1 1 False False 0.1 True
+# From base experiments
 
-# From paper's released checkpoint experiment
-CUDA_VISIBLE_DEVICES=2 ./train_script.sh  "chunky" "no_augmentation_no_mask"   "from_paper" "per_person" 2 7000 1 1 False False 0.1 False
-CUDA_VISIBLE_DEVICES=2 ./train_script.sh  "chunky" "no_augmentation_with_mask" "from_paper" "per_person" 2 7000 1 1 False False 0.1 True
-CUDA_VISIBLE_DEVICES=2 ./train_script.sh  "chunky" "augmented_no_sampling_0.6_no_mask"      "from_paper" "per_person" 2 7000 1 1 True False 0.6 False
-CUDA_VISIBLE_DEVICES=2 ./train_script.sh  "chunky" "augmented_0.3_with_mask" "from_paper" "per_person" 1 7000 10 10 True True 0.3 True
+# From base, without dropout
+CUDA_VISIBLE_DEVICES=2 ./train_script.sh  "chunky" "no_dropout" "from_base" "per_person" 2 7000 100 100 False
+# From base, with dropout
+CUDA_VISIBLE_DEVICES=2 ./train_script.sh  "chunky" "dropout"    "from_base" "per_person" 2 7000 100 100 True
 
-# Debugging experiment
-CUDA_VISIBLE_DEVICES=2 ./train_script.sh  "chunky" "debug" "from_base" "per_person" 2 7000 1 1 False False 0.1 False
+# From paper, without dropout
+CUDA_VISIBLE_DEVICES=2 ./train_script.sh  "chunky" "no_dropout" "from_paper" "per_person" 2 7000 100 100 False
+# From paper, with dropout in G_tex
+CUDA_VISIBLE_DEVICES=2 ./train_script.sh  "chunky" "dropout"    "from_paper" "per_person" 2 7000 100 100 True 'texture_generator: 0.5'
+# From paper, with dropout in G_inf
+CUDA_VISIBLE_DEVICES=2 ./train_script.sh  "chunky" "dropout"    "from_paper" "per_person" 2 7000 100 100 True 'inference_generator: 0.5'
+# From paper, with dropout in G_tex and G_inf
+CUDA_VISIBLE_DEVICES=2 ./train_script.sh  "chunky" "dropout"    "from_paper" "per_person" 2 7000 100 100 True 'inference_generator: 0.5, texture_generator: 0.5'
+
+
+# Debugging experiment 
+CUDA_VISIBLE_DEVICES=2 ./train_script.sh  "chunky" "debug" "from_base" "per_person" 2 7000 1 1 True 'texture_generator: 0.5'
