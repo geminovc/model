@@ -51,6 +51,9 @@ class DatasetWrapper(data.Dataset):
         parser.add('--dataset_load_from_txt',    default='False', type=rn_utils.str2bool, choices=[True, False],
                                                  help='If True, the train is loaded from train_load_from_filename, the test is loaded from test_load_from_filename. If false, the data is loaded from data-root')
         
+        parser.add('--cutoff_shirt',             default='False', type=rn_utils.str2bool, choices=[True, False],
+                                                 help='If True, cuts off shirt in segmentation')
+        
         parser.add('--save_dataset_filenames',   default='False', type=rn_utils.str2bool, choices=[True, False],
                                                  help='If True, the train/test data is saved in train/test_filnames.txt')
 
@@ -125,8 +128,6 @@ class DatasetWrapper(data.Dataset):
         # to keep track of them between runs
         if phase == 'metrics':
             self.sequences = sorted(self.sequences)
-        
-        print(len(self.sequences), self.sequences)
 
         # Parameters of the sampling scheme
         self.delta = math.sqrt(5)
@@ -238,7 +239,7 @@ class DatasetWrapper(data.Dataset):
                 
                 if self.args.save_dataset_filenames:
                     # write the filename to file
-                    if len (imgs) <= self.args.num_source_frames :
+                    if len (imgs) <= self.args.num_source_frames:
                         save_file = self.phase + "_filenames.txt"
                         with open(self.experiment_dir / save_file, 'a') as data_file:
                             data_file.write('source %s:%s\n' % (str(len (imgs)), str(filename.with_suffix('.jpg'))))
@@ -258,10 +259,15 @@ class DatasetWrapper(data.Dataset):
 
             keypoints = keypoints.reshape((68,2)) #I added this
             keypoints = keypoints[:self.args.num_keypoints, :]
+            boundary = int(np.max(keypoints[:,1]))
             keypoints[:, :2] /= s
             keypoints = keypoints[:, :2]
-
-
+            update_seg = torch.ones(1,256,256)
+            if self.args.cutoff_shirt:
+                # Cuts off everything below the bottom most keypoint. 
+                # When combined with the segmentation mask which cuts off all the background, this
+                # leaves only the face part remaining in the image
+                update_seg[:,boundary:, :] = 0
             poses += [torch.from_numpy(keypoints.reshape(-1))]
 
             if self.args.output_segmentation:
@@ -278,10 +284,8 @@ class DatasetWrapper(data.Dataset):
                     reserve_index += 1
                     continue
 
-
                 # Convert 3-channel segmentations to 1 grayscale image
-                # segs += [self.to_tensor(seg)]
-                segs += [self.to_tensor(seg)[0][None]]
+                segs += [self.to_tensor(seg)[0][None]*update_seg] # Weird segmentation fix to change RGB into b/w
 
             sample_from_reserve = False
 

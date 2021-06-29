@@ -1,75 +1,32 @@
-# Variables from the user
-#MAIN_DIR="${HOME}/NETS/nets_implementation/original_bilayer"
-MAIN_DIR=../..
-machine=${1}
-experiment_name=${2}
-initialization=${3}
-dataset_name=${4}
-batch_size=${5}
-num_epochs=${6}
-test_freq=${7}
-metrics_freq=${8}
-
-
-# Depending on the machine you run the code from, the directory to save experiments is different due to write access
-if [[ "$machine" == "chunky" ]]; then
-    experiment_dir=/data/pantea/pantea_experiments_chunky/${dataset_name}/${initialization}
-elif [[ "$machine" == "mapmaker" ]]; then
-    experiment_dir=/data4/pantea/pantea_experiments_mapmaker/${dataset_name}/${initialization}
-fi 
-
-# The dataset options for experiment
-if [[ "$dataset_name" == "general" ]]; then
-    data_root=/video-conf/scratch/pantea/temp_general_extracts
-elif [[ "$dataset_name" == "per_person" ]]; then
-    data_root=/video-conf/scratch/pantea/temp_per_person_extracts
-elif [[ "$dataset_name" == "per_video" ]]; then
-    data_root=/video-conf/scratch/pantea/temp_per_video_extracts
-fi 
-
-
-# Add initialization options
-if [[ "$initialization" == "from_base" ]]; then
-    init_networks=' '
-    init_experiment_dir='.'
-    init_which_epoch='none'
-
-elif [[ "$initialization" == "from_paper" ]]; then
-    init_networks='identity_embedder, texture_generator, keypoints_embedder, inference_generator, discriminator'
-    init_experiment_dir=/video-conf/scratch/pantea/bilayer_paper_released/runs/vc2-hq_adrianb_paper_main
-    init_which_epoch=2225
-
-fi
-
-cd $MAIN_DIR/
-
-python train.py \
-    --experiment_name ${experiment_name} \
-    --pretrained_weights_dir /video-conf/scratch/pantea \
-    --images_log_rate 50 \
-    --metrics_log_rate 50 \
+cd ../../
+python  train.py \
+    --experiment_name 'no_unet_per_person_paper_2' \
+    --augmentation_by_general False \
+    --save_initial_test_before_training False \
+    --images_log_rate 100 \
+    --metrics_log_rate 100 \
     --random_seed 0 \
     --save_dataset_filenames False \
     --dataset_load_from_txt False \
+    --train_load_from_filename /data/pantea/video_conf/one_person_dataset/per_video_dataset/results/runs/toy_project/reserved_train_filenames.txt \
+    --test_load_from_filename /data/pantea/video_conf/one_person_dataset/per_video_dataset/results/runs/toy_project/reserved_test_filenames.txt \
     --adam_beta1 0.5 \
     --adv_loss_weight 0.5 \
     --adv_pred_type ragan \
     --amp_loss_scale dynamic \
-    --experiment_dir ${experiment_dir} \
-    --amp_opt_level  O0 \
-    --batch_size ${batch_size} \
+    --experiment_dir /data/vision/billf/video-conf/scratch/vedantha/runs \
+    --amp_opt_level O0 \
+    --batch_size 2 \
     --bn_momentum 1.0 \
     --calc_stats \
-    --checkpoint_freq 1000 \
-    --data_root ${data_root} \
-    --general_data_root /video-conf/scratch/pantea/temp_general_extracts \
+    --checkpoint_freq 25 \
+    --data_root /data/vision/billf/video-conf/scratch/pantea/temp_per_person_extracts \
     --dis_activation_type leakyrelu \
     --dis_downsampling_type avgpool \
     --dis_max_channels 512 \
     --dis_norm_layer_type bn \
     --dis_num_blocks 6 \
     --dis_num_channels 64 \
-    --use_source_background True \
     --output_segmentation True \
     --dis_output_tensor_size 8 \
     --emb_activation_type leakyrelu \
@@ -83,9 +40,9 @@ python train.py \
     --fem_loss_type l1 \
     --fem_loss_weight 10.0 \
     --folder_postfix '2d_crop' \
-    --frame_num_from_paper False \
     --inf_activation_type leakyrelu \
-    --inf_apply_masks True\
+    --inf_apply_masks True \
+    --inf_calc_grad True \
     --inf_max_channels 256 \
     --inf_norm_layer_type ada_bn \
     --inf_num_channels 32 \
@@ -94,7 +51,6 @@ python train.py \
     --inf_pred_source_data False \
     --inf_skip_layer_type ada_conv \
     --inf_upsampling_type nearest \
-    --inf_calc_grad True \
     --tex_max_channels 512 \
     --tex_norm_layer_type ada_spade_bn \
     --tex_num_channels 64 \
@@ -104,15 +60,15 @@ python train.py \
     --tex_upsampling_type nearest \
     --tex_activation_type leakyrelu \
     --image_size 256 \
-    --losses_test 'PSNR, lpips, csim, ssim' \
-    --metrics 'PSNR, lpips, pose_matching, csim, ssim' \
-    --psnr_loss_apply_to 'pred_target_imgs, target_imgs'  \
-    --losses_train 'adversarial, feature_matching, perceptual, pixelwise, warping_regularizer, segmentation'  \
+    --metrics 'lpips, PSNR, ssim'\
+    --losses_test '' \
+    --losses_train 'adversarial, feature_matching, perceptual, pixelwise, segmentation, warping_regularizer' \
     --lrs 'identity_embedder: 2e-4, texture_generator: 2e-4, keypoints_embedder: 2e-4, inference_generator: 2e-4, discriminator: 2e-4'  \
     --networks_calc_stats 'identity_embedder, texture_generator, keypoints_embedder, inference_generator' \
     --networks_test 'identity_embedder, texture_generator, keypoints_embedder, inference_generator' \
+    --networks_to_train 'identity_embedder, texture_generator, keypoints_embedder, inference_generator, discriminator' \
     --networks_train 'identity_embedder, texture_generator, keypoints_embedder, inference_generator, discriminator' \
-    --num_epochs ${num_epochs} \
+    --num_epochs 50000 \
     --num_gpus 1 \
     --num_keypoints 68 \
     --num_source_frames 1 \
@@ -133,15 +89,19 @@ python train.py \
     --pix_loss_names L1 \
     --pix_loss_type l1 \
     --pix_loss_weights 10.0 \
-    --project_dir '.' \
+    --project_dir '/data/vision/billf/video-conf/scratch/vedantha' \
+    --pretrained_weights_dir '/data/vision/billf/video-conf/scratch/vedantha'\
     --pse_activation_type leakyrelu \
     --pse_emb_source_pose False \
     --pse_in_channels 136 \
     --pse_input_tensor poses \
     --pse_num_blocks 4 \
     --pse_num_channels 256 \
+    --pse_use_harmonic_enc False \
+    --psnr_loss_apply_to 'pred_target_imgs, target_imgs' \
+    --random_seed 0 \
     --runner_name default \
-    --seg_loss_apply_to 'pred_target_segs_logits, target_segs' \
+    --seg_loss_apply_to 'pred_target_segs, target_segs' \
     --seg_loss_names BCE \
     --seg_loss_type bce \
     --seg_loss_weights 10.0 \
@@ -149,34 +109,25 @@ python train.py \
     --spn_networks 'identity_embedder, texture_generator, keypoints_embedder, inference_generator, discriminator' \
     --stats_calc_iters 500 \
     --stickmen_thickness 2 \
-    --test_freq ${test_freq} \
-    --visual_freq 100 \
+    --test_freq 1 \
+    --metrics_freq 10 \
+    --texture_output_dim 3 \
+    --use_unet False \
+    --unet_input_channels 16\
+    --unet_output_channels 3 \
+    --unet_inputs 'lf, hf' \
+    --visual_freq '-1' \
     --wpr_loss_apply_to pred_target_delta_uvs \
     --wpr_loss_decay_schedule '-1' \
     --wpr_loss_type l1 \
-    --wpr_loss_weight 0.1 \
+    --wpr_loss_weight 1.0 \
     --wpr_loss_weight_decay 1.0 \
-    --nme_num_threads 1  \
-    --skip_test False \
-    --frozen_networks ' ' \
-    --unfreeze_texture_generator_last_layers True \
-    --unfreeze_inference_generator_last_layers True \
-    --replace_AdaSpade_with_conv False \
+    --init_experiment_dir /data/vision/billf/video-conf/scratch/pantea/bilayer_paper_released/runs/vc2-hq_adrianb_paper_main \
+    --init_networks 'identity_embedder, texture_generator, keypoints_embedder, inference_generator, discriminator' \
+    --init_which_epoch 2225 \
+    --metrics_root /data/vision/billf/video-conf/scratch/pantea/metrics_dataset \
+    --skip_test True \
+    --skip_metrics False \
     --replace_Gtex_output_with_trainable_tensor False \
     --replace_source_specific_with_trainable_tensors False \
-    --augment_with_general False \
-    --sample_general_dataset False \
-    --texture_output_dim 3 \
-    --use_unet False \
-    --unet_input_channels 16 \
-    --unet_output_channels 3 \
-    --unet_inputs 'lf, hf' \
-    --metrics_freq ${metrics_freq} \
-    --metrics_root /video-conf/scratch/pantea/metrics_dataset \
-    --skip_metrics False \
-    --init_experiment_dir ${init_experiment_dir} \
-    --init_networks 'identity_embedder, texture_generator, keypoints_embedder, inference_generator, discriminator' \
-    --init_which_epoch ${init_which_epoch} \
-    --use_dropout False \
-
-
+    --sample_general_dataset False
