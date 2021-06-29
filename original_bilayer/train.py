@@ -10,7 +10,6 @@ import time
 import copy
 import sys
 import random 
-from torch.utils.tensorboard import SummaryWriter
 from datasets import utils as ds_utils
 from networks import utils as nt_utils
 from runners  import utils as rn_utils
@@ -37,7 +36,7 @@ class TrainingWrapper(object):
         parser.add('--experiment_name',                                 default='test', type=str,
                                                                         help='name of the experiment used for logging')
 
-        parser.add('--dataloader_name',                                 default='l2_distance', type=str,
+        parser.add('--dataloader_name',                                 default='voxceleb2', type=str,
                                                                         help='name of the file in dataset directory which is used for data loading')
 
         parser.add('--dataset_name',                                    default='voxceleb2_512px', type=str,
@@ -153,12 +152,6 @@ class TrainingWrapper(object):
         parser.add('--psnr_loss_apply_to',                              default='pred_target_delta_lf_rgbs , target_imgs', type=str,
                                                                         help='psnr loss to apply') 
 
-        parser.add('--images_log_rate',                                 default=100, type=int,
-                                                                        help='logging rate for images') 
-        
-        parser.add('--metrics_log_rate',                                default=2, type=int,
-                                                                        help='logging rate for metrics like PSNR')
-
         parser.add('--save_initial_test_before_training',               default='True', type=rn_utils.str2bool, choices=[True, False],
                                                                         help='save how he model performs on test before training, useful for sanity check') 
         
@@ -206,8 +199,14 @@ class TrainingWrapper(object):
 
         parser.add('--augment_with_general_ratio',                      default=0.5, type=float,
                                                                         help='augmentation ratio for augmenting the personal dataset with general dataset while training')
-                             
 
+        # Dropout options
+        parser.add('--use_dropout',                                     default='False', type=rn_utils.str2bool, choices=[True, False],
+                                                                        help='use dropout in the convolutional layers')
+
+        parser.add('--dropout_networks',                                default='texture_generator: 0.5' ,
+                                                                        help='networks to use dropout in: the dropout rate')
+           
 
         # Technical options that are set automatically
         parser.add('--local_rank', default=0, type=int)
@@ -283,7 +282,6 @@ class TrainingWrapper(object):
         init_networks = rn_utils.parse_str_to_list(args.init_networks) if args.init_networks else {}
         frozen_networks = rn_utils.parse_str_to_list(args.frozen_networks) if args.frozen_networks else {}
         networks_to_train = self.runner.nets_names_to_train
-        #nets_frozen_networks_dict= rn_utils.parse_str_to_dict(args.frozen_networks_dict)
 
         if args.init_which_epoch != 'none' and args.init_experiment_dir:
             for net_name in init_networks:
@@ -291,11 +289,7 @@ class TrainingWrapper(object):
                 if net_name in frozen_networks: #dictionary
                     for p in self.runner.nets[net_name].parameters():
                         p.requires_grad = False
-                    
-                    #for unfreezed_layer_name in frozen_networks[net_name]['unfreezed_layers']:
-                    #    getattr(self.runner.nets[net_name], unfreezed_layer_name).requires_grad=True
-                    #    --frozen_networks '{'texture_generator': {'unfreezed_layers':['layer_1','layer_2']}}'
-                    #frozen_networks ={'texture_generator': {'unfreezed_layers':['layer_1','layer_2']}}
+
                 if net_name == "texture_generator" and net_name in frozen_networks and args.unfreeze_texture_generator_last_layers: 
                     for name, module in self.runner.nets[net_name].named_children():
                         if name == 'prj_tex':
@@ -412,6 +406,7 @@ class TrainingWrapper(object):
 
         if not args.skip_test:
             test_dataloader = ds_utils.get_dataloader(args, 'test')
+            unseen_test_dataloader = ds_utils.get_dataloader(args, 'unseen_test')
         
         if not args.skip_metrics:
             metrics_dataloader = ds_utils.get_dataloader(args, 'metrics')
@@ -469,7 +464,8 @@ class TrainingWrapper(object):
         logger.set_num_iter(
             train_iter=train_iter, 
             test_iter=(epoch_start - 1) // args.test_freq,
-            metrics_iter=(epoch_start - 1) // args.metrics_freq)
+            metrics_iter=(epoch_start - 1) // args.metrics_freq,
+            unseen_test_iter=(epoch_start - 1) // args.test_freq)
 
         if args.debug and not args.use_apex:
             torch.autograd.set_detect_anomaly(True)
@@ -584,7 +580,7 @@ class TrainingWrapper(object):
                 for opt in opts.values():
                     opt.step(closure)
 
-                if output_logs:
+                if not epoch % args.visual_freq:
                     logger.output_logs('train', runner.output_visuals(), runner.output_losses(), \
                             runner.output_metrics(), time.time() - time_start)
  
@@ -604,7 +600,7 @@ class TrainingWrapper(object):
                 if args.calc_stats:
                     runner.calculate_batchnorm_stats(train_dataloader, args.debug)
 
-                # Test
+                # Test on seen videos
                 time_start = time.time()
                 model.eval()
 
@@ -615,8 +611,6 @@ class TrainingWrapper(object):
                         for key, value in data_dict.items():
                             data_dict[key] = value.cuda()
 
-                    
-
                     # Forward pass
                     with torch.no_grad():
                         model(data_dict)
@@ -624,6 +618,27 @@ class TrainingWrapper(object):
                     if args.debug:
                         break
                 logger.output_logs('test', runner.output_visuals(), runner.output_losses(), \
+                    runner.output_metrics(), time.time() - time_start)
+                
+                
+                # Test on unseen videos
+                time_start = time.time()
+                model.eval()
+
+                unseen_test_dataloader.dataset.shuffle()
+                for data_dict in unseen_test_dataloader:
+                    # Prepare input data
+                    if args.num_gpus > 0:
+                        for key, value in data_dict.items():
+                            data_dict[key] = value.cuda()
+
+                    # Forward pass
+                    with torch.no_grad():
+                        model(data_dict)
+                    
+                    if args.debug:
+                        break
+                logger.output_logs('unseen_test', runner.output_visuals(), runner.output_losses(), \
                     runner.output_metrics(), time.time() - time_start)
 
             # If skip metrics flag is set -- only check if a checkpoint if required

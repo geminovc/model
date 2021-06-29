@@ -69,7 +69,7 @@ class DatasetWrapper(data.Dataset):
 
         # Difficult keypoints                              
 
-        parser.add('--root_to_diff_keypoints',  default='/data4/pantea/nets_implementation/original_bilayer/pose_analysis/results/difficult_poses/temp_per_person_extracts', type=str, 
+        parser.add('--root_to_diff_keypoints',  default='/data/pantea/pose_results/difficult_poses/per_person_1_three_datasets', type=str, 
                                                  help='If True, the images, keypoints, and segs are picked from files')
         
 

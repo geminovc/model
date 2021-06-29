@@ -1,3 +1,4 @@
+# MAIN_DIR=../..
 # machine=${1}
 # experiment_name=${2}
 # initialization=${3}
@@ -6,23 +7,23 @@
 # num_epochs=${6}
 # test_freq=${7}
 # metrics_freq=${8}
-# augment_with_general=${9}
-# sample_general_dataset=${10}
-# augment_with_general_ratio=${11}
-# inf_apply_masks=${12}
-# dataloader_name=${13}
+# dataloader_name={9}
 
 # From base experiment
-CUDA_VISIBLE_DEVICES=2 ./train_script.sh  "chunky" "no_augmentation_no_mask"   "from_base" "per_person" 2 7000 1 1 False False 0.1 False
-CUDA_VISIBLE_DEVICES=2 ./train_script.sh  "chunky" "no_augmentation_with_mask" "from_base" "per_person" 2 7000 1 1 False False 0.1 True
+CUDA_VISIBLE_DEVICES=2 ./train_script.sh  "chunky" "experiment"  "from_base" "per_person" 2 7000 100 100 'voxceleb2'
 
 # From paper's released checkpoint experiment
-CUDA_VISIBLE_DEVICES=2 ./train_script.sh  "chunky" "no_augmentation_no_mask"   "from_paper" "per_person" 2 7000 1 1 False False 0.1 False
-CUDA_VISIBLE_DEVICES=2 ./train_script.sh  "chunky" "no_augmentation_with_mask" "from_paper" "per_person" 2 7000 1 1 False False 0.1 True
-CUDA_VISIBLE_DEVICES=2 ./train_script.sh  "chunky" "augmented_no_sampling_0.6_no_mask"      "from_paper" "per_person" 2 7000 1 1 True False 0.6 False
+# Voxeleb2 dataloader
+CUDA_VISIBLE_DEVICES=2 ./train_script.sh  "chunky" "experiment"  "from_paper" "per_person" 2 7000 100 100 'voxceleb2'
+# Difficult pose dataloader
+CUDA_VISIBLE_DEVICES=2 ./train_script.sh  "chunky" "experiment"  "from_paper" "per_person" 2 7000 100 100 'difficult_pose'
+# L2 Distance dataloader 
+CUDA_VISIBLE_DEVICES=2 ./train_script.sh  "chunky" "experiment"  "from_paper" "per_person" 2 7000 100 100 'l2_distance'
+# Yaw dataloader 
+CUDA_VISIBLE_DEVICES=2 ./train_script.sh  "chunky" "experiment"  "from_paper" "per_person" 2 7000 100 100 'yaw'
 
 # Debugging experiment
-CUDA_VISIBLE_DEVICES=2 ./train_script.sh  "chunky" "debug" "from_base" "per_person" 2 7000 1 1 False False 0.1 False
+CUDA_VISIBLE_DEVICES=2 ./train_script.sh  "chunky" "debug"       "from_paper" "per_person" 2 10 1 1 'voxceleb2'
 
-# L2_dataloader
-CUDA_VISIBLE_DEVICES=0 ./train_script.sh  "chunky" "l2_dataloader_500" "from_paper" "per_person" 2 3000 50 50 False False 0.6 True 'l2_distance'
+# Per_person train/test/unseen_test 
+CUDA_VISIBLE_DEVICES=2 ./train_script.sh  "chunky" "unseen_test" "from_paper" "per_person" 2 7000 100 100 'voxceleb2'
