@@ -9,7 +9,7 @@ import shutil
 
 parser= argparse.ArgumentParser("Difficult pose post process")
 parser.add_argument('--pickle_root',
-        default= '/data4/pantea/nets_implementation/original_bilayer/difficult_poses/results/difficult_poses/random_sampled_per_person',
+        default= '/data/pantea/pose_results/difficult_poses/per_person_1_three_datasets',
         type=str,
         help='pickle root')
 parser.add_argument('--phase',
@@ -48,3 +48,16 @@ for session in keypoints_sessions:
     else:
         print(session, "has enough images.")
 
+
+# Find all the videos and delete the empty ones
+videos = keypoint_directory.glob('*/*')
+videos = sorted([str(seq) for seq in videos])
+for video in videos:
+    #Getting the list of directories
+    dir = os.listdir(video)
+    # Checking if the list is empty or not
+    if len(dir) == 0:
+        print("Deleting empty directory of ", video)
+        shutil.rmtree(pathlib.Path(video)) 
+    else:
+        print(video, " is not an empty directory")

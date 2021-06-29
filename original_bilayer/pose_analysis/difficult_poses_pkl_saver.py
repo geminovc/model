@@ -15,7 +15,7 @@ import argparse
 
 parser= argparse.ArgumentParser("Difficult pose finder")
 parser.add_argument('--data_root',
-        default= '/video-conf/scratch/pantea/random_sampled_per_person',
+        default= '/data/pantea/per_person_1_three_datasets',
         type=str,
         help='dataset root')
 parser.add_argument('--phase',
@@ -24,7 +24,7 @@ parser.add_argument('--phase',
         help='phase of the dataset, train or test')
 parser.add_argument('--results_folder',
         type=str,
-        default='./results/difficult_poses',
+        default='/data/pantea/pose_results/difficult_poses',
         help='phase of the dataset, train or test')
 
 args = parser.parse_args()
