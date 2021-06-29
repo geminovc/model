@@ -40,11 +40,11 @@ class NetworkWrapper(nn.Module):
         parser.add('--texture_output_dim',       default=3, type=int,
                                                  help='texture output dimensions, 3 for usual, 16 for unet added')
         # Dropout options
-        parser.add('--use_dropout',                                     default='False', type=rn_utils.str2bool, choices=[True, False],
-                                                                        help='use dropout in the convolutional layers')
+        parser.add('--use_dropout',              default='False', type=rn_utils.str2bool, choices=[True, False],
+                                                 help='use dropout in the convolutional layers')
 
-        parser.add('--dropout_networks',                                default='texture_generator: 0.5' ,
-                                                                        help='networks to use dropout in: the dropout rate')
+        parser.add('--dropout_networks',         default='texture_generator: 0.5' ,
+                                                 help='networks to use dropout in: the dropout rate')
            
     
         parser.add('--replace_Gtex_output_with_trainable_tensor',   default='False', type=rn_utils.str2bool, choices=[True, False],

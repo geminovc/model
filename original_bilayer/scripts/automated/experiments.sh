@@ -7,7 +7,7 @@
 # num_epochs=${6}
 # test_freq=${7}
 # metrics_freq=${8}
-
+# dataloader_name={9}
 
 # From base experiment
 CUDA_VISIBLE_DEVICES=2 ./train_script.sh  "chunky" "experiment"  "from_base" "per_person" 2 7000 100 100 
