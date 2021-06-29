@@ -221,8 +221,13 @@ class KeypointSegmentationGenerator():
         # Iterate over all the images in the batch
         for i in range(N):
             
-            # Get the pose of the i-th image in the batch 
+            start = torch.cuda.Event(enable_timing=True)
+            end = torch.cuda.Event(enable_timing=True)
+            start.record()
             pose = self.fa.get_landmarks(input_imgs[i])[0]
+            end.record()
+            torch.cuda.synchronize()
+            print('Keypoints', "took: ", start.elapsed_time(end), "ms")    # Get the pose of the i-th image in the batch 
 
             # Finding the center of the face using the pose coordinates
             center = ((pose.min(0) + pose.max(0)) / 2).round().astype(int)

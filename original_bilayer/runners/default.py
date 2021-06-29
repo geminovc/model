@@ -221,7 +221,7 @@ class RunnerWrapper(nn.Module):
             self.data_dict = self.nets[net_name](self.data_dict, networks_to_train, self.nets)
             end.record()
             torch.cuda.synchronize()
-            print(net_name, " took: ", start.elapsed_time(end), "ms")
+            print(net_name, "took: ", start.elapsed_time(end), "ms")
 
         # Forward pass through all the losses
         losses_dict = {}
