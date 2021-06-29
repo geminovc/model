@@ -209,7 +209,7 @@ class TrainingWrapper(object):
                              
         # Mask the source and target before the pipeline
         parser.add('--mask_source_target',                              default='True', type=rn_utils.str2bool, choices=[True, False],
-                                                                        help='mask the souce and target from the beginning')
+                                                                        help='mask the source and target from the beginning')
 
      
         # Technical options that are set automatically
