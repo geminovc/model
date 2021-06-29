@@ -67,12 +67,15 @@ class DatasetWrapper(data.Dataset):
         parser.add('--txt_directory',            default='/data4/pantea/nets_implementation/original_bilayer/difficult_poses/results/temp_per_person_extracts', type=str, 
                                                  help='gradually increase the weight of general dataset while training the per_person dataset')
 
-        # Difficult keypoints                              
-
-        parser.add('--root_to_diff_keypoints',  default='/data4/pantea/nets_implementation/original_bilayer/pose_analysis/results/difficult_poses/temp_per_person_extracts', type=str, 
-                                                 help='If True, the images, keypoints, and segs are picked from files')
+        # Yaws                              
+        parser.add('--root_to_yaws',             default='/video-conf/scratch/vedantha/stabilizing_test_3/angles', type=str, 
+                                                 help='The directory where the yaws are stored in voxceleb2 format')
         
-
+        parser.add('--abs_min_yaw',              default=45, type=float, 
+                                                 help='The minimum abs value for yaw')
+        
+        parser.add('--abs_max_yaw',              default=90, type=float, 
+                                                 help='The maximum abs value for yaw')      
         return parser
 
     def __init__(self, args, phase):
@@ -113,13 +116,13 @@ class DatasetWrapper(data.Dataset):
         if args.output_segmentation:
             self.segs_dir = pathlib.Path(data_root) / 'segs' / phase
         
-        self.difficult_keypoints_dir = self.args.root_to_diff_keypoints + '/' + self.phase
+        self.yaw_dir = self.args.root_to_yaws + '/' + self.phase
         
         # Video sequences list
         # Please don't mix the sequence, which is the total number of videos, with sessions (which are essentially short video clips).
         # Each sequence, is made up of multiple sessions.
 
-        sequences = pathlib.Path(self.difficult_keypoints_dir).glob('*/*')
+        sequences = pathlib.Path(self.yaw_dir).glob('*/*')
         self.sequences = ['/'.join(str(seq).split('/')[-2:]) for seq in sequences]
 
         # Since the general dataset is too big, we sample 22 items if sample is chosen
@@ -142,47 +145,83 @@ class DatasetWrapper(data.Dataset):
         experiment_dir = pathlib.Path(args.experiment_dir)
         self.experiment_dir = experiment_dir / 'runs' / args.experiment_name
 
-        # if self.args.dataset_load_from_txt:
-        #     self.args.save_dataset_filenames = False
+        # We did no have enough difficult pose in the test
+        if self.phase == 'test':
+            self.args.abs_min_yaw = 30
 
-    def load_pickle(self, path_string):
-        pkl_file = open(path_string, 'rb')
-        my_dict = pickle.load(pkl_file)
-        pkl_file.close()
-        return my_dict
+        self.remove_bad_sequences ()
 
-    def find_difficult_keypoints (self, keypoints_dict):
-        keypoints_dict.pop(('-1'), None)
-        return [v for k,v in keypoints_dict.items()]
+    def remove_bad_sequences (self):
+        print("length of sequences before removing easy yaws",len(self.sequences))
+        print("sequences before removing easy yaws",self.sequences)
+        temp_sequences = []
+        self.sequence_session_frames_dict = {}
+        # This function goes over all the sequences to delete the ones that don't contain yaws in the desired range
+        for sequence in self.sequences:
+            count = 0
+            sessions = sorted(list(pathlib.Path(self.yaw_dir + '/' + sequence).glob('*')))
+            for session in sessions:
+                yaw_npy_paths = sorted(list(pathlib.Path(str(session)).glob('*')))
+                yaw_dict = self.load_session_yaws(yaw_npy_paths)
+                difficult_frames_in_session = self.find_difficult_poses(yaw_dict)
+                if len(difficult_frames_in_session) >= self.args.num_source_frames + self.args.num_target_frames:
+                    self.sequence_session_frames_dict [(sequence , str(session).split('/')[-1])] = difficult_frames_in_session
+                    if sequence not in temp_sequences:
+                        temp_sequences.append(sequence)
+                        count +=1
+            if count == 0:
+                print(sequence, "does not have difficult yaws.")
+        
+        self.sequences = temp_sequences
+        print("length of sequences after removing easy yaws", len(self.sequences))
+        print("sequences after removing easy yaws", self.sequences)
 
 
+    
+
+    def load_npy(self, path_string):
+        np_array = np.load(path_string)
+        yaw = np_array [0]
+        return yaw
+    
+    def load_session_yaws (self, yaw_npy_paths):
+        yaw_dict = {}
+        for yaw_path in yaw_npy_paths:
+            frame_num = (str(yaw_path).split('/')[-1]).split('.')[0]
+            yaw_dict [frame_num] = self.load_npy(yaw_path)
+        return yaw_dict
+
+    def find_difficult_poses (self, yaw_dict):
+        return [k for k,v in yaw_dict.items() if (np.abs(v)>= self.args.abs_min_yaw and np.abs(v)<= self.args.abs_max_yaw)]
+
+    def get_sessions (self, sequence):
+        sequence_session = self.sequence_session_frames_dict.keys()
+        return [v for k,v in sequence_session if k == sequence]
 
     def __getitem__(self, index):
         
         # Sample source and target frames for the current video sequence
         filenames = []
 
-        # Load all pickle file for the current video 
-        keypoints_pickles = list(pathlib.Path(self.difficult_keypoints_dir + '/' + self.sequences[index]).glob('*/*'))
+        sessions = self.get_sessions(self.sequences[index])
+        print(self.sequences[index], sessions)
+
 
         difficult_frames = []
 
         # while len(difficult_frames) < self.args.num_source_frames + self.args.num_target_frames:
         #     try:
         # Sample one session from the video
-        difficult_pose_pickle_path = random.sample(keypoints_pickles, 1)[0]
-        keypoints_dict =  self.load_pickle(difficult_pose_pickle_path)
-        difficult_frames = self.find_difficult_keypoints(keypoints_dict)
-        # except:
-        #     print("Something went wrong in reading the filenames.")
-    
-        
+        random_session = random.sample(sessions, 1)[0]
+        difficult_frames = self.sequence_session_frames_dict [(self.sequences[index], random_session)]
+
         # The source and target relative paths (sample one pair from the close keypoints in a session)
-        relative_path = '/'.join(str(difficult_pose_pickle_path).split('/')[-4:-1])
         source_target_pair = random.sample(difficult_frames, 2)
-        filenames = [pathlib.Path(relative_path+'/'+source_target_pair[0]), pathlib.Path(relative_path+'/'+source_target_pair[1])]
+        filenames = [pathlib.Path(self.sequences[index]+'/'+random_session+'/'+source_target_pair[0]),
+                     pathlib.Path(self.sequences[index]+'/'+random_session+'/'+source_target_pair[1])]
+        
         random.shuffle(filenames)
-        #print(filenames)
+        print("filenames",filenames)
 
         imgs = []
         poses = []

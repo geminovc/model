@@ -19,14 +19,14 @@ dataloader_name=${13}
 if [[ "$machine" == "chunky" ]]; then
     experiment_dir=/data/pantea/pantea_experiments_chunky/${dataset_name}/${initialization}
 elif [[ "$machine" == "mapmaker" ]]; then
-    experiment_dir=/video-conf/scratch/pantea_experiments_mapmaker/${dataset_name}/${initialization}
+    experiment_dir=/data4/pantea/pantea_experiments_mapmaker/${dataset_name}/${initialization}
 fi 
 
 # The dataset options for experiment
 if [[ "$dataset_name" == "general" ]]; then
     data_root=/video-conf/scratch/pantea/temp_general_extracts
 elif [[ "$dataset_name" == "per_person" ]]; then
-    data_root=/video-conf/scratch/pantea/temp_per_person_extracts
+    data_root=/video-conf/scratch/pantea/temp_per_person_1_extracts
 elif [[ "$dataset_name" == "per_video" ]]; then
     data_root=/video-conf/scratch/pantea/temp_per_video_extracts
 fi 
@@ -189,7 +189,7 @@ python train.py \
     --unet_inputs 'lf, hf' \
     --metrics_freq ${metrics_freq} \
     --metrics_root /video-conf/scratch/pantea/metrics_dataset \
-    --skip_metrics False \
+    --skip_metrics True \
     --init_experiment_dir ${init_experiment_dir} \
     --init_networks 'identity_embedder, texture_generator, keypoints_embedder, inference_generator, discriminator' \
     --init_which_epoch ${init_which_epoch} \
