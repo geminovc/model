@@ -208,7 +208,7 @@ class TrainingWrapper(object):
                                                                         help='augmentation ratio for augmenting the personal dataset with general dataset while training')
                              
         # Mask the source and target before the pipeline
-        parser.add('--mask_source_target',                              default='True', type=rn_utils.str2bool, choices=[True, False],
+        parser.add('--mask_source_and_target',                          default='True', type=rn_utils.str2bool, choices=[True, False],
                                                                         help='mask the source and target from the beginning')
 
      
