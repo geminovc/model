@@ -63,7 +63,8 @@ class DatasetWrapper(data.Dataset):
         parser.add('--augment_with_general',     default='False', type=rn_utils.str2bool, choices=[True, False],
                                                  help='gradually increase the weight of general dataset while training the per_person dataset')
 
-                                                      
+        parser.add('--mask_source_target',       default='True', type=rn_utils.str2bool, choices=[True, False],
+                                                 help='mask the souce and target from the beginning')                                                      
 
         return parser
 
@@ -313,6 +314,10 @@ class DatasetWrapper(data.Dataset):
             if self.args.num_source_frames:
                 data_dict['source_segs'] = segs[:self.args.num_source_frames]
             data_dict['target_segs'] = segs[self.args.num_source_frames:]
+
+        if self.args.mask_source_target and self.args.output_segmentation:
+            data_dict['source_imgs'] = data_dict['source_imgs'] * data_dict['source_segs'] + (-1) * (1 - data_dict['source_segs'])
+            data_dict['target_imgs'] = data_dict['target_imgs'] * data_dict['target_segs'] + (-1) * (1 - data_dict['target_segs'])
         
         data_dict['indices'] = torch.LongTensor([index])
 

@@ -10,7 +10,6 @@ import time
 import copy
 import sys
 import random 
-from torch.utils.tensorboard import SummaryWriter
 from datasets import utils as ds_utils
 from networks import utils as nt_utils
 from runners  import utils as rn_utils
@@ -580,7 +579,7 @@ class TrainingWrapper(object):
                 for opt in opts.values():
                     opt.step(closure)
 
-                if output_logs:
+                if not epoch % args.visual_freq:
                     logger.output_logs('train', runner.output_visuals(), runner.output_losses(), \
                             runner.output_metrics(), time.time() - time_start)
  

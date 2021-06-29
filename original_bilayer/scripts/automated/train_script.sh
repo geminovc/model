@@ -11,13 +11,6 @@ test_freq=${7}
 metrics_freq=${8}
 
 
-
-
-if [ -z "$dropout_networks" ]
-then
-    dropout_networks='texture_generator: 0'
-fi
-
 # Depending on the machine you run the code from, the directory to save experiments is different due to write access
 if [[ "$machine" == "chunky" ]]; then
     experiment_dir=/data/pantea/pantea_experiments_chunky/${dataset_name}/${initialization}
@@ -29,7 +22,7 @@ fi
 if [[ "$dataset_name" == "general" ]]; then
     data_root=/video-conf/scratch/pantea/temp_general_extracts
 elif [[ "$dataset_name" == "per_person" ]]; then
-    data_root=/video-conf/scratch/pantea/random_sampled_per_person
+    data_root=/data/pantea/per_person_1_three_datasets
 elif [[ "$dataset_name" == "per_video" ]]; then
     data_root=/video-conf/scratch/pantea/temp_per_video_extracts
 fi 

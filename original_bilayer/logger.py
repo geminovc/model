@@ -20,8 +20,11 @@ class Logger(object):
 
             for phase in ['train', 'test', 'metrics']: # Added metrics phase here
                 os.makedirs(experiment_dir / 'images' / phase, exist_ok=True)
-            for index in range(1, args.num_metrics_images+1):
-                os.makedirs(experiment_dir / 'images' / 'metrics' / str(index), exist_ok=True)
+            
+            # Do not make metrics subfolders if skip_metrics is False
+            if not args.skip_metrics:
+                for index in range(1, args.num_metrics_images+1):
+                    os.makedirs(experiment_dir / 'images' / 'metrics' / str(index), exist_ok=True)
             
             self.to_image = transforms.ToPILImage()
 
