@@ -16,8 +16,6 @@ CUDA_VISIBLE_DEVICES=2 ./train_script.sh  "chunky" "no_dropout" "from_base" "per
 # From base, with dropout
 CUDA_VISIBLE_DEVICES=2 ./train_script.sh  "chunky" "dropout"    "from_base" "per_person" 2 7000 100 100 True
 
-# From paper's released checkpoint experiment
-
 # From paper, without dropout
 CUDA_VISIBLE_DEVICES=2 ./train_script.sh  "chunky" "no_dropout" "from_paper" "per_person" 2 7000 100 100 False
 # From paper, with dropout in G_tex

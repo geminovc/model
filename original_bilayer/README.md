@@ -11,7 +11,16 @@ conda env create -f environment.yml
 conda env list
 conda activate bilayer
 ```
+If you are using the system's anaconda and you don't have write permission, you can create the conda in another directory using:
 
+```
+conda env create --prefix /tmp/test-env  -f environment.yml
+```
+If you can not create an environment because of root privilages, you can use one of the existing environments. On mapmaker use:
+
+```
+conda activate torch
+```
 ### Pre-trained Weights 
 Download the `pretrained-weights` folder from [here](https://drive.google.com/drive/folders/11SwIYnk3KY61d8qa17Nlb0BN9j57B3L6). You should put the name of this downloaded directory in `--pretrained_weights_dir` in the scripts. 
 The pre-trained weights are courtesy [Fast Bi-layer Neural Synthesis of One-Shot Realistic Head Avatars](https://arxiv.org/abs/2008.10174) by Zakharov et. al.
@@ -70,6 +79,8 @@ After formating your videos in such order, you can generate the `[imgs, keypoint
     --output_segmentation True \
     --num_gpus <YOUR_NUM_GPUS>
 ```
+
+
 Please make sure to set `video_root` the same as the `VIDEO_ROOT` where your videos are stored. If you want to save the videos as train/test dataset, set `phase` to `'train'` or `'test'`. 
 
 The final dataset structure would be similar to:
@@ -115,6 +126,18 @@ The final dataset structure would be similar to:
                                                                         |_ ...
                                                                         |_ 100 [.jpg, .npy, .png]
  ```
+
+The current version uses user inputs and has fixed `pretrained_weights_dir`. You can simply run the following commnad to extract the keypoints and segmentations:
+```
+./extract.sh phase <PATH_TO_YOUR_VIDEO_ROOT> <YOUR_SAMPLING_RATE> <PATH_TO_WHERE_YOU_WANT_TO_SAVE_DATASET>
+
+```
+
+Example:
+```
+./extract.sh 'train' /video-conf/scratch/voxceleb2_test_videos/mp4 50 /video-conf/scratch/pantea/temp_general_extracts_test_2
+
+```
 
 
 ## Training 
