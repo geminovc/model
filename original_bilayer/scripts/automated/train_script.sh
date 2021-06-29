@@ -53,8 +53,6 @@ cd $MAIN_DIR/
 python train.py \
     --experiment_name ${experiment_name} \
     --pretrained_weights_dir /video-conf/scratch/pantea \
-    --images_log_rate 50 \
-    --metrics_log_rate 50 \
     --random_seed 0 \
     --save_dataset_filenames False \
     --dataset_load_from_txt False \
@@ -180,7 +178,7 @@ python train.py \
     --unet_inputs 'lf, hf' \
     --metrics_freq ${metrics_freq} \
     --metrics_root /video-conf/scratch/pantea/metrics_dataset \
-    --skip_metrics False \
+    --skip_metrics True \
     --init_experiment_dir ${init_experiment_dir} \
     --init_networks 'identity_embedder, texture_generator, keypoints_embedder, inference_generator, discriminator' \
     --init_which_epoch ${init_which_epoch} \
