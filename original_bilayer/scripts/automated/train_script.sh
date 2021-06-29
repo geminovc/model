@@ -9,14 +9,8 @@ batch_size=${5}
 num_epochs=${6}
 test_freq=${7}
 metrics_freq=${8}
-augment_with_general=${9}
-sample_general_dataset=${10}
-augment_with_general_ratio=${11}
-inf_apply_masks=${12}
-use_dropout=${13}
 
-# Must be the last variable or remove it from user input and put default 
-dropout_networks=${14}
+
 
 
 if [ -z "$dropout_networks" ]
@@ -73,7 +67,7 @@ python train.py \
     --batch_size ${batch_size} \
     --bn_momentum 1.0 \
     --calc_stats \
-    --checkpoint_freq 100 \
+    --checkpoint_freq 1000 \
     --data_root ${data_root} \
     --general_data_root /video-conf/scratch/pantea/temp_general_extracts \
     --dis_activation_type leakyrelu \
@@ -98,7 +92,7 @@ python train.py \
     --folder_postfix '2d_crop' \
     --frame_num_from_paper False \
     --inf_activation_type leakyrelu \
-    --inf_apply_masks ${inf_apply_masks} \
+    --inf_apply_masks True \
     --inf_max_channels 256 \
     --inf_norm_layer_type ada_bn \
     --inf_num_channels 32 \
@@ -177,9 +171,8 @@ python train.py \
     --replace_AdaSpade_with_conv False \
     --replace_Gtex_output_with_trainable_tensor False \
     --replace_source_specific_with_trainable_tensors False \
-    --augment_with_general ${augment_with_general} \
-    --sample_general_dataset ${sample_general_dataset} \
-    --augment_with_general_ratio ${augment_with_general_ratio} \
+    --augment_with_general False \
+    --sample_general_dataset False \
     --texture_output_dim 3 \
     --use_unet False \
     --unet_input_channels 16 \
@@ -191,9 +184,7 @@ python train.py \
     --init_experiment_dir ${init_experiment_dir} \
     --init_networks 'identity_embedder, texture_generator, keypoints_embedder, inference_generator, discriminator' \
     --init_which_epoch ${init_which_epoch} \
-    --use_dropout ${use_dropout} \
-    --dropout_networks "${dropout_networks}"
-
+    --use_dropout False \
 
 
    
