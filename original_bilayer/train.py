@@ -464,7 +464,8 @@ class TrainingWrapper(object):
         logger.set_num_iter(
             train_iter=train_iter, 
             test_iter=(epoch_start - 1) // args.test_freq,
-            metrics_iter=(epoch_start - 1) // args.metrics_freq)
+            metrics_iter=(epoch_start - 1) // args.metrics_freq,
+            unseen_test_iter=(epoch_start - 1) // args.test_freq)
 
         if args.debug and not args.use_apex:
             torch.autograd.set_detect_anomaly(True)
