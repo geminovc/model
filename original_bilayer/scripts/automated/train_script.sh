@@ -177,8 +177,6 @@ python train.py \
     --init_experiment_dir ${init_experiment_dir} \
     --init_networks 'identity_embedder, texture_generator, keypoints_embedder, inference_generator, discriminator' \
     --init_which_epoch ${init_which_epoch} \
+    --use_dropout False \
 
 
-
-   
-   
