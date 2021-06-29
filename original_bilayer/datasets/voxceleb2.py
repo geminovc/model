@@ -64,7 +64,7 @@ class DatasetWrapper(data.Dataset):
                                                  help='gradually increase the weight of general dataset while training the per_person dataset')
 
         parser.add('--mask_source_and_target',   default='True', type=rn_utils.str2bool, choices=[True, False],
-                                                 help='mask the souce and target from the beginning')
+                                                 help='mask the source and target from the beginning')
 
                                                       
 
