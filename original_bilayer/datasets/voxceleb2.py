@@ -319,7 +319,6 @@ class DatasetWrapper(data.Dataset):
 
 
         if self.args.mask_source_target and self.args.output_segmentation:
-            print("Masking both source and target")
             data_dict['source_imgs'] = data_dict['source_imgs'] * data_dict['source_segs'] + (-1) * (1 - data_dict['source_segs'])
             data_dict['target_imgs'] = data_dict['target_imgs'] * data_dict['target_segs'] + (-1) * (1 - data_dict['target_segs'])
         
