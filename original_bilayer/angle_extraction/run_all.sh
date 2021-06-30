@@ -1,36 +1,21 @@
 #!/bin/bash
+command_to_run=${1}
+dataset_path=${2}
+save_path=${3}
+tmux new-session -d -s my_session_0 "${command_to_run} && python extract_angles.py --gpu 0 --index 0 --root ${dataset_path} --save_path ${save_path}"
+tmux new-session -d -s my_session_1 "${command_to_run} && python extract_angles.py --gpu 0 --index 1 --root ${dataset_path} --save_path ${save_path}"
+tmux new-session -d -s my_session_2 "${command_to_run} && python extract_angles.py --gpu 0 --index 2 --root ${dataset_path} --save_path ${save_path}"
+tmux new-session -d -s my_session_3 "${command_to_run} && python extract_angles.py --gpu 0 --index 3 --root ${dataset_path} --save_path ${save_path}"
+tmux new-session -d -s my_session_4 "${command_to_run} && python extract_angles.py --gpu 0 --index 4 --root ${dataset_path} --save_path ${save_path}"
 
-tmux new-session -d -s my_session_0 'source ~/.bashrc && python extract_angles.py --gpu 0 --index 0'
-tmux new-session -d -s my_session_1 'source ~/.bashrc && python extract_angles.py --gpu 0 --index 1'
-tmux new-session -d -s my_session_2 'source ~/.bashrc && python extract_angles.py --gpu 0 --index 2'
-tmux new-session -d -s my_session_3 'source ~/.bashrc && python extract_angles.py --gpu 0 --index 3'
-tmux new-session -d -s my_session_4 'source ~/.bashrc && python extract_angles.py --gpu 0 --index 4'
+tmux new-session -d -s my_session_5 "${command_to_run} && python extract_angles.py --gpu 1 --index 5 --root ${dataset_path} --save_path ${save_path}"
+tmux new-session -d -s my_session_6 "${command_to_run} && python extract_angles.py --gpu 1 --index 6 --root ${dataset_path} --save_path ${save_path}"
+tmux new-session -d -s my_session_7 "${command_to_run} && python extract_angles.py --gpu 1 --index 7 --root ${dataset_path} --save_path ${save_path}"
+tmux new-session -d -s my_session_8 "${command_to_run} && python extract_angles.py --gpu 1 --index 8 --root ${dataset_path} --save_path ${save_path}"
+tmux new-session -d -s my_session_9 "${command_to_run} && python extract_angles.py --gpu 1 --index 9 --root ${dataset_path} --save_path ${save_path}"
 
-tmux new-session -d -s my_session_5 'source ~/.bashrc && python extract_angles.py --gpu 1 --index 5'
-tmux new-session -d -s my_session_6 'source ~/.bashrc && python extract_angles.py --gpu 1 --index 6'
-tmux new-session -d -s my_session_7 'source ~/.bashrc && python extract_angles.py --gpu 1 --index 7'
-tmux new-session -d -s my_session_8 'source ~/.bashrc && python extract_angles.py --gpu 1 --index 8'
-tmux new-session -d -s my_session_9 'source ~/.bashrc && python extract_angles.py --gpu 1 --index 9'
-
-tmux new-session -d -s my_session_10 'source ~/.bashrc && python extract_angles.py --gpu 2 --index 10'
-tmux new-session -d -s my_session_11 'source ~/.bashrc && python extract_angles.py --gpu 2 --index 11'
-tmux new-session -d -s my_session_12 'source ~/.bashrc && python extract_angles.py --gpu 2 --index 12'
-tmux new-session -d -s my_session_13 'source ~/.bashrc && python extract_angles.py --gpu 2 --index 13'
-tmux new-session -d -s my_session_14 'source ~/.bashrc && python extract_angles.py --gpu 2 --index 14'
-
-#tmux new-session -d -s my_session_15 'source ~/.bashrc && python extract_angles.py --gpu 2 --index 15'
-#tmux new-session -d -s my_session_16 'source ~/.bashrc && python extract_angles.py --gpu 2 --index 16'
-#tmux new-session -d -s my_session_17 'source ~/.bashrc && python extract_angles.py --gpu 2 --index 17'
-#tmux new-session -d -s my_session_18 'source ~/.bashrc && python extract_angles.py --gpu 2 --index 18'
-#tmux new-session -d -s my_session_19 'source ~/.bashrc && python extract_angles.py --gpu 2 --index 19'
-#tmux new-session -d -s my_session_20 'source ~/.bashrc && python extract_angles.py --gpu 2 --index 20'
-
-#tmux new-session -d -s my_session_21 'source ~/.bashrc && python extract_angles.py --gpu 2 --index 21'
-#tmux new-session -d -s my_session_22 'source ~/.bashrc && python extract_angles.py --gpu 2 --index 22'
-#tmux new-session -d -s my_session_23 'source ~/.bashrc && python extract_angles.py --gpu 2 --index 23'
-#tmux new-session -d -s my_session_24 'source ~/.bashrc && python extract_angles.py --gpu 2 --index 24'
-#tmux new-session -d -s my_session_25 'source ~/.bashrc && python extract_angles.py --gpu 2 --index 25'
-#tmux new-session -d -s my_session_26 'source ~/.bashrc && python extract_angles.py --gpu 2 --index 26'
-#tmux new-session -d -s my_session_27 'source ~/.bashrc && python extract_angles.py --gpu 2 --index 27'
-#tmux new-session -d -s my_session_28 'source ~/.bashrc && python extract_angles.py --gpu 2 --index 28'
-#tmux new-session -d -s my_session_29 'source ~/.bashrc && python extract_angles.py --gpu 2 --index 29'
+tmux new-session -d -s my_session_10 "${command_to_run} && python extract_angles.py --gpu 2 --index 10 --root ${dataset_path} --save_path ${save_path}"
+tmux new-session -d -s my_session_11 "${command_to_run} && python extract_angles.py --gpu 2 --index 11 --root ${dataset_path} --save_path ${save_path}"
+tmux new-session -d -s my_session_12 "${command_to_run} && python extract_angles.py --gpu 2 --index 12 --root ${dataset_path} --save_path ${save_path}"
+tmux new-session -d -s my_session_13 "${command_to_run} && python extract_angles.py --gpu 2 --index 13 --root ${dataset_path} --save_path ${save_path}"
+tmux new-session -d -s my_session_14 "${command_to_run} && python extract_angles.py --gpu 2 --index 14 --root ${dataset_path} --save_path ${save_path}"#!/bin/bash
