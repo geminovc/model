@@ -9,17 +9,7 @@ batch_size=${5}
 num_epochs=${6}
 test_freq=${7}
 metrics_freq=${8}
-use_dropout=${9}
 
-# Must be the last variable or remove it from user input and put default 
-dropout_networks=${10}
-
-
-if [ -z "$dropout_networks" ]
-then
-    dropout_networks='texture_generator: 0.5'
-    use_dropout=False
-fi
 
 # Depending on the machine you run the code from, the directory to save experiments is different due to write access
 if [[ "$machine" == "chunky" ]]; then
@@ -70,7 +60,7 @@ python train.py \
     --batch_size ${batch_size} \
     --bn_momentum 1.0 \
     --calc_stats \
-    --checkpoint_freq 100 \
+    --checkpoint_freq 1000 \
     --data_root ${data_root} \
     --general_data_root /video-conf/scratch/pantea/temp_general_extracts \
     --dis_activation_type leakyrelu \
@@ -95,7 +85,7 @@ python train.py \
     --folder_postfix '2d_crop' \
     --frame_num_from_paper False \
     --inf_activation_type leakyrelu \
-    --inf_apply_masks True \
+    --inf_apply_masks True\
     --inf_max_channels 256 \
     --inf_norm_layer_type ada_bn \
     --inf_num_channels 32 \
@@ -187,10 +177,6 @@ python train.py \
     --init_experiment_dir ${init_experiment_dir} \
     --init_networks 'identity_embedder, texture_generator, keypoints_embedder, inference_generator, discriminator' \
     --init_which_epoch ${init_which_epoch} \
-    --use_dropout ${use_dropout} \
-    --dropout_networks "${dropout_networks}"
+    --use_dropout False \
 
 
-
-   
-   

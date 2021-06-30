@@ -118,7 +118,7 @@ class TrainingWrapper(object):
         parser.add('--calc_stats',                                      action='store_true',
                                                                         help='calculate batch norm standing stats')
         
-        parser.add('--visual_freq',                                     default=-1, type=int, 
+        parser.add('--visual_freq',                                     default=100, type=int, 
                                                                         help='in iterations, -1 -- output logs every epoch')
 
         # Mixed precision options
@@ -213,8 +213,12 @@ class TrainingWrapper(object):
 
         parser.add('--dropout_networks',                                default='texture_generator: 0.5' ,
                                                                         help='networks to use dropout in: the dropout rate')
-           
+                             
+        # Mask the source and target before the pipeline
+        parser.add('--mask_source_and_target',                          default='True', type=rn_utils.str2bool, choices=[True, False],
+                                                                        help='mask the source and target from the beginning')
 
+     
         # Technical options that are set automatically
         parser.add('--local_rank', default=0, type=int)
         parser.add('--rank',       default=0, type=int)
