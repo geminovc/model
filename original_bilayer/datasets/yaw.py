@@ -68,14 +68,20 @@ class DatasetWrapper(data.Dataset):
                                                  help='gradually increase the weight of general dataset while training the per_person dataset')
 
         # Yaws                              
-        parser.add('--root_to_yaws',             default='/video-conf/scratch/vedantha/stabilizing_test_3/angles', type=str, 
+        parser.add('--root_to_yaws',             default='/data/pantea/pose_results/yaws/per_person_1_three_datasets/angles', type=str, 
                                                  help='The directory where the yaws are stored in voxceleb2 format')
         
         parser.add('--abs_min_yaw',              default=45, type=float, 
                                                  help='The minimum abs value for yaw')
         
         parser.add('--abs_max_yaw',              default=90, type=float, 
-                                                 help='The maximum abs value for yaw')      
+                                                 help='The maximum abs value for yaw') 
+        
+        parser.add('--mask_source_and_target',   default='True', type=rn_utils.str2bool, choices=[True, False],
+                                                 help='Mask the souce and target from the beginning')
+        
+        parser.add('--yaw_method',               default='close_original', type=str, 
+                                                 help='The method by which the soucre-target pair is slected based on yaw. Possible choices: min_max, close_uniform, close_original')                                                      
         return parser
 
     def __init__(self, args, phase):
@@ -145,13 +151,19 @@ class DatasetWrapper(data.Dataset):
         experiment_dir = pathlib.Path(args.experiment_dir)
         self.experiment_dir = experiment_dir / 'runs' / args.experiment_name
 
-        # We did no have enough difficult pose in the test
-        if self.phase == 'test':
-            self.args.abs_min_yaw = 30
+        if self.args.yaw_method == 'min_max':
+            # We did no have enough difficult pose in the test
+            if self.phase == 'test':
+                self.args.abs_min_yaw = 30
 
-        self.remove_bad_sequences ()
+            self.min_max_preprocess ()
+        
+        if self.args.yaw_method == 'close_original':
+            # self.bins = [[-5,5],[5,15],[15,25],[25,35],[35,45],[45,55],[55,65][]]
+            self.bins = [[-90,-75],[-75,-45],[-45,-15],[-15,15],[15,45],[45,75],[75,90]]
+            self.close_original_preprocess ()
 
-    def remove_bad_sequences (self):
+    def min_max_preprocess (self):
         print("length of sequences before removing easy yaws",len(self.sequences))
         print("sequences before removing easy yaws",self.sequences)
         temp_sequences = []
@@ -163,7 +175,7 @@ class DatasetWrapper(data.Dataset):
             for session in sessions:
                 yaw_npy_paths = sorted(list(pathlib.Path(str(session)).glob('*')))
                 yaw_dict = self.load_session_yaws(yaw_npy_paths)
-                difficult_frames_in_session = self.find_difficult_poses(yaw_dict)
+                difficult_frames_in_session = self.find_min_max_poses(yaw_dict)
                 if len(difficult_frames_in_session) >= self.args.num_source_frames + self.args.num_target_frames:
                     self.sequence_session_frames_dict [(sequence , str(session).split('/')[-1])] = difficult_frames_in_session
                     if sequence not in temp_sequences:
@@ -176,9 +188,19 @@ class DatasetWrapper(data.Dataset):
         print("length of sequences after removing easy yaws", len(self.sequences))
         print("sequences after removing easy yaws", self.sequences)
 
+    def close_original_preprocess (self):
+
+        self.sequence_session_bins_frames_dict = {}
+        # This function goes over all the sequences to find bins in eacch session
+        for sequence in self.sequences:
+            sessions = sorted(list(pathlib.Path(self.yaw_dir + '/' + sequence).glob('*')))
+            for session in sessions:
+                yaw_npy_paths = sorted(list(pathlib.Path(str(session)).glob('*')))
+                yaw_dict = self.load_session_yaws(yaw_npy_paths)
+                session_bins_dict = self.find_session_bins(yaw_dict)
+                self.sequence_session_bins_frames_dict [(sequence , str(session).split('/')[-1])] = session_bins_dict
 
     
-
     def load_npy(self, path_string):
         np_array = np.load(path_string)
         yaw = np_array [0]
@@ -191,29 +213,45 @@ class DatasetWrapper(data.Dataset):
             yaw_dict [frame_num] = self.load_npy(yaw_path)
         return yaw_dict
 
-    def find_difficult_poses (self, yaw_dict):
+    def find_min_max_poses (self, yaw_dict):
         return [k for k,v in yaw_dict.items() if (np.abs(v)>= self.args.abs_min_yaw and np.abs(v)<= self.args.abs_max_yaw)]
+    
+    def find_session_bins (self, yaw_dict):
+        bin_dict = {}
+        for current_bin in self.bins:
+            value = [k for k,v in yaw_dict.items() if (v>= current_bin[0] and v<= current_bin[1])]
+            if len(value) >= self.args.num_source_frames + self.args.num_target_frames:
+                bin_dict[str(current_bin)] = value
+        return bin_dict
 
-    def get_sessions (self, sequence):
-        sequence_session = self.sequence_session_frames_dict.keys()
+
+    def get_sessions (self, sequence , sequence_session_dict):
+        sequence_session = sequence_session_dict.keys()
         return [v for k,v in sequence_session if k == sequence]
+    
 
     def __getitem__(self, index):
         
         # Sample source and target frames for the current video sequence
         filenames = []
-
-        sessions = self.get_sessions(self.sequences[index])
-        print(self.sequences[index], sessions)
-
-
         difficult_frames = []
 
-        # while len(difficult_frames) < self.args.num_source_frames + self.args.num_target_frames:
-        #     try:
-        # Sample one session from the video
-        random_session = random.sample(sessions, 1)[0]
-        difficult_frames = self.sequence_session_frames_dict [(self.sequences[index], random_session)]
+        if self.args.yaw_method == 'min_max' :
+            sessions = self.get_sessions(self.sequences[index], self.sequence_session_frames_dict)
+            # Sample one session from the video
+            random_session = random.sample(sessions, 1)[0]
+            difficult_frames = self.sequence_session_frames_dict [(self.sequences[index], random_session)]
+
+
+        if self.args.yaw_method == 'close_original' :
+            sessions = self.get_sessions(self.sequences[index], self.sequence_session_bins_frames_dict)
+            # Sample one session from the video
+            random_session = random.sample(sessions, 1)[0]
+            session_dict = self.sequence_session_bins_frames_dict[(self.sequences[index], random_session)]
+            session_bins = session_dict.keys()
+            random_bin = random.sample(session_bins, 1)[0]
+            difficult_frames = session_dict[random_bin]
+
 
         # The source and target relative paths (sample one pair from the close keypoints in a session)
         source_target_pair = random.sample(difficult_frames, 2)
@@ -354,6 +392,10 @@ class DatasetWrapper(data.Dataset):
                 data_dict['source_segs'] = segs[:self.args.num_source_frames]
             data_dict['target_segs'] = segs[self.args.num_source_frames:]
         
+        if self.args.mask_source_and_target and self.args.output_segmentation:
+            data_dict['source_imgs'] = data_dict['source_imgs'] * data_dict['source_segs'] + (-1) * (1 - data_dict['source_segs'])
+            data_dict['target_imgs'] = data_dict['target_imgs'] * data_dict['target_segs'] + (-1) * (1 - data_dict['target_segs'])      
+                
         data_dict['indices'] = torch.LongTensor([index])
 
         return data_dict

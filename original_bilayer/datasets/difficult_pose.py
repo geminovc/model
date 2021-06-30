@@ -69,10 +69,11 @@ class DatasetWrapper(data.Dataset):
 
         # Difficult keypoints                              
 
-        parser.add('--root_to_diff_keypoints',  default='/data/pantea/pose_results/difficult_poses/per_person_1_three_datasets', type=str, 
+        parser.add('--root_to_diff_keypoints',   default='/data/pantea/pose_results/difficult_poses/per_person_1_three_datasets', type=str, 
                                                  help='If True, the images, keypoints, and segs are picked from files')
         
-
+        parser.add('--mask_source_and_target',   default='True', type=rn_utils.str2bool, choices=[True, False],
+                                                 help='mask the souce and target from the beginning') 
         return parser
 
     def __init__(self, args, phase):
@@ -314,6 +315,10 @@ class DatasetWrapper(data.Dataset):
             if self.args.num_source_frames:
                 data_dict['source_segs'] = segs[:self.args.num_source_frames]
             data_dict['target_segs'] = segs[self.args.num_source_frames:]
+        
+        if self.args.mask_source_and_target and self.args.output_segmentation:
+            data_dict['source_imgs'] = data_dict['source_imgs'] * data_dict['source_segs'] + (-1) * (1 - data_dict['source_segs'])
+            data_dict['target_imgs'] = data_dict['target_imgs'] * data_dict['target_segs'] + (-1) * (1 - data_dict['target_segs'])      
         
         data_dict['indices'] = torch.LongTensor([index])
 
