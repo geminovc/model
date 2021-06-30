@@ -74,7 +74,7 @@ class DatasetWrapper(data.Dataset):
         parser.add('--augmentation_by_general', default='False', type=rn_utils.str2bool, choices=[True, False],
                                                 help='gradually increase the weight of general dataset while training the per_person dataset')
 
-        parser.add('--rebalance', default='False', type=rn_utils.str2bool, choices=[True, False],
+        parser.add('--rebalance',               default='False', type=rn_utils.str2bool, choices=[True, False],
                                                 help='rebalance the dataset?')
         return parser
 
@@ -217,7 +217,7 @@ class DatasetWrapper(data.Dataset):
                     self.cur_num = (self.cur_num + self.delta) % 1
 
                     filename = filenames[frame_num]
-
+                # Samples from a constant distribution of poses by selecting from pose bins
                 elif self.args.rebalance:
                     # Get the correct video uid
                     video_uid = filenames[0].parent.parent.name
@@ -238,7 +238,6 @@ class DatasetWrapper(data.Dataset):
                     filename_cleaned = tmp[-4:-1] + [tmp[-1][:-4]]
                     filename_cleaned = '/'.join(filename_cleaned)
                     filename = pathlib.Path(filename_cleaned)
-                    # If you want to use parallel learning, use torch (not numpy)
                 else:
                     frame_num = random.randint(0, (len(filenames) - 1))
                     filename = filenames[frame_num]
