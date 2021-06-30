@@ -217,21 +217,31 @@ class DatasetWrapper(data.Dataset):
                     self.cur_num = (self.cur_num + self.delta) % 1
 
                     filename = filenames[frame_num]
+
+                elif self.args.rebalance:
+                    # Get the correct video uid
+                    video_uid = filenames[0].parent.parent.name
+                    bins = self.bins[video_uid]
+
+                    # Remove zero sized bins
+                    bins = [i for i in bins if len(i) != 0]
+
+                    # Get a random bin
+                    bin_index = torch.randint(0, len(bins), (1,))
+
+                    # Get a frame within that bin
+                    frame_num = torch.randint(0, len(bins[bin_index]), (1,))
+                    filename_raw = bins[bin_index][frame_num]
+
+                    # Turn that into a usable value
+                    tmp = filename_raw.split('/')
+                    filename_cleaned = tmp[-4:-1] + [tmp[-1][:-4]]
+                    filename_cleaned = '/'.join(filename_cleaned)
+                    filename = pathlib.Path(filename_cleaned)
+                    # If you want to use parallel learning, use torch (not numpy)
                 else:
                     frame_num = random.randint(0, (len(filenames) - 1))
                     filename = filenames[frame_num]
-                    if self.args.rebalance:
-                        bins = self.bins
-                        bin_index = torch.randint(0, len(bins), (1,))
-                        if len(bins[bin_index]) == 0:
-                            continue
-                        frame_num = torch.randint(0, len(bins[bin_index]), (1,))
-                        filename_ = bins[bin_index][frame_num]
-                        tmp = filename_.split('/')
-                        p = tmp[10:-1] + [tmp[13][:-4]]
-                        l = '/'.join(p)
-                        filename = pathlib.Path(l)
-                        # If you want to use parallel learning, use torch (not numpy)
 
 
             # Read images
