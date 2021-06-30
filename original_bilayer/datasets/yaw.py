@@ -140,7 +140,6 @@ class DatasetWrapper(data.Dataset):
         if phase == 'metrics':
             self.sequences = sorted(self.sequences)
         
-        print(len(self.sequences), self.sequences)
 
         # Parameters of the sampling scheme
         self.delta = math.sqrt(5)
@@ -162,6 +161,14 @@ class DatasetWrapper(data.Dataset):
             # self.bins = [[-5,5],[5,15],[15,25],[25,35],[35,45],[45,55],[55,65][]]
             self.bins = [[-90,-75],[-75,-45],[-45,-15],[-15,15],[15,45],[45,75],[75,90]]
             self.close_original_preprocess ()
+        
+        if self.args.yaw_method == 'close_uniform':
+            # self.bins = [[-5,5],[5,15],[15,25],[25,35],[35,45],[45,55],[55,65][]]
+            self.bins = [[-90,-45],[-45,0],[0,45],[45,90]]
+            self.close_uniform_preprocess ()
+            self.change_bin = True
+            self.change_current_bin()
+
 
     def min_max_preprocess (self):
         print("length of sequences before removing easy yaws",len(self.sequences))
@@ -200,7 +207,32 @@ class DatasetWrapper(data.Dataset):
                 session_bins_dict = self.find_session_bins(yaw_dict)
                 self.sequence_session_bins_frames_dict [(sequence , str(session).split('/')[-1])] = session_bins_dict
 
-    
+    def close_uniform_preprocess (self):
+        self.bins_sequence_session_frames_dict = {}
+        # This function goes over all the sequences to find bins in each session
+        for current_bin in self.bins:
+            sequence_session_frames_dict = {}
+            temp_sequences = []
+            for sequence in self.sequences:
+                sessions = sorted(list(pathlib.Path(self.yaw_dir + '/' + sequence).glob('*')))
+                for session in sessions:
+                    yaw_npy_paths = sorted(list(pathlib.Path(str(session)).glob('*')))
+                    yaw_dict = self.load_session_yaws(yaw_npy_paths)
+                    frames_for_bin = self.find_frames_for_bin(yaw_dict, current_bin)
+                    if len (frames_for_bin)>0:
+                        if sequence not in temp_sequences:
+                            temp_sequences.append(sequence)
+                        sequence_session_frames_dict [(sequence , str(session).split('/')[-1])] = frames_for_bin
+            
+            if len(temp_sequences)!=0:            
+                self.bins_sequence_session_frames_dict[(str(current_bin),0)] = temp_sequences
+                self.bins_sequence_session_frames_dict[(str(current_bin),1)] = sequence_session_frames_dict
+        
+
+        self.possible_bins = [k[0] for k in self.bins_sequence_session_frames_dict.keys() if k[1]==0]
+        print(self.phase, "possible bins", self.possible_bins)
+        
+
     def load_npy(self, path_string):
         np_array = np.load(path_string)
         yaw = np_array [0]
@@ -224,6 +256,12 @@ class DatasetWrapper(data.Dataset):
                 bin_dict[str(current_bin)] = value
         return bin_dict
 
+    def find_frames_for_bin (self, yaw_dict, current_bin):
+        frames_for_bin = []
+        value = [k for k,v in yaw_dict.items() if (v>= current_bin[0] and v<= current_bin[1])]
+        if len(value) >= self.args.num_source_frames + self.args.num_target_frames:
+            frames_for_bin = value
+        return frames_for_bin
 
     def get_sessions (self, sequence , sequence_session_dict):
         sequence_session = sequence_session_dict.keys()
@@ -251,6 +289,14 @@ class DatasetWrapper(data.Dataset):
             session_bins = session_dict.keys()
             random_bin = random.sample(session_bins, 1)[0]
             difficult_frames = session_dict[random_bin]
+
+
+        if self.args.yaw_method == 'close_uniform' :
+            self.sequence_session_frames_dict = self.bins_sequence_session_frames_dict[(str(self.current_bin),1)]
+            sessions = self.get_sessions(self.sequences[index], self.sequence_session_frames_dict)
+            # Sample one session from the video
+            random_session = random.sample(sessions, 1)[0]
+            difficult_frames = self.sequence_session_frames_dict [(self.sequences[index], random_session)]
 
 
         # The source and target relative paths (sample one pair from the close keypoints in a session)
@@ -398,8 +444,19 @@ class DatasetWrapper(data.Dataset):
                 
         data_dict['indices'] = torch.LongTensor([index])
 
+        if index == len(self.sequences)-1 and self.args.yaw_method == 'close_uniform':
+            self.change_bin = True
+            self.change_current_bin()
+
         return data_dict
 
+    def change_current_bin (self):
+        if self.change_bin:
+            self.current_bin = random.sample(self.possible_bins,1)[0]
+            print("Changing the bin: new bin ", self.current_bin)
+            self.change_bin = False
+            self.sequences = self.bins_sequence_session_frames_dict[(str(self.current_bin),0)]
+    
     def __len__(self):
         return len(self.sequences)
 
