@@ -1,11 +1,14 @@
+video_root=${1}
+data_root=${2}
+phse=${3}
 python  extract.py \
     --pretrained_weights_dir /data/vision/billf/video-conf/scratch/pantea \
-    --phase 'train' \
-    --video_root /data/vision/billf/video-conf/scratch/vedantha/vedantha_dataset \
+    --phase "$phase" \
+    --video_root "$video_root"\
     --sampling_rate 1 \
     --experiment_name 'extraction' \
     --batch_size 10000 \
-    --data_root /data/vision/billf/video-conf/scratch/vedantha/vedantha_extracts \
+    --data_root "$data_root" \
     --output_segmentation True \
     --image_size 256 \
     --num_gpus 1 \
