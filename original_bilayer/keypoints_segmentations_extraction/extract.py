@@ -359,8 +359,7 @@ class KeypointSegmentationGenerator():
                                     save_image(segs[0,0,:,:,:], segs_path + '.png')
 
                         except Exception as e:
-                            raise(e) 
-                            print("Excaption happened in reading the poses of the frame.")
+                            print("Exception happened in reading the poses of the frame.")
 
                     frame_num+=1
                 video.release()
