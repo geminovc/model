@@ -1,3 +1,9 @@
+"""
+Taken from https://github.com/natanielruiz/deep-head-pose.
+
+No changes were made by Vedantha
+
+"""
 import torch
 import torch.nn as nn
 from torch.autograd import Variable
