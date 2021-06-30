@@ -28,6 +28,8 @@ if __name__ == '__main__':
     spacing = args.spacing
     all_bins={}
     i=1
+    
+    # The odd file structure here is used because it matches the voxceleb.py file structure
     for video in glob.glob(args.root + '/angles/*/*/*'):
         for file in glob.glob(video + '/*/*'):
             arr = np.load(file)
