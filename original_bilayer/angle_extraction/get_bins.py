@@ -27,7 +27,7 @@ if __name__ == '__main__':
     args = parse_args()
     spacing = args.spacing
     all_bins={}
-    i=1
+    progress=1
     
     # The odd file structure here is used because it matches the voxceleb.py file structure
     for video in glob.glob(args.root + '/angles/*/*/*'):
@@ -43,9 +43,9 @@ if __name__ == '__main__':
 
             # Add the frame to its bin
             all_bins[video_uid][int(arr[0]//spacing)].append(file)
-            if i % 1000 == 0:
-                print(i)
-            i += 1
+            if progress % 1000 == 0:
+                print(progress)
+            progress += 1
     # Save results
     with open(args.result_path + '/bins.pkl', "wb") as out:
         pickle.dump(all_bins, out)
