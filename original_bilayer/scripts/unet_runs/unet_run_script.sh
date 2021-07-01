@@ -23,13 +23,19 @@ elif [[ "$machine_is_graphics" == "False" ]]; then
     root_loc=""
 fi
 
+lrs="identity_embedder: 2e-4, texture_generator: 2e-4, keypoints_embedder: 2e-4, inference_generator: 2e-4, discriminator: 2e-4"
+optims="identity_embedder: adam, texture_generator: adam, keypoints_embedder: adam, inference_generator: adam, discriminator: adam"
+networks_calc_stats="identity_embedder, texture_generator, keypoints_embedder, inference_generator"
+networks_test="identity_embedder, texture_generator, keypoints_embedder, inference_generator"
+networks_train="identity_embedder, texture_generator, keypoints_embedder, inference_generator, discriminator"
+spn_networks="identity_embedder, texture_generator, keypoints_embedder, inference_generator, discriminator"
 if [[ "$use_unet" == "True" ]]; then
     unet_inputs=${12}
     unet_input_channels=${13}
     texture_output_dim="16"
-    lrs="identity_embedder: 2e-4, texture_generator: 2e-4, keypoints_embedder: 2e-4, inference_generator: 2e-4, discriminator: 2e-4, unet: 2e-4"
-    optims="identity_embedder: adam, texture_generator: adam, keypoints_embedder: adam, inference_generator: adam, discriminator: adam, unet: adam"
-    networks_calc_stats="identity_embedder, texture_generator, keypoints_embedder, inference_generator, unet"
+    lrs="${lrs} unet: 2e-4"
+    optims="${optims}, unet: adam"
+    networks_calc_stats="${networks_calc_stats}, unet"
     networks_test="identity_embedder, texture_generator, keypoints_embedder, inference_generator, unet"
     networks_train="identity_embedder, texture_generator, keypoints_embedder, inference_generator, unet, discriminator"
     spn_networks="identity_embedder, texture_generator, keypoints_embedder, inference_generator, unet, discriminator"
@@ -37,12 +43,6 @@ elif [[ "$use_unet" == "False" ]]; then
     unet_inputs="hf"
     unet_input_channels="16"
     texture_output_dim="3"
-    lrs="identity_embedder: 2e-4, texture_generator: 2e-4, keypoints_embedder: 2e-4, inference_generator: 2e-4, discriminator: 2e-4"
-    optims="identity_embedder: adam, texture_generator: adam, keypoints_embedder: adam, inference_generator: adam, discriminator: adam"
-    networks_calc_stats="identity_embedder, texture_generator, keypoints_embedder, inference_generator"
-    networks_test="identity_embedder, texture_generator, keypoints_embedder, inference_generator"
-    networks_train="identity_embedder, texture_generator, keypoints_embedder, inference_generator, discriminator"
-    spn_networks="identity_embedder, texture_generator, keypoints_embedder, inference_generator, discriminator"
 fi
      
 # The dataset options for experiment
