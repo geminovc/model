@@ -4,7 +4,7 @@
 # It'll call this file
 
 # Variables from the user
-MAIN_DIR=../../ # Change made in other branch
+MAIN_DIR="${HOME}/nets_implementation/original_bilayer"
 use_unet=${1}
 experiment_name=${2}
 initialization=${3}
@@ -16,6 +16,7 @@ metrics_freq=${8}
 inf_apply_masks=${9}
 machine_is_graphics=${10}
 rebalance=${11}
+
 if [[ "$machine_is_graphics" == "True" ]]; then
     root_loc="/data/vision/billf"
 elif [[ "$machine_is_graphics" == "False" ]]; then
