@@ -14,7 +14,7 @@ from datasets import utils as ds_utils
 from networks import utils as nt_utils
 from runners  import utils as rn_utils
 from logger import Logger
-
+from logger_yaw import Logger_Yaw
 
 
 class TrainingWrapper(object):
@@ -331,8 +331,6 @@ class TrainingWrapper(object):
                                                 p.requires_grad = True
 
 
-
-
         if args.which_epoch != 'none':
             for net_name in networks_to_train:
                 if net_name not in init_networks:
@@ -369,6 +367,28 @@ class TrainingWrapper(object):
             # with open(self.experiment_dir / test_file, 'a') as data_file:
             #     data_file.write('\n')
 
+    def test_the_model (self, runner, model, my_dataloader, num_gpus, debug, my_logger, my_string):
+        # Test on combined 
+        time_start = time.time()
+        model.eval()
+
+        my_dataloader.dataset.shuffle()
+        for data_dict in my_dataloader:
+            # Prepare input data
+            if num_gpus > 0:
+                for key, value in data_dict.items():
+                    data_dict[key] = value.cuda()
+            # Forward pass
+            with torch.no_grad():
+                model(data_dict)
+            if debug:
+                break
+        # Output logs
+        if len(my_string) == 1:
+            my_logger.output_logs(my_string[0] ,runner.output_visuals(), runner.output_losses(), runner.output_metrics(), time.time() - time_start)
+        if len(my_string) == 2:
+            my_logger.output_logs(my_string[0], my_string[1] ,runner.output_visuals(), runner.output_losses(), runner.output_metrics(), time.time() - time_start)
+
 
     def get_current_lr(self, optimizer, group_idx, parameter_idx, step):
         # Adam has different learning rates for each paramter. So we need to pick the
@@ -401,17 +421,28 @@ class TrainingWrapper(object):
             print("getting the general dataset")
             general_train_dataloader = ds_utils.get_dataloader(args, 'train')
             args.data_root = self.real_data_root
+        elif args.dataloader_name == 'yaw':
+            original_train_dataloader = ds_utils.get_dataloader_for_yaw(args, 'train', 'normal')
         else:
             original_train_dataloader = ds_utils.get_dataloader(args, 'train')
 
         if not args.skip_test:
-            test_dataloader = ds_utils.get_dataloader(args, 'test')
-            unseen_test_dataloader = ds_utils.get_dataloader(args, 'unseen_test')
+            if args.dataloader_name == 'yaw':
+                # Easy pose
+                test_easy_pose_dataloader = ds_utils.get_dataloader_for_yaw(args, 'test', 'easy_pose')
+                unseen_test_easy_pose_dataloader = ds_utils.get_dataloader_for_yaw(args, 'unseen_test', 'easy_pose')
+                # Hard pose
+                test_hard_pose_dataloader = ds_utils.get_dataloader_for_yaw(args, 'test', 'hard_pose')
+                unseen_test_hard_pose_dataloader = ds_utils.get_dataloader_for_yaw(args, 'unseen_test', 'hard_pose')
+                # Combined pose
+                test_combined_pose_dataloader = ds_utils.get_dataloader_for_yaw(args, 'test', 'combined_pose')
+                unseen_test_combined_pose_dataloader = ds_utils.get_dataloader_for_yaw(args, 'unseen_test', 'combined_pose')
+            else:
+                test_dataloader = ds_utils.get_dataloader(args, 'test')
+                unseen_test_dataloader = ds_utils.get_dataloader(args, 'unseen_test')
         
         if not args.skip_metrics:
             metrics_dataloader = ds_utils.get_dataloader(args, 'metrics')
-
-
 
 
         model = runner = self.runner
@@ -454,59 +485,91 @@ class TrainingWrapper(object):
 
         epoch_start = 1 if args.which_epoch == 'none' else int(args.which_epoch) + 1
 
-        # Initialize logging
         train_iter = epoch_start - 1
 
         if args.visual_freq != -1:
             train_iter /= args.visual_freq
-
-        logger = Logger(args, self.experiment_dir)
-        logger.set_num_iter(
-            train_iter=train_iter, 
-            test_iter=(epoch_start - 1) // args.test_freq,
-            metrics_iter=(epoch_start - 1) // args.metrics_freq,
-            unseen_test_iter=(epoch_start - 1) // args.test_freq)
-
+        
         if args.debug and not args.use_apex:
             torch.autograd.set_detect_anomaly(True)
 
         total_iters = 1
         iter_count = 0
 
-        # Adding the first test image on the logger for sanity check
-        if args.save_initial_test_before_training:
-            print("Testing the model before starts training for sanity check")
-            if args.augment_with_general and args.data_root!=args.general_data_root:
-                train_dataloader = personal_train_dataloader
-            else:
-                train_dataloader = original_train_dataloader
-            # Calculate "standing" stats for the batch normalization
-            train_dataloader.dataset.shuffle()
-            if args.calc_stats:
-                runner.calculate_batchnorm_stats(train_dataloader, args.debug)
+        if args.dataloader_name != 'yaw':
+            # Initialize logging
 
-            # Test
-            time_start = time.time()
-            model.eval()
+            logger = Logger(args, self.experiment_dir)
+            logger.set_num_iter(
+                train_iter=train_iter, 
+                test_iter=(epoch_start - 1) // args.test_freq,
+                metrics_iter=(epoch_start - 1) // args.metrics_freq,
+                unseen_test_iter=(epoch_start - 1) // args.test_freq)
 
-            test_dataloader.dataset.shuffle()
-            for data_dict in test_dataloader:
-                # Prepare input data
-                if args.num_gpus > 0:
-                    for key, value in data_dict.items():
-                        data_dict[key] = value.cuda()
-                # Forward pass
-                with torch.no_grad():
-                    model(data_dict)
-                
-                if args.debug:
-                    break
+            # Adding the first test image on the logger for sanity check
+            if args.save_initial_test_before_training:
+                print("Testing the model before starts training for sanity check")
+                if args.augment_with_general and args.data_root!=args.general_data_root:
+                    train_dataloader = personal_train_dataloader
+                else:
+                    train_dataloader = original_train_dataloader
+                # Calculate "standing" stats for the batch normalization
+                train_dataloader.dataset.shuffle()
+                if args.calc_stats:
+                    runner.calculate_batchnorm_stats(train_dataloader, args.debug)
 
-            # Output logs
-            logger.output_logs('test', runner.output_visuals(), runner.output_losses(), runner.output_metrics(), time.time() - time_start)
+                # Test
+                time_start = time.time()
+                model.eval()
+
+                test_dataloader.dataset.shuffle()
+                for data_dict in test_dataloader:
+                    # Prepare input data
+                    if args.num_gpus > 0:
+                        for key, value in data_dict.items():
+                            data_dict[key] = value.cuda()
+                    # Forward pass
+                    with torch.no_grad():
+                        model(data_dict)
+                    
+                    if args.debug:
+                        break
+
+                # Output logs
+                logger.output_logs('test', runner.output_visuals(), runner.output_losses(), runner.output_metrics(), time.time() - time_start)
+        
+        else: # the dataloader_name is 'yaw'
             
+            # Initialize logging
+            logger_yaw = Logger_Yaw (args, self.experiment_dir)
+            logger_yaw.set_num_iter(
+                train_iter=train_iter, 
+                test_easy_pose_iter=(epoch_start - 1) // args.test_freq,
+                test_hard_pose_iter=(epoch_start - 1) // args.test_freq,
+                test_combined_pose_iter=(epoch_start - 1) // args.test_freq,
+                unseen_test_easy_pose_iter=(epoch_start - 1) // args.test_freq,
+                unseen_test_hard_pose_iter=(epoch_start - 1) // args.test_freq,
+                unseen_test_combined_pose_iter=(epoch_start - 1) // args.test_freq)
 
 
+            # Adding the first test image on the logger for sanity check
+            if args.save_initial_test_before_training:
+                print("Testing the model before starts training for sanity check")
+                train_dataloader = original_train_dataloader
+                # Calculate "standing" stats for the batch normalization
+                train_dataloader.dataset.shuffle()
+                if args.calc_stats:
+                    runner.calculate_batchnorm_stats(train_dataloader, args.debug)
+
+                # Test on seen videos, unseen sessions
+                self.test_the_model (runner, model, test_combined_pose_dataloader, args.num_gpus, args.debug, logger_yaw, ['test','combined_pose'] )
+                self.test_the_model (runner, model, test_hard_pose_dataloader, args.num_gpus, args.debug, logger_yaw, ['test','hard_pose'] )
+                self.test_the_model (runner, model, test_easy_pose_dataloader, args.num_gpus, args.debug, logger_yaw, ['test','easy_pose'] )
+                
+                # Test on unseen videos
+                self.test_the_model (runner, model, unseen_test_combined_pose_dataloader, args.num_gpus, args.debug, logger_yaw, ['unseen_test','combined_pose'] )
+                self.test_the_model (runner, model, unseen_test_easy_pose_dataloader, args.num_gpus, args.debug, logger_yaw, ['unseen_test','easy_pose'] )
+                self.test_the_model (runner, model, unseen_test_hard_pose_dataloader, args.num_gpus, args.debug, logger_yaw, ['unseen_test','hard_pose'] )
 
         # Iterate over epochs (main training loop)
         for epoch in range(epoch_start, args.num_epochs + 1):
@@ -581,8 +644,12 @@ class TrainingWrapper(object):
                     opt.step(closure)
 
                 if not epoch % args.visual_freq:
-                    logger.output_logs('train', runner.output_visuals(), runner.output_losses(), \
-                            runner.output_metrics(), time.time() - time_start)
+                    if args.dataloader_name != 'yaw':
+                        logger.output_logs('train', runner.output_visuals(), runner.output_losses(), \
+                                runner.output_metrics(), time.time() - time_start)
+                    else:
+                        logger_yaw.output_logs('train', 'normal', runner.output_visuals(), runner.output_losses(), \
+                                runner.output_metrics(), time.time() - time_start)
  
                     if args.debug:
                         break
@@ -599,73 +666,89 @@ class TrainingWrapper(object):
                 # Calculate "standing" stats for the batch normalization
                 if args.calc_stats:
                     runner.calculate_batchnorm_stats(train_dataloader, args.debug)
-
-                # Test on seen videos
-                time_start = time.time()
-                model.eval()
-
-                test_dataloader.dataset.shuffle()
-                for data_dict in test_dataloader:
-                    # Prepare input data
-                    if args.num_gpus > 0:
-                        for key, value in data_dict.items():
-                            data_dict[key] = value.cuda()
-
-                    # Forward pass
-                    with torch.no_grad():
-                        model(data_dict)
-                    
-                    if args.debug:
-                        break
-                logger.output_logs('test', runner.output_visuals(), runner.output_losses(), \
-                    runner.output_metrics(), time.time() - time_start)
                 
+                if args.dataloader_name == 'yaw':
+
+                    # Test on seen videos, unseen sessions
+                    self.test_the_model (runner, model, test_combined_pose_dataloader, args.num_gpus, args.debug, logger_yaw, ['test','combined_pose'] )
+                    self.test_the_model (runner, model, test_easy_pose_dataloader, args.num_gpus, args.debug, logger_yaw, ['test','easy_pose'] )
+                    self.test_the_model (runner, model, test_hard_pose_dataloader, args.num_gpus, args.debug, logger_yaw, ['test','hard_pose'] )
+                    
+                    # Test on unseen videos
+                    self.test_the_model (runner, model, unseen_test_combined_pose_dataloader, args.num_gpus, args.debug, logger_yaw, ['unseen_test','combined_pose'] )
+                    self.test_the_model (runner, model, unseen_test_easy_pose_dataloader, args.num_gpus, args.debug, logger_yaw, ['unseen_test','easy_pose'] )
+                    self.test_the_model (runner, model, unseen_test_hard_pose_dataloader, args.num_gpus, args.debug, logger_yaw, ['unseen_test','hard_pose'] )
+
                 
-                # Test on unseen videos
-                time_start = time.time()
-                model.eval()
+                else:
+                    self.test_the_model (runner, model, test_dataloader, args.num_gpus, args.debug, logger, ['test'] )
+                    self.test_the_model (runner, model, unseen_test_dataloader, args.num_gpus, args.debug, logger, ['unseen_test'] )
+                    # # Test on seen videos
+                    # time_start = time.time()
+                    # model.eval()
 
-                unseen_test_dataloader.dataset.shuffle()
-                for data_dict in unseen_test_dataloader:
-                    # Prepare input data
-                    if args.num_gpus > 0:
-                        for key, value in data_dict.items():
-                            data_dict[key] = value.cuda()
+                    # test_dataloader.dataset.shuffle()
+                    # for data_dict in test_dataloader:
+                    #     # Prepare input data
+                    #     if args.num_gpus > 0:
+                    #         for key, value in data_dict.items():
+                    #             data_dict[key] = value.cuda()
 
-                    # Forward pass
-                    with torch.no_grad():
-                        model(data_dict)
+                    #     # Forward pass
+                    #     with torch.no_grad():
+                    #         model(data_dict)
+                        
+                    #     if args.debug:
+                    #         break
+                    # logger.output_logs('test', runner.output_visuals(), runner.output_losses(), \
+                    #     runner.output_metrics(), time.time() - time_start)
                     
-                    if args.debug:
-                        break
-                logger.output_logs('unseen_test', runner.output_visuals(), runner.output_losses(), \
-                    runner.output_metrics(), time.time() - time_start)
-
-            # If skip metrics flag is set -- only check if a checkpoint if required
-            if not args.skip_metrics and not epoch % args.metrics_freq:
-                # Calculate "standing" stats for the batch normalization
-                if args.calc_stats:
-                    runner.calculate_batchnorm_stats(train_dataloader, args.debug)
-
-                # Test
-                time_start = time.time()
-                model.eval()
-
-                for i, data_dict in enumerate(metrics_dataloader, 1):
-                    # Prepare input data
-                    if args.num_gpus > 0:
-                        for key, value in data_dict.items():
-                            data_dict[key] = value.cuda()
-
-                    # Forward pass
-                    with torch.no_grad():
-                        model(data_dict)
                     
-                    if args.debug:
-                        break
+                    # # Test on unseen videos
+                    # time_start = time.time()
+                    # model.eval()
 
-                    logger.output_logs('metrics', runner.output_visuals(), runner.output_losses(), \
-                            runner.output_metrics(), time.time() - time_start, i)
+                    # unseen_test_dataloader.dataset.shuffle()
+                    # for data_dict in unseen_test_dataloader:
+                    #     # Prepare input data
+                    #     if args.num_gpus > 0:
+                    #         for key, value in data_dict.items():
+                    #             data_dict[key] = value.cuda()
+
+                    #     # Forward pass
+                    #     with torch.no_grad():
+                    #         model(data_dict)
+                        
+                    #     if args.debug:
+                    #         break
+                    # logger.output_logs('unseen_test', runner.output_visuals(), runner.output_losses(), \
+                    #     runner.output_metrics(), time.time() - time_start)
+
+                # If skip metrics flag is set -- only check if a checkpoint if required
+                if not args.skip_metrics and not epoch % args.metrics_freq:
+                    # Calculate "standing" stats for the batch normalization
+                    if args.calc_stats:
+                        runner.calculate_batchnorm_stats(train_dataloader, args.debug)
+
+                    # Test
+                    time_start = time.time()
+                    model.eval()
+
+                    for i, data_dict in enumerate(metrics_dataloader, 1):
+                        # Prepare input data
+                        if args.num_gpus > 0:
+                            for key, value in data_dict.items():
+                                data_dict[key] = value.cuda()
+
+                        # Forward pass
+                        with torch.no_grad():
+                            model(data_dict)
+                        
+                        if args.debug:
+                            break
+
+                        logger.output_logs('metrics', runner.output_visuals(), runner.output_losses(), \
+                                runner.output_metrics(), time.time() - time_start, i)
 
             # If creation of checkpoint is not required -- continue
             if epoch % args.checkpoint_freq and not args.debug:

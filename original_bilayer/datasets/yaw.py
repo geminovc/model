@@ -71,7 +71,7 @@ class DatasetWrapper(data.Dataset):
         parser.add('--root_to_yaws',             default='/data/pantea/pose_results/yaws/per_person_1_three_datasets/angles', type=str, 
                                                  help='The directory where the yaws are stored in voxceleb2 format')
         
-        parser.add('--abs_min_yaw',              default=45, type=float, 
+        parser.add('--abs_min_yaw',              default=50, type=float, 
                                                  help='The minimum abs value for yaw')
         
         parser.add('--abs_max_yaw',              default=90, type=float, 
@@ -80,15 +80,37 @@ class DatasetWrapper(data.Dataset):
         parser.add('--mask_source_and_target',   default='True', type=rn_utils.str2bool, choices=[True, False],
                                                  help='Mask the souce and target from the beginning')
         
-        parser.add('--yaw_method',               default='close_original', type=str, 
+        parser.add('--yaw_method',               default='close_uniform', type=str, 
                                                  help='The method by which the soucre-target pair is slected based on yaw. Possible choices: min_max, close_uniform, close_original')                                                      
         return parser
 
-    def __init__(self, args, phase):
+    def __init__(self, args, phase, pose_component):
         super(DatasetWrapper, self).__init__()
         # Store options
         self.phase = phase
         self.args = args
+        self.pose_component = pose_component
+
+        if self.pose_component == 'easy_pose' and self.phase != 'train':
+            self.yaw_method = 'min_max'
+            self.abs_max_yaw = 10
+            self.abs_min_yaw = 0
+
+        elif self.pose_component == 'hard_pose' and self.phase != 'train':
+            self.yaw_method = 'min_max'
+            self.abs_max_yaw = 90
+            self.abs_min_yaw = 50
+        
+        elif self.pose_component == 'combined_pose' and self.phase != 'train':
+            self.yaw_method = 'close_original'
+        
+        else:
+            self.yaw_method = args.yaw_method
+            self.abs_max_yaw = args.abs_max_yaw
+            self.abs_min_yaw = args.abs_min_yaw
+
+
+
         self.train_load_index=0
         self.test_load_index=0
 
@@ -150,29 +172,30 @@ class DatasetWrapper(data.Dataset):
         experiment_dir = pathlib.Path(args.experiment_dir)
         self.experiment_dir = experiment_dir / 'runs' / args.experiment_name
 
-        if self.args.yaw_method == 'min_max':
+        if self.yaw_method == 'min_max':
             # We did no have enough difficult pose in the test
-            if self.phase == 'test':
-                self.args.abs_min_yaw = 30
-
+            # if self.phase == 'test':
+            #     self.abs_min_yaw = 30
             self.min_max_preprocess ()
         
-        if self.args.yaw_method == 'close_original':
+        if self.yaw_method == 'close_original':
             # self.bins = [[-5,5],[5,15],[15,25],[25,35],[35,45],[45,55],[55,65][]]
             self.bins = [[-90,-75],[-75,-45],[-45,-15],[-15,15],[15,45],[45,75],[75,90]]
+            #self.bins = [[-90,-80],[-80,-70],[-70,-60],[-70,-60],[-60,-50],[-15,15],[15,45],[45,75],[75,90]]
             self.close_original_preprocess ()
         
-        if self.args.yaw_method == 'close_uniform':
+        if self.yaw_method == 'close_uniform':
             # self.bins = [[-5,5],[5,15],[15,25],[25,35],[35,45],[45,55],[55,65][]]
-            self.bins = [[-90,-45],[-45,0],[0,45],[45,90]]
+            #self.bins = [[-90,-45],[-45,0],[0,45],[45,90]]
+            self.bins = [[-90,-75],[-75,-45],[-45,-15],[-15,15],[15,45],[45,75],[75,90]]
             self.close_uniform_preprocess ()
             self.change_bin = True
             self.change_current_bin()
+        
+        print("The dataloader charactristics:", self.phase, self.pose_component, self.yaw_method, self.yaw_dir, len(self.sequences))
 
 
     def min_max_preprocess (self):
-        print("length of sequences before removing easy yaws",len(self.sequences))
-        print("sequences before removing easy yaws",self.sequences)
         temp_sequences = []
         self.sequence_session_frames_dict = {}
         # This function goes over all the sequences to delete the ones that don't contain yaws in the desired range
@@ -192,8 +215,6 @@ class DatasetWrapper(data.Dataset):
                 print(sequence, "does not have difficult yaws.")
         
         self.sequences = temp_sequences
-        print("length of sequences after removing easy yaws", len(self.sequences))
-        print("sequences after removing easy yaws", self.sequences)
 
     def close_original_preprocess (self):
 
@@ -246,7 +267,7 @@ class DatasetWrapper(data.Dataset):
         return yaw_dict
 
     def find_min_max_poses (self, yaw_dict):
-        return [k for k,v in yaw_dict.items() if (np.abs(v)>= self.args.abs_min_yaw and np.abs(v)<= self.args.abs_max_yaw)]
+        return [k for k,v in yaw_dict.items() if (np.abs(v)>= self.abs_min_yaw and np.abs(v)<= self.abs_max_yaw)]
     
     def find_session_bins (self, yaw_dict):
         bin_dict = {}
@@ -274,14 +295,13 @@ class DatasetWrapper(data.Dataset):
         filenames = []
         difficult_frames = []
 
-        if self.args.yaw_method == 'min_max' :
+        if self.yaw_method == 'min_max' :
             sessions = self.get_sessions(self.sequences[index], self.sequence_session_frames_dict)
             # Sample one session from the video
             random_session = random.sample(sessions, 1)[0]
             difficult_frames = self.sequence_session_frames_dict [(self.sequences[index], random_session)]
 
-
-        if self.args.yaw_method == 'close_original' :
+        if self.yaw_method == 'close_original' :
             sessions = self.get_sessions(self.sequences[index], self.sequence_session_bins_frames_dict)
             # Sample one session from the video
             random_session = random.sample(sessions, 1)[0]
@@ -291,7 +311,7 @@ class DatasetWrapper(data.Dataset):
             difficult_frames = session_dict[random_bin]
 
 
-        if self.args.yaw_method == 'close_uniform' :
+        if self.yaw_method == 'close_uniform' :
             self.sequence_session_frames_dict = self.bins_sequence_session_frames_dict[(str(self.current_bin),1)]
             sessions = self.get_sessions(self.sequences[index], self.sequence_session_frames_dict)
             # Sample one session from the video
@@ -335,8 +355,6 @@ class DatasetWrapper(data.Dataset):
             
             img_path = pathlib.Path(self.imgs_dir) / filename.with_suffix('.jpg')
             
-            if self.phase == 'test':
-                print("selected test image path is: ",img_path)
 
             try:
                 img = Image.open(img_path)
@@ -356,19 +374,6 @@ class DatasetWrapper(data.Dataset):
             keypoints_path = pathlib.Path(self.pose_dir) / filename.with_suffix('.npy')
             try:
                 keypoints = np.load(keypoints_path).astype('float32')
-                
-                if self.args.save_dataset_filenames:
-                    # write the filename to file
-                    if len (imgs) <= self.args.num_source_frames :
-                        save_file = self.phase + "_filenames.txt"
-                        with open(self.experiment_dir / save_file, 'a') as data_file:
-                            data_file.write('source %s:%s\n' % (str(len (imgs)), str(filename.with_suffix('.jpg'))))
-                    
-                    if len (imgs) > self.args.num_source_frames:
-                        save_file = self.phase + "_filenames.txt"
-                        with open(self.experiment_dir / save_file, 'a') as data_file:
-                            data_file.write('target %s:%s\n' % (str(len (imgs)-self.args.num_source_frames), \
-                                    str(filename.with_suffix('.jpg'))))
             
             except:
                 imgs.pop(-1)
@@ -444,7 +449,7 @@ class DatasetWrapper(data.Dataset):
                 
         data_dict['indices'] = torch.LongTensor([index])
 
-        if index == len(self.sequences)-1 and self.args.yaw_method == 'close_uniform':
+        if index == len(self.sequences)-1 and self.yaw_method == 'close_uniform':
             self.change_bin = True
             self.change_current_bin()
 

@@ -21,6 +21,20 @@ def get_dataloader(args, phase):
         num_workers=args.num_workers_per_process,
         drop_last=False)
 
+def get_dataloader_for_yaw(args, phase, pose_component):
+    dataset = import_module(f'datasets.{args.dataloader_name}').DatasetWrapper(args, phase, pose_component)
+    batch_size = args.batch_size // args.world_size
+    if phase == 'metrics':
+        # Sets batch size to 1 if you are passing metrics data because we want to view all the images separately
+        batch_size = 1
+    if phase == 'train': 
+    	args.train_size = len(dataset)
+    return DataLoader(dataset, 
+        batch_size=batch_size, 
+        sampler=DistributedSampler(dataset, args.world_size, args.rank, shuffle=False), # shuffling is done inside the dataset
+        num_workers=args.num_workers_per_process,
+        drop_last=False)
+
 # Required to draw a stickman for ArcSoft keypoints
 def merge_parts(part_even, part_odd):
     output = []
