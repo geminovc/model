@@ -112,9 +112,9 @@ class NetworkWrapper(nn.Module):
         transformer = torch.nn.Upsample(size=256, mode='nearest')
         
         visuals = []    
-        visuals += [data_dict['fake_scores_gen'][None]]
-        visuals += [data_dict['real_scores'][None]]
-        visuals += [data_dict['fake_scores_dis'][None]]
+        #visuals += [data_dict['fake_scores_gen'][None]]
+        #visuals += [data_dict['real_scores'][None]]
+        #visuals += [data_dict['fake_scores_dis'][None]]
         for i in range(len(visuals)):
             visuals[i] = transformer(visuals[i])
             visuals[i] = visuals[i].expand(1,3,256,256) 

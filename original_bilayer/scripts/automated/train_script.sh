@@ -50,7 +50,6 @@ fi
 #     dataloader_name='voxceleb2'
 # fi 
 
-echo ${dataloader_name}
 
 cd $MAIN_DIR/
 

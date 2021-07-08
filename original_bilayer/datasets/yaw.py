@@ -80,7 +80,7 @@ class DatasetWrapper(data.Dataset):
         parser.add('--mask_source_and_target',   default='True', type=rn_utils.str2bool, choices=[True, False],
                                                  help='Mask the souce and target from the beginning')
         
-        parser.add('--yaw_method',               default='close_uniform', type=str, 
+        parser.add('--yaw_method',               default='close_original', type=str, 
                                                  help='The method by which the soucre-target pair is slected based on yaw. Possible choices: min_max, close_uniform, close_original')                                                      
         return parser
 
@@ -179,15 +179,17 @@ class DatasetWrapper(data.Dataset):
             self.min_max_preprocess ()
         
         if self.yaw_method == 'close_original':
-            # self.bins = [[-5,5],[5,15],[15,25],[25,35],[35,45],[45,55],[55,65][]]
-            self.bins = [[-90,-75],[-75,-45],[-45,-15],[-15,15],[15,45],[45,75],[75,90]]
+            #self.bins = [[-5,5],[5,15],[15,25],[25,35],[35,45],[45,55],[55,65][]]
+            #self.bins = [[-90,-75],[-75,-45],[-45,-15],[-15,15],[15,45],[45,75],[75,90]]
             #self.bins = [[-90,-80],[-80,-70],[-70,-60],[-70,-60],[-60,-50],[-15,15],[15,45],[45,75],[75,90]]
+            self.bins = [[-90,-80], [-80,-70],[-70,-60],[-60,-50],[-50,-40],[-40,-30],[-30,-20],[-20,-10],[-10,0],[0,10],[10,20],[20,30],[30,40],[40,50],[50,60],[60,70],[70,80],[80,90]]
             self.close_original_preprocess ()
         
         if self.yaw_method == 'close_uniform':
-            # self.bins = [[-5,5],[5,15],[15,25],[25,35],[35,45],[45,55],[55,65][]]
+            #self.bins = [[-5,5],[5,15],[15,25],[25,35],[35,45],[45,55],[55,65][]]
             #self.bins = [[-90,-45],[-45,0],[0,45],[45,90]]
-            self.bins = [[-90,-75],[-75,-45],[-45,-15],[-15,15],[15,45],[45,75],[75,90]]
+            #self.bins = [[-90,-75],[-75,-45],[-45,-15],[-15,15],[15,45],[45,75],[75,90]]
+            self.bins = [[-90,-80], [-80,-70],[-70,-60],[-60,-50],[-50,-40],[-40,-30],[-30,-20],[-20,-10],[-10,0],[0,10],[10,20],[20,30],[30,40],[40,50],[50,60],[60,70],[70,80],[80,90]]
             self.close_uniform_preprocess ()
             self.change_bin = True
             self.change_current_bin()
@@ -226,7 +228,8 @@ class DatasetWrapper(data.Dataset):
                 yaw_npy_paths = sorted(list(pathlib.Path(str(session)).glob('*')))
                 yaw_dict = self.load_session_yaws(yaw_npy_paths)
                 session_bins_dict = self.find_session_bins(yaw_dict)
-                self.sequence_session_bins_frames_dict [(sequence , str(session).split('/')[-1])] = session_bins_dict
+                if len(session_bins_dict)!=0:
+                    self.sequence_session_bins_frames_dict [(sequence , str(session).split('/')[-1])] = session_bins_dict
 
     def close_uniform_preprocess (self):
         self.bins_sequence_session_frames_dict = {}
@@ -325,7 +328,7 @@ class DatasetWrapper(data.Dataset):
                      pathlib.Path(self.sequences[index]+'/'+random_session+'/'+source_target_pair[1])]
         
         random.shuffle(filenames)
-        print("filenames",filenames)
+        #print("filenames",filenames)
 
         imgs = []
         poses = []
