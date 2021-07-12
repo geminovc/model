@@ -46,7 +46,7 @@ class NetworkWrapper(nn.Module):
         parser.add('--dropout_networks',         default='texture_generator: 0.5' ,
                                                  help='networks to use dropout in: the dropout rate')
            
-    
+        # Replacement options
         parser.add('--replace_Gtex_output_with_trainable_tensor',   default='False', type=rn_utils.str2bool, choices=[True, False],
                                                                     help='set to true if you want to replace all of G_tex with a tensor')
 
@@ -69,11 +69,6 @@ class NetworkWrapper(nn.Module):
         else:
             self.gen_tex_output = nn.Parameter(torch.randn(1, 3, self.args.image_size , self.args.image_size))
         
-        # Get the dropout values
-        if self.args.use_dropout:
-            nets_dropout = rn_utils.parse_str_to_dict(args.dropout_networks, value_type=float)
-            self.dropout_rate = nets_dropout['texture_generator']
-
 
     def forward(
             self, 
