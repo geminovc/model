@@ -3,8 +3,9 @@
 # 
 # This script runs the extract_angles.py in separate tmux sessions in order to 
 # parallelize them. You can see extract_angles.py for the paths I used for the model snapshot.
+# The specific command I run is ./run_all.sh "source ~/.bashrc" "/data/vision/billf/video-conf/scratch/pantea/temp_per_person_1_extracts" "/data/vision/billf/video-conf/scratch/vedantha/temp_1_angles"
 # Command to run is any code you want runnning when opening the tmux session like
-# conda activate torch or something.
+# conda activate torch. If you don't want anything, just put a useless command there like ls.
 #
 
 
