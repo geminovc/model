@@ -69,7 +69,7 @@ class DatasetWrapper(data.Dataset):
 
         # Difficult keypoints                              
 
-        parser.add('--root_to_diff_keypoints',   default='/data/pantea/pose_results/difficult_poses/per_person_1_three_datasets', type=str, 
+        parser.add('--root_to_diff_keypoints',   default='/video-conf/scratch/pantea/pose_results/difficult_poses/per_person_1_three_datasets', type=str, 
                                                  help='If True, the images, keypoints, and segs are picked from files')
         
         parser.add('--mask_source_and_target',   default='True', type=rn_utils.str2bool, choices=[True, False],

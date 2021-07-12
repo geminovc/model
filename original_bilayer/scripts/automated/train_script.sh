@@ -15,7 +15,7 @@ train_dataloader_name=${9}
 if [[ "$machine" == "chunky" ]]; then
     experiment_dir=/data/pantea/pantea_experiments_chunky/${dataset_name}/${initialization}
 elif [[ "$machine" == "mapmaker" ]]; then
-    experiment_dir=/data4/pantea/pantea_experiments_mapmaker/${dataset_name}/${initialization}
+    experiment_dir=/video-conf/scratch/pantea_experiments_mapmaker/${dataset_name}/${initialization}
 fi 
 
 # The dataset options for experiment

@@ -417,12 +417,13 @@ class TrainingWrapper(object):
         # Get relevant dataloaders for augmentation by general or the vanilla case
         if args.augment_with_general and args.data_root != args.general_data_root:
             print("getting the per_person dataset")
-            personal_train_dataloader = ds_utils.get_dataloader(args, 'train')
+            args.dataloader_name = args.train_dataloader_name
+            personal_train_dataloader = ds_utils.get_dataloader(args, 'train', 'none')
             self.augment_with_general_ratio = args.augment_with_general_ratio
             self.real_data_root = args.data_root
             args.data_root = args.general_data_root
             print("getting the general dataset")
-            general_train_dataloader = ds_utils.get_dataloader(args, 'train')
+            general_train_dataloader = ds_utils.get_dataloader(args, 'train', 'none')
             args.data_root = self.real_data_root
         
         # Get the train dataloader
