@@ -241,8 +241,8 @@ class DatasetWrapper(data.Dataset):
                     filename_raw = bins[bin_index][frame_num]
 
                     # Turn that into a usable value
-                    tmp = filename_raw.split('/')
-                    filename_cleaned = tmp[-4:-1] + [tmp[-1][:-4]]
+                    files_split = filename_raw.split('/')
+                    filename_cleaned = files_split[-4:-1] + [files_split[-1][:-4]]
                     filename_cleaned = '/'.join(filename_cleaned)
                     filename = pathlib.Path(filename_cleaned)
                 else:
