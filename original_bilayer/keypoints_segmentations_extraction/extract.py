@@ -234,7 +234,7 @@ class KeypointSegmentationGenerator():
             if input_imgs is None:
                 if crop_data:
                     # Crop poses
-                    s = size * 2
+                    output_size = size * 2
                     pose -= center - size
 
             else:
@@ -244,7 +244,7 @@ class KeypointSegmentationGenerator():
                 if crop_data:
                     # Crop images and poses
                     img = img.crop((center[0]-size, center[1]-size, center[0]+size, center[1]+size))
-                    s = img.size[0]
+                    output_size = img.size[0]
                     pose -= center - size
                 
                 # Resizing the image before storing it. If the image is small, this action would add black border around the image
@@ -258,7 +258,7 @@ class KeypointSegmentationGenerator():
             # This following action (scaling the poses) is done in training pipeline, and should not be done for generating the dataset. 
             if crop_data:
                 # This sets the range of pose to 0-256. This is what is needed for voxceleb.py 
-                pose = args.image_size*pose / float(s)
+                pose = args.image_size*pose / float(output_size)
             ## poses.append(torch.from_numpy((pose - 0.5) * 2).view(-1))            
             poses.append(torch.from_numpy((pose)).view(-1))
 
