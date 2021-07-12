@@ -68,7 +68,9 @@ class DatasetWrapper(data.Dataset):
 
         parser.add('--mask_source_and_target',   default='True', type=rn_utils.str2bool, choices=[True, False],
                                                  help='mask the source and target from the beginning')
-
+        
+        parser.add('--same_source_and_target',   default='True', type=rn_utils.str2bool, choices=[True, False],
+                                                 help='mask the source and target from the beginning')
                                                       
 
         return parser
@@ -176,6 +178,11 @@ class DatasetWrapper(data.Dataset):
 
 
         filenames = sorted(filenames)
+        
+        if self.args.same_source_and_target:
+            selected_filename = random.randint(0, (len(filenames) - 1))
+            filenames = [filenames[selected_filename] for i in filenames]
+        
         imgs = []
         poses = []
         stickmen = []
