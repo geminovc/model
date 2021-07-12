@@ -8,9 +8,12 @@ folder as the root in this file and then the bins will be calculated and then sa
 in the result_path + bins.pkl.
 
 The binning is defaulted to bin by yaw.
+
+The command I run is:
+python get_bins.py --root /data/vision/billf/video-conf/scratch/vedantha/stabilizing_test_3 --result_path /data/vision/billf/video-conf/scratch/vedantha --spacing 10
 """
 
-
+from tqdm import tqdm
 
 import numpy as np
 import pickle
@@ -36,7 +39,7 @@ if __name__ == '__main__':
     progress=1
     
     # The odd file structure here is used because it matches the voxceleb.py file structure
-    for video in glob.glob(args.root + '/angles/*/*/*'):
+    for video in tqdm(glob.glob(args.root + '/angles/*/*/*')):
         for file in glob.glob(video + '/*/*'):
             arr = np.load(file)
             video_uid = (file.split('/'))[-3]

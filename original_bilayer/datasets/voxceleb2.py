@@ -160,13 +160,11 @@ class DatasetWrapper(data.Dataset):
         while True:
             count += 1
             try:
-                filenames_img = list(
-                    (self.imgs_dir / self.sequences[index]).glob('*/*'))
+                filenames_img = list((self.imgs_dir / self.sequences[index]).glob('*/*'))
                 filenames_img = [pathlib.Path(
                     *filename.parts[-4:]).with_suffix('') for filename in filenames_img]
 
-                filenames_npy = list(
-                    (self.pose_dir / self.sequences[index]).glob('*/*'))
+                filenames_npy = list((self.pose_dir / self.sequences[index]).glob('*/*'))
                 filenames_npy = [pathlib.Path(
                     *filename.parts[-4:]).with_suffix('') for filename in filenames_npy]
 
@@ -188,8 +186,7 @@ class DatasetWrapper(data.Dataset):
                     raise  # the length of filenames is zero.
 
             except Exception as e:
-                print(
-                    "# Exception is raised if filenames list is empty or there was an error during read")
+                print("# Exception is raised if filenames list is empty or there was an error during read")
                 index = (index + 1) % len(self)
 
         filenames = sorted(filenames)
@@ -261,8 +258,7 @@ class DatasetWrapper(data.Dataset):
 
                 # Preprocess an image
                 s = img.size[0]
-                img = img.resize(
-                    (self.args.image_size, self.args.image_size), Image.BICUBIC)
+                img = img.resize((self.args.image_size, self.args.image_size), Image.BICUBIC)
 
             except:
                 sample_from_reserve = True
@@ -272,8 +268,7 @@ class DatasetWrapper(data.Dataset):
             imgs += [self.to_tensor(img)]
 
             # Read keypoints
-            keypoints_path = pathlib.Path(
-                self.pose_dir) / filename.with_suffix('.npy')
+            keypoints_path = pathlib.Path(self.pose_dir) / filename.with_suffix('.npy')
             try:
                 keypoints = np.load(keypoints_path).astype('float32')
 
@@ -317,8 +312,7 @@ class DatasetWrapper(data.Dataset):
 
                 try:
                     seg = Image.open(seg_path)
-                    seg = seg.resize(
-                        (self.args.image_size, self.args.image_size), Image.BICUBIC)
+                    seg = seg.resize((self.args.image_size, self.args.image_size), Image.BICUBIC)
                 except:
                     imgs.pop(-1)
                     poses.pop(-1)

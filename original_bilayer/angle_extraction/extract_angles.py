@@ -12,9 +12,11 @@ and roll respectively.
 
 Then you want to pass in the root of that newly created vox celeb structured angles into get_bins.py, which
 you probably want to modify depending on what you're trying to bin.
+
+You probably shouldn't run this script directly, only through run_all.sh, where I've provided the command I run
 """
 
-
+from tqdm import tqdm
 import sys, os, argparse, glob
 import numpy as np
 import cv2
@@ -85,11 +87,9 @@ if __name__ == '__main__':
     # Run the Model
     total = 0
     args.img_path = []
-    for index, file in enumerate(glob.glob(args.data_root+'/imgs/*/*/*/*/*')):
-        print(file)
+    for index, file in tqdm(enumerate(glob.glob(args.data_root+'/imgs/*/*/*/*/*'))):
         total+=1
-        print(total)
-        if total % 21 != args.index:
+        if total % args.proc != args.index:
             continue
         args.img_path=file
         

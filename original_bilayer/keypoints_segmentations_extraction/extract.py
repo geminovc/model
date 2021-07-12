@@ -327,7 +327,6 @@ class KeypointSegmentationGenerator():
                 # Capturing the video frames 
                 while video.isOpened():
                     ret, frame = video.read()
-                    print(frame_num)
                     if frame is None:
                         break
 
@@ -336,6 +335,7 @@ class KeypointSegmentationGenerator():
                         pass
                     
                     else:
+                        print(frame_num)
                         # Reformat to proper RGB/BGR
                         frame = frame[:,:,::-1]
                         
