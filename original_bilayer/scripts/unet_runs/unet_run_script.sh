@@ -16,7 +16,6 @@ metrics_freq=${8}
 inf_apply_masks=${9}
 machine_is_graphics=${10}
 rebalance=${11}
-num_gpus=${12}
 if [[ "$machine_is_graphics" == "True" ]]; then
     root_loc="/data/vision/billf"
 elif [[ "$machine_is_graphics" == "False" ]]; then
@@ -24,8 +23,8 @@ elif [[ "$machine_is_graphics" == "False" ]]; then
 fi
 
 if [[ "$use_unet" == "True" ]]; then
-    unet_inputs=${13}
-    unet_input_channels=${14}
+    unet_inputs=${12}
+    unet_input_channels=${13}
     texture_output_dim="16"
     lrs="identity_embedder: 2e-4, texture_generator: 2e-4, keypoints_embedder: 2e-4, inference_generator: 2e-4, discriminator: 2e-4, unet: 2e-4"
     optims="identity_embedder: adam, texture_generator: adam, keypoints_embedder: adam, inference_generator: adam, discriminator: adam, unet: adam"
@@ -146,7 +145,7 @@ python train.py \
     --networks_test "$networks_test" \
     --networks_train "$networks_train" \
     --num_epochs "$num_epochs" \
-    --num_gpus "$num_gpus" \
+    --num_gpus 1 \
     --num_keypoints 68 \
     --num_source_frames 1 \
     --num_target_frames 1 \

@@ -20,7 +20,7 @@ class RunnerWrapper(nn.Module):
         parser.add('--networks_train',       default = 'identity_embedder, texture_generator, keypoints_embedder, inference_generator, discriminator', 
                                              help    = 'order of forward passes during the training of gen (or gen and dis for sim sgd)')
 
-        parser.add('--time_networks',        type    = utils.str2bool, default = False, 
+        parser.add('--time_networks',        type    = utils.str2bool, default = False, choices=[True, False],
                                              help    = 'True if you want to time networks (slows down running because of synchronization)')
 
         parser.add('--networks_test',        default = 'identity_embedder, texture_generator, keypoints_embedder, inference_generator', 
