@@ -37,13 +37,13 @@ class NetworkWrapper(nn.Module):
         parser.add('--tex_skip_layer_type',      default='ada_conv', type=str,
                                                  help='skip connection layer type')
 
+        parser.add('--texture_output_dim',       default=3, type=int,
+                                                 help='texture output dimensions, 3 for usual, 16 for unet added')
+    
         parser.add('--replace_Gtex_output_with_trainable_tensor',   default='False', type=rn_utils.str2bool, choices=[True, False],
                                                                     help='set to true if you want to replace all of G_tex with a tensor')
 
 
-        parser.add('--texture_output_dim',      default=3, type=int,
-                                                 help='texture output dimensions, 3 for usual, 16 for unet added')
-    
     def __init__(self, args):
         super(NetworkWrapper, self).__init__()
         # Initialize options
