@@ -4,6 +4,14 @@ This file gets the yaws, pitch and rolls for all the images in the input directo
 You need to pass in the location of the hopenet model which I've stored at 
 
 /video-conf/scratch/vedantha/hope_weights/hopenet_robust_alpha1.pkl
+
+Specifically, this script takes the images from the voxceleb dataroot provided and computes the
+angles, creating a mirror of the voxceleb structure with the same folder names and everything, but
+instead of the "imgs" folder you have "angles" and the actual files contain a numpy array with the yaw, pitch
+and roll respectively.
+
+Then you want to pass in the root of that newly created vox celeb structured angles into get_bins.py, which
+you probably want to modify depending on what you're trying to bin.
 """
 
 
@@ -35,7 +43,8 @@ def parse_args():
             default=0, type=int)
     parser.add_argument('--snapshot', dest='snapshot', help='Path of model snapshot.',
           default='/data/vision/billf/video-conf/scratch/vedantha/hope_weights/hopenet_robust_alpha1.pkl', type=str)
-    parser.add_argument('--root', dest='root', help='Path of videos', default='/data/vision/billf/video-conf/scratch/pantea/temp_per_person_1_extracts')
+    parser.add_argument('--data_root', dest='data_root', help='Path of videos', default='/data/vision/billf/video-conf/scratch/pantea/temp_per_person_1_extracts')
+    parser.add_argument('--save_root', dest='save_root', help='Path of saved angels root', default='/data/vision/billf/video-conf/scratch/vedantha/stabilizing_test_3')
     args = parser.parse_args()
     return args
     
@@ -61,7 +70,7 @@ if __name__ == '__main__':
     saved_state_dict = torch.load(snapshot_path)
     model.load_state_dict(saved_state_dict)
     model.cuda(gpu)
-    model.eval()  # Change model to 'eval' mode (BN uses moving mean/var).
+    model.eval()
 
     print('Loading data.')
 
@@ -76,7 +85,7 @@ if __name__ == '__main__':
     # Run the Model
     total = 0
     args.img_path = []
-    for index, file in enumerate(glob.glob(args.root+'/imgs/*/*/*/*/*')):
+    for index, file in enumerate(glob.glob(args.data_root+'/imgs/*/*/*/*/*')):
         print(file)
         total+=1
         print(total)
@@ -86,7 +95,7 @@ if __name__ == '__main__':
         
         img_path  = args.img_path
         split_string = img_path.split('/')
-        path_to_angles = ['/data/vision/billf/video-conf/scratch/vedantha']+ ['stabilizing_test_3'] + ['angles'] + split_string[-5:-1] + [split_string[-1][:-3] + 'npy']
+        path_to_angles = [args.save_root] + ['angles'] + split_string[-5:-1] + [split_string[-1][:-3] + 'npy']
         path_to_angles_dir = '/'.join(path_to_angles)
         
         if not os.path.exists('/'.join(path_to_angles[:-1])):

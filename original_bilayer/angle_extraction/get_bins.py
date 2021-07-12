@@ -1,7 +1,13 @@
 """
-This function takes the files from the root provided and computes
-the bins of the yaws split by video. This resulting pickle file is
-passed into voxceleb.py if you are trying to do the rabalancing.
+This function takes the files from the voxceleb structure 
+root provided and computes the bins of the yaws split by video. 
+This resulting pickle file is passed into voxceleb.py if you are trying to do the rebalancing.
+
+Specifically, once you've run extract_angles.py, you want to pass in that save_root
+folder as the root in this file and then the bins will be calculated and then saved
+in the result_path + bins.pkl.
+
+The binning is defaulted to bin by yaw.
 """
 
 
@@ -42,7 +48,8 @@ if __name__ == '__main__':
                     all_bins[video_uid].append([])
 
             # Add the frame to its bin
-            all_bins[video_uid][int(arr[0]//spacing)].append(file)
+            yaw = arr[0]
+            all_bins[video_uid][int(yaw//spacing)].append(file)
             if progress % 1000 == 0:
                 print(progress)
             progress += 1
