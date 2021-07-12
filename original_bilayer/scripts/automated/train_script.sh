@@ -9,7 +9,7 @@ batch_size=${5}
 num_epochs=${6}
 test_freq=${7}
 metrics_freq=${8}
-dataloader_name=${9}
+train_dataloader_name=${9}
 
 # Depending on the machine you run the code from, the directory to save experiments is different due to write access
 if [[ "$machine" == "chunky" ]]; then
@@ -187,7 +187,7 @@ python train.py \
     --init_experiment_dir ${init_experiment_dir} \
     --init_networks 'identity_embedder, texture_generator, keypoints_embedder, inference_generator, discriminator' \
     --init_which_epoch ${init_which_epoch} \
-    --dataloader_name ${dataloader_name}
+    --train_dataloader_name ${train_dataloader_name}
 
 
 

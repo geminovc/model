@@ -167,7 +167,7 @@ class DatasetWrapper(data.Dataset):
         
         return parser
 
-    def __init__(self, args, phase):
+    def __init__(self, args, phase, pose_component = 'none'):
         super(DatasetWrapper, self).__init__()
         # Store options
         self.phase = phase

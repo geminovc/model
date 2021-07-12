@@ -76,7 +76,7 @@ class DatasetWrapper(data.Dataset):
                                                  help='mask the souce and target from the beginning') 
         return parser
 
-    def __init__(self, args, phase):
+    def __init__(self, args, phase, pose_component = 'none'):
         super(DatasetWrapper, self).__init__()
         # Store options
         self.phase = phase

@@ -14,7 +14,6 @@ from datasets import utils as ds_utils
 from networks import utils as nt_utils
 from runners  import utils as rn_utils
 from logger import Logger
-from logger_yaw import Logger_Yaw
 
 
 class TrainingWrapper(object):
@@ -36,8 +35,14 @@ class TrainingWrapper(object):
         parser.add('--experiment_name',                                 default='test', type=str,
                                                                         help='name of the experiment used for logging')
 
-        parser.add('--dataloader_name',                                 default='voxceleb2', type=str,
-                                                                        help='name of the file in dataset directory which is used for data loading')
+        parser.add('--train_dataloader_name',                           default='voxceleb2', type=str,
+                                                                        help='name of the file in dataset directory which is used for train data loading')
+
+        parser.add('--test_dataloader_name',                            default='yaw', type=str,
+                                                                        help='name of the file in dataset directory which is used for test data loading')
+
+        parser.add('--dataloader_name',                                 default='yaw', type=str,
+                                                                        help='name of the file in dataset directory which is used for data loading flag')
 
         parser.add('--dataset_name',                                    default='voxceleb2_512px', type=str,
                                                                         help='name of the dataset in the data root folder')
@@ -219,7 +224,8 @@ class TrainingWrapper(object):
 
         os.environ['TORCH_HOME'] = args.torch_home
 
-        importlib.import_module(f'datasets.{args.dataloader_name}').DatasetWrapper.get_args(parser)
+        importlib.import_module(f'datasets.{args.train_dataloader_name}').DatasetWrapper.get_args(parser)
+        importlib.import_module(f'datasets.{args.test_dataloader_name}').DatasetWrapper.get_args(parser)
 
         # runner options
         importlib.import_module(f'runners.{args.runner_name}').RunnerWrapper.get_args(parser)
@@ -384,10 +390,7 @@ class TrainingWrapper(object):
             if debug:
                 break
         # Output logs
-        if len(my_string) == 1:
-            my_logger.output_logs(my_string[0] ,runner.output_visuals(), runner.output_losses(), runner.output_metrics(), time.time() - time_start)
-        if len(my_string) == 2:
-            my_logger.output_logs(my_string[0], my_string[1] ,runner.output_visuals(), runner.output_losses(), runner.output_metrics(), time.time() - time_start)
+        my_logger.output_logs(my_string[0], my_string[1] ,runner.output_visuals(), runner.output_losses(), runner.output_metrics(), time.time() - time_start)
 
 
     def get_current_lr(self, optimizer, group_idx, parameter_idx, step):
@@ -421,28 +424,30 @@ class TrainingWrapper(object):
             print("getting the general dataset")
             general_train_dataloader = ds_utils.get_dataloader(args, 'train')
             args.data_root = self.real_data_root
-        elif args.dataloader_name == 'yaw':
-            original_train_dataloader = ds_utils.get_dataloader_for_yaw(args, 'train', 'normal')
-        else:
-            original_train_dataloader = ds_utils.get_dataloader(args, 'train')
+        
+        # Get the train dataloader
+        args.dataloader_name = args.train_dataloader_name
+        original_train_dataloader = ds_utils.get_dataloader(args, 'train', 'none')
 
+        # Get test dataloaders
         if not args.skip_test:
+            args.dataloader_name = args.test_dataloader_name
             if args.dataloader_name == 'yaw':
                 # Easy pose
-                test_easy_pose_dataloader = ds_utils.get_dataloader_for_yaw(args, 'test', 'easy_pose')
-                unseen_test_easy_pose_dataloader = ds_utils.get_dataloader_for_yaw(args, 'unseen_test', 'easy_pose')
+                test_easy_pose_dataloader = ds_utils.get_dataloader(args, 'test', 'easy_pose')
+                unseen_test_easy_pose_dataloader = ds_utils.get_dataloader(args, 'unseen_test', 'easy_pose')
                 # Hard pose
-                test_hard_pose_dataloader = ds_utils.get_dataloader_for_yaw(args, 'test', 'hard_pose')
-                unseen_test_hard_pose_dataloader = ds_utils.get_dataloader_for_yaw(args, 'unseen_test', 'hard_pose')
+                test_hard_pose_dataloader = ds_utils.get_dataloader(args, 'test', 'hard_pose')
+                unseen_test_hard_pose_dataloader = ds_utils.get_dataloader(args, 'unseen_test', 'hard_pose')
                 # Combined pose
-                test_combined_pose_dataloader = ds_utils.get_dataloader_for_yaw(args, 'test', 'combined_pose')
-                unseen_test_combined_pose_dataloader = ds_utils.get_dataloader_for_yaw(args, 'unseen_test', 'combined_pose')
+                test_combined_pose_dataloader = ds_utils.get_dataloader(args, 'test', 'combined_pose')
+                unseen_test_combined_pose_dataloader = ds_utils.get_dataloader(args, 'unseen_test', 'combined_pose')
             else:
-                test_dataloader = ds_utils.get_dataloader(args, 'test')
-                unseen_test_dataloader = ds_utils.get_dataloader(args, 'unseen_test')
+                test_dataloader = ds_utils.get_dataloader(args, 'test', 'none')
+                unseen_test_dataloader = ds_utils.get_dataloader(args, 'unseen_test', 'none')
         
         if not args.skip_metrics:
-            metrics_dataloader = ds_utils.get_dataloader(args, 'metrics')
+            metrics_dataloader = ds_utils.get_dataloader(args, 'metrics', 'none')
 
 
         model = runner = self.runner
@@ -496,11 +501,11 @@ class TrainingWrapper(object):
         total_iters = 1
         iter_count = 0
 
-        if args.dataloader_name != 'yaw':
+        if args.test_dataloader_name != 'yaw':
             # Initialize logging
 
-            logger = Logger(args, self.experiment_dir)
-            logger.set_num_iter(
+            logger = Logger(args, self.experiment_dir, if_pose_component= False)
+            logger.set_num_iter_no_pose(
                 train_iter=train_iter, 
                 test_iter=(epoch_start - 1) // args.test_freq,
                 metrics_iter=(epoch_start - 1) // args.metrics_freq,
@@ -518,31 +523,14 @@ class TrainingWrapper(object):
                 if args.calc_stats:
                     runner.calculate_batchnorm_stats(train_dataloader, args.debug)
 
-                # Test
-                time_start = time.time()
-                model.eval()
-
-                test_dataloader.dataset.shuffle()
-                for data_dict in test_dataloader:
-                    # Prepare input data
-                    if args.num_gpus > 0:
-                        for key, value in data_dict.items():
-                            data_dict[key] = value.cuda()
-                    # Forward pass
-                    with torch.no_grad():
-                        model(data_dict)
-                    
-                    if args.debug:
-                        break
-
-                # Output logs
-                logger.output_logs('test', runner.output_visuals(), runner.output_losses(), runner.output_metrics(), time.time() - time_start)
+                # Test on seen videos
+                self.test_the_model (runner, model, test_dataloader, args.num_gpus, args.debug, logger, ['test','none'] )
         
-        else: # the dataloader_name is 'yaw'
+        else: # the test_dataloader_name is 'yaw'
             
             # Initialize logging
-            logger_yaw = Logger_Yaw (args, self.experiment_dir)
-            logger_yaw.set_num_iter(
+            logger = Logger (args, self.experiment_dir, if_pose_component= True)
+            logger.set_num_iter_with_pose(
                 train_iter=train_iter, 
                 test_easy_pose_iter=(epoch_start - 1) // args.test_freq,
                 test_hard_pose_iter=(epoch_start - 1) // args.test_freq,
@@ -562,14 +550,14 @@ class TrainingWrapper(object):
                     runner.calculate_batchnorm_stats(train_dataloader, args.debug)
 
                 # Test on seen videos, unseen sessions
-                self.test_the_model (runner, model, test_combined_pose_dataloader, args.num_gpus, args.debug, logger_yaw, ['test','combined_pose'] )
-                self.test_the_model (runner, model, test_hard_pose_dataloader, args.num_gpus, args.debug, logger_yaw, ['test','hard_pose'] )
-                self.test_the_model (runner, model, test_easy_pose_dataloader, args.num_gpus, args.debug, logger_yaw, ['test','easy_pose'] )
+                self.test_the_model (runner, model, test_combined_pose_dataloader, args.num_gpus, args.debug, logger, ['test','combined_pose'] )
+                self.test_the_model (runner, model, test_hard_pose_dataloader, args.num_gpus, args.debug, logger, ['test','hard_pose'] )
+                self.test_the_model (runner, model, test_easy_pose_dataloader, args.num_gpus, args.debug, logger, ['test','easy_pose'] )
                 
                 # Test on unseen videos
-                self.test_the_model (runner, model, unseen_test_combined_pose_dataloader, args.num_gpus, args.debug, logger_yaw, ['unseen_test','combined_pose'] )
-                self.test_the_model (runner, model, unseen_test_easy_pose_dataloader, args.num_gpus, args.debug, logger_yaw, ['unseen_test','easy_pose'] )
-                self.test_the_model (runner, model, unseen_test_hard_pose_dataloader, args.num_gpus, args.debug, logger_yaw, ['unseen_test','hard_pose'] )
+                self.test_the_model (runner, model, unseen_test_combined_pose_dataloader, args.num_gpus, args.debug, logger, ['unseen_test','combined_pose'] )
+                self.test_the_model (runner, model, unseen_test_easy_pose_dataloader, args.num_gpus, args.debug, logger, ['unseen_test','easy_pose'] )
+                self.test_the_model (runner, model, unseen_test_hard_pose_dataloader, args.num_gpus, args.debug, logger, ['unseen_test','hard_pose'] )
 
         # Iterate over epochs (main training loop)
         for epoch in range(epoch_start, args.num_epochs + 1):
@@ -644,13 +632,10 @@ class TrainingWrapper(object):
                     opt.step(closure)
 
                 if not epoch % args.visual_freq:
-                    if args.dataloader_name != 'yaw':
-                        logger.output_logs('train', runner.output_visuals(), runner.output_losses(), \
-                                runner.output_metrics(), time.time() - time_start)
-                    else:
-                        logger_yaw.output_logs('train', 'normal', runner.output_visuals(), runner.output_losses(), \
-                                runner.output_metrics(), time.time() - time_start)
- 
+
+                    logger.output_logs('train', 'none', runner.output_visuals(), runner.output_losses(), \
+                            runner.output_metrics(), time.time() - time_start)
+
                     if args.debug:
                         break
 
@@ -667,17 +652,17 @@ class TrainingWrapper(object):
                 if args.calc_stats:
                     runner.calculate_batchnorm_stats(train_dataloader, args.debug)
                 
-                if args.dataloader_name == 'yaw':
+                if args.test_dataloader_name == 'yaw':
 
                     # Test on seen videos, unseen sessions
-                    self.test_the_model (runner, model, test_combined_pose_dataloader, args.num_gpus, args.debug, logger_yaw, ['test','combined_pose'] )
-                    self.test_the_model (runner, model, test_easy_pose_dataloader, args.num_gpus, args.debug, logger_yaw, ['test','easy_pose'] )
-                    self.test_the_model (runner, model, test_hard_pose_dataloader, args.num_gpus, args.debug, logger_yaw, ['test','hard_pose'] )
+                    self.test_the_model (runner, model, test_combined_pose_dataloader, args.num_gpus, args.debug, logger, ['test','combined_pose'] )
+                    self.test_the_model (runner, model, test_easy_pose_dataloader, args.num_gpus, args.debug, logger, ['test','easy_pose'] )
+                    self.test_the_model (runner, model, test_hard_pose_dataloader, args.num_gpus, args.debug, logger, ['test','hard_pose'] )
                     
                     # Test on unseen videos
-                    self.test_the_model (runner, model, unseen_test_combined_pose_dataloader, args.num_gpus, args.debug, logger_yaw, ['unseen_test','combined_pose'] )
-                    self.test_the_model (runner, model, unseen_test_easy_pose_dataloader, args.num_gpus, args.debug, logger_yaw, ['unseen_test','easy_pose'] )
-                    self.test_the_model (runner, model, unseen_test_hard_pose_dataloader, args.num_gpus, args.debug, logger_yaw, ['unseen_test','hard_pose'] )
+                    self.test_the_model (runner, model, unseen_test_combined_pose_dataloader, args.num_gpus, args.debug, logger, ['unseen_test','combined_pose'] )
+                    self.test_the_model (runner, model, unseen_test_easy_pose_dataloader, args.num_gpus, args.debug, logger, ['unseen_test','easy_pose'] )
+                    self.test_the_model (runner, model, unseen_test_hard_pose_dataloader, args.num_gpus, args.debug, logger, ['unseen_test','hard_pose'] )
 
                 
                 else:

@@ -68,7 +68,7 @@ class DatasetWrapper(data.Dataset):
                                                  help='gradually increase the weight of general dataset while training the per_person dataset')
 
         # Yaws                              
-        parser.add('--root_to_yaws',             default='/data/pantea/pose_results/yaws/per_person_1_three_datasets/angles', type=str, 
+        parser.add('--root_to_yaws',             default='/video-conf/scratch/pantea/pose_results/yaws/per_person_1_three_datasets/angles', type=str, 
                                                  help='The directory where the yaws are stored in voxceleb2 format')
         
         parser.add('--abs_min_yaw',              default=50, type=float, 
@@ -81,7 +81,11 @@ class DatasetWrapper(data.Dataset):
                                                  help='Mask the souce and target from the beginning')
         
         parser.add('--yaw_method',               default='close_original', type=str, 
-                                                 help='The method by which the soucre-target pair is slected based on yaw. Possible choices: min_max, close_uniform, close_original')                                                      
+                                                 help='The method by which the soucre-target pair is slected based on yaw for training. Possible choices: min_max, close_uniform, close_original')                                                      
+        
+        parser.add('--same_source_and_target',   default='True', type=rn_utils.str2bool, choices=[True, False],
+                                                 help='mask the source and target from the beginning')
+                                                              
         return parser
 
     def __init__(self, args, phase, pose_component):
@@ -326,6 +330,10 @@ class DatasetWrapper(data.Dataset):
         source_target_pair = random.sample(difficult_frames, 2)
         filenames = [pathlib.Path(self.sequences[index]+'/'+random_session+'/'+source_target_pair[0]),
                      pathlib.Path(self.sequences[index]+'/'+random_session+'/'+source_target_pair[1])]
+        
+        if self.args.same_source_and_target:
+            filenames = [pathlib.Path(self.sequences[index]+'/'+random_session+'/'+source_target_pair[0]),
+                        pathlib.Path(self.sequences[index]+'/'+random_session+'/'+source_target_pair[0])]
         
         random.shuffle(filenames)
         #print("filenames",filenames)

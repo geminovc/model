@@ -10,7 +10,7 @@ from torchvision import transforms
 class Logger_Yaw(object):
     def __init__(self, args, experiment_dir):
         super(Logger_Yaw, self).__init__()
-        self.num_iter = {('train', 'normal'): 0, ('test', 'easy_pose'): 0, ('test', 'hard_pose'): 0, ('test', 'combined_pose'): 0,
+        self.num_iter = {('train', 'none'): 0, ('test', 'easy_pose'): 0, ('test', 'hard_pose'): 0, ('test', 'combined_pose'): 0,
                             ('unseen_test', 'easy_pose'): 0, ('unseen_test', 'hard_pose'): 0, ('unseen_test', 'combined_pose'): 0} 
         
         self.no_disk_write_ops = args.no_disk_write_ops
@@ -97,6 +97,6 @@ class Logger_Yaw(object):
     def set_num_iter(self, train_iter, test_easy_pose_iter, test_hard_pose_iter, test_combined_pose_iter, 
                 unseen_test_easy_pose_iter, unseen_test_hard_pose_iter, unseen_test_combined_pose_iter):
 
-        self.num_iter = {('train', 'normal'): train_iter, ('test', 'easy_pose'): test_easy_pose_iter, ('test', 'hard_pose'): test_hard_pose_iter,
+        self.num_iter = {('train', 'none'): train_iter, ('test', 'easy_pose'): test_easy_pose_iter, ('test', 'hard_pose'): test_hard_pose_iter,
          ('test', 'combined_pose'): test_combined_pose_iter,('unseen_test', 'easy_pose'): unseen_test_easy_pose_iter,
          ('unseen_test', 'hard_pose'): unseen_test_hard_pose_iter, ('unseen_test', 'combined_pose'): unseen_test_combined_pose_iter} 
