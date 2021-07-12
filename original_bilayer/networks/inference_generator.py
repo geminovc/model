@@ -180,7 +180,7 @@ class NetworkWrapper(nn.Module):
         
         # Unet input values
         if self.args.use_unet:
-            # Add the code for making hte neural textures here
+            # Add the code for making the neural textures here
             warped_neural_textures = pred_target_delta_hf_rgbs
             # depending on wether you have the lf and hf content as inputs
             data_dict['warped_neural_textures'] = warped_neural_textures
@@ -202,8 +202,8 @@ class NetworkWrapper(nn.Module):
         if not self.args.use_unet and ('inference_generator' in networks_to_train or self.args.inf_calc_grad):
             data_dict['pred_target_imgs_lf_detached'] = reshape_target_data(pred_target_imgs_lf_detached)
 
-            if self.args.inf_pred_segmentation:
-                data_dict['pred_target_segs_logits'] = reshape_target_data(pred_target_segs_logits)
+        if self.args.inf_pred_segmentation:
+            data_dict['pred_target_segs_logits'] = reshape_target_data(pred_target_segs_logits)
 
         if self.args.inf_apply_masks and self.args.inf_pred_segmentation:
             data_dict['target_imgs'] = reshape_target_data(target_imgs)

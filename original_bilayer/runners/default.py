@@ -87,6 +87,7 @@ class RunnerWrapper(nn.Module):
         networks_names = list(set(
             utils.parse_str_to_list(args.networks_train, sep=',')
             + utils.parse_str_to_list(args.networks_test, sep=',')))
+
         for network_name in networks_names:
             importlib.import_module(f'networks.{network_name}').NetworkWrapper.get_args(parser)
         

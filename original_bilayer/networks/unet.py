@@ -55,7 +55,9 @@ class NetworkWrapper(nn.Module):
             # Save the results (no reshaping needed because target images are already reshaped)
             data_dict['target_imgs'] = target_imgs
 
-        # Shift the mean of the output images to match the target
+        # Shift the mean of the output images to match the target images
+        # This was needed because the outputs were always dimmer than the target and this seems
+        # to be the easiest fix
         output_mean = torch.mean(pred_target_imgs, dim=(0, 1, 3, 4))
         target_mean = torch.mean(target_imgs, dim=(0, 1, 3, 4))
         pred_target_imgs = pred_target_imgs - output_mean.view(1, 1, 3, 1, 1) + target_mean.view(1, 1,3, 1, 1)      

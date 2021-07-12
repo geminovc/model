@@ -11,9 +11,9 @@ import copy
 import sys
 import random 
 from torch.utils.tensorboard import SummaryWriter
-from datasets import utils as ds_utils
 from networks import utils as nt_utils
-from runners  import utils as rn_utils
+from datasets import utils as ds_utils
+from runners import utils as rn_utils
 from logger import Logger
 
 
@@ -94,7 +94,7 @@ class TrainingWrapper(object):
         parser.add('--num_metrics_images',                              default=9, type=int,
                                                                         help='number of pairs of images in your metrics dir')
 
-        parser.add('--checkpoint_freq',                                 default=25, type=int,
+        parser.add('--checkpoint_freq',                                 default=500, type=int,
                                                                         help='frequency of checkpoints creation in epochs')
 
         parser.add('--test_freq',                                       default=5, type=int, 
