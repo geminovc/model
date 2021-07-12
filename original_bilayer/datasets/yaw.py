@@ -83,7 +83,7 @@ class DatasetWrapper(data.Dataset):
         parser.add('--yaw_method',               default='close_original', type=str, 
                                                  help='The method by which the soucre-target pair is slected based on yaw for training. Possible choices: min_max, close_uniform, close_original')                                                      
         
-        parser.add('--same_source_and_target',   default='True', type=rn_utils.str2bool, choices=[True, False],
+        parser.add('--same_source_and_target',   default='False', type=rn_utils.str2bool, choices=[True, False],
                                                  help='mask the source and target from the beginning')
                                                               
         return parser
