@@ -37,13 +37,20 @@ class NetworkWrapper(nn.Module):
         parser.add('--tex_skip_layer_type',      default='ada_conv', type=str,
                                                  help='skip connection layer type')
 
+        parser.add('--texture_output_dim',       default=3, type=int,
+                                                 help='texture output dimensions, 3 for usual, 16 for unet added')
+        # Dropout options
+        parser.add('--use_dropout',              default='False', type=rn_utils.str2bool, choices=[True, False],
+                                                 help='use dropout in the convolutional layers')
+
+        parser.add('--dropout_networks',         default='texture_generator: 0.5' ,
+                                                 help='networks to use dropout in: the dropout rate')
+           
+        # Replacement options
         parser.add('--replace_Gtex_output_with_trainable_tensor',   default='False', type=rn_utils.str2bool, choices=[True, False],
                                                                     help='set to true if you want to replace all of G_tex with a tensor')
 
 
-        parser.add('--texture_output_dim',      default=3, type=int,
-                                                 help='texture output dimensions, 3 for usual, 16 for unet added')
-    
     def __init__(self, args):
         super(NetworkWrapper, self).__init__()
         # Initialize options
@@ -61,7 +68,7 @@ class NetworkWrapper(nn.Module):
         # Replacing the texture generator with a trainable tensor
         else:
             self.gen_tex_output = nn.Parameter(torch.randn(1, 3, self.args.image_size , self.args.image_size))
-
+        
 
     def forward(
             self, 
@@ -198,6 +205,12 @@ class Generator(nn.Module):
         layers += [
             norm_layer(out_channels, spatial_size, eps=args.eps),
             activation(inplace=True)]
+        
+        # Drop out layer before the final conv. layer
+        nets_dropout = rn_utils.parse_str_to_dict(args.dropout_networks, value_type=float)
+        if args.use_dropout and 'texture_generator' in nets_dropout.keys():
+            dropout_rate = nets_dropout['texture_generator']
+            layers += [nn.Dropout(p=dropout_rate, inplace=False)]
 
         self.blocks = nn.Sequential(*layers)
 

@@ -1,3 +1,11 @@
+"""
+Taken from https://github.com/natanielruiz/deep-head-pose.
+
+This is the structure of the hopenet that we use to extract the angles.
+
+No changes were made by Vedantha
+
+"""
 import torch
 import torch.nn as nn
 from torch.autograd import Variable

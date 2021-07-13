@@ -243,7 +243,7 @@ class KeypointSegmentationGenerator():
             if input_imgs is None:
                 if crop_data:
                     # Crop poses
-                    s = size * 2
+                    output_size = size * 2
                     pose -= center - size
 
             else:
@@ -253,7 +253,7 @@ class KeypointSegmentationGenerator():
                 if crop_data:
                     # Crop images and poses
                     img = img.crop((center[0]-size, center[1]-size, center[0]+size, center[1]+size))
-                    s = img.size[0]
+                    output_size = img.size[0]
                     pose -= center - size
                 
                 # Resizing the image before storing it. If the image is small, this action would add black border around the image
@@ -267,7 +267,7 @@ class KeypointSegmentationGenerator():
             # This following action (scaling the poses) is done in training pipeline, and should not be done for generating the dataset. 
             if crop_data:
                 # This sets the range of pose to 0-256. This is what is needed for voxceleb.py 
-                pose = args.image_size*pose / float(s)
+                pose = args.image_size*pose / float(output_size)
             ## poses.append(torch.from_numpy((pose - 0.5) * 2).view(-1))            
             poses.append(torch.from_numpy((pose)).view(-1))
 
@@ -336,7 +336,6 @@ class KeypointSegmentationGenerator():
                 # Capturing the video frames 
                 while video.isOpened():
                     ret, frame = video.read()
-                    print(frame_num)
                     if frame is None:
                         break
 
@@ -345,6 +344,7 @@ class KeypointSegmentationGenerator():
                         pass
                     
                     else:
+                        print(frame_num)
                         # Reformat to proper RGB/BGR
                         frame = frame[:,:,::-1]
                         
@@ -368,8 +368,7 @@ class KeypointSegmentationGenerator():
                                     save_image(segs[0,0,:,:,:], segs_path + '.png')
 
                         except Exception as e:
-                            raise(e) 
-                            print("Excaption happened in reading the poses of the frame.")
+                            print("Exception happened in reading the poses of the frame.")
 
                     frame_num+=1
                 video.release()

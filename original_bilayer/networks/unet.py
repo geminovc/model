@@ -13,8 +13,8 @@ from networks import utils as nt_utils
 class NetworkWrapper(nn.Module):
     @staticmethod
     def get_args(parser):
-        parser.add('--unet_input_channels', default = 16, type=int, help='unet input channels')
-        parser.add('--unet_output_channels', default = 3, type=int, help='unet output channels')
+        parser.add('--unet_input_channels',  default = 16, type=int, help='unet input channels')
+        parser.add('--unet_output_channels', default = 3,  type=int, help='unet output channels')
         args, _ = parser.parse_known_args()
     def __init__(self, args):
         super(NetworkWrapper, self).__init__()
@@ -55,7 +55,9 @@ class NetworkWrapper(nn.Module):
             # Save the results (no reshaping needed because target images are already reshaped)
             data_dict['target_imgs'] = target_imgs
 
-        # Shift the mean of the output images to match the target
+        # Shift the mean of the output images to match the target images
+        # This was needed because the outputs were always dimmer than the target and this seems
+        # to be the easiest fix
         output_mean = torch.mean(pred_target_imgs, dim=(0, 1, 3, 4))
         target_mean = torch.mean(target_imgs, dim=(0, 1, 3, 4))
         pred_target_imgs = pred_target_imgs - output_mean.view(1, 1, 3, 1, 1) + target_mean.view(1, 1,3, 1, 1)      

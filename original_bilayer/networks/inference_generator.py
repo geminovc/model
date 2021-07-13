@@ -36,10 +36,11 @@ class NetworkWrapper(nn.Module):
         parser.add('--inf_upsampling_type',      default='nearest', type=str,
                                                  help='upsampling layer inside the generator')
         
-        parser.add('--use_unet',          default='True', type=rn_utils.str2bool, choices=[True, False],
-                                                                 help='set to True to use unet')
+        parser.add('--use_unet',                 default='True', type=rn_utils.str2bool, choices=[True, False],
+                                                 help='set to True to use unet')
         
-        parser.add('--unet_inputs', default='hf', type=str, help='list of unet inputs as string : "hf, lf"') 
+        parser.add('--unet_inputs',              default='hf', type=str,
+                                                 help='list of unet inputs as string : "hf, lf"') 
         
         parser.add('--inf_skip_layer_type',      default='ada_conv', type=str,
                                                  help='skip connection layer type')
@@ -385,6 +386,12 @@ class Generator(nn.Module):
         layers += [
             norm_layer(out_channels, spatial_size=1, eps=args.eps),
             activation(inplace=True)]
+        
+        # Drop out layer before the final conv. layer
+        nets_dropout = rn_utils.parse_str_to_dict(args.dropout_networks, value_type=float)
+        if args.use_dropout and 'inference_generator' in nets_dropout.keys():
+            dropout_rate = nets_dropout['inference_generator']
+            layers += [nn.Dropout(p=dropout_rate, inplace=False)]
 
         self.blocks = nn.Sequential(*layers)
 
