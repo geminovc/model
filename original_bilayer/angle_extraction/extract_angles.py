@@ -59,7 +59,7 @@ if __name__ == '__main__':
     gpu = args.gpu_id
     snapshot_path = args.snapshot
     out_dir = 'output/video'
-    root = args.root
+    root = args.data_root
 
     if not os.path.exists(root):
         sys.exit('root does not exist')
