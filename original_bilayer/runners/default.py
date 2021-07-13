@@ -20,6 +20,9 @@ class RunnerWrapper(nn.Module):
         parser.add('--networks_train',       default = 'identity_embedder, texture_generator, keypoints_embedder, inference_generator, discriminator', 
                                              help    = 'order of forward passes during the training of gen (or gen and dis for sim sgd)')
 
+        parser.add('--time_networks',        type    = utils.str2bool, default = False, choices=[True, False],
+                                             help    = 'True if you want to time networks (slows down running because of synchronization)')
+
         parser.add('--networks_test',        default = 'identity_embedder, texture_generator, keypoints_embedder, inference_generator', 
                                              help    = 'order of forward passes during testing')
 
@@ -215,8 +218,22 @@ class RunnerWrapper(nn.Module):
 
         # Forward pass through all the required networks
         self.data_dict = data_dict
+
+        if self.args.time_networks:
+            start = torch.cuda.Event(enable_timing=True)
+            end = torch.cuda.Event(enable_timing=True)
+
         for net_name in nets_names:
+
+            if self.args.time_networks:
+                start.record()
+
             self.data_dict = self.nets[net_name](self.data_dict, networks_to_train, self.nets)
+
+            if self.args.time_networks:
+                end.record()
+                torch.cuda.synchronize()
+                print(net_name, "took: ", start.elapsed_time(end), "ms")
 
         # Forward pass through all the losses
         losses_dict = {}
