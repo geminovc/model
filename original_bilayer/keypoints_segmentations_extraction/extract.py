@@ -115,8 +115,9 @@ class KeypointSegmentationGenerator():
         # Common properties
         parser.add('--data_root',               default="/video-conf/scratch/pantea/temp_extracts", type=str,
                                                 help='root directory to save the dataset')
-        parser.add('--time_keypoint_extraction',    default="/video-conf/scratch/pantea/temp_extracts", type=rn_utils.str2bool,choices=[True, False],
-                                                    help='root directory to save the dataset')
+
+        parser.add('--time_keypoint_extracts',  default="/video-conf/scratch/pantea/temp_extracts", type=rn_utils.str2bool,
+                                                choices=[True, False], help='root directory to save the dataset')
 
         parser.add('--phase',                   default='test', type=str,
                                                 help='train or test phase')
@@ -229,8 +230,8 @@ class KeypointSegmentationGenerator():
                 start.record()
             pose = self.fa.get_landmarks(input_imgs[i])[0]
             if self.args.time_keypoint_extraction:
-                end.record()
                 torch.cuda.synchronize()
+                end.record()
                 print('Keypoints', "took: ", start.elapsed_time(end), "ms")    # Get the pose of the i-th image in the batch 
 
             # Finding the center of the face using the pose coordinates

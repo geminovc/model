@@ -218,13 +218,18 @@ class RunnerWrapper(nn.Module):
 
         # Forward pass through all the required networks
         self.data_dict = data_dict
+
         if self.args.time_networks:
             start = torch.cuda.Event(enable_timing=True)
             end = torch.cuda.Event(enable_timing=True)
+
         for net_name in nets_names:
+
             if self.args.time_networks:
                 start.record()
+
             self.data_dict = self.nets[net_name](self.data_dict, networks_to_train, self.nets)
+
             if self.args.time_networks:
                 end.record()
                 torch.cuda.synchronize()
