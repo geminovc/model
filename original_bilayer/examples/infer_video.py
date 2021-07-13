@@ -75,15 +75,72 @@ from infer import InferenceWrapper
 import argparse
 from natsort import natsorted
 from torchvision import transforms
+import argparse
+
+
+# Parser
+
+parser= argparse.ArgumentParser("Video making")
+
+parser.add_argument('--experiment_dir',
+        type=str,
+        default= '/data/pantea/pantea_experiments_chunky/per_person/from_paper',
+        help='root directory where the experiment and its checkpoints are saved ')
+
+parser.add_argument('--experiment-name',
+        type=str,
+        default= 'close_source_target_original_easy_diff_combo_inf_pred_source_data_True',
+        help='associated name of the experimnet')
+
+parser.add_argument('--which_epoch',                                     
+        type=str,
+        default='2000',
+        help='epoch to infer from')
+
+parser.add_argument('--video_technique',
+        type=str,
+        default='representative_sources',
+        help='it could be:\
+        1) last_frame_next_source: previous video frame is used as source for the current frame \
+        2) last_predicted_next_source: previous predicted frame is used as source for the current frame \
+        3) representative_sources: for each video frame in each bin, a pre-chosen frame from the same bin is selected as source')
+
+parser.add_argument('--video_path',
+        type=str,
+        default='/video-conf/vedantha/voxceleb2/dev/mp4/id00018/5BVBfpfzjIk/00006.mp4',
+        help='path to the video')
+
+parser.add_argument('--dataset_root',
+        type=str,
+        default='/video-conf/scratch/pantea/per_person_1_three_datasets',
+        help='root to the dataset')
+parser.add_argument('--relative_path_base',
+        type=str,
+        default='train/id00015/0fijmz4vTVU/00001',
+        help='realtive path to images from train/test/etc')
+
+parser.add_argument('--yaw_root',
+        type=str,
+        default= '/video-conf/scratch/pantea/pose_results/yaws/per_person_1_three_datasets/angles',
+        help='the directory where the yaws are stored in voxceleb2 format')
+
+parser.add_argument('--save_dir',
+        type=str,
+        default= './results',
+        help='the directory to save the generated video')       
+
+
+args = parser.parse_args()
+
 
 
 # Inputs 
-experiment_dir = '/data/pantea/pantea_experiments_chunky/per_person/from_paper'
-experiment_name = 'close_source_target_original_easy_diff_combo_inf_pred_source_data_True'
-which_epoch = '2000'
+experiment_dir = args.experiment_dir
+experiment_name = args.experiment_name
+which_epoch = args.which_epoch
+video_technique = args.video_technique
 
-video_technique = 'representative_sources'
-# 'last_predicted_next_source', 'last_frame_next_source'
+
 # ------------------------------------------------------------------------------------------------------------------------
 # Util functions
 
@@ -118,17 +175,16 @@ def load_npy(path_string):
     return yaw
 
 def find_session_bins (yaw_dict, bins):
-    bin_dict = {}
     frames_bin_dict = {}
     representatives = {}
     for current_bin in bins:
         frames = [k for k,v in yaw_dict.items() if (v>= current_bin[0] and v<= current_bin[1])]
         if len(frames) >= 2:
-            bin_dict[str(current_bin)] = frames
             representatives[str(current_bin)] = frames [0]
             for x in frames:
                 frames_bin_dict[x] = str(current_bin)
     return representatives , frames_bin_dict
+
 
 # Assigning correct argument dictionary and input data dictionary
 args_dict = {
@@ -156,15 +212,14 @@ module = InferenceWrapper(args_dict)
 
 if video_technique != 'representative_sources':
     # Opening the video
-    video_path = pathlib.Path('/video-conf/vedantha/voxceleb2/dev/mp4/id00018/5BVBfpfzjIk/00006.mp4')
+    video_path = pathlib.Path(args.video_path)
     # '/video-conf/vedantha/voxceleb2/dev/mp4/id00015/1mPH6AESHus/00021.mp4'
     video = cv2.VideoCapture(str(video_path))
     frame_num = 0
     predicted_video = []
-    # pdb.set_trace()
+
     # Reading the video frame by frame
     while video.isOpened():
-        print(frame_num)
         ret, frame = video.read()
         if frame is None:
             break
@@ -181,7 +236,7 @@ if video_technique != 'representative_sources':
             }
 
             # Pass the inputs to the Inference Module
-            output_data_dict = module(input_data_dict,preprocess= True, from_video = False)
+            output_data_dict = module(input_data_dict, preprocess= True, from_video = False)
             predicted_target = to_image(output_data_dict['pred_target_imgs'][0, 0],output_data_dict['target_segs'] [0, 0])
             predicted_video.append(predicted_target)
             if video_technique == 'last_frame_next_source':
@@ -190,16 +245,16 @@ if video_technique != 'representative_sources':
                 img_tensor = output_data_dict['pred_target_imgs'][0, 0]
                 img_tensor = torch.mul(torch.add(img_tensor, 1), 0.5).clamp(0, 1).permute(1,2,0)
                 source_frame = (np.array(img_tensor.cpu())*255).astype(np.uint8)
+        print(frame_num, "frame reproduced!")
         frame_num+=1
 
 else:
     # Path to the saved dataset when preprocess is False
-    dataset_root = '/video-conf/scratch/pantea/per_person_1_three_datasets'
-    source_relative_path_base = 'train/id00015/0fijmz4vTVU/00001'
-    target_relative_path_base = 'train/id00015/0fijmz4vTVU/00001'
+    dataset_root = args.dataset_root
+    source_relative_path_base = args.relative_path_base
+    target_relative_path_base = args.relative_path_base
     bins = [[-90,-80], [-80,-70],[-70,-60],[-60,-50],[-50,-40],[-40,-30],[-30,-20],[-20,-10],[-10,0],[0,10],[10,20],[20,30],[30,40],[40,50],[50,60],[60,70],[70,80],[80,90]]
-    session =  '/video-conf/scratch/pantea/pose_results/yaws/per_person_1_three_datasets/angles/train/id00015/0fijmz4vTVU/00001'
-
+    session =  args.yaw_root + '/' + target_relative_path_base
     yaw_npy_paths = sorted(list(pathlib.Path(str(session)).glob('*')))
     yaw_dict = load_session_yaws(yaw_npy_paths)
     representatives , frames_bin_dict = find_session_bins(yaw_dict, bins)
@@ -220,15 +275,14 @@ else:
                                     target_relative_path=target_relative_path)
             predicted_target = to_image(output_data_dict['pred_target_imgs'][0, 0],output_data_dict['target_segs'] [0, 0])
             predicted_video.append(predicted_target)
-        else:
-            print(i, "where are you???")
+
 
 # Save the output images
-if not os.path.exists("results/"):
-    os.makedirs("results")
+if not os.path.exists(args.save_dir):
+    os.makedirs(args.save_dir)
 
 size = (256,256)
-video_writer = cv2.VideoWriter("results/"+video_technique+".avi", 0, 25, size)
+video_writer = cv2.VideoWriter(args.save_dir + '/' + video_technique + ".avi", 0, 25, size)
 
 for video_frame in predicted_video:
     img_rgb = cv2.cvtColor(np.array(video_frame), cv2.COLOR_BGR2RGB)
