@@ -20,6 +20,6 @@ for (( c=0; c<$num_gpus; c++ ))
 do  
 	for (( k=0; k<$num_threads_per_gpu; k++ ))
 	do  
-		tmux new-session -d -s my_session_0 "${command_to_run} && python extract_angles.py --snapshot ${model_path}--gpu ${c} --index $((c*num_threads_per_gpu + k)) --root ${dataset_path} --save_path ${save_path}"
+		tmux new-session -d -s my_session_0 "${command_to_run} && python extract_angles.py --snapshot ${model_path} --gpu ${c} --proc $((num_gpus*num_threads_per_gpu)) --index $((c*num_threads_per_gpu + k)) --data_root ${dataset_path} --save_root ${save_path}"
 	done
 done

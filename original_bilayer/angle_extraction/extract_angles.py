@@ -59,7 +59,7 @@ if __name__ == '__main__':
     gpu = args.gpu_id
     snapshot_path = args.snapshot
     out_dir = 'output/video'
-    root = args.root
+    root = args.data_root
 
     if not os.path.exists(root):
         sys.exit('root does not exist')
@@ -87,7 +87,7 @@ if __name__ == '__main__':
     # Run the Model
     total = 0
     args.img_path = []
-    for index, file in tqdm(enumerate(glob.glob(args.data_root+'/imgs/*/*/*/*/*'))):
+    for index, file in tqdm(enumerate(sorted(glob.glob(args.data_root+'/imgs/*/*/*/*/*')))):
         total+=1
         if total % args.proc != args.index:
             continue
