@@ -37,7 +37,7 @@ from skimage import io
 def parse_args():
     """Parse input arguments."""
     parser = argparse.ArgumentParser(description='Head pose estimation using the Hopenet network.')
-    parser.add_argument('--index', help='GPU device id to use [0]',
+    parser.add_argument('--index', help='which process is this (0...proc-1)',
             default=0, type=int)
     parser.add_argument('--proc', help='the number of threads you using',
             default=15, type=int)
