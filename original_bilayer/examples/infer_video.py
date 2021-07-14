@@ -114,6 +114,7 @@ parser.add_argument('--dataset_root',
         type=str,
         default='/video-conf/scratch/pantea/per_person_1_three_datasets',
         help='root to the dataset')
+
 parser.add_argument('--relative_path_base',
         type=str,
         default='train/id00015/0fijmz4vTVU/00001',
@@ -126,7 +127,7 @@ parser.add_argument('--yaw_root',
 
 parser.add_argument('--save_dir',
         type=str,
-        default= './results',
+        default= './results/videos',
         help='the directory to save the generated video')       
 
 

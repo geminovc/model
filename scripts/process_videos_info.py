@@ -44,7 +44,17 @@ parser.add_argument('--result_file_name',
                        help='name of csv file to write results out to')
 
 
-
+def most_frequent(List):
+    counter = 0
+    num = List[0]
+      
+    for i in List:
+        curr_frequency = List.count(i)
+        if(curr_frequency> counter):
+            counter = curr_frequency
+            num = i
+  
+    return num, counter
 
 if __name__ == '__main__':
     args = parser.parse_args()
@@ -66,5 +76,6 @@ if __name__ == '__main__':
     plt.figure()
     plt.hist(values, bins=30)  # density=False would make counts
     plt.savefig('hist.png')
-    max_keys = [k for k, v in data_dict.items() if int(v) >= max(values)*2/3 ] # getting all keys containing the `maximum`
-    #print(max_keys)
+    
+    max_keys = [str(k).split('/')[-3] for k, v in data_dict.items() if int(v) >= 400000 ] # getting all keys containing the `maximum`
+    print(most_frequent(max_keys))

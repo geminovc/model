@@ -72,29 +72,110 @@ from infer import InferenceWrapper
 import argparse
 from natsort import natsorted
 from torchvision import transforms
+import argparse
+
+
+# Parser
+
+parser= argparse.ArgumentParser("Inference of models")
+
+parser.add_argument('--experiment_dir',
+        type=str,
+        default= '/data/pantea/pantea_experiments_chunky/per_person/from_paper',
+        help='root directory where the experiment and its checkpoints are saved ')
+
+parser.add_argument('--experiment-name',
+        type=str,
+        default= 'close_source_target_original_easy_diff_combo',
+        help='associated name of the experimnet')
+
+parser.add_argument('--which_epoch',                                     
+        type=str,
+        default='2000',
+        help='epoch to infer from')
+
+parser.add_argument('--video_path',
+        type=str,
+        default='/video-conf/vedantha/voxceleb2/dev/mp4/id00018/5BVBfpfzjIk/00006.mp4',
+        help='path to the video')
+
+parser.add_argument('--source_frame_num',
+        type=int,
+        default=0,
+        help='frame number of the video in video_path for source')
+        
+parser.add_argument('--target_frame_num',
+        type=int,
+        default=1,
+        help='frame number of the video in video_path for target')
+
+parser.add_argument('--dataset_root',
+        type=str,
+        default='/video-conf/scratch/pantea/per_person_1_three_datasets',
+        help='root to the dataset')
+
+parser.add_argument('--source_relative_path',
+        type=str,
+        default='train/id00015/0fijmz4vTVU/00001/0',
+        help='realtive path to source image from train/test/etc')
+
+parser.add_argument('--target_relative_path',
+        type=str,
+        default='train/id00015/0fijmz4vTVU/00001/1',
+        help='realtive path to target image from train/test/etc')
+
+parser.add_argument('--source_img_path',
+        type=str,
+        default='/home/pantea/NETS/nets_implementation/original_bilayer/examples/images/video_imgs/train_frames/0.jpg',
+        help='absolute path to source image')
+
+parser.add_argument('--target_img_path',
+        type=str,
+        default='/home/pantea/NETS/nets_implementation/original_bilayer/examples/images/video_imgs/train_frames/1.jpg',
+        help='absolute path to target image')
+
+parser.add_argument('--save_dir',
+        type=str,
+        default= './results/images',
+        help='the directory to save the generated images')       
+
+parser.add_argument('--preprocess',
+        type=bool,
+        default= False,
+        help='If preprocess is needed')   
+
+parser.add_argument('--from_video',
+        type=bool,
+        default= False,
+        help='If source-target pair is from a video')   
+
+args = parser.parse_args()
+
 
 
 # Inputs 
-preprocess = False
-from_video = False
-experiment_dir = '/video-conf/scratch/pantea_experiments_mapmaker'
-experiment_name = 'No_frozen_network_new_keypoints_from_pretrained'
-which_epoch = '1800'
+preprocess = args.preprocess
+from_video = args.from_video
+
+# Checkpoints
+experiment_dir = args.experiment_dir
+experiment_name = args.experiment_name
+which_epoch = args.which_epoch
 
 # Path to the saved dataset when preprocess is False
-dataset_root = '/video-conf/scratch/pantea/temp_one_person_extracts'
-source_relative_path = 'train/id00012/_raOc3-IRsw/00110/0'
-target_relative_path = 'train/id00012/_raOc3-IRsw/00110/1'
+dataset_root = args.dataset_root
+source_relative_path = args.source_relative_path
+target_relative_path = args.target_relative_path
 
 # Path to the images when preprocess is True and from_video is False
-source_img_path = '/home/pantea/NETS/nets_implementation/original_bilayer/examples/images/video_imgs/train_frames/0.jpg'
-target_img_path = '/home/pantea/NETS/nets_implementation/original_bilayer/examples/images/video_imgs/train_frames/1.jpg'
+source_img_path = args.source_img_path
+target_img_path = args.target_img_path
 
 
 # Video options if both preprocess and from_video are True
-video_path = '/video-conf/scratch/pantea/one_person_videos/id00012/Z-G8-wqpxwU/00094.mp4'
-source_frame_num=0
-target_frame_num=1
+video_path = args.video_path
+source_frame_num = int(args.source_frame_num)
+target_frame_num = int(args.target_frame_num)
 
 
 # ------------------------------------------------------------------------------------------------------------------------
@@ -173,36 +254,36 @@ output_data_dict = module(input_data_dict,
                           target_relative_path=target_relative_path) 
     
 # Save the output images
-if not os.path.exists("results/"):
-    os.makedirs("results")
+if not os.path.exists(args.save_dir):
+    os.makedirs(args.save_dir)
 
 if 'pred_target_imgs' in output_data_dict.keys():
     pred_img = to_image(output_data_dict['pred_target_imgs'][0, 0])
-    pred_img.save("results/pred_target_{}_{}.jpg".format(str(preprocess), str(from_video)))  
+    pred_img.save("{}/pred_target_{}_{}.jpg".format(str(args.save_dir), str(preprocess), str(from_video)))  
 
 if 'target_stickmen' in output_data_dict.keys():
     target_stickmen = to_image(output_data_dict['target_stickmen'][0, 0])
-    target_stickmen.save("results/target_stickmen_{}_{}.png".format(str(preprocess), str(from_video)))
+    target_stickmen.save("{}/target_stickmen_{}_{}.png".format(str(args.save_dir), str(preprocess), str(from_video)))
 
 if 'source_stickmen' in output_data_dict.keys():
     source_stickmen = to_image(output_data_dict['source_stickmen'] [0, 0])
-    source_stickmen.save("results/source_stickmen_{}_{}.png".format(str(preprocess), str(from_video)))
+    source_stickmen.save("{}/source_stickmen_{}_{}.png".format(str(args.save_dir), str(preprocess), str(from_video)))
 
 if 'source_imgs' in output_data_dict.keys():
     source_imgs = to_image(output_data_dict['source_imgs'] [0, 0])
-    source_imgs.save("results/source_imgs_{}_{}.png".format(str(preprocess), str(from_video)))
+    source_imgs.save("{}/source_imgs_{}_{}.png".format(str(args.save_dir), str(preprocess), str(from_video)))
 
 if 'target_imgs' in output_data_dict.keys():
     target_imgs = to_image(output_data_dict['target_imgs'] [0, 0])
-    target_imgs.save("results/target_imgs_{}_{}.png".format(str(preprocess), str(from_video)))
+    target_imgs.save("{}/target_imgs_{}_{}.png".format(str(args.save_dir), str(preprocess), str(from_video)))
 
 if 'source_segs' in output_data_dict.keys():
     source_segs = to_image(output_data_dict['source_segs'] [0, 0])
-    source_segs.save("results/source_segs_{}_{}.png".format(str(preprocess), str(from_video)))
+    source_segs.save("{}/source_segs_{}_{}.png".format(str(args.save_dir), str(preprocess), str(from_video)))
 
 if 'target_segs' in output_data_dict.keys():
     target_segs = to_image(output_data_dict['target_segs'] [0, 0])
-    target_segs.save("results/target_segs_{}_{}.png".format(str(preprocess), str(from_video)))
+    target_segs.save("{}/target_segs_{}_{}.png".format(str(args.save_dir), str(preprocess), str(from_video)))
 
 
 print("Done!")  
