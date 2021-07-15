@@ -70,12 +70,18 @@ if __name__ == '__main__':
                 print(row['video_path'])
             data_dict[row['video_path']] = row['bit_rate']
     print("num videos", count)
+    
     values = [int(v) for v in data_dict.values() ]
-
-
+    
     plt.figure()
     plt.hist(values, bins=30)  # density=False would make counts
     plt.savefig('hist.png')
     
     max_keys = [str(k).split('/')[-3] for k, v in data_dict.items() if int(v) >= 400000 ] # getting all keys containing the `maximum`
-    print(most_frequent(max_keys))
+    
+    print(len(max_keys)/len(values))
+    
+    most_frequent_id, freq = most_frequent(max_keys)
+    
+    HQ_videos = ['/'.join(str(k).split('/')[-3:]) for k, v in data_dict.items() if str(k).split('/')[-3] == most_frequent_id]
+    print(HQ_videos)

@@ -4,5 +4,6 @@
 hub/*
 examples/.inference.py.swp
 examples/results
+examples/*.mov
 examples/images/video_imgs/
 keypoints_segmentations_extraction/test.py
