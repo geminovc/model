@@ -66,8 +66,8 @@ if __name__ == '__main__':
         count = 0
         for row in reader:
             count+=1
-            if row['pix_fmt']!= 'yuv420p':
-                print(row['video_path'])
+            if int(row ['height']) != 224:
+                print(row['video_path'], row ['height'])
             data_dict[row['video_path']] = row['bit_rate']
     print("num videos", count)
     
@@ -77,11 +77,18 @@ if __name__ == '__main__':
     plt.hist(values, bins=30)  # density=False would make counts
     plt.savefig('hist.png')
     
-    max_keys = [str(k).split('/')[-3] for k, v in data_dict.items() if int(v) >= 400000 ] # getting all keys containing the `maximum`
+    print("minimum", min(values))
+    max_keys = ['/'.join(str(k).split('/')[-3:]) for k, v in data_dict.items() if int(v) == 22588] # getting all keys containing the `maximum`
+    print("minnnnnn",max_keys)
     
-    print(len(max_keys)/len(values))
+   
     
-    most_frequent_id, freq = most_frequent(max_keys)
+    HQ_videos = ['/'.join(str(k).split('/')[-3:]) for k, v in data_dict.items() if int(v) >= 480000]
+    # print(HQ_videos)
     
-    HQ_videos = ['/'.join(str(k).split('/')[-3:]) for k, v in data_dict.items() if str(k).split('/')[-3] == most_frequent_id]
-    print(HQ_videos)
+    HQ_ids = [str(k).split('/')[0] for k in HQ_videos]
+    most_frequent_id, freq = most_frequent(HQ_ids)
+    print("maxxxx", most_frequent_id , freq)
+
+    desired_sequences = [k for k in HQ_videos if str(k).split('/')[0] == most_frequent_id]
+    print("desired sequences:", desired_sequences)
