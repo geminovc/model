@@ -9,7 +9,8 @@ python summarize_reconstuction_exps.py --result-file-list pkl_path_1 pkl_path_2
 --experiment-name-list scheme_1 scheme_2  --pose-name-list combo easy hard --result-file-name metrics.csv
 
 Sample usage for metrics_bar_plot:
-python summarize_reconstuction_exps.py --result-file-list pkl_path_1 pkl_path_2 --experiment-name-list scheme_1 scheme_2 --skip-pose-distribution-data --result-file-name metrics.csv
+python summarize_reconstuction_exps.py --result-file-list pkl_path_1 pkl_path_2
+--experiment-name-list scheme_1 scheme_2 --skip-pose-distribution-data --result-file-name metrics.csv
 
 """
 
