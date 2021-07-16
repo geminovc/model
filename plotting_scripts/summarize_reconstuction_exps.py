@@ -80,13 +80,13 @@ def min_in_window (my_dict, key, window_size):
     return min(float_values) 
 
 # Returns the common column names with or without pose information
-def common_column_names ():
+def common_metrics_names ():
         return "%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s\n"%('G_PSNR_min', 'G_PSNR_mean', 
                 'G_PSNR_max', 'G_LPIPS_min','G_LPIPS_mean','G_LPIPS_max', 'G_PME_min', 'G_PME_mean','G_PME_max',
                 'G_CSIM_min','G_CSIM_mean','G_CSIM_max','G_SSIM_min','G_SSIM_mean','G_SSIM_max')
 
 # Returns the common column values with or without pose information
-def common_column_values (experiment_data , window):
+def common_metrics_values (experiment_data , window):
         return "%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s\n" % (min_in_window (experiment_data, 'G_PSNR', window),
                                                                    average (experiment_data, 'G_PSNR', window),
                                                                    max_in_window (experiment_data, 'G_PSNR', window),
@@ -109,17 +109,17 @@ with open(args.result_file_name, 'w') as f:
     # Recording without pose information
     if args.skip_pose_distribution_data:
 
-        f.write("%s,%s"%('experiment_name',common_column_names ()))
+        f.write("%s,%s"%('experiment_name',common_metrics_names ()))
         for experiment_name, result_file in zip(args.experiment_name_list, args.result_file_list):
             experiment_data = load_pickle(result_file)
-            f.write("%s,%s" % (experiment_name, common_column_values (experiment_data , window)))
+            f.write("%s,%s" % (experiment_name, common_metrics_values (experiment_data , window)))
     # Recording with pose information
     else:
 
-        f.write("%s,%s,%s"%('experiment_name','pose_name', common_column_names ()))       
+        f.write("%s,%s,%s"%('experiment_name','pose_name', common_metrics_names ()))       
         for experiment_name, pose_name, result_file in zip(args.experiment_name_list, args.pose_name_list, args.result_file_list):
             experiment_data = load_pickle(result_file)
-            f.write("%s,%s,%s" % (experiment_name, pose_name, common_column_values (experiment_data , window)))
+            f.write("%s,%s,%s" % (experiment_name, pose_name, common_metrics_values (experiment_data , window)))
 
 print('Saving to file Successfully done!')
 
