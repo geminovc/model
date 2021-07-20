@@ -76,7 +76,11 @@ import argparse
 from natsort import natsorted
 from torchvision import transforms
 import argparse
-
+import moviepy.editor as mp
+import math
+from skimage.metrics import structural_similarity as ssim
+import lpips
+import torch
 
 # Parser
 
@@ -89,7 +93,7 @@ parser.add_argument('--experiment_dir',
 
 parser.add_argument('--experiment-name',
         type=str,
-        default= 'close_source_target_original_easy_diff_combo_inf_pred_source_data_True',
+        default= 'more_yaws_original_easy_diff_combo',
         help='associated name of the experimnet')
 
 parser.add_argument('--which_epoch',                                     
@@ -99,7 +103,7 @@ parser.add_argument('--which_epoch',
 
 parser.add_argument('--video_technique',
         type=str,
-        default='representative_sources',
+        default='last_frame_next_source',
         help='it could be:\
         1) last_frame_next_source: previous video frame is used as source for the current frame \
         2) last_predicted_next_source: previous predicted frame is used as source for the current frame \
@@ -107,7 +111,7 @@ parser.add_argument('--video_technique',
 
 parser.add_argument('--video_path',
         type=str,
-        default='/video-conf/vedantha/voxceleb2/dev/mp4/id00018/5BVBfpfzjIk/00006.mp4',
+        default='/video-conf/vedantha/voxceleb2/dev/mp4/id00015/0fijmz4vTVU/00001.mp4',
         help='path to the video')
 
 parser.add_argument('--dataset_root',
@@ -141,6 +145,13 @@ experiment_name = args.experiment_name
 which_epoch = args.which_epoch
 video_technique = args.video_technique
 
+loss_fn = lpips.LPIPS(net='alex')
+# transform for centering picture
+regular_transform = transforms.Compose([
+        transforms.Resize((256, 256)),
+        transforms.ToTensor(),
+        transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
+])
 
 # ------------------------------------------------------------------------------------------------------------------------
 # Util functions
@@ -186,7 +197,39 @@ def find_session_bins (yaw_dict, bins):
                 frames_bin_dict[x] = str(current_bin)
     return representatives , frames_bin_dict
 
+def per_frame_psnr(x, y):
+    assert(x.size == y.size)
 
+    mse = np.mean(np.square(x - y))
+    if mse > 0:
+        psnr = 10 * math.log10(255*255/mse)
+    else:
+        psnr = 100000
+    return psnr
+
+""" compute metric for all filenames matching prefix relative to the reference video """
+def compute_metric_for_files(img1, img2):
+    # read one frame at a time and compute average metric
+
+    ssim_value = ssim(np.array(img1), np.array(img2), multichannel=True)
+    psnr_value = per_frame_psnr(np.array(img1), np.array(img2))
+    img1 = regular_transform(Image.fromarray(np.array(img1)))
+    img2 = regular_transform(Image.fromarray(np.array(img2)))
+    
+    lpips_value = torch.flatten(loss_fn(img1, img2).detach())[0].item()
+    
+    return psnr_value, ssim_value, lpips_value
+
+def process_output_data_dict (output_data_dict, target_video, predicted_video, psnr_values, ssim_values, lpips_values):
+    predicted_target = to_image(output_data_dict['pred_target_imgs'][0, 0],output_data_dict['target_segs'] [0, 0])
+    predicted_video.append(predicted_target)
+    target = to_image(output_data_dict['target_imgs'][0, 0],output_data_dict['target_segs'] [0, 0])
+    target_video.append(target)
+    psnr_frame, ssim_frame , lpips_frame = compute_metric_for_files(target, predicted_target)
+    psnr_values.append(psnr_frame)
+    ssim_values.append(ssim_frame)
+    lpips_values.append(lpips_frame)
+    return target_video, predicted_video, psnr_values, ssim_values, lpips_values 
 # Assigning correct argument dictionary and input data dictionary
 args_dict = {
     'experiment_dir': experiment_dir,
@@ -211,43 +254,57 @@ args_dict = {
 # Instantiate the Inference Module
 module = InferenceWrapper(args_dict)
 
+predicted_video = []
+target_video = []
+psnr_values = []
+ssim_values = []
+lpips_values = []
+
 if video_technique != 'representative_sources':
     # Opening the video
     video_path = pathlib.Path(args.video_path)
     # '/video-conf/vedantha/voxceleb2/dev/mp4/id00015/1mPH6AESHus/00021.mp4'
     video = cv2.VideoCapture(str(video_path))
     frame_num = 0
-    predicted_video = []
 
     # Reading the video frame by frame
     while video.isOpened():
         ret, frame = video.read()
         if frame is None:
             break
+        
         frame = frame[:,:,::-1]
         if  frame_num==0:
             source_frame = frame
-        else:
-            target_frame = frame
         
-        if frame_num != 0:
-            input_data_dict = {
-            'source_imgs': np.asarray(np.array(source_frame)), # H x W x 3
-            'target_imgs': np.asarray(np.array(target_frame))  # H x W x 3
-            }
+        target_frame = frame
+        
 
-            # Pass the inputs to the Inference Module
-            output_data_dict = module(input_data_dict, preprocess= True, from_video = False)
-            predicted_target = to_image(output_data_dict['pred_target_imgs'][0, 0],output_data_dict['target_segs'] [0, 0])
-            predicted_video.append(predicted_target)
-            if video_technique == 'last_frame_next_source':
-                source_frame = frame
-            elif video_technique == 'last_predicted_next_source':
-                img_tensor = output_data_dict['pred_target_imgs'][0, 0]
-                img_tensor = torch.mul(torch.add(img_tensor, 1), 0.5).clamp(0, 1).permute(1,2,0)
-                source_frame = (np.array(img_tensor.cpu())*255).astype(np.uint8)
-        print(frame_num, "frame reproduced!")
+        input_data_dict = {
+        'source_imgs': np.asarray(np.array(source_frame)), # H x W x 3
+        'target_imgs': np.asarray(np.array(target_frame))  # H x W x 3
+        }
+
+        # Pass the inputs to the Inference Module
+        output_data_dict = module(input_data_dict, preprocess= True, from_video = False)
+        target_video, predicted_video, psnr_values, ssim_values, lpips_values = process_output_data_dict ( output_data_dict,
+                                                                                                           target_video,
+                                                                                                           predicted_video,
+                                                                                                           psnr_values,
+                                                                                                           ssim_values,
+                                                                                                           lpips_values)
+
+        if video_technique == 'last_frame_next_source':
+            source_frame = frame
+        elif video_technique == 'last_predicted_next_source':
+            img_tensor = output_data_dict['pred_target_imgs'][0, 0]
+            img_tensor = torch.mul(torch.add(img_tensor, 1), 0.5).clamp(0, 1).permute(1,2,0)
+            source_frame = (np.array(img_tensor.cpu())*255).astype(np.uint8)
+        
+        print("frame number %d reproduced!" %(frame_num))
         frame_num+=1
+        
+
 
 else:
     # Path to the saved dataset when preprocess is False
@@ -260,7 +317,6 @@ else:
     yaw_dict = load_session_yaws(yaw_npy_paths)
     representatives , frames_bin_dict = find_session_bins(yaw_dict, bins)
     print("representatives",representatives)
-    predicted_video = []
     keys = sorted(frames_bin_dict.keys())
     for i in range(0 , len(yaw_npy_paths)):
         if str(i) in frames_bin_dict.keys():
@@ -274,23 +330,52 @@ else:
                                     dataset_root = dataset_root,
                                     source_relative_path=source_relative_path,
                                     target_relative_path=target_relative_path)
-            predicted_target = to_image(output_data_dict['pred_target_imgs'][0, 0],output_data_dict['target_segs'] [0, 0])
-            predicted_video.append(predicted_target)
 
-
+            target_video, predicted_video, psnr_values, ssim_values, lpips_values = process_output_data_dict (output_data_dict,
+                                                                                                            target_video,
+                                                                                                            predicted_video,
+                                                                                                            psnr_values,
+                                                                                                            ssim_values,
+                                                                                                            lpips_values)
 # Save the output images
 if not os.path.exists(args.save_dir):
     os.makedirs(args.save_dir)
 
-size = (256,256)
-video_writer = cv2.VideoWriter(args.save_dir + '/' + video_technique + ".avi", 0, 25, size)
 
-for video_frame in predicted_video:
-    img_rgb = cv2.cvtColor(np.array(video_frame), cv2.COLOR_BGR2RGB)
-    video_writer.write(img_rgb)
+print("psnr_values mean", sum(psnr_values)/len(psnr_values))
+print("ssim_values mean", sum(ssim_values)/len(ssim_values))
+print("lpips_values mean",sum(lpips_values)/len(lpips_values))
+
+# Making videos
+
+# original video and audio
+original_video = mp.VideoFileClip(str(pathlib.Path(args.video_path)))
+original_audio = original_video.audio
+# original_audio.write_audiofile("audio.mp3")
+
+# constructing the predicted video
+imgs = [np.array(i) for i in predicted_video]
+clips = [mp.ImageClip(m).set_duration(0.04) for m in imgs]
+concat_clip = mp.concatenate_videoclips(clips, method="compose")
+concat_clip_new = concat_clip.set_audio(original_audio.set_duration(concat_clip.duration))
+concat_clip_new.write_videofile(str(args.save_dir) + '/' + video_technique + ".mp4",fps=25)
+
+# txt_clip = mp.TextClip("predicted", fontsize = 75, color = 'white') 
+# txt_clip = txt_clip.set_pos('center').set_duration(concat_clip.duration) 
+# concat_clip_new = CompositeVideoClip([concat_clip_new, txt_clip]) 
+
+# construct the masked original video
+imgs2 = [np.array(i) for i in target_video]
+clips2 = [mp.ImageClip(m).set_duration(0.04) for m in imgs2]
+concat_clip2 = mp.concatenate_videoclips(clips2, method="compose")
+
+# stacking the original and predicted videos
+# final = mp.clips_array([[concat_clip_new], [original_video]])
+final_stacked = mp.clips_array([[concat_clip_new , concat_clip2]])
+final_stacked.write_videofile(str(args.save_dir) + '/' + video_technique + "_stacked" + ".mp4",fps=25)
+
 
 cv2.destroyAllWindows()
-video_writer.release()
         
 
 print("Done!")  
