@@ -93,7 +93,7 @@ parser.add_argument('--experiment_dir',
 
 parser.add_argument('--experiment-name',
         type=str,
-        default= 'more_yaws_original_easy_diff_combo',
+        default= 'original_frozen_Gtex_from_identical',
         help='associated name of the experimnet')
 
 parser.add_argument('--which_epoch',                                     
@@ -259,6 +259,7 @@ target_video = []
 psnr_values = []
 ssim_values = []
 lpips_values = []
+video_self_psnr = []
 
 if video_technique != 'representative_sources':
     # Opening the video
@@ -279,7 +280,10 @@ if video_technique != 'representative_sources':
         
         target_frame = frame
         
-
+        if frame_num!=0 and video_technique == 'last_frame_next_source':
+            video_self_psnr.append(per_frame_psnr(np.array(source_frame), np.array(target_frame)))
+        
+        
         input_data_dict = {
         'source_imgs': np.asarray(np.array(source_frame)), # H x W x 3
         'target_imgs': np.asarray(np.array(target_frame))  # H x W x 3
@@ -345,6 +349,15 @@ if not os.path.exists(args.save_dir):
 print("psnr_values mean", sum(psnr_values)/len(psnr_values))
 print("ssim_values mean", sum(ssim_values)/len(ssim_values))
 print("lpips_values mean",sum(lpips_values)/len(lpips_values))
+np.save(str(args.save_dir) + '/' + video_technique + ".npy", np.array([min(psnr_values),sum(psnr_values)/len(psnr_values),max(psnr_values),
+                                                                       min(ssim_values),sum(ssim_values)/len(ssim_values),max(ssim_values),
+                                                                       min(lpips_values),sum(lpips_values)/len(lpips_values),max(lpips_values)]))
+
+
+if video_technique == 'last_frame_next_source':
+    print("Video self psnr (frame(n), frame(n-1))")
+    print(min(video_self_psnr),sum(video_self_psnr)/len(video_self_psnr),max(video_self_psnr))
+
 
 # Making videos
 
@@ -373,6 +386,7 @@ concat_clip2 = mp.concatenate_videoclips(clips2, method="compose")
 # final = mp.clips_array([[concat_clip_new], [original_video]])
 final_stacked = mp.clips_array([[concat_clip_new , concat_clip2]])
 final_stacked.write_videofile(str(args.save_dir) + '/' + video_technique + "_stacked" + ".mp4",fps=25)
+
 
 
 cv2.destroyAllWindows()
