@@ -9,7 +9,7 @@ batch_size=${5}
 num_epochs=${6}
 test_freq=${7}
 metrics_freq=${8}
-
+data_root=${9}
 
 # Depending on the machine you run the code from, the directory to save experiments is different due to write access
 if [[ "$machine" == "chunky" ]]; then
@@ -18,14 +18,6 @@ elif [[ "$machine" == "mapmaker" ]]; then
     experiment_dir=/data4/pantea/pantea_experiments_mapmaker/${dataset_name}/${initialization}
 fi 
 
-# The dataset options for experiment
-if [[ "$dataset_name" == "general" ]]; then
-    data_root=/video-conf/scratch/pantea/temp_general_extracts
-elif [[ "$dataset_name" == "per_person" ]]; then
-    data_root=/data/pantea/per_person_1_three_datasets
-elif [[ "$dataset_name" == "per_video" ]]; then
-    data_root=/video-conf/scratch/pantea/temp_per_video_extracts
-fi 
 
 
 # Add initialization options
