@@ -10,6 +10,7 @@ num_epochs=${6}
 test_freq=${7}
 metrics_freq=${8}
 train_dataloader_name=${9}
+data_root=${10}
 
 # Depending on the machine you run the code from, the directory to save experiments is different due to write access
 if [[ "$machine" == "chunky" ]]; then
@@ -18,14 +19,6 @@ elif [[ "$machine" == "mapmaker" ]]; then
     experiment_dir=/video-conf/scratch/pantea_experiments_mapmaker/${dataset_name}/${initialization}
 fi 
 
-# The dataset options for experiment
-if [[ "$dataset_name" == "general" ]]; then
-    data_root=/video-conf/scratch/pantea/temp_general_extracts
-elif [[ "$dataset_name" == "per_person" ]]; then
-    data_root=/video-conf/scratch/pantea/per_person_1_three_datasets
-elif [[ "$dataset_name" == "per_video" ]]; then
-    data_root=/video-conf/scratch/pantea/temp_per_video_extracts
-fi 
 
 
 # Add initialization options
@@ -41,14 +34,6 @@ elif [[ "$initialization" == "from_paper" ]]; then
 
 fi
 
-# # Dataloader options
-# if [[ "$dataloader_name" == "voxceleb" ]]; then
-#     dataloader_name='voxceleb2'
-# elif [[ "$dataset_name" == "l2" ]]; then
-#     dataloader_name='l2_distance'
-# else; 
-#     dataloader_name='voxceleb2'
-# fi 
 
 
 cd $MAIN_DIR/

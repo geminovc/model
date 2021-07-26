@@ -67,7 +67,7 @@ class DatasetWrapper(data.Dataset):
                                                  help='mask the souce and target from the beginning')                                                      
 
         parser.add('--same_source_and_target',   default='False', type=rn_utils.str2bool, choices=[True, False],
-                                                 help='mask the source and target from the beginning')
+                                                 help='set source = target in the experminet')
                                                       
 
         return parser
