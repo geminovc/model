@@ -1,13 +1,4 @@
-# MAIN_DIR=../..
-# machine=${1}
-# experiment_name=${2}
-# initialization=${3}
-# dataset_name=${4}
-# batch_size=${5}
-# num_epochs=${6}
-# test_freq=${7}
-# metrics_freq=${8}
-# train_dataloader_name={9}
+MAIN_DIR=../..
 
 # root to the voxceleb2 videos
 video_root=${1}
