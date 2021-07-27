@@ -79,8 +79,8 @@ class DatasetWrapper(data.Dataset):
         parser.add('--mask_source_and_target',   default='True', type=rn_utils.str2bool, choices=[True, False],
                                                  help='mask the source and target from the beginning')
                                                       
-        parser.add('--rebalance',               default='False', type=rn_utils.str2bool, choices=[True, False],
-                   help='rebalance the dataset?')
+        parser.add('--rebalance',                default='False', type=rn_utils.str2bool, choices=[True, False],
+                                                 help='rebalance the dataset?')
 
         return parser
 
