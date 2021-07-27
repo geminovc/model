@@ -1,3 +1,62 @@
+"""
+This file generates .pkl files from datasets with the voxceleb2 dataset structure, and stores them in the voxceleb2 dataset structure.
+Each .pkl file contains the frame number of images with difficult poses in each session.    
+
+The main voxceleb dataset structure is in the format of:
+DATA_ROOT/[imgs, keypoints, segs]/[train, test]/PERSON_ID/VIDEO_ID/SEQUENCE_ID/FRAME_NUM[.jpg, .npy, .png]
+
+This file reads all the 
+
+DATA_ROOT/keypoints/[train, test]/PERSON_ID/VIDEO_ID/SEQUENCE_ID/*
+
+and stores the frame number of images with difficult poses in the format of:
+RESULTS_FOLDER/DATASET_NAME/[train, test]/PERSON_ID/VIDEO_ID/SEQUENCE_ID/Difficult_poses.pkl
+
+
+To run this file use:
+
+python find_difficult_poses.py --data_root <'PATH_TO_YOUR_DATA_ROOT'>
+--phase <'train' or 'test'>  --results_folder <'PATH_TO_WHERE_YOU_WANT_TO_SAVE_PKL_FILES'> 
+
+Example:
+python find_difficult_poses.py --data_root '/video-conf/scratch/pantea/temp_per_person_extracts' 
+--phase 'test' --results_folder './result'
+
+Inputs
+----------
+
+Inputs are set in parser file as the following:
+
+    --data_root <'PATH_TO_YOUR_DATA_ROOT'>
+    --phase <'train' or 'test'>  
+    --results_folder <'PATH_TO_WHERE_YOU_WANT_TO_SAVE_PKL_FILES'> 
+    --min_per_session_keypoints <minimum number of frames per session for collecting images later in the training pipeline>
+
+The data_root should contain files in the format of:
+
+DATA_ROOT/[imgs, keypoints, segs]/[train, test]/PERSON_ID/VIDEO_ID/SEQUENCE_ID/FRAME_NUM[.jpg, .npy, .png]
+
+For the example of the data_root structure refer to ../dataset/voxceleb2.py documentation. 
+
+The results_folder is the root to save difficult_pose .pkl files. The code will automatically extract the dataset name such as per_person, per_video, general, etc. 
+and stores the corresponding pairwise distances in path RESULTS_FOLDER/DATASET_NAME. 
+
+Outputs
+----------
+
+The output is a dataset in the format of: 
+RESULTS_FOLDER/DATASET_NAME/[train, test]/PERSON_ID/VIDEO_ID/SEQUENCE_ID/Difficult_poses.pkl
+
+Each Difficult_poses.pkl file has the following structure:
+
+{
+('-1'): 'data_root of the dataset that the keypoints belong to',
+('0'): 'frame_num',
+..
+
+}
+
+"""
 import torch
 from torch.utils import data
 from torchvision import transforms
@@ -14,18 +73,26 @@ import os
 import argparse
 
 parser= argparse.ArgumentParser("Difficult pose finder")
+
 parser.add_argument('--data_root',
-        default= '/data/pantea/per_person_1_three_datasets',
+        default= '/video-conf/scratch/pantea/per_video_1_three_datasets',
         type=str,
         help='dataset root')
+
 parser.add_argument('--phase',
         type=str,
-        default='train',
+        default='test',
         help='phase of the dataset, train or test')
+
 parser.add_argument('--results_folder',
         type=str,
         default='/data/pantea/pose_results/difficult_poses',
         help='phase of the dataset, train or test')
+
+parser.add_argument('--min_per_session_keypoints',
+        type=int,
+        default=2,
+        help='each pickle file should contain at least a number of keypoints')
 
 args = parser.parse_args()
 
@@ -67,32 +134,24 @@ def is_difficult (keypoints):
     
     return False
 
-def load_pickle(path_string):
-    pkl_file = open(path_string, 'rb')
-    my_dict = pickle.load(pkl_file)
-    pkl_file.close()
-    return my_dict
 
 data_root = args.data_root
 phase = args.phase
 dataset_name =  str(data_root).split('/')[-1:][0]
 main_dir = str(args.results_folder) + '/' + str(dataset_name)
 
-keypoint_directory=pathlib.Path(data_root+'/keypoints/'+phase)
+keypoint_directory=pathlib.Path(data_root + '/keypoints/' + phase)
 print(keypoint_directory)
 # Find all the video sessions
 keypoints_sessions = keypoint_directory.glob('*/*/*')
 keypoints_sessions = sorted([str(seq) for seq in keypoints_sessions])
-
 
 for session in keypoints_sessions:
     session_relative_name= '/'.join(str(session).split('/')[-4:])
     session_directory = pathlib.Path(str(session))
     keypoints_paths = session_directory.glob('*')
     keypoints_paths = sorted([str(seq) for seq in keypoints_paths])
-    #print(session, keypoints_paths)
     save_dir = main_dir + '/' + session_relative_name
-    os.makedirs(str(save_dir), exist_ok=True)
     mydict = {}
     counter = 0
     mydict [('-1')]= str(data_root)
@@ -105,6 +164,13 @@ for session in keypoints_sessions:
             name_1= name_1.split('.')[0]
             mydict[(str(counter))] = name_1
             counter+=1
-    pickle.dump(mydict,  open(str(save_dir) + "/" + 'Difficult_poses' + '.pkl', 'wb'))
+    
+    if len(mydict) >= 1+ args.min_per_session_keypoints:
+        print("Saving the pickle for session!")
+        os.makedirs(str(save_dir), exist_ok=True)
+        pickle.dump(mydict,  open(str(save_dir) + "/" + 'Difficult_poses' + '.pkl', 'wb'))
+    else:
+        print("This session did not have enough difficult poses!")
+    
     print(session, "completed!")
 

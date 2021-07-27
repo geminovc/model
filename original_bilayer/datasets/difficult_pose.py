@@ -1,3 +1,93 @@
+"""
+This file is for picking the source and target frames that are considered to have difficult pose.
+Before using this dataloader, you need to do a preprocess on the dataset using the difficult_poses module.
+
+The structure of input dataset is:
+
+ROOT_TO_CLOSE_KEYPOINTS/[train, test]/PERSON_ID/VIDEO_ID/SEQUENCE_ID/L2_Distances.pkl
+
+Each L2_Distances.pkl file contains a dictionary with the following structure:
+
+{
+('-1','-1'): 'data_root of the dataset that the keypoints belong to',
+('frame_num_1','frame_num_1'): 'L2_distance (keypoint_1, keypoint_2)',
+...
+}
+
+Example of the close_keypoints structure:
+
+                     ROOT_TO_CLOSE_KEYPOINTS _ phase _ id00012 _ abc _ 00001 _ L2_Distances.pkl
+                                                    |         |            
+                                                    |         |           
+                                                    |         |            
+                                                    |         |
+                                                    |         |_ def  _ 00001 _ L2_Distances.pkl
+                                                    |                |       
+                                                    |                |     
+                                                    |                |       
+                                                    |                |
+                                                    |                |_ 00002 _ L2_Distances.pkl
+                                                    |                        
+                                                    |                      
+                                                    |                        
+                                                    |               
+                                                    |_ id00013 _ lmn _ 00001 _ L2_Distances.pkl
+                                                    |          |            
+                                                    |          |       
+                                                    |          |           
+                                                    |          |
+                                                    |          |_ opq  _ 00001 _ ...
+                                                    |                 |_ 00002 _ ...
+                                                    |                 |_ 00003 _ ...
+                                                    |
+                                                    |_ id00014 _ rst _ 00001 _ ...
+                                                                |    |_ 00002 _ ...
+                                                                |
+                                                                |_ uvw  _ 00001 _ L2_Distances.pkl
+                                                                        |      
+                                                                        |     
+                                                                        |      
+                                                                        |
+                                                                        |_ 00002 _ L2_Distances.pkl
+                                                                        |     
+                                                                        |     
+                                                                        |
+                                                                        |_ 00003 _L2_Distances.pkl
+
+Note that the last folder of ROOT_TO_CLOSE_KEYPOINTS has the same name as DATA_ROOT, meaning that the L2 distances of ROOT_TO_CLOSE_KEYPOINTS belong to datset in DATA_ROOT. 
+
+Example:
+ROOT_TO_CLOSE_KEYPOINTS = /data/pantea/close_keypoints/per_person_extracts
+DATA_ROOT = /video-conf/scratch/pantea/per_person_extracts
+
+In find_l2_distance module we have:
+
+ROOT_TO_CLOSE_KEYPOINTS = RESULTS_FOLDER/DATASET_NAME
+
+Arguments
+----------
+
+root_to_close_keypoints: The root directory to where the L2_distances of the input data_root is stored. 
+        
+close_keypoints_threshold: The threshold with which we call two keypoints close. 
+
+
+
+Outputs
+----------
+
+The output is data_dict which contains source and target images with L2 keypoint distance of less than close_keypoints_threshold. It contains: 
+'target_stickmen'  
+'source_stickmen'  
+'source_imgs'  
+'target_imgs'  
+'source_segs'  
+'target_segs'  
+
+The script is failful to the papers implementation and it picks one random source/target pair, with keyponits having L2 distance of less than close_keypoints_threshold, from each video.
+
+"""
+
 import torch
 from torch.utils import data
 from torchvision import transforms
