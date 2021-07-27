@@ -1,20 +1,13 @@
 """
 This file is for picking the source and target frames in session that:
-
-if dataset_method = 'l2_distance': their keypoints have colse l2 distance less than a threshold (close_keypoints_threshold).
-, 
-
+if dataset_method = 'l2_distance': their keypoints have colse l2 distance less than a threshold (close_keypoints_threshold),
 if dataset_method = 'difficult_pose': are considered difficult poses.
 
 
 Before using this dataloader, you need to do a preprocess on the dataset using the find_l2_distance or find_difficult_poses module (based on your choice of dataset_method).
-
 The preprocess modules are in ../pose_analysis. You need to enter the <results_folder/dataset_name> in those modules as an input here in root_to_pkl_keypoints. 
-
 The structure of input dataset, which is stored in root_to_pkl_keypoints, is:
-
 ROOT_TO_PKL_KEYPOINTS/[train, test]/PERSON_ID/VIDEO_ID/SEQUENCE_ID/<L2_Distances or Difficult_poses>.pkl
-
 Each L2_Distances.pkl file contains a dictionary with the following structure:
 
 {
@@ -33,9 +26,6 @@ Each Difficult_poses.pkl file contains a dictionary with the following structure
 }
 
 
-Example of the close_keypoints structure:
-
-
 Note that the last folder of ROOT_TO_PKL_KEYPOINTS has the same name as DATA_ROOT, meaning that the L2 distances of ROOT_TO_PKL_KEYPOINTS belong to datset in DATA_ROOT. 
 
 Example:
@@ -43,7 +33,6 @@ ROOT_TO_PKL_KEYPOINTS = /data/pantea/close_keypoints/per_person_extracts
 DATA_ROOT = /video-conf/scratch/pantea/per_person_extracts
 
 In pose_analysis module in ../pose_analysis we have:
-
 ROOT_TO_PKL_KEYPOINTS = RESULTS_FOLDER/DATASET_NAME
 
 Arguments
@@ -55,20 +44,12 @@ close_keypoints_threshold: The threshold with which we call two keypoints close.
 
 dataset_method: l2_distance or difficult_pose
 
-
 Outputs
 ----------
 
-The output is data_dict which contains source and target images with L2 keypoint distance of less than close_keypoints_threshold. It contains: 
-'target_stickmen'  
-'source_stickmen'  
-'source_imgs'  
-'target_imgs'  
-'source_segs'  
-'target_segs'  
-
-The script is failful to the papers implementation and it picks one random source/target pair:
-
+The output is data_dict which contains source and target images with L2 keypoint distance of less than close_keypoints_threshold,
+or with difficult poses depending on dataset_method.
+The script is faithful to the papers implementation and it picks one random source/target pair:
 if dataset_method = 'l2_distance': with keyponits having L2 distance of less than close_keypoints_threshold, from each video.
 if dataset_method = 'difficult_poses': which both are considered images with difficult poses. 
 
@@ -145,13 +126,11 @@ class DatasetWrapper(data.Dataset):
 
         self.to_tensor = transforms.ToTensor()
         self.epoch = 0 if args.which_epoch == 'none' else int(args.which_epoch)
-
         data_root = args.data_root
 
         if phase == 'metrics':
             data_root = args.metrics_root
         
-
         self.imgs_dir = pathlib.Path(data_root) / 'imgs' / phase
         self.pose_dir = pathlib.Path(data_root) / 'keypoints' / phase
 
@@ -163,10 +142,8 @@ class DatasetWrapper(data.Dataset):
         # Video sequences list
         # Please don't mix the sequence, which is the total number of videos, with sessions (which are essentially short video clips).
         # Each sequence, is made up of multiple sessions.
-
         sequences = pathlib.Path(self.pkl_keypoints_dir).glob('*/*')
         self.sequences = ['/'.join(str(seq).split('/')[-2:]) for seq in sequences]
-
 
         # If you are using metrics, sort the Sequences so it's easier
         # to keep track of them between runs
@@ -175,12 +152,10 @@ class DatasetWrapper(data.Dataset):
         
         print(len(self.sequences), self.sequences)
 
-
         #make a directory to save test and train paths
         # Prepare experiment directories and save options
         experiment_dir = pathlib.Path(args.experiment_dir)
         self.experiment_dir = experiment_dir / 'runs' / args.experiment_name
-
 
     # Load the pickle files as dictionary
     def load_pickle(self, path_string):
@@ -189,11 +164,13 @@ class DatasetWrapper(data.Dataset):
         pkl_file.close()
         return my_dict
 
+    # find the frame numbers in the session with l2 distance of keypoints lower than threshold
     def find_close_keypoints (self, keypoints_dict, threshold):
         # The ('-1','-1') key contains the data_root of the keypoints
         keypoints_dict.pop(('-1', '-1'), None)
         return [k for k,v in keypoints_dict.items() if float(v) >= threshold and k!= ('-1', '-1')]
-
+    
+    # find the frame numbers in the session with difficult pose
     def find_difficult_keypoints (self, keypoints_dict):
         # The ('-1') key contains the data_root of the keypoints
         keypoints_dict.pop(('-1'), None)
@@ -209,7 +186,6 @@ class DatasetWrapper(data.Dataset):
                     filenames_img = list((self.imgs_dir / self.sequences[index]).glob('*/*'))
                     filenames_img = [pathlib.Path(*filename.parts[-4:]).with_suffix('') for filename in filenames_img]
 
-
                     filenames_npy = list((self.pose_dir / self.sequences[index]).glob('*/*'))
                     filenames_npy = [pathlib.Path(*filename.parts[-4:]).with_suffix('') for filename in filenames_npy]
 
@@ -221,7 +197,6 @@ class DatasetWrapper(data.Dataset):
 
                         filenames = list(set(filenames).intersection(set(filenames_seg)))
                     
-
                     if len(filenames)!=0:
                         break
                     else:
@@ -230,7 +205,6 @@ class DatasetWrapper(data.Dataset):
                 except Exception as e:
                     print("# Exception is raised if filenames list is empty or there was an error during read")
                     index = (index + 1) % len(self)
-
 
             filenames = sorted(filenames)
         
@@ -270,10 +244,7 @@ class DatasetWrapper(data.Dataset):
         reserve_index = -1 # take this element of the sequence if loading fails
         sample_from_reserve = False
 
-        if self.phase == 'test':
-            # Sample from the beginning of the sequence
-            self.cur_num = 0
-        
+        # Read and pre-process imgs, keypoints, and segs if available        
         while len(imgs) < self.args.num_source_frames + self.args.num_target_frames:
             if reserve_index == len(filenames):
                 raise # each element of the filenames list is unavailable for load
@@ -288,19 +259,12 @@ class DatasetWrapper(data.Dataset):
                 filename = filenames[frame_num]
 
             # Read images
-            
             img_path = pathlib.Path(self.imgs_dir) / filename.with_suffix('.jpg')
-            
-            if self.phase == 'test':
-                print("selected test image path is: ",img_path)
-
             try:
                 img = Image.open(img_path)
-
                 # Preprocess an image
                 s = img.size[0]
                 img = img.resize((self.args.image_size, self.args.image_size), Image.BICUBIC)
-
             except:
                 sample_from_reserve = True
                 reserve_index += 1
@@ -314,17 +278,17 @@ class DatasetWrapper(data.Dataset):
                 keypoints = np.load(keypoints_path).astype('float32')
             except:
                 imgs.pop(-1)
-
                 sample_from_reserve = True
                 reserve_index += 1
                 continue
 
-            keypoints = keypoints.reshape((68,2)) #I added this
+            # Normalize the keypoints to (0,1) range 
+            keypoints = keypoints.reshape((68,2)) 
             keypoints = keypoints[:self.args.num_keypoints, :]
             keypoints[:, :2] /= s
             keypoints = keypoints[:, :2]
-
-
+            
+            # Reshape the keypoints to feed the network
             poses += [torch.from_numpy(keypoints.reshape(-1))]
 
             if self.args.output_segmentation:
@@ -336,23 +300,17 @@ class DatasetWrapper(data.Dataset):
                 except:
                     imgs.pop(-1)
                     poses.pop(-1)
-
                     sample_from_reserve = True
                     reserve_index += 1
                     continue
-
-
-                # Convert 3-channel segmentations to 1 grayscale image
-                # segs += [self.to_tensor(seg)]
+                # Convert 3-channel segmentations to 1 grayscale image used to be segs += [self.to_tensor(seg)]
                 segs += [self.to_tensor(seg)[0][None]]
 
             sample_from_reserve = False
-
-        imgs = (torch.stack(imgs)- 0.5) * 2.0
-
-        poses = (torch.stack(poses) - 0.5) * 2.0
-
         
+        # Normalized the images and poses in (-1,1) range
+        imgs = (torch.stack(imgs)- 0.5) * 2.0
+        poses = (torch.stack(poses) - 0.5) * 2.0
 
         if self.args.output_stickmen:
             stickmen = ds_utils.draw_stickmen(self.args, poses)
