@@ -46,7 +46,6 @@ class LossWrapper(nn.Module):
 
         fake_imgs = fake_imgs.view(b*t, *fake_imgs.shape[2:])
         real_imgs = real_imgs.view(b*t, *real_imgs.shape[2:])
-
         losses = [self.calc_metric(fake_img, real_img, i % self.num_threads) for i, (fake_img, real_img) in enumerate(zip(fake_imgs, real_imgs))]
         losses_dict['G_PME'] = sum(losses) / len(losses)
         return losses_dict

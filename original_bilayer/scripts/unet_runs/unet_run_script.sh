@@ -1,5 +1,4 @@
-# Code to run the unet trials from thousandeyes machines
-# If running on chunky or mapmaker you need to remove all the /data/vision/billf
+# Code to run the unet trials from
 
 # Look at the unet_experiments.sh file and run one of the commands there.
 # It'll call this file
@@ -16,39 +15,45 @@ test_freq=${7}
 metrics_freq=${8}
 inf_apply_masks=${9}
 machine_is_graphics=${10}
-if [[ "$machine_is_graphics" == "True" ]]; then
-    root_loc = "/data/vision/billf"
-elif [[ "$machine_is_graphics" == "False" ]]; then
+rebalance=${11}
 
-    root_loc = ""
+if [[ "$machine_is_graphics" == "True" ]]; then
+    root_loc="/data/vision/billf"
+elif [[ "$machine_is_graphics" == "False" ]]; then
+    root_loc=""
 fi
+
+lrs="identity_embedder: 2e-4, texture_generator: 2e-4, keypoints_embedder: 2e-4, inference_generator: 2e-4, discriminator: 2e-4"
+optims="identity_embedder: adam, texture_generator: adam, keypoints_embedder: adam, inference_generator: adam, discriminator: adam"
+networks_calc_stats="identity_embedder, texture_generator, keypoints_embedder, inference_generator"
+networks_test="identity_embedder, texture_generator, keypoints_embedder, inference_generator"
+networks_train="identity_embedder, texture_generator, keypoints_embedder, inference_generator, discriminator"
+spn_networks="identity_embedder, texture_generator, keypoints_embedder, inference_generator, discriminator"
 if [[ "$use_unet" == "True" ]]; then
-    unet_inputs=${11}
-    unet_input_channels=${12}
-    lrs = 'identity_embedder: 2e-4, texture_generator: 2e-4, keypoints_embedder: 2e-4, inference_generator: 2e-4, discriminator: 2e-4'
-    optims  = 'identity_embedder: adam, texture_generator: adam, keypoints_embedder: adam, inference_generator: adam, discriminator: adam'
-    networks_calc_stats = 'identity_embedder, texture_generator, keypoints_embedder, inference_generator'
-    networks_test = 'identity_embedder, texture_generator, keypoints_embedder, inference_generator'
-    networks_train = 'identity_embedder, texture_generator, keypoints_embedder, inference_generator, discriminator'
-    spn_networks = 'identity_embedder, texture_generator, keypoints_embedder, inference_generator, discriminator'
+    unet_inputs=${12}
+    unet_input_channels=${13}
+    texture_output_dim="16"
+    lrs="${lrs} unet: 2e-4"
+    optims="${optims}, unet: adam"
+    networks_calc_stats="${networks_calc_stats}, unet"
+    networks_test="identity_embedder, texture_generator, keypoints_embedder, inference_generator, unet"
+    networks_train="identity_embedder, texture_generator, keypoints_embedder, inference_generator, unet, discriminator"
+    spn_networks="identity_embedder, texture_generator, keypoints_embedder, inference_generator, unet, discriminator"
 elif [[ "$use_unet" == "False" ]]; then
     unet_inputs="hf"
     unet_input_channels="16"
-    lrs = 'identity_embedder: 2e-4, texture_generator: 2e-4, keypoints_embedder: 2e-4, inference_generator: 2e-4, discriminator: 2e-4, unet: 2e-4'
-    optims  = 'identity_embedder: adam, texture_generator: adam, keypoints_embedder: adam, inference_generator: adam, discriminator: adam, unet: adam'
-    networks_calc_stats = 'identity_embedder, texture_generator, keypoints_embedder, inference_generator, unet'
-    networks_test = 'identity_embedder, texture_generator, keypoints_embedder, inference_generator, unet'
-    networks_train = 'identity_embedder, texture_generator, keypoints_embedder, inference_generator, unet, discriminator'
-    spn_networks = 'identity_embedder, texture_generator, keypoints_embedder, inference_generator, unet, discriminator'
+    texture_output_dim="3"
 fi
      
 # The dataset options for experiment
 if [[ "$dataset_name" == "general" ]]; then
-    data_root= "${root_loc}/video-conf/scratch/pantea/temp_general_extracts"
+    data_root="${root_loc}/video-conf/scratch/pantea/temp_general_extracts"
 elif [[ "$dataset_name" == "per_person" ]]; then
-    data_root= "${root_loc}/video-conf/scratch/pantea/temp_per_person_1_extracts"
+    data_root="${root_loc}/video-conf/scratch/pantea/temp_per_person_1_extracts"
 elif [[ "$dataset_name" == "per_video" ]]; then
-    data_root= "${root_loc}/video-conf/scratch/pantea/temp_per_video_extracts"
+    data_root="${root_loc}/video-conf/scratch/pantea/temp_per_video_extracts"
+elif [[ "$dataset_name" == "vedantha" ]]; then
+    data_root="${root_loc}/video-conf/scratch/vedantha/vedantha_extracts"
 fi 
 
 
@@ -64,7 +69,7 @@ elif [[ "$initialization" == "from_paper" ]]; then
     else
         init_networks='identity_embedder, texture_generator, keypoints_embedder, inference_generator, discriminator'
     fi
-    init_experiment_dir=/data/vision/billf/video-conf/scratch/pantea/bilayer_paper_released/runs/vc2-hq_adrianb_paper_main
+    init_experiment_dir="${root_loc}/video-conf/scratch/pantea/bilayer_paper_released/runs/vc2-hq_adrianb_paper_main"
     init_which_epoch=2225
 
 fi
@@ -88,7 +93,7 @@ python train.py \
     --batch_size ${batch_size} \
     --bn_momentum 1.0 \
     --calc_stats \
-    --checkpoint_freq 50 \
+    --checkpoint_freq 1000 \
     --data_root ${data_root} \
     --general_data_root  "${root_loc}/video-conf/scratch/pantea/temp_general_extracts" \
     --dis_activation_type leakyrelu \
@@ -135,19 +140,19 @@ python train.py \
     --losses_test 'PSNR, lpips, csim, ssim' \
     --metrics 'PSNR, lpips, pose_matching, csim, ssim' \
     --psnr_loss_apply_to 'pred_target_imgs, target_imgs'  \
-    --losses_train ${losses_train}  \
-    --lrs ${lrs} \
-    --networks_calc_stats ${networks_calc_stats} \
-    --networks_test ${networks_test} \
-    --networks_train ${networks_train} \
-    --num_epochs ${num_epochs} \
+    --losses_train 'adversarial, feature_matching, perceptual, pixelwise, warping_regularizer, segmentation' \
+    --lrs "$lrs" \
+    --networks_calc_stats "$networks_calc_stats" \
+    --networks_test "$networks_test" \
+    --networks_train "$networks_train" \
+    --num_epochs "$num_epochs" \
     --num_gpus 1 \
     --num_keypoints 68 \
     --num_source_frames 1 \
     --num_target_frames 1 \
     --num_visuals 1 \
     --num_workers_per_process 20 \
-    --optims ${optims} \
+    --optims "$optims" \
     --output_stickmen True \
     --per_full_net_names 'vgg19_imagenet_pytorch, vgg16_face_caffe' \
     --per_layer_weights '0.03125, 0.0625, 0.125, 0.25, 1.0' \
@@ -174,10 +179,10 @@ python train.py \
     --seg_loss_type bce \
     --seg_loss_weights 10.0 \
     --spn_layers 'conv2d, linear' \
-    --spn_networks ${spn_networks} \
+    --spn_networks "$spn_networks" \
     --stats_calc_iters 500 \
     --stickmen_thickness 2 \
-    --test_freq ${test_freq} \
+    --test_freq "$test_freq" \
     --visual_freq 10 \
     --wpr_loss_apply_to pred_target_delta_uvs \
     --wpr_loss_decay_schedule '-1' \
@@ -194,14 +199,16 @@ python train.py \
     --replace_source_specific_with_trainable_tensors False \
     --augment_with_general False \
     --sample_general_dataset False \
-    --texture_output_dim 3 \
-    --use_unet ${use_unet} \
-    --unet_input_channels 16 \
+    --texture_output_dim "$texture_output_dim" \
+    --use_unet "$use_unet" \
+    --unet_input_channels "$unet_input_channels" \
     --unet_output_channels 3 \
-    --unet_inputs ${unet_inputs} \
-    --metrics_freq ${metrics_freq} \
+    --unet_inputs "$unet_inputs" \
+    --metrics_freq "$metrics_freq" \
     --metrics_root  "${root_loc}/video-conf/scratch/pantea/metrics_dataset" \
     --skip_metrics False \
-    --init_experiment_dir ${init_experiment_dir} \
+    --init_experiment_dir "$init_experiment_dir" \
     --init_networks "$init_networks" \
-    --init_which_epoch ${init_which_epoch} \
+    --init_which_epoch "$init_which_epoch" \
+    --rebalance "$rebalance" \
+    --bin_path "${root_loc}/video-conf/scratch/vedantha/bins.pkl"
