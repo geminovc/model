@@ -10,7 +10,7 @@ from torchvision import transforms
 class Logger(object):
     def __init__(self, args, experiment_dir):
         super(Logger, self).__init__()
-        self.num_iter = {'train': 0, 'test': 0, 'metrics' : 0} # Added metrics set to 0
+        self.num_iter = {'train': 0, 'test': 0, 'metrics' : 0, 'unseen_test': 0} # Added metrics set to 0
         
         self.no_disk_write_ops = args.no_disk_write_ops
         self.rank = args.rank
@@ -18,10 +18,13 @@ class Logger(object):
         if not self.no_disk_write_ops:
             self.experiment_dir = experiment_dir
 
-            for phase in ['train', 'test', 'metrics']: # Added metrics phase here
+            for phase in ['train', 'test', 'metrics', 'unseen_test']: # Added metrics phase here
                 os.makedirs(experiment_dir / 'images' / phase, exist_ok=True)
-            for index in range(1, args.num_metrics_images+1):
-                os.makedirs(experiment_dir / 'images' / 'metrics' / str(index), exist_ok=True)
+            
+            # Do not make metrics subfolders if skip_metrics is False
+            if not args.skip_metrics:
+                for index in range(1, args.num_metrics_images+1):
+                    os.makedirs(experiment_dir / 'images' / 'metrics' / str(index), exist_ok=True)
             
             self.to_image = transforms.ToPILImage()
 
@@ -89,8 +92,9 @@ class Logger(object):
         print(phase, 'losses:', ', '.join('%s: %.3f' % (key, value) for key, value in losses.items()) + ', time: %.3f' % time)
         print(phase, 'metrics:', ', '.join('%s: %.3f' % (key, value) for key, value in metrics.items()) + ', time: %.3f' % time)
 
-    def set_num_iter(self, train_iter, test_iter, metrics_iter):
+    def set_num_iter(self, train_iter, test_iter, metrics_iter, unseen_test_iter):
         self.num_iter = {
             'train': train_iter,
             'test': test_iter,
-            'metrics' : metrics_iter}
+            'metrics' : metrics_iter,
+            'unseen_test': unseen_test_iter}

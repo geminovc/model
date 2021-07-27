@@ -10,7 +10,7 @@ import time
 import copy
 import sys
 import random 
-from torch.utils.tensorboard import SummaryWriter
+from datasets import utils as ds_utils
 from networks import utils as nt_utils
 from datasets import utils as ds_utils
 from runners import utils as rn_utils
@@ -152,12 +152,6 @@ class TrainingWrapper(object):
         # Saving and logging options
         parser.add('--psnr_loss_apply_to',                              default='pred_target_delta_lf_rgbs , target_imgs', type=str,
                                                                         help='psnr loss to apply') 
-
-        parser.add('--images_log_rate',                                 default=100, type=int,
-                                                                        help='logging rate for images') 
-        
-        parser.add('--metrics_log_rate',                                default=2, type=int,
-                                                                        help='logging rate for metrics like PSNR')
 
         parser.add('--save_initial_test_before_training',               default='True', type=rn_utils.str2bool, choices=[True, False],
                                                                         help='save how he model performs on test before training, useful for sanity check') 
@@ -417,6 +411,7 @@ class TrainingWrapper(object):
 
         if not args.skip_test:
             test_dataloader = ds_utils.get_dataloader(args, 'test')
+            unseen_test_dataloader = ds_utils.get_dataloader(args, 'unseen_test')
         
         if not args.skip_metrics:
             metrics_dataloader = ds_utils.get_dataloader(args, 'metrics')
@@ -474,7 +469,8 @@ class TrainingWrapper(object):
         logger.set_num_iter(
             train_iter=train_iter, 
             test_iter=(epoch_start - 1) // args.test_freq,
-            metrics_iter=(epoch_start - 1) // args.metrics_freq)
+            metrics_iter=(epoch_start - 1) // args.metrics_freq,
+            unseen_test_iter=(epoch_start - 1) // args.test_freq)
 
         if args.debug and not args.use_apex:
             torch.autograd.set_detect_anomaly(True)
@@ -589,7 +585,7 @@ class TrainingWrapper(object):
                 for opt in opts.values():
                     opt.step(closure)
 
-                if output_logs:
+                if not epoch % args.visual_freq:
                     logger.output_logs('train', runner.output_visuals(), runner.output_losses(), \
                             runner.output_metrics(), time.time() - time_start)
  
@@ -609,7 +605,7 @@ class TrainingWrapper(object):
                 if args.calc_stats:
                     runner.calculate_batchnorm_stats(train_dataloader, args.debug)
 
-                # Test
+                # Test on seen videos
                 time_start = time.time()
                 model.eval()
 
@@ -620,8 +616,6 @@ class TrainingWrapper(object):
                         for key, value in data_dict.items():
                             data_dict[key] = value.cuda()
 
-                    
-
                     # Forward pass
                     with torch.no_grad():
                         model(data_dict)
@@ -629,6 +623,27 @@ class TrainingWrapper(object):
                     if args.debug:
                         break
                 logger.output_logs('test', runner.output_visuals(), runner.output_losses(), \
+                    runner.output_metrics(), time.time() - time_start)
+                
+                
+                # Test on unseen videos
+                time_start = time.time()
+                model.eval()
+
+                unseen_test_dataloader.dataset.shuffle()
+                for data_dict in unseen_test_dataloader:
+                    # Prepare input data
+                    if args.num_gpus > 0:
+                        for key, value in data_dict.items():
+                            data_dict[key] = value.cuda()
+
+                    # Forward pass
+                    with torch.no_grad():
+                        model(data_dict)
+                    
+                    if args.debug:
+                        break
+                logger.output_logs('unseen_test', runner.output_visuals(), runner.output_losses(), \
                     runner.output_metrics(), time.time() - time_start)
 
             # If skip metrics flag is set -- only check if a checkpoint if required

@@ -9,7 +9,7 @@ batch_size=${5}
 num_epochs=${6}
 test_freq=${7}
 metrics_freq=${8}
-
+data_root=${9}
 
 # Depending on the machine you run the code from, the directory to save experiments is different due to write access
 if [[ "$machine" == "chunky" ]]; then
@@ -18,14 +18,6 @@ elif [[ "$machine" == "mapmaker" ]]; then
     experiment_dir=/data4/pantea/pantea_experiments_mapmaker/${dataset_name}/${initialization}
 fi 
 
-# The dataset options for experiment
-if [[ "$dataset_name" == "general" ]]; then
-    data_root=/video-conf/scratch/pantea/temp_general_extracts
-elif [[ "$dataset_name" == "per_person" ]]; then
-    data_root=/video-conf/scratch/pantea/temp_per_person_extracts
-elif [[ "$dataset_name" == "per_video" ]]; then
-    data_root=/video-conf/scratch/pantea/temp_per_video_extracts
-fi 
 
 
 # Add initialization options
@@ -46,8 +38,6 @@ cd $MAIN_DIR/
 python train.py \
     --experiment_name ${experiment_name} \
     --pretrained_weights_dir /video-conf/scratch/pantea \
-    --images_log_rate 50 \
-    --metrics_log_rate 50 \
     --random_seed 0 \
     --save_dataset_filenames False \
     --dataset_load_from_txt False \
@@ -85,7 +75,7 @@ python train.py \
     --folder_postfix '2d_crop' \
     --frame_num_from_paper False \
     --inf_activation_type leakyrelu \
-    --inf_apply_masks True\
+    --inf_apply_masks True \
     --inf_max_channels 256 \
     --inf_norm_layer_type ada_bn \
     --inf_num_channels 32 \
@@ -173,7 +163,7 @@ python train.py \
     --unet_inputs 'lf, hf' \
     --metrics_freq ${metrics_freq} \
     --metrics_root /video-conf/scratch/pantea/metrics_dataset \
-    --skip_metrics False \
+    --skip_metrics True \
     --init_experiment_dir ${init_experiment_dir} \
     --init_networks 'identity_embedder, texture_generator, keypoints_embedder, inference_generator, discriminator' \
     --init_which_epoch ${init_which_epoch} \
