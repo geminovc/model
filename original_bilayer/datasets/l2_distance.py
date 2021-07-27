@@ -233,8 +233,7 @@ class DatasetWrapper(data.Dataset):
         experiment_dir = pathlib.Path(args.experiment_dir)
         self.experiment_dir = experiment_dir / 'runs' / args.experiment_name
 
-        # if self.args.dataset_load_from_txt:
-        #     self.args.save_dataset_filenames = False
+
 
     # Load the pickle files as dictionary
     def load_pickle(self, path_string):

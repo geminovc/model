@@ -1,6 +1,6 @@
 """
 This file generates .pkl files from datasets with the voxceleb2 dataset structure, and stores them in the voxceleb2 dataset structure.
-Each .pkl file contains the pairwise L2 distance between corresponding keypoints in each session.    
+Each .pkl file contains the pairwise L2 distance between any two frames in each session.    
 
 The main voxceleb dataset structure is in the format of:
 DATA_ROOT/[imgs, keypoints, segs]/[train, test]/PERSON_ID/VIDEO_ID/SEQUENCE_ID/FRAME_NUM[.jpg, .npy, .png]
@@ -35,47 +35,7 @@ The data_root should contain files in the format of:
 
 DATA_ROOT/[imgs, keypoints, segs]/[train, test]/PERSON_ID/VIDEO_ID/SEQUENCE_ID/FRAME_NUM[.jpg, .npy, .png]
 
-Example of the data_root structure:
-
-                 DATA_ROOT - [imgs, keypoints, segs] _ phase _ id00012 _ abc _ 00001 _ 0 [.jpg, .npy, .png]
-                                                            |         |            |_ 1 [.jpg, .npy, .png]
-                                                            |         |            |_ ...
-                                                            |         |            |_ 99 [.jpg, .npy, .png]
-                                                            |         |
-                                                            |         |_ def  _ 00001 _ 0 [.jpg, .npy, .png]
-                                                            |                |       |_ 1 [.jpg, .npy, .png]
-                                                            |                |       |_ ...
-                                                            |                |       |_ 150 [.jpg, .npy, .png]
-                                                            |                |
-                                                            |                |_ 00002 _ 0 [.jpg, .npy, .png]
-                                                            |                        |_ 1 [.jpg, .npy, .png]
-                                                            |                        |_ ... 
-                                                            |                        |_ 89 [.jpg, .npy, .png]
-                                                            |               
-                                                            |_ id00013 _ lmn _ 00001 _ 0 [.jpg, .npy, .png]
-                                                            |          |             |_ 1 [.jpg, .npy, .png]
-                                                            |          |             |_ ... 
-                                                            |          |             |_ 89 [.jpg, .npy, .png]
-                                                            |          |
-                                                            |          |_ opq  _ 00001 _ ...
-                                                            |                 |_ 00002 _ ...
-                                                            |                 |_ 00003 _ ...
-                                                            |
-                                                            |_ id00014 _ rst _ 00001 _ ...
-                                                                        |    |_ 00002 _ ...
-                                                                        |
-                                                                        |_ uvw  _ 00001 _ 0 [.jpg, .npy, .png]
-                                                                                |       |_ 1 [.jpg, .npy, .png]
-                                                                                |       |_ ... 
-                                                                                |       |_ 68 [.jpg, .npy, .png]
-                                                                                |
-                                                                                |_ 00002 _ 0 [.jpg, .npy, .png]
-                                                                                |       |_ ...
-                                                                                |       |_ 299 [.jpg, .npy, .png]
-                                                                                |
-                                                                                |_ 00003 _ 0 [.jpg, .npy, .png]
-                                                                                        |_ ...
-                                                                                        |_ 100 [.jpg, .npy, .png]
+For the example of the data_root structure refer to ../dataset/voxceleb2.py documentation. 
 
 The results_folder is the root to save l2_distance .pkl files. The code will automatically extract the dataset name such as per_person, per_video, general, etc. 
 and stores the corresponding pairwise distances in path RESULTS_FOLDER/DATASET_NAME. 
@@ -128,12 +88,17 @@ Example of the output structure:
                                                                               
                                                                                
 
-Each L2_Distances.pkl file contains a dictionary with the following structure:
+Each L2_Distances.pkl file contains all the pairwise l2 distances as a dictionary with the following structure:
 
 {
 ('-1','-1'): 'data_root of the dataset that the keypoints belong to',
-('frame_num_1','frame_num_1'): 'L2_distance (keypoint_1, keypoint_2)',
+('frame_num_1','frame_num_2'): 'L2_distance (keypoint_1, keypoint_2)',
+('frame_num_1','frame_num_3'): 'L2_distance (keypoint_1, keypoint_3)',
 ...
+('frame_num_2','frame_num_3'): 'L2_distance (keypoint_2, keypoint_3)',
+('frame_num_2','frame_num_4'): 'L2_distance (keypoint_2, keypoint_4)',
+..
+
 }
 
 """
@@ -171,7 +136,7 @@ parser.add_argument('--results_folder',
 args = parser.parse_args()
 
 def L2_distance (keypoints1, keypoints2):
-    return sum(sum((keypoints1-keypoints2)**2))
+    return sum(sum((keypoints1 - keypoints2)**2))
 
 def load_pickle(path_string):
     pkl_file = open(path_string, 'rb')
@@ -184,9 +149,10 @@ phase = args.phase
 dataset_name =  str(data_root).split('/')[-1:][0]
 main_dir = str(args.results_folder) + '/' + str(dataset_name)
 
-keypoint_directory=pathlib.Path(data_root+'/keypoints/'+phase)
-print(keypoint_directory)
 # Find all the video sessions
+
+keypoint_directory = pathlib.Path( data_root + '/keypoints/' + phase)
+print(keypoint_directory)
 keypoints_sessions = keypoint_directory.glob('*/*/*')
 keypoints_sessions = sorted([str(seq) for seq in keypoints_sessions])
 
@@ -197,13 +163,12 @@ for session in keypoints_sessions:
     session_directory = pathlib.Path(str(session))
     keypoints_paths = session_directory.glob('*')
     keypoints_paths = sorted([str(seq) for seq in keypoints_paths])
-    #print(session, keypoints_paths)
     save_dir = main_dir + '/' + session_relative_name
     os.makedirs(str(save_dir), exist_ok=True)
     mydict = {}
-    mydict [('-1','-1')]= str(data_root)
+    mydict [('-1','-1')] = str(data_root)
     for i in range(0, len(keypoints_paths)-1):
-        for j in range(i+1, len(keypoints_paths)):
+        for j in range(i + 1, len(keypoints_paths)):
             print(i,j)
             keypoints1 = np.load(keypoints_paths[i])
             keypoints2 = np.load(keypoints_paths[j])
@@ -216,17 +181,3 @@ for session in keypoints_sessions:
     pickle.dump(mydict,  open(str(save_dir) + "/" + 'L2_distances' + '.pkl', 'wb'))
     print(session, "completed!")
 
-# for key in mydict.keys():
-#     print(key)
-#     print(mydict[key])
-
-
-# pickle.dump(mydict,  open(str(save_dir) + "/" + 'L2_distances_'  + str(phase) + '.pkl', 'wb'))
-
-# print(mydict)
-
-# mydict2 = load_pickle('/data4/pantea/nets_implementation/original_bilayer/difficult_poses/L2_distances_train.pkl')
-# for key in mydict2.keys():
-#     print(key)
-#     print(key[0])
-#     print(mydict2[key])
