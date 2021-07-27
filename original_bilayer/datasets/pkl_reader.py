@@ -1,16 +1,19 @@
 """
-This file is for picking the source and target frames that:
+This file is for picking the source and target frames in session that:
 
-if dataset_method = 'l2_distance':
+if dataset_method = 'l2_distance': their keypoints have colse l2 distance less than a threshold (close_keypoints_threshold).
+, 
+
+if dataset_method = 'difficult_pose': are considered difficult poses.
 
 
+Before using this dataloader, you need to do a preprocess on the dataset using the find_l2_distance or find_difficult_poses module (based on your choice of dataset_method).
 
-have keypoints with L2 disance less than a threshold.
-Before using this dataloader, you need to do a preprocess on the dataset using the difficult_poses module.
+The preprocess modules are in ../pose_analysis. You need to enter the <results_folder/dataset_name> in those modules as an input here in root_to_pkl_keypoints. 
 
-The structure of input dataset is:
+The structure of input dataset, which is stored in root_to_pkl_keypoints, is:
 
-ROOT_TO_CLOSE_KEYPOINTS/[train, test]/PERSON_ID/VIDEO_ID/SEQUENCE_ID/L2_Distances.pkl
+ROOT_TO_PKL_KEYPOINTS/[train, test]/PERSON_ID/VIDEO_ID/SEQUENCE_ID/<L2_Distances or Difficult_poses>.pkl
 
 Each L2_Distances.pkl file contains a dictionary with the following structure:
 
@@ -20,55 +23,28 @@ Each L2_Distances.pkl file contains a dictionary with the following structure:
 ...
 }
 
+Each Difficult_poses.pkl file contains a dictionary with the following structure:
+ 
+{
+('-1'): 'data_root of the dataset that the keypoints belong to',
+('0'): 'frame_num',
+..
+
+}
+
+
 Example of the close_keypoints structure:
 
-                     ROOT_TO_CLOSE_KEYPOINTS _ phase _ id00012 _ abc _ 00001 _ L2_Distances.pkl
-                                                    |         |            
-                                                    |         |           
-                                                    |         |            
-                                                    |         |
-                                                    |         |_ def  _ 00001 _ L2_Distances.pkl
-                                                    |                |       
-                                                    |                |     
-                                                    |                |       
-                                                    |                |
-                                                    |                |_ 00002 _ L2_Distances.pkl
-                                                    |                        
-                                                    |                      
-                                                    |                        
-                                                    |               
-                                                    |_ id00013 _ lmn _ 00001 _ L2_Distances.pkl
-                                                    |          |            
-                                                    |          |       
-                                                    |          |           
-                                                    |          |
-                                                    |          |_ opq  _ 00001 _ ...
-                                                    |                 |_ 00002 _ ...
-                                                    |                 |_ 00003 _ ...
-                                                    |
-                                                    |_ id00014 _ rst _ 00001 _ ...
-                                                                |    |_ 00002 _ ...
-                                                                |
-                                                                |_ uvw  _ 00001 _ L2_Distances.pkl
-                                                                        |      
-                                                                        |     
-                                                                        |      
-                                                                        |
-                                                                        |_ 00002 _ L2_Distances.pkl
-                                                                        |     
-                                                                        |     
-                                                                        |
-                                                                        |_ 00003 _L2_Distances.pkl
 
-Note that the last folder of ROOT_TO_CLOSE_KEYPOINTS has the same name as DATA_ROOT, meaning that the L2 distances of ROOT_TO_CLOSE_KEYPOINTS belong to datset in DATA_ROOT. 
+Note that the last folder of ROOT_TO_PKL_KEYPOINTS has the same name as DATA_ROOT, meaning that the L2 distances of ROOT_TO_PKL_KEYPOINTS belong to datset in DATA_ROOT. 
 
 Example:
-ROOT_TO_CLOSE_KEYPOINTS = /data/pantea/close_keypoints/per_person_extracts
+ROOT_TO_PKL_KEYPOINTS = /data/pantea/close_keypoints/per_person_extracts
 DATA_ROOT = /video-conf/scratch/pantea/per_person_extracts
 
-In find_l2_distance module we have:
+In pose_analysis module in ../pose_analysis we have:
 
-ROOT_TO_CLOSE_KEYPOINTS = RESULTS_FOLDER/DATASET_NAME
+ROOT_TO_PKL_KEYPOINTS = RESULTS_FOLDER/DATASET_NAME
 
 Arguments
 ----------
@@ -77,6 +53,7 @@ root_to_pkl_keypoints: The root directory to where the L2_distances of the input
         
 close_keypoints_threshold: The threshold with which we call two keypoints close. 
 
+dataset_method: l2_distance or difficult_pose
 
 
 Outputs
@@ -90,7 +67,10 @@ The output is data_dict which contains source and target images with L2 keypoint
 'source_segs'  
 'target_segs'  
 
-The script is failful to the papers implementation and it picks one random source/target pair, with keyponits having L2 distance of less than close_keypoints_threshold, from each video.
+The script is failful to the papers implementation and it picks one random source/target pair:
+
+if dataset_method = 'l2_distance': with keyponits having L2 distance of less than close_keypoints_threshold, from each video.
+if dataset_method = 'difficult_poses': which both are considered images with difficult poses. 
 
 """
 
