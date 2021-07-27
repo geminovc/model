@@ -119,8 +119,6 @@ class NetworkWrapper(nn.Module):
         pred_target_delta_uvs = outputs[0]
         pred_target_uvs = self.identity_grid + pred_target_delta_uvs.permute(0, 2, 3, 1)
         data_dict['pred_target_delta_uvs'] = pred_target_delta_uvs.permute(0, 2, 3, 1)
-
-
         pred_target_delta_lf_rgbs = outputs[1]
 
         if self.args.inf_pred_segmentation:
@@ -309,13 +307,9 @@ class NetworkWrapper(nn.Module):
             # Predicted target segmentation
             pred_target_segs = data_dict['pred_target_segs']
             visuals += [torch.cat([(pred_target_segs - 0.5) * 2] * 3, 1)]
-
         
         if 'pred_target_delta_uvs' in data_dict.keys():
-
             pred_target_delta_uvs = data_dict['pred_target_delta_uvs']
-
-            
             b, _, h, w = pred_target_delta_uvs.shape
             pred_target_delta_uvs = torch.cat([
                     pred_target_delta_uvs, 
@@ -324,65 +318,6 @@ class NetworkWrapper(nn.Module):
                 dim=1)
 
             visuals += [torch.cat([pred_target_delta_uvs])]
-
-            # plt.figure()
-            # x,y = np.meshgrid(np.linspace(-1,1,256),np.linspace(-1,1,256))
-            
-            # print("data_dict['pred_target_delta_uvs'].shape", data_dict['pred_target_delta_uvs'].shape)
-            # if len(data_dict['pred_target_delta_uvs'].shape)==4:
-            #     try:
-            #         u = pred_target_uvs[0].detach().data.numpy()[:,:,0]
-            #         v = pred_target_uvs[0].detach().data.numpy()[:,:,1]
-            #     except:
-            #         u = pred_target_uvs[0].cpu().data.numpy()[:,:,0]
-            #         v = pred_target_uvs[0].cpu().data.numpy()[:,:,1]               
-            
-            # elif len(data_dict['pred_target_delta_uvs'].shape)==3:
-            #     # u = data_dict['pred_target_delta_uvs'].cpu().numpy()[:,:,0]
-            #     # v = data_dict['pred_target_delta_uvs'].cpu().numpy()[:,:,1]
-            #     try:
-            #         u = pred_target_uvs.detach().data.numpy()[:,:,0]
-            #         v = pred_target_uvs.detach().data.numpy()[:,:,1]
-            #     except:
-            #         u = pred_target_uvs.cpu().data.numpy()[:,:,0]
-            #         v = pred_target_uvs.cpu().data.numpy()[:,:,1]
-
-            # plt.quiver(x,y,u,v)
-            # plt.savefig('/data/pantea/pantea_experiments_chunky/per_person/from_paper/runs/find_uvs/uv_images/abs/uvs_'+str(self.counter)+'.png')
-            # plt.close()
-
-            # plt.figure()
-            # x,y = np.meshgrid(np.linspace(-1,1,256),np.linspace(-1,1,256))
-            
-            # print("data_dict['pred_target_delta_uvs'].shape", data_dict['pred_target_delta_uvs'].shape)
-            # if len(data_dict['pred_target_delta_uvs'].shape)==4:
-            #     # u = data_dict['pred_target_delta_uvs'][0].cpu().numpy()[:,:,0]
-            #     # v = data_dict['pred_target_delta_uvs'][0].cpu().numpy()[:,:,1]
-            #     # uv_min = np.minimum(u,v) + 0.000001
-            #     # u /=uv_min
-            #     # v /=uv_min
-            #     try:
-            #         u = data_dict['pred_target_delta_uvs'][0].detach().data.numpy()[:,:,0]
-            #         v = data_dict['pred_target_delta_uvs'][0].detach().data.numpy()[:,:,1]
-            #     except:
-            #         u = data_dict['pred_target_delta_uvs'][0].cpu().data.numpy()[:,:,0]
-            #         v = data_dict['pred_target_delta_uvs'][0].cpu().data.numpy()[:,:,1]               
-            
-            # elif len(data_dict['pred_target_delta_uvs'].shape)==3:
-            #     # u = data_dict['pred_target_delta_uvs'].cpu().numpy()[:,:,0]
-            #     # v = data_dict['pred_target_delta_uvs'].cpu().numpy()[:,:,1]
-            #     try:
-            #         u = data_dict['pred_target_delta_uvs'].detach().data.numpy()[:,:,0]
-            #         v = data_dict['pred_target_delta_uvs'].detach().data.numpy()[:,:,1]
-            #     except:
-            #         u = data_dict['pred_target_delta_uvs'].cpu().data.numpy()[:,:,0]
-            #         v = data_dict['pred_target_delta_uvs'].cpu().data.numpy()[:,:,1]
-
-            # plt.quiver(x,y,u,v)
-            # plt.savefig('/data/pantea/pantea_experiments_chunky/per_person/from_paper/runs/find_uvs/uv_images/delta/uvs_'+str(self.counter)+'.png')
-            # plt.close()
-
-            # self.counter+=1
 
         return visuals
 
