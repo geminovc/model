@@ -1,5 +1,11 @@
 """
-This file is for picking the source and target frames that have keypoints with L2 disance less than a threshold.
+This file is for picking the source and target frames that:
+
+if dataset_method = 'l2_distance':
+
+
+
+have keypoints with L2 disance less than a threshold.
 Before using this dataloader, you need to do a preprocess on the dataset using the difficult_poses module.
 
 The structure of input dataset is:
@@ -10,7 +16,7 @@ Each L2_Distances.pkl file contains a dictionary with the following structure:
 
 {
 ('-1','-1'): 'data_root of the dataset that the keypoints belong to',
-('frame_num_1','frame_num_1'): 'L2_distance (keypoint_1, keypoint_2)',
+('frame_num_1','frame_num_2'): 'L2_distance (keypoint_1, keypoint_2)',
 ...
 }
 
@@ -67,7 +73,7 @@ ROOT_TO_CLOSE_KEYPOINTS = RESULTS_FOLDER/DATASET_NAME
 Arguments
 ----------
 
-root_to_close_keypoints: The root directory to where the L2_distances of the input data_root is stored. 
+root_to_pkl_keypoints: The root directory to where the L2_distances of the input data_root is stored. 
         
 close_keypoints_threshold: The threshold with which we call two keypoints close. 
 
@@ -135,36 +141,20 @@ class DatasetWrapper(data.Dataset):
         
         parser.add('--stickmen_thickness',       default=2, type=int, 
                                                  help='thickness of lines in the stickman')
-        
-        parser.add('--frame_num_from_paper',     default='False', type=rn_utils.str2bool, choices=[True, False],
-                                                 help='The random method to sample frame numbers for source and target from dataset')
-        
-        parser.add('--dataset_load_from_txt',    default='False', type=rn_utils.str2bool, choices=[True, False],
-                                                 help='If True, the train is loaded from train_load_from_filename, the test is loaded from test_load_from_filename. If false, the data is loaded from data-root')
-        
-        parser.add('--save_dataset_filenames',   default='False', type=rn_utils.str2bool, choices=[True, False],
-                                                 help='If True, the train/test data is saved in train/test_filnames.txt')
 
-        parser.add('--train_load_from_filename', default='train_filnames.txt', type=str,
-                                                 help='filename that we read the training dataset images from if dataset_load_from_txt==True')                                    
+        # Paired target and source 
 
-        parser.add('--test_load_from_filename',  default='test_filnames.txt', type=str,
-                                                 help='filename that we read the testing dataset images from if dataset_load_from_txt==True')
-
-        parser.add('--augment_with_general',     default='False', type=rn_utils.str2bool, choices=[True, False],
-                                                 help='gradually increase the weight of general dataset while training the per_person dataset')
-
-        parser.add('--txt_directory',            default='/data4/pantea/nets_implementation/original_bilayer/difficult_poses/results/temp_per_person_extracts', type=str, 
-                                                 help='gradually increase the weight of general dataset while training the per_person dataset')
-
-        # Paired target and source (close keypoints)                              
-
-        parser.add('--root_to_close_keypoints',  default='/data4/pantea/nets_implementation/original_bilayer/difficult_poses/results/temp_per_person_extracts', type=str, 
+        parser.add('--dataset_method',           default='l2_distance', type=str,
+                                                 help='could be l2_distance or difficult_pose')
+                                     
+        parser.add('--root_to_pkl_keypoints',    default='/video-conf/scratch/pantea/pose_results/close_l2_keypoints/temp_per_person_extracts', type=str, 
                                                  help='If True, the images, keypoints, and segs are picked from files')
         
         parser.add('--close_keypoints_threshold',default=500, type=float,
                                                  help='threshold of defining two close keypoints')
-        
+
+        parser.add('--mask_source_and_target',   default='True', type=rn_utils.str2bool, choices=[True, False],
+                                                 help='mask the souce and target from the beginning')         
         return parser
 
     def __init__(self, args, phase, pose_component = 'none'):
@@ -172,27 +162,11 @@ class DatasetWrapper(data.Dataset):
         # Store options
         self.phase = phase
         self.args = args
-        self.train_load_index=0
-        self.test_load_index=0
 
         self.to_tensor = transforms.ToTensor()
         self.epoch = 0 if args.which_epoch == 'none' else int(args.which_epoch)
 
-
-        if self.args.dataset_load_from_txt:
-
-            if self.phase == 'train':
-                my_file = open(str(self.args.train_load_from_filename), "r")
-            else:
-                my_file = open(str(self.args.test_load_from_filename), "r")
-
-            content = my_file.read()
-            data_list = content.split("\n")
-            my_file.close()
-            data_root = args.data_root
-            
-        else:
-            data_root = args.data_root
+        data_root = args.data_root
 
         if phase == 'metrics':
             data_root = args.metrics_root
@@ -204,18 +178,15 @@ class DatasetWrapper(data.Dataset):
         if args.output_segmentation:
             self.segs_dir = pathlib.Path(data_root) / 'segs' / phase
         
-        self.close_keypoints_dir = self.args.root_to_close_keypoints + '/' + self.phase
+        self.pkl_keypoints_dir = self.args.root_to_pkl_keypoints + '/' + self.phase
         
         # Video sequences list
         # Please don't mix the sequence, which is the total number of videos, with sessions (which are essentially short video clips).
         # Each sequence, is made up of multiple sessions.
 
-        sequences = self.imgs_dir.glob('*/*')
+        sequences = pathlib.Path(self.pkl_keypoints_dir).glob('*/*')
         self.sequences = ['/'.join(str(seq).split('/')[-2:]) for seq in sequences]
 
-        # Since the general dataset is too big, we sample 22 items if sample is chosen
-        if self.args.sample_general_dataset and self.args.data_root == self.args.general_data_root:
-            self.sequences = random.sample(self.sequences, 22)
 
         # If you are using metrics, sort the Sequences so it's easier
         # to keep track of them between runs
@@ -224,15 +195,11 @@ class DatasetWrapper(data.Dataset):
         
         print(len(self.sequences), self.sequences)
 
-        # Parameters of the sampling scheme
-        self.delta = math.sqrt(5)
-        self.cur_num = torch.rand(1).item()
 
         #make a directory to save test and train paths
         # Prepare experiment directories and save options
         experiment_dir = pathlib.Path(args.experiment_dir)
         self.experiment_dir = experiment_dir / 'runs' / args.experiment_name
-
 
 
     # Load the pickle files as dictionary
@@ -247,11 +214,14 @@ class DatasetWrapper(data.Dataset):
         keypoints_dict.pop(('-1', '-1'), None)
         return [k for k,v in keypoints_dict.items() if float(v) >= threshold and k!= ('-1', '-1')]
 
-
+    def find_difficult_keypoints (self, keypoints_dict):
+        # The ('-1') key contains the data_root of the keypoints
+        keypoints_dict.pop(('-1'), None)
+        return [v for k,v in keypoints_dict.items()]
 
     def __getitem__(self, index):
         
-        # No close keypoints for metrics loader
+        # No pkl keypoints for metrics loader
         if self.phase == 'metrics':
             while True:
                 count+=1
@@ -290,17 +260,24 @@ class DatasetWrapper(data.Dataset):
             filenames = []
 
             # Load all pickle file for the current video 
-            keypoints_pickles = list(pathlib.Path(self.close_keypoints_dir + '/' + self.sequences[index]).glob('*/*'))
+            keypoints_pickles = list(pathlib.Path(self.pkl_keypoints_dir + '/' + self.sequences[index]).glob('*/*'))
             
             # Sample one session from the video
             keypoints_pickle_path = random.sample(keypoints_pickles, 1)[0]
             keypoints_dict =  self.load_pickle(keypoints_pickle_path)
-            close_keys = self.find_close_keypoints(keypoints_dict, self.args.close_keypoints_threshold)
+
+            if self.args.dataset_method == 'l2_distance':
+                close_keys = self.find_close_keypoints(keypoints_dict, self.args.close_keypoints_threshold)
+                # The source and target relative paths (sample one pair from the close keypoints in a session)
+                relative_path = '/'.join(str(keypoints_pickle_path).split('/')[-4:-1])
+                source_target_pair = random.sample(close_keys, 1)[0]
             
-            
-            # The source and target relative paths (sample one pair from the close keypoints in a session)
-            relative_path = '/'.join(str(keypoints_pickle_path).split('/')[-4:-1])
-            source_target_pair = random.sample(close_keys, 1)[0]
+            elif self.args.dataset_method == 'difficult_pose':
+                difficult_frames = self.find_difficult_keypoints(keypoints_dict)
+                # The source and target relative paths (sample one pair from the close keypoints in a session)
+                relative_path = '/'.join(str(difficult_pose_pickle_path).split('/')[-4:-1])
+                source_target_pair = random.sample(difficult_frames, 2)
+
             filenames = [pathlib.Path(relative_path+'/'+source_target_pair[0]), pathlib.Path(relative_path+'/'+source_target_pair[1])]
             random.shuffle(filenames)
             print(filenames)
@@ -355,20 +332,6 @@ class DatasetWrapper(data.Dataset):
             keypoints_path = pathlib.Path(self.pose_dir) / filename.with_suffix('.npy')
             try:
                 keypoints = np.load(keypoints_path).astype('float32')
-                
-                if self.args.save_dataset_filenames:
-                    # write the filename to file
-                    if len (imgs) <= self.args.num_source_frames :
-                        save_file = self.phase + "_filenames.txt"
-                        with open(self.experiment_dir / save_file, 'a') as data_file:
-                            data_file.write('source %s:%s\n' % (str(len (imgs)), str(filename.with_suffix('.jpg'))))
-                    
-                    if len (imgs) > self.args.num_source_frames:
-                        save_file = self.phase + "_filenames.txt"
-                        with open(self.experiment_dir / save_file, 'a') as data_file:
-                            data_file.write('target %s:%s\n' % (str(len (imgs)-self.args.num_source_frames), \
-                                    str(filename.with_suffix('.jpg'))))
-            
             except:
                 imgs.pop(-1)
 
@@ -436,7 +399,11 @@ class DatasetWrapper(data.Dataset):
             if self.args.num_source_frames:
                 data_dict['source_segs'] = segs[:self.args.num_source_frames]
             data_dict['target_segs'] = segs[self.args.num_source_frames:]
-        
+
+        if self.args.mask_source_and_target and self.args.output_segmentation:
+            data_dict['source_imgs'] = data_dict['source_imgs'] * data_dict['source_segs'] + (-1) * (1 - data_dict['source_segs'])
+            data_dict['target_imgs'] = data_dict['target_imgs'] * data_dict['target_segs'] + (-1) * (1 - data_dict['target_segs'])     
+
         data_dict['indices'] = torch.LongTensor([index])
 
         return data_dict
