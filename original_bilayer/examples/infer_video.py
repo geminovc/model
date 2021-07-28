@@ -91,7 +91,7 @@ parser.add_argument('--experiment_dir',
         default= '/data/pantea/pantea_experiments_chunky/per_person/from_paper',
         help='root directory where the experiment and its checkpoints are saved ')
 
-parser.add_argument('--experiment-name',
+parser.add_argument('--experiment_name',
         type=str,
         default= 'original_frozen_Gtex_from_identical',
         help='associated name of the experimnet')
