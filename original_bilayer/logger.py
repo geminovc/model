@@ -120,10 +120,10 @@ class Logger(object):
                 if phase != 'train':
                     tensorboard_phase = f'{phase}_{pose_component}'
                 elif phase == 'metrics':
-                    tensorboard_phase = f'{tensorboard_phase}_{metrics_index}'
+                    tensorboard_phase = f'{phase}_{metrics_index}'
                 else:
                     tensorboard_phase = phase
-                    
+
                 self.writer.add_image(f'results_{tensorboard_phase}', visuals, self.num_iter[(phase, pose_component)])
             else:
 
@@ -134,13 +134,12 @@ class Logger(object):
             
                 self.writer.add_image(f'results_{tensorboard_phase}', visuals, self.num_iter[phase])
 
-            # Save losses
+            # Save losses, metrics, and tensorboard 
             for key, value in losses.items():
                 if key in self.losses:
                     self.losses[key].append(value)
                 else:
                     self.losses[key] = [value]
-                # Writing to tensoboard
                 if self.differentiate_by_poses:
                     self.writer.add_scalar(f'losses/{key}_{tensorboard_phase}', value, self.num_iter[(phase, pose_component)])
                 else:
@@ -151,8 +150,7 @@ class Logger(object):
                     self.metrics[key].append(value)
                 else:
                     self.metrics[key] = [value]
-                
-                # Writing to tensoboard
+                                    
                 if self.differentiate_by_poses:
                     self.writer.add_scalar(f'metrics/{key}_{tensorboard_phase}', value, self.num_iter[(phase, pose_component)])
                 else:

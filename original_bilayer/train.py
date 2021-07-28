@@ -373,6 +373,8 @@ class TrainingWrapper(object):
             # with open(self.experiment_dir / test_file, 'a') as data_file:
             #     data_file.write('\n')
 
+    # The following function puts the `model` in the evaulation mode and runs -using `runner`- through all the data in `my_dataloader` with `num_gpus` GPU
+    # The output is logged using `my_logger` module with `my_string` = [phase, pose_information]  
     def test_the_model (self, runner, model, my_dataloader, num_gpus, debug, my_logger, my_string):
         # Test on combined 
         time_start = time.time()
@@ -433,6 +435,7 @@ class TrainingWrapper(object):
         # Get test dataloaders
         if not args.skip_test:
             args.dataloader_name = args.test_dataloader_name
+            # Separate if need be by yaw into easy/hard/combo poses
             if args.dataloader_name == 'yaw':
                 # Easy pose
                 test_easy_pose_dataloader = ds_utils.get_dataloader(args, 'test', 'easy_pose')
@@ -449,7 +452,6 @@ class TrainingWrapper(object):
         
         if not args.skip_metrics:
             metrics_dataloader = ds_utils.get_dataloader(args, 'metrics', 'none')
-
 
         model = runner = self.runner
 
@@ -501,35 +503,16 @@ class TrainingWrapper(object):
 
         total_iters = 1
         iter_count = 0
-
+        
+        # Initialize logging
         if args.test_dataloader_name != 'yaw':
-            # Initialize logging
-
             logger = Logger(args, self.experiment_dir, differentiate_by_poses= False)
             logger.set_num_iter_no_pose(
                 train_iter=train_iter, 
                 test_iter=(epoch_start - 1) // args.test_freq,
                 metrics_iter=(epoch_start - 1) // args.metrics_freq,
-                unseen_test_iter=(epoch_start - 1) // args.test_freq)
-
-            # Adding the first test image on the logger for sanity check
-            if args.save_initial_test_before_training:
-                print("Testing the model before starts training for sanity check")
-                if args.augment_with_general and args.data_root!=args.general_data_root:
-                    train_dataloader = personal_train_dataloader
-                else:
-                    train_dataloader = original_train_dataloader
-                # Calculate "standing" stats for the batch normalization
-                train_dataloader.dataset.shuffle()
-                if args.calc_stats:
-                    runner.calculate_batchnorm_stats(train_dataloader, args.debug)
-
-                # Test on seen videos
-                self.test_the_model (runner, model, test_dataloader, args.num_gpus, args.debug, logger, ['test','none'] )
-        
+                unseen_test_iter=(epoch_start - 1) // args.test_freq)        
         else: # the test_dataloader_name is 'yaw'
-            
-            # Initialize logging
             logger = Logger (args, self.experiment_dir, differentiate_by_poses= True)
             logger.set_num_iter_with_pose(
                 train_iter=train_iter, 
@@ -541,33 +524,37 @@ class TrainingWrapper(object):
                 unseen_test_hard_pose_iter=(epoch_start - 1) // args.test_freq,
                 unseen_test_combined_pose_iter=(epoch_start - 1) // args.test_freq)
 
-
-            # Adding the first test image on the logger for sanity check
-            if args.save_initial_test_before_training:
-                print("Testing the model before starts training for sanity check")
+        # Adding the first test image on the logger for sanity check
+        if args.save_initial_test_before_training:
+            print("Testing the model before starts training for sanity check")
+            if args.augment_with_general and args.data_root!=args.general_data_root:
+                train_dataloader = personal_train_dataloader
+            else:
                 train_dataloader = original_train_dataloader
-                # Calculate "standing" stats for the batch normalization
-                train_dataloader.dataset.shuffle()
-                if args.calc_stats:
-                    runner.calculate_batchnorm_stats(train_dataloader, args.debug)
-
-                # Test on seen videos, unseen sessions
+            # Calculate "standing" stats for the batch normalization
+            train_dataloader.dataset.shuffle()
+            if args.calc_stats:
+                runner.calculate_batchnorm_stats(train_dataloader, args.debug)
+            # Testing the model and logging the data
+            if args.test_dataloader_name == 'yaw'
+                # Test on seen videos, unseen sessions along with pose information
                 self.test_the_model (runner, model, test_combined_pose_dataloader, args.num_gpus, args.debug, logger, ['test','combined_pose'] )
                 self.test_the_model (runner, model, test_hard_pose_dataloader, args.num_gpus, args.debug, logger, ['test','hard_pose'] )
                 self.test_the_model (runner, model, test_easy_pose_dataloader, args.num_gpus, args.debug, logger, ['test','easy_pose'] )
                 
-                # Test on unseen videos
+                # Test on unseen videos along with pose information
                 self.test_the_model (runner, model, unseen_test_combined_pose_dataloader, args.num_gpus, args.debug, logger, ['unseen_test','combined_pose'] )
                 self.test_the_model (runner, model, unseen_test_easy_pose_dataloader, args.num_gpus, args.debug, logger, ['unseen_test','easy_pose'] )
                 self.test_the_model (runner, model, unseen_test_hard_pose_dataloader, args.num_gpus, args.debug, logger, ['unseen_test','hard_pose'] )
+            else:
+                # Test on seen videos
+                self.test_the_model (runner, model, test_dataloader, args.num_gpus, args.debug, logger, ['test','none'] )
 
         # Iterate over epochs (main training loop)
         for epoch in range(epoch_start, args.num_epochs + 1):
             self.epoch_start = time.time()
             if args.rank == 0: 
                 print('epoch %d' % epoch)
-
-            # Train for one epoch from now on
 
             # Initiate all the networks in the training mode 
             model.train() 
@@ -583,8 +570,7 @@ class TrainingWrapper(object):
                     train_dataloader = personal_train_dataloader
             else:
                 train_dataloader = original_train_dataloader
-                
-            
+
             # Shuffle the dataset before the epoch
             train_dataloader.dataset.shuffle()
             for i, data_dict in enumerate(train_dataloader, 1):
@@ -634,10 +620,8 @@ class TrainingWrapper(object):
                     opt.step(closure)
 
                 if not epoch % args.visual_freq:
-
                     logger.output_logs('train', 'none', runner.output_visuals(), runner.output_losses(), \
                             runner.output_metrics(), time.time() - time_start)
-
                     if args.debug:
                         break
 
@@ -647,7 +631,6 @@ class TrainingWrapper(object):
             
             # Increment the epoch counter in the training dataset
             train_dataloader.dataset.epoch += 1
-
             # If skip test flag is set -- only check if a checkpoint if required
             if not args.skip_test and not epoch % args.test_freq:
                 # Calculate "standing" stats for the batch normalization
@@ -666,52 +649,11 @@ class TrainingWrapper(object):
                     self.test_the_model (runner, model, unseen_test_easy_pose_dataloader, args.num_gpus, args.debug, logger, ['unseen_test','easy_pose'] )
                     self.test_the_model (runner, model, unseen_test_hard_pose_dataloader, args.num_gpus, args.debug, logger, ['unseen_test','hard_pose'] )
 
-                
                 else:
                     self.test_the_model (runner, model, test_dataloader, args.num_gpus, args.debug, logger, ['test'] )
                     self.test_the_model (runner, model, unseen_test_dataloader, args.num_gpus, args.debug, logger, ['unseen_test'] )
-                    # # Test on seen videos
-                    # time_start = time.time()
-                    # model.eval()
 
-                    # test_dataloader.dataset.shuffle()
-                    # for data_dict in test_dataloader:
-                    #     # Prepare input data
-                    #     if args.num_gpus > 0:
-                    #         for key, value in data_dict.items():
-                    #             data_dict[key] = value.cuda()
-
-                    #     # Forward pass
-                    #     with torch.no_grad():
-                    #         model(data_dict)
-                        
-                    #     if args.debug:
-                    #         break
-                    # logger.output_logs('test', runner.output_visuals(), runner.output_losses(), \
-                    #     runner.output_metrics(), time.time() - time_start)
-                    
-                    
-                    # # Test on unseen videos
-                    # time_start = time.time()
-                    # model.eval()
-
-                    # unseen_test_dataloader.dataset.shuffle()
-                    # for data_dict in unseen_test_dataloader:
-                    #     # Prepare input data
-                    #     if args.num_gpus > 0:
-                    #         for key, value in data_dict.items():
-                    #             data_dict[key] = value.cuda()
-
-                    #     # Forward pass
-                    #     with torch.no_grad():
-                    #         model(data_dict)
-                        
-                    #     if args.debug:
-                    #         break
-                    # logger.output_logs('unseen_test', runner.output_visuals(), runner.output_losses(), \
-                    #     runner.output_metrics(), time.time() - time_start)
-
-                # If skip metrics flag is set -- only check if a checkpoint if required
+                # Get performance on metrics dataset if metrics aren't skipped or a checkpoint is required
                 if not args.skip_metrics and not epoch % args.metrics_freq:
                     # Calculate "standing" stats for the batch normalization
                     if args.calc_stats:

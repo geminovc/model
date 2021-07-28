@@ -1,14 +1,12 @@
 """
 This file generates .pkl files from datasets with the voxceleb2 dataset structure, and stores them in the voxceleb2 dataset structure.
-Each .pkl file contains the frame number of images with difficult poses in each session.    
+Each .pkl file contains the frame number of images with left_tilted difficult poses in each session.    
+A difficult left_tilted pose is a pose where the nose covers the cheeks behind it.  
 
 The main voxceleb dataset structure is in the format of:
 DATA_ROOT/[imgs, keypoints, segs]/[train, test]/PERSON_ID/VIDEO_ID/SEQUENCE_ID/FRAME_NUM[.jpg, .npy, .png]
 
-This file reads all the 
-
-DATA_ROOT/keypoints/[train, test]/PERSON_ID/VIDEO_ID/SEQUENCE_ID/*
-
+This file reads all the DATA_ROOT/keypoints/[train, test]/PERSON_ID/VIDEO_ID/SEQUENCE_ID/*
 and stores the frame number of images with difficult poses in the format of:
 RESULTS_FOLDER/DATASET_NAME/[train, test]/PERSON_ID/VIDEO_ID/SEQUENCE_ID/Difficult_poses.pkl
 
@@ -96,40 +94,52 @@ parser.add_argument('--min_per_session_keypoints',
 
 args = parser.parse_args()
 
+# The function determines if a pose -shown by the keypoints- is difficult 
+# A difficult pose is a pose where the nose covers the cheeks behind it.  
 def is_difficult (keypoints):
     keypoints = keypoints.reshape((68,2))
-    
-    left_width = (keypoints[30,1]-keypoints[2,1])**2 + (keypoints[30,0]-keypoints[2,0])**2
-    right_width = (keypoints[30,1]-keypoints[14,1])**2 + (keypoints[30,0]-keypoints[14,0])**2
+    # keypoints [30]: nose tip
+    # keypoints [33]: connection of nose and philtrum
+    # keypoints [0] to keypoints [4]: right cheek
+    # keypoints [12] to keypoints [16]: left cheek
+    # keypoints[27]: left most side of the left eyebrow 
+
+    # left_width is an estimator of the width of the left side of the face
+    # right_width is an estimator of the width of the right side of the face
+    left_width = (keypoints[30,1] - keypoints[2,1])**2 + (keypoints[30,0] - keypoints[2,0])**2
+    right_width = (keypoints[30,1] - keypoints[14,1])**2 + (keypoints[30,0] - keypoints[14,0])**2
     difficulty = 0
     
     # left-tilted pose
+
     for i in range(1,4):
-        if keypoints[30,0]-keypoints[33,0] != 0:
-            if left_width < right_width and keypoints[i,1]<(keypoints[30,1]-keypoints[33,1])/(keypoints[30,0]-keypoints[33,0])*(keypoints[i,0]-keypoints[33,0])+keypoints[33,1]:
-                if keypoints[i,0] >= min(keypoints[30,0],keypoints[33,0]) and keypoints[i,0] <= max(keypoints[30,0],keypoints[33,0]):
-                #if keypoints[i,1] >= min(keypoints[30,1],keypoints[33,1]) and keypoints[i,1] <= max(keypoints[30,1],keypoints[33,1]):
-                    print("danger")
-                    difficulty+=1
+        if keypoints[30,0] - keypoints[33,0] != 0:
+            m = (keypoints[30,1] - keypoints[33,1]) / (keypoints[30,0] - keypoints[33,0])
+            if left_width < right_width and keypoints[i,1] < m * (keypoints[i,0] - keypoints[33,0]) + keypoints[33,1]:
+                if keypoints[i,0] >= min(keypoints[30,0], keypoints[33,0]) and keypoints[i,0] <= max(keypoints[30,0], keypoints[33,0]):
+                #if keypoints[i,1] >= min(keypoints[30,1], keypoints[33,1]) and keypoints[i,1] <= max(keypoints[30,1], keypoints[33,1]):
+                    print("found difficult pose!")
+                    difficulty += 1
         else:
             if left_width < right_width  and keypoints[i,0] >= keypoints[30,0]:
             #if keypoints[i,1] >= min(keypoints[30,1],keypoints[33,1]) and keypoints[i,1] <= max(keypoints[30,1],keypoints[33,1]):
-                print("danger!")
-                difficulty+=1
+                print("found difficult pose!!")
+                difficulty += 1
 
-        if keypoints[30,0]-keypoints[27,0] != 0:
-            if left_width < right_width and keypoints[i,1]>(keypoints[30,1]-keypoints[27,1])/(keypoints[30,0]-keypoints[27,0])*(keypoints[i,0]-keypoints[27,0])+keypoints[27,1]:
-                if keypoints[i,0] >= min(keypoints[30,0],keypoints[33,0]) and keypoints[i,0] <= max(keypoints[30,0],keypoints[33,0]):
-                #if keypoints[i,1] >= min(keypoints[30,1],keypoints[27,1]) and keypoints[i,1] <= max(keypoints[30,1],keypoints[27,1]):
-                    print("danger!")
-                    difficulty+=1
+        if keypoints[30,0] - keypoints[27,0] != 0:
+            m = (keypoints[30,1] - keypoints[27,1]) / (keypoints[30,0] - keypoints[27,0])
+            if left_width < right_width and keypoints[i,1]> m * (keypoints[i,0] - keypoints[27,0]) + keypoints[27,1]:
+                if keypoints[i,0] >= min(keypoints[30,0], keypoints[33,0]) and keypoints[i,0] <= max(keypoints[30,0], keypoints[33,0]):
+                #if keypoints[i,1] >= min(keypoints[30,1], keypoints[27,1]) and keypoints[i,1] <= max(keypoints[30,1], keypoints[27,1]):
+                    print("found difficult pose!!")
+                    difficulty += 1
         else:
             if left_width < right_width  and keypoints[i,0] >= keypoints[27,0]:
-            #if keypoints[i,1] >= min(keypoints[30,1],keypoints[27,1]) and keypoints[i,1] <= max(keypoints[30,1],keypoints[27,1]):
-                print("danger!")
-                difficulty+=1
+            #if keypoints[i,1] >= min(keypoints[30,1], keypoints[27,1]) and keypoints[i,1] <= max(keypoints[30,1], keypoints[27,1]):
+                print("found difficult pose!!")
+                difficulty += 1
 
-    if difficulty >0:
+    if difficulty > 0:
         return True
     
     return False
@@ -140,32 +150,34 @@ phase = args.phase
 dataset_name =  str(data_root).split('/')[-1:][0]
 main_dir = str(args.results_folder) + '/' + str(dataset_name)
 
-keypoint_directory=pathlib.Path(data_root + '/keypoints/' + phase)
+# Going through all the keypoints to find the difficult ones
+keypoint_directory = pathlib.Path(data_root + '/keypoints/' + phase)
 print(keypoint_directory)
+
 # Find all the video sessions
 keypoints_sessions = keypoint_directory.glob('*/*/*')
 keypoints_sessions = sorted([str(seq) for seq in keypoints_sessions])
 
 for session in keypoints_sessions:
-    session_relative_name= '/'.join(str(session).split('/')[-4:])
+    session_relative_name = '/'.join(str(session).split('/')[-4:])
     session_directory = pathlib.Path(str(session))
     keypoints_paths = session_directory.glob('*')
     keypoints_paths = sorted([str(seq) for seq in keypoints_paths])
     save_dir = main_dir + '/' + session_relative_name
     mydict = {}
     counter = 0
-    mydict [('-1')]= str(data_root)
-    for i in range(0, len(keypoints_paths)-1):
+    mydict [('-1')] = str(data_root)
+    for i in range(0, len(keypoints_paths) - 1):
         print(i)
         keypoints1 = np.load(keypoints_paths[i])
         flag = is_difficult(keypoints1)
         if flag:
             name_1 = '/'.join(str(keypoints_paths[i]).split('/')[-1:])
-            name_1= name_1.split('.')[0]
+            name_1 = name_1.split('.')[0]
             mydict[(str(counter))] = name_1
-            counter+=1
+            counter += 1
     
-    if len(mydict) >= 1+ args.min_per_session_keypoints:
+    if len(mydict) >= 1 + args.min_per_session_keypoints:
         print("Saving the pickle for session!")
         os.makedirs(str(save_dir), exist_ok=True)
         pickle.dump(mydict,  open(str(save_dir) + "/" + 'Difficult_poses' + '.pkl', 'wb'))
