@@ -212,6 +212,8 @@ class TrainingWrapper(object):
         parser.add('--dropout_networks',                                default='texture_generator: 0.5' ,
                                                                         help='networks to use dropout in: the dropout rate')
            
+        parser.add('--root_to_yaws',                                    default='/video-conf/scratch/pantea/pose_results/yaws/per_person_1_three_datasets/angles', type=str, 
+                                                                        help='The directory where the yaws are stored in voxceleb2 format')
 
         # Technical options that are set automatically
         parser.add('--local_rank', default=0, type=int)

@@ -11,6 +11,7 @@ test_freq=${7}
 metrics_freq=${8}
 train_dataloader_name=${9}
 data_root=${10}
+root_to_yaws=${11}
 
 # Depending on the machine you run the code from, the directory to save experiments is different due to write access
 if [[ "$machine" == "chunky" ]]; then
@@ -18,7 +19,6 @@ if [[ "$machine" == "chunky" ]]; then
 elif [[ "$machine" == "mapmaker" ]]; then
     experiment_dir=/video-conf/scratch/pantea_experiments_mapmaker/${dataset_name}/${initialization}
 fi 
-
 
 
 # Add initialization options
@@ -174,6 +174,7 @@ python train.py \
     --init_which_epoch ${init_which_epoch} \
     --train_dataloader_name ${train_dataloader_name} \
     --visualize_discriminator_scores False \
+    --root_to_yaws ${root_to_yaws}
 
 
 
