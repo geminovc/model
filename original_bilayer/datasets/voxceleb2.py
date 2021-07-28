@@ -180,7 +180,6 @@ class DatasetWrapper(data.Dataset):
 
         if self.args.same_source_and_target:
             selected_filename = random.randint(0, (len(filenames) - 1))
-            filenames = [filenames[selected_filename] for i in filenames]
 
         imgs = []
         poses = []
@@ -203,22 +202,23 @@ class DatasetWrapper(data.Dataset):
                 filename = filenames[reserve_index]
 
             else:
-                if self.phase == 'metrics':
-                    # If you are taking the metrics, you want to return frame_num 0 then frame_num 1
-                    # we can check which one to return in this iteration by checking the length of imgs
-                    frame_num = len(imgs)
-                elif self.args.frame_num_from_paper:
-                    frame_num = int(round(self.cur_num * (len(filenames) - 1)))
-                    self.cur_num = (self.cur_num + self.delta) % 1
-
+                if self.args.same_source_and_target:
+                    frame_num = selected_filename
                 else:
-                    frame_num = random.randint(0, (len(filenames) - 1))
-                    # If you want to use parallel learning, use torch (not numpy)
+                    if self.phase == 'metrics':
+                        # If you are taking the metrics, you want to return frame_num 0 then frame_num 1
+                        # we can check which one to return in this iteration by checking the length of imgs
+                        frame_num = len(imgs)
+                    elif self.args.frame_num_from_paper:
+                        frame_num = int(round(self.cur_num * (len(filenames) - 1)))
+                        self.cur_num = (self.cur_num + self.delta) % 1
+                    else:
+                        frame_num = random.randint(0, (len(filenames) - 1))
+                        # If you want to use parallel learning, use torch (not numpy)
 
                 filename = filenames[frame_num]
 
-            # Read images
-            
+            # Read images and keypoints 
             img_path = pathlib.Path(self.imgs_dir) / filename.with_suffix('.jpg')
             
             if self.phase == 'test':

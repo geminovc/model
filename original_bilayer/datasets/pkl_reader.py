@@ -115,7 +115,10 @@ class DatasetWrapper(data.Dataset):
                                                  help='threshold of defining two close keypoints')
 
         parser.add('--mask_source_and_target',   default='True', type=rn_utils.str2bool, choices=[True, False],
-                                                 help='mask the souce and target from the beginning')         
+                                                 help='mask the souce and target from the beginning')
+        
+        parser.add('--same_source_and_target',   default='False', type=rn_utils.str2bool, choices=[True, False],
+                                                 help='set source = target in the experminet')         
         return parser
 
     def __init__(self, args, phase, pose_component = 'none'):
@@ -233,8 +236,13 @@ class DatasetWrapper(data.Dataset):
                 source_target_pair = random.sample(difficult_frames, 2)
 
             filenames = [pathlib.Path(relative_path+'/'+source_target_pair[0]), pathlib.Path(relative_path+'/'+source_target_pair[1])]
+            if self.args.same_source_and_target:
+                filenames = [pathlib.Path(relative_path+'/'+source_target_pair[0]), pathlib.Path(relative_path+'/'+source_target_pair[0])]
+            
             random.shuffle(filenames)
             print(filenames)
+
+
 
         imgs = []
         poses = []
