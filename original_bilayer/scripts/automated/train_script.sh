@@ -9,9 +9,11 @@ batch_size=${5}
 num_epochs=${6}
 test_freq=${7}
 metrics_freq=${8}
-train_dataloader_name=${9}
-data_root=${10}
-root_to_yaws=${11}
+checkpoint_freq=${9}
+visual_freq=${10}
+train_dataloader_name=${11}
+data_root=${12}
+root_to_yaws=${13}
 
 # Depending on the machine you run the code from, the directory to save experiments is different due to write access
 if [[ "$machine" == "chunky" ]]; then
@@ -55,7 +57,7 @@ python train.py \
     --batch_size ${batch_size} \
     --bn_momentum 1.0 \
     --calc_stats \
-    --checkpoint_freq 1000 \
+    --checkpoint_freq ${checkpoint_freq} \
     --data_root ${data_root} \
     --general_data_root /video-conf/scratch/pantea/temp_general_extracts \
     --dis_activation_type leakyrelu \
@@ -145,7 +147,7 @@ python train.py \
     --stats_calc_iters 500 \
     --stickmen_thickness 2 \
     --test_freq ${test_freq} \
-    --visual_freq 100 \
+    --visual_freq ${visual_freq} \
     --wpr_loss_apply_to pred_target_delta_uvs \
     --wpr_loss_decay_schedule '-1' \
     --wpr_loss_type l1 \
