@@ -486,4 +486,4 @@ class DatasetWrapper(data.Dataset):
     # To shuffle the dataset before the epoch
     def shuffle(self):
         if self.phase != 'metrics': # Don't shuffle metrics
-        self.sequences = [self.sequences[i] for i in torch.randperm(len(self.sequences)).tolist()]
+            self.sequences = [self.sequences[i] for i in torch.randperm(len(self.sequences)).tolist()]

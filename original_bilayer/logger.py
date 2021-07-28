@@ -94,7 +94,7 @@ class Logger(object):
                     if phase == 'metrics':
                         self.to_image(visuals).save(self.experiment_dir \
                             / 'images' / phase / str(metrics_index) / ('%04d_%02d.jpg' % (self.num_iter[(phase, pose_component)], self.rank)))
-                    elif:
+                    else:
                         self.to_image(visuals).save(self.experiment_dir \
                             / 'images' / phase / str(pose_component) / ('%04d_%02d.jpg' % (self.num_iter[(phase, pose_component)], self.rank)))
 
@@ -174,7 +174,7 @@ class Logger(object):
             'metrics' : metrics_iter,
             'unseen_test': unseen_test_iter}
 
-    def set_num_iter_with_pose(self, train_iter, metrics_itr, test_easy_pose_iter, test_hard_pose_iter, test_combined_pose_iter, 
+    def set_num_iter_with_pose(self, train_iter, metrics_iter, test_easy_pose_iter, test_hard_pose_iter, test_combined_pose_iter, 
                 unseen_test_easy_pose_iter, unseen_test_hard_pose_iter, unseen_test_combined_pose_iter):
 
         self.num_iter = {('train', 'none'): train_iter, ('metrics', 'none'): metrics_iter, ('test', 'easy_pose'): test_easy_pose_iter, 

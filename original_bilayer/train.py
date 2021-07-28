@@ -538,7 +538,7 @@ class TrainingWrapper(object):
             if args.calc_stats:
                 runner.calculate_batchnorm_stats(train_dataloader, args.debug)
             # Testing the model and logging the data
-            if args.test_dataloader_name == 'yaw'
+            if args.test_dataloader_name == 'yaw':
                 # Test on seen videos, unseen sessions along with pose information
                 self.test_the_model (runner, model, test_combined_pose_dataloader, args.num_gpus, args.debug, logger, ['test','combined_pose'] )
                 self.test_the_model (runner, model, test_hard_pose_dataloader, args.num_gpus, args.debug, logger, ['test','hard_pose'] )
