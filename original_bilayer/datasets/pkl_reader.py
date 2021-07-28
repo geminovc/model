@@ -319,6 +319,7 @@ class DatasetWrapper(data.Dataset):
             segs = torch.stack(segs)
 
         # Split between few-shot source and target sets
+        # Assigning the source and target images in the data_dict with the correct key
         data_dict = {}
         if self.args.num_source_frames:
             data_dict['source_imgs'] = imgs[:self.args.num_source_frames]
@@ -349,6 +350,7 @@ class DatasetWrapper(data.Dataset):
     def __len__(self):
         return len(self.sequences)
 
+    # To shuffle the dataset before the epoch
     def shuffle(self):
         if self.phase != 'metrics': # Don't shuffle metrics
             self.sequences = [self.sequences[i] for i in torch.randperm(len(self.sequences)).tolist()]

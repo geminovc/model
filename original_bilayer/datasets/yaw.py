@@ -426,7 +426,7 @@ class DatasetWrapper(data.Dataset):
                 segs += [self.to_tensor(seg)[0][None]]
 
             sample_from_reserve = False
-            
+
         # Normalized the images and poses in (-1,1) range
         imgs = (torch.stack(imgs)- 0.5) * 2.0
         poses = (torch.stack(poses) - 0.5) * 2.0
@@ -438,6 +438,8 @@ class DatasetWrapper(data.Dataset):
             segs = torch.stack(segs)
 
         # Split between few-shot source and target sets
+        # Assigning the source and target images in the data_dict with the correct key
+
         data_dict = {}
         if self.args.num_source_frames:
             data_dict['source_imgs'] = imgs[:self.args.num_source_frames]
@@ -463,6 +465,8 @@ class DatasetWrapper(data.Dataset):
                 
         data_dict['indices'] = torch.LongTensor([index])
 
+        # When the yaw_method is close_uniform, first the bin should be selected 
+        # When all the pairs are selected from the videos, select a random bin for the next round
         if index == len(self.sequences)-1 and self.yaw_method == 'close_uniform':
             self.change_bin = True
             self.change_current_bin()
@@ -479,6 +483,7 @@ class DatasetWrapper(data.Dataset):
     def __len__(self):
         return len(self.sequences)
 
+    # To shuffle the dataset before the epoch
     def shuffle(self):
         if self.phase != 'metrics': # Don't shuffle metrics
         self.sequences = [self.sequences[i] for i in torch.randperm(len(self.sequences)).tolist()]

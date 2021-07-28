@@ -505,7 +505,7 @@ class TrainingWrapper(object):
         if args.test_dataloader_name != 'yaw':
             # Initialize logging
 
-            logger = Logger(args, self.experiment_dir, if_pose_component= False)
+            logger = Logger(args, self.experiment_dir, differentiate_by_poses= False)
             logger.set_num_iter_no_pose(
                 train_iter=train_iter, 
                 test_iter=(epoch_start - 1) // args.test_freq,
@@ -530,9 +530,10 @@ class TrainingWrapper(object):
         else: # the test_dataloader_name is 'yaw'
             
             # Initialize logging
-            logger = Logger (args, self.experiment_dir, if_pose_component= True)
+            logger = Logger (args, self.experiment_dir, differentiate_by_poses= True)
             logger.set_num_iter_with_pose(
                 train_iter=train_iter, 
+                metrics_iter= (epoch_start - 1) // args.metrics_freq,
                 test_easy_pose_iter=(epoch_start - 1) // args.test_freq,
                 test_hard_pose_iter=(epoch_start - 1) // args.test_freq,
                 test_combined_pose_iter=(epoch_start - 1) // args.test_freq,
