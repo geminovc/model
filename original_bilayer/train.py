@@ -533,10 +533,12 @@ class TrainingWrapper(object):
                 train_dataloader = personal_train_dataloader
             else:
                 train_dataloader = original_train_dataloader
+            
             # Calculate "standing" stats for the batch normalization
             train_dataloader.dataset.shuffle()
             if args.calc_stats:
                 runner.calculate_batchnorm_stats(train_dataloader, args.debug)
+
             # Testing the model and logging the data
             if args.test_dataloader_name == 'yaw':
                 # Test on seen videos, unseen sessions along with pose information

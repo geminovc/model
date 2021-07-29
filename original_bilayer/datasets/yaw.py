@@ -1,6 +1,6 @@
 """
 This file is for picking the source and target frames in session that have close yaw. 
-Before using this dataloader, you need to do a preprocess on the dataset to find the yaws using the angle_extraction module. 
+Before using this dataloader, you need to preprocess the dataset to find the yaws using the angle_extraction module. 
 The preprocess modules are in ../angle_extraction. You need to enter the <results_folder/angles> of those modules as an input here in root_to_yaws. 
 The structure of input dataset, which is stored in root_to_yaws, is:
 root_to_yaws/phase/PERSON_ID/VIDEO_ID/SEQUENCE_ID/FRAME_NUM.npy 
@@ -183,7 +183,7 @@ class DatasetWrapper(data.Dataset):
     # This function goes over all the sequences to delete the ones that don't contain yaws in the desired range of (self.abs_min_yaw, self.abs_max_yaw)
     def min_max_preprocess (self):
         temp_sequences = []
-        # sequence_session_frames_dict [(sequence , session)] contains the frames in path sequence/session with yaw in range of (self.abs_min_yaw, self.abs_max_yaw)  
+        # sequence_session_frames_dict[(sequence , session)] contains the frames in path sequence/session with yaw in range of (self.abs_min_yaw, self.abs_max_yaw)  
         self.sequence_session_frames_dict = {}
         for sequence in self.sequences:
             count = 0
@@ -193,7 +193,7 @@ class DatasetWrapper(data.Dataset):
                 yaw_dict = self.load_session_yaws(yaw_npy_paths)
                 difficult_frames_in_session = self.find_min_max_poses(yaw_dict)
                 if len(difficult_frames_in_session) >= self.args.num_source_frames + self.args.num_target_frames:
-                    self.sequence_session_frames_dict [(sequence , str(session).split('/')[-1])] = difficult_frames_in_session
+                    self.sequence_session_frames_dict[(sequence , str(session).split('/')[-1])] = difficult_frames_in_session
                     if sequence not in temp_sequences:
                         temp_sequences.append(sequence)
                         count +=1
@@ -216,7 +216,7 @@ class DatasetWrapper(data.Dataset):
 
     # Preprocess the yaws when yaw_method == 'close_uniform'
     # This function goes over all the sequences to find bins in each session
-    # bins_sequence_session_frames_dict [bin] = (sequence, session) pairs that contain frames in the bin
+    # bins_sequence_session_frames_dict[bin] = a dictionary {(sequence, session): [list of frame_numbers in sequence/session path belonging to bin]} 
     def close_uniform_preprocess (self):
         self.bins_sequence_session_frames_dict = {}
         for current_bin in self.bins:
@@ -231,7 +231,7 @@ class DatasetWrapper(data.Dataset):
                     if len (frames_for_bin)>0:
                         if sequence not in temp_sequences:
                             temp_sequences.append(sequence)
-                        sequence_session_frames_dict [(sequence , str(session).split('/')[-1])] = frames_for_bin
+                        sequence_session_frames_dict[(sequence , str(session).split('/')[-1])] = frames_for_bin
             
             if len(temp_sequences)!=0:            
                 self.bins_sequence_session_frames_dict[(str(current_bin),0)] = temp_sequences
@@ -262,7 +262,7 @@ class DatasetWrapper(data.Dataset):
     def find_session_bins (self, yaw_dict):
         bin_dict = {}
         for current_bin in self.bins:
-            frames_for_bin = self.find_frames_for_bin (yaw_dict, current_bin)
+            frames_for_bin = self.find_frames_for_bin(yaw_dict, current_bin)
             if len(frames_for_bin) >= self.args.num_source_frames + self.args.num_target_frames:
                 bin_dict[str(current_bin)] = frames_for_bin
         return bin_dict
@@ -280,9 +280,7 @@ class DatasetWrapper(data.Dataset):
         sequence_session = sequence_session_dict.keys()
         return [v for k,v in sequence_session if k == sequence]
     
-
     def __getitem__(self, index):
-
         if self.phase == 'metrics':
             while True:
                 count+=1
@@ -309,9 +307,7 @@ class DatasetWrapper(data.Dataset):
                 except Exception as e:
                     print("# Exception is raised if filenames list is empty or there was an error during read")
                     index = (index + 1) % len(self)
-
             filenames = sorted(filenames)
-        
         else:
             # Sample source and target frames for the current video sequence
             filenames = []
@@ -319,13 +315,11 @@ class DatasetWrapper(data.Dataset):
 
             if self.yaw_method == 'min_max' :
                 sessions = self.get_sessions(self.sequences[index], self.sequence_session_frames_dict)
-                # Sample one session from the video
                 random_session = random.sample(sessions, 1)[0]
-                difficult_frames = self.sequence_session_frames_dict [(self.sequences[index], random_session)]
+                difficult_frames = self.sequence_session_frames_dict[(self.sequences[index], random_session)]
 
             if self.yaw_method == 'close_original' :
                 sessions = self.get_sessions(self.sequences[index], self.sequence_session_bins_frames_dict)
-                # Sample one session from the video
                 random_session = random.sample(sessions, 1)[0]
                 session_dict = self.sequence_session_bins_frames_dict[(self.sequences[index], random_session)]
                 session_bins = session_dict.keys()
@@ -336,9 +330,8 @@ class DatasetWrapper(data.Dataset):
             if self.yaw_method == 'close_uniform' :
                 self.sequence_session_frames_dict = self.bins_sequence_session_frames_dict[(str(self.current_bin),1)]
                 sessions = self.get_sessions(self.sequences[index], self.sequence_session_frames_dict)
-                # Sample one session from the video
                 random_session = random.sample(sessions, 1)[0]
-                difficult_frames = self.sequence_session_frames_dict [(self.sequences[index], random_session)]
+                difficult_frames = self.sequence_session_frames_dict[(self.sequences[index], random_session)]
 
 
             # The source and target relative paths (sample one pair from the close keypoints in a session)
@@ -346,12 +339,12 @@ class DatasetWrapper(data.Dataset):
             # filenames will be the absolute path to these two frame numbers. The source and target pair will
             # randomly be chosen from filenames
             source_target_pair = random.sample(difficult_frames, 2)
-            filenames = [pathlib.Path(self.sequences[index]+'/'+random_session+'/'+source_target_pair[0]),
-                        pathlib.Path(self.sequences[index]+'/'+random_session+'/'+source_target_pair[1])]
+            filenames = [pathlib.Path(self.sequences[index] + '/' + random_session + '/' + source_target_pair[0]),
+                        pathlib.Path(self.sequences[index] + '/' + random_session + '/' + source_target_pair[1])]
             
             if self.args.same_source_and_target:
-                filenames = [pathlib.Path(self.sequences[index]+'/'+random_session+'/'+source_target_pair[0]),
-                            pathlib.Path(self.sequences[index]+'/'+random_session+'/'+source_target_pair[0])]
+                filenames = [pathlib.Path(self.sequences[index] + '/' + random_session + '/' + source_target_pair[0]),
+                            pathlib.Path(self.sequences[index] + '/' + random_session + '/' + source_target_pair[0])]
             
             random.shuffle(filenames)
 
@@ -437,9 +430,7 @@ class DatasetWrapper(data.Dataset):
         if self.args.output_segmentation:
             segs = torch.stack(segs)
 
-        # Split between few-shot source and target sets
         # Assigning the source and target images in the data_dict with the correct key
-
         data_dict = {}
         if self.args.num_source_frames:
             data_dict['source_imgs'] = imgs[:self.args.num_source_frames]
