@@ -70,7 +70,7 @@ import pdb
 import os
 import argparse
 
-parser= argparse.ArgumentParser("Difficult pose finder")
+parser = argparse.ArgumentParser("Difficult pose finder")
 
 parser.add_argument('--data_root',
         default= '/video-conf/scratch/pantea/per_video_1_three_datasets',
@@ -109,20 +109,16 @@ def is_difficult (keypoints):
     left_width = (keypoints[30,1] - keypoints[2,1])**2 + (keypoints[30,0] - keypoints[2,0])**2
     right_width = (keypoints[30,1] - keypoints[14,1])**2 + (keypoints[30,0] - keypoints[14,0])**2
     difficulty = 0
-    
-    # left-tilted pose
 
     for i in range(1,4):
         if keypoints[30,0] - keypoints[33,0] != 0:
             m = (keypoints[30,1] - keypoints[33,1]) / (keypoints[30,0] - keypoints[33,0])
             if left_width < right_width and keypoints[i,1] < m * (keypoints[i,0] - keypoints[33,0]) + keypoints[33,1]:
                 if keypoints[i,0] >= min(keypoints[30,0], keypoints[33,0]) and keypoints[i,0] <= max(keypoints[30,0], keypoints[33,0]):
-                #if keypoints[i,1] >= min(keypoints[30,1], keypoints[33,1]) and keypoints[i,1] <= max(keypoints[30,1], keypoints[33,1]):
                     print("found difficult pose!")
                     difficulty += 1
         else:
             if left_width < right_width  and keypoints[i,0] >= keypoints[30,0]:
-            #if keypoints[i,1] >= min(keypoints[30,1],keypoints[33,1]) and keypoints[i,1] <= max(keypoints[30,1],keypoints[33,1]):
                 print("found difficult pose!!")
                 difficulty += 1
 
@@ -130,12 +126,10 @@ def is_difficult (keypoints):
             m = (keypoints[30,1] - keypoints[27,1]) / (keypoints[30,0] - keypoints[27,0])
             if left_width < right_width and keypoints[i,1]> m * (keypoints[i,0] - keypoints[27,0]) + keypoints[27,1]:
                 if keypoints[i,0] >= min(keypoints[30,0], keypoints[33,0]) and keypoints[i,0] <= max(keypoints[30,0], keypoints[33,0]):
-                #if keypoints[i,1] >= min(keypoints[30,1], keypoints[27,1]) and keypoints[i,1] <= max(keypoints[30,1], keypoints[27,1]):
                     print("found difficult pose!!")
                     difficulty += 1
         else:
             if left_width < right_width  and keypoints[i,0] >= keypoints[27,0]:
-            #if keypoints[i,1] >= min(keypoints[30,1], keypoints[27,1]) and keypoints[i,1] <= max(keypoints[30,1], keypoints[27,1]):
                 print("found difficult pose!!")
                 difficulty += 1
 
@@ -157,6 +151,7 @@ print(keypoint_directory)
 # Find all the video sessions
 keypoints_sessions = keypoint_directory.glob('*/*/*')
 keypoints_sessions = sorted([str(seq) for seq in keypoints_sessions])
+number_of_difficult_poses = 0
 
 for session in keypoints_sessions:
     session_relative_name = '/'.join(str(session).split('/')[-4:])
@@ -176,6 +171,7 @@ for session in keypoints_sessions:
             name_1 = name_1.split('.')[0]
             mydict[(str(counter))] = name_1
             counter += 1
+            number_of_difficult_poses += 1
     
     if len(mydict) >= 1 + args.min_per_session_keypoints:
         print("Saving the pickle for session!")
@@ -186,3 +182,4 @@ for session in keypoints_sessions:
     
     print(session, "completed!")
 
+print("percentage of difficult poses: ", str(number_of_difficult_poses/len(keypoints_paths)))

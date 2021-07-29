@@ -1,10 +1,10 @@
 """
-This file is for picking the source and target frames in session that:
-if dataset_method = 'l2_distance': their keypoints have colse l2 distance less than a threshold (close_keypoints_threshold),
+This file is for picking the source and target frames in the same session that:
+if dataset_method = 'l2_distance': their keypoints have close l2 distance less than a threshold (close_keypoints_threshold),
 if dataset_method = 'difficult_pose': are considered difficult poses.
 
 
-Before using this dataloader, you need to do a preprocess on the dataset using the find_l2_distance or find_difficult_poses module (based on your choice of dataset_method).
+Before using this dataloader, you need to need to preprocess the dataset using the find_l2_distance or find_difficult_poses module (based on your choice of dataset_method).
 The preprocess modules are in ../pose_analysis. You need to enter the <results_folder/dataset_name> in those modules as an input here in root_to_pkl_keypoints. 
 The structure of input dataset, which is stored in root_to_pkl_keypoints, is:
 ROOT_TO_PKL_KEYPOINTS/[train, test]/PERSON_ID/VIDEO_ID/SEQUENCE_ID/<L2_Distances or Difficult_poses>.pkl
@@ -50,7 +50,7 @@ Outputs
 The output is data_dict which contains source and target images with L2 keypoint distance of less than close_keypoints_threshold,
 or with difficult poses depending on dataset_method.
 The script is faithful to the papers implementation and it picks one random source/target pair:
-if dataset_method = 'l2_distance': with keyponits having L2 distance of less than close_keypoints_threshold, from each video.
+if dataset_method = 'l2_distance': with keypoints having L2 distance of less than close_keypoints_threshold, from each video.
 if dataset_method = 'difficult_poses': which both are considered images with difficult poses. 
 
 """
@@ -155,7 +155,6 @@ class DatasetWrapper(data.Dataset):
         
         print(len(self.sequences), self.sequences)
 
-        #make a directory to save test and train paths
         # Prepare experiment directories and save options
         experiment_dir = pathlib.Path(args.experiment_dir)
         self.experiment_dir = experiment_dir / 'runs' / args.experiment_name
@@ -167,14 +166,14 @@ class DatasetWrapper(data.Dataset):
         pkl_file.close()
         return my_dict
 
-    # find the frame numbers in the session with l2 distance of keypoints lower than threshold
-    def find_close_keypoints (self, keypoints_dict, threshold):
+    # find pairs of frames in the session whose keypoint l2 distance is lower than a threshold
+    def find_frame_pairs_with_close_keypoints (self, keypoints_dict, threshold):
         # The ('-1','-1') key contains the data_root of the keypoints
         keypoints_dict.pop(('-1', '-1'), None)
         return [k for k,v in keypoints_dict.items() if float(v) >= threshold and k!= ('-1', '-1')]
     
     # find the frame numbers in the session with difficult pose
-    def find_difficult_keypoints (self, keypoints_dict):
+    def find_frames_with_difficult_poses (self, keypoints_dict):
         # The ('-1') key contains the data_root of the keypoints
         keypoints_dict.pop(('-1'), None)
         return [v for k,v in keypoints_dict.items()]
@@ -224,20 +223,20 @@ class DatasetWrapper(data.Dataset):
             keypoints_dict =  self.load_pickle(keypoints_pickle_path)
 
             if self.args.dataset_method == 'l2_distance':
-                close_keys = self.find_close_keypoints(keypoints_dict, self.args.close_keypoints_threshold)
+                close_keys = self.find_frame_pairs_with_close_keypoints(keypoints_dict, self.args.close_keypoints_threshold)
                 # The source and target relative paths (sample one pair from the close keypoints in a session)
                 relative_path = '/'.join(str(keypoints_pickle_path).split('/')[-4:-1])
                 source_target_pair = random.sample(close_keys, 1)[0]
             
             elif self.args.dataset_method == 'difficult_pose':
-                difficult_frames = self.find_difficult_keypoints(keypoints_dict)
+                difficult_frames = self.find_frames_with_difficult_poses(keypoints_dict)
                 # The source and target relative paths (sample one pair from the close keypoints in a session)
                 relative_path = '/'.join(str(difficult_pose_pickle_path).split('/')[-4:-1])
                 source_target_pair = random.sample(difficult_frames, 2)
 
-            filenames = [pathlib.Path(relative_path+'/'+source_target_pair[0]), pathlib.Path(relative_path+'/'+source_target_pair[1])]
+            filenames = [pathlib.Path(relative_path + '/' + source_target_pair[0]), pathlib.Path(relative_path + '/' + source_target_pair[1])]
             if self.args.same_source_and_target:
-                filenames = [pathlib.Path(relative_path+'/'+source_target_pair[0]), pathlib.Path(relative_path+'/'+source_target_pair[0])]
+                filenames = [pathlib.Path(relative_path + '/' + source_target_pair[0]), pathlib.Path(relative_path + '/' + source_target_pair[0])]
             
             random.shuffle(filenames)
             print(filenames)
@@ -326,7 +325,6 @@ class DatasetWrapper(data.Dataset):
         if self.args.output_segmentation:
             segs = torch.stack(segs)
 
-        # Split between few-shot source and target sets
         # Assigning the source and target images in the data_dict with the correct key
         data_dict = {}
         if self.args.num_source_frames:

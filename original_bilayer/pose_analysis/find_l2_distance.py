@@ -149,14 +149,10 @@ phase = args.phase
 dataset_name =  str(data_root).split('/')[-1:][0]
 main_dir = str(args.results_folder) + '/' + str(dataset_name)
 
-# Find all the video sessions
-
 keypoint_directory = pathlib.Path( data_root + '/keypoints/' + phase)
 print(keypoint_directory)
 keypoints_sessions = keypoint_directory.glob('*/*/*')
 keypoints_sessions = sorted([str(seq) for seq in keypoints_sessions])
-
-
 
 for session in keypoints_sessions:
     session_relative_name= '/'.join(str(session).split('/')[-4:])

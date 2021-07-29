@@ -1,5 +1,5 @@
 '''
-This script is used to as the logging module. 
+This script is used as the logging module. 
 
 Arguments
 ----------
@@ -119,10 +119,10 @@ class Logger(object):
             if self.differentiate_by_poses:
                 if phase != 'train':
                     tensorboard_phase = f'{phase}_{pose_component}'
-                elif phase == 'metrics':
-                    tensorboard_phase = f'{phase}_{metrics_index}'
                 else:
                     tensorboard_phase = phase
+                if phase == 'metrics':
+                    tensorboard_phase = f'{phase}_{metrics_index}'
 
                 self.writer.add_image(f'results_{tensorboard_phase}', visuals, self.num_iter[(phase, pose_component)])
             else:
