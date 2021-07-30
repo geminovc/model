@@ -14,8 +14,9 @@ import cv2
 
 
 
-def get_dataloader(args, phase):
-    dataset = import_module(f'datasets.{args.dataloader_name}').DatasetWrapper(args, phase)
+
+def get_dataloader(args, phase, pose_component):
+    dataset = import_module(f'datasets.{args.dataloader_name}').DatasetWrapper(args, phase, pose_component)
     batch_size = args.batch_size // args.world_size
     if phase == 'metrics':
         # Sets batch size to 1 if you are passing metrics data because we want to view all the images separately

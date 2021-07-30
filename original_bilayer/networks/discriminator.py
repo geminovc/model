@@ -9,33 +9,36 @@ from networks import utils
 class NetworkWrapper(nn.Module):
     @staticmethod
     def get_args(parser):
-        parser.add('--dis_num_channels',        default=64, type=int, 
-                                                help='minimum number of channels')
+        parser.add('--dis_num_channels',                default=64, type=int, 
+                                                        help='minimum number of channels')
 
-        parser.add('--dis_max_channels',        default=512, type=int, 
-                                                help='maximum number of channels')
+        parser.add('--dis_max_channels',                default=512, type=int, 
+                                                        help='maximum number of channels')
 
-        parser.add('--dis_no_stickman',         action='store_true', 
-                                                help='do not input stickman into the discriminator')
+        parser.add('--dis_no_stickman',                 action='store_true', 
+                                                        help='do not input stickman into the discriminator')
 
-        parser.add('--dis_num_blocks',          default=6, type=int, 
-                                                help='number of convolutional blocks')
+        parser.add('--dis_num_blocks',                  default=6, type=int, 
+                                                        help='number of convolutional blocks')
 
-        parser.add('--dis_output_tensor_size',  default=8, type=int, 
-                                                help='spatial size of the last tensor')
+        parser.add('--dis_output_tensor_size',          default=8, type=int, 
+                                                        help='spatial size of the last tensor')
 
-        parser.add('--dis_norm_layer_type',     default='bn', type=str,
-                                                help='norm layer inside the discriminator')
+        parser.add('--dis_norm_layer_type',             default='bn', type=str,
+                                                        help='norm layer inside the discriminator')
 
-        parser.add('--dis_activation_type',     default='leakyrelu', type=str,
-                                                help='activation layer inside the discriminator')
+        parser.add('--dis_activation_type',             default='leakyrelu', type=str,
+                                                        help='activation layer inside the discriminator')
 
-        parser.add('--dis_downsampling_type',   default='avgpool', type=str,
-                                                help='downsampling layer inside the discriminator')
+        parser.add('--dis_downsampling_type',           default='avgpool', type=str,
+                                                        help='downsampling layer inside the discriminator')
 
-        parser.add('--dis_fake_imgs_name',      default='pred_target_imgs', type=str,
-                                                help='name of the tensor with fake images')
-
+        parser.add('--dis_fake_imgs_name',              default='pred_target_imgs', type=str,
+                                                        help='name of the tensor with fake images')
+        
+        parser.add('--visualize_discriminator_scores',  default=False, type=bool,
+                                                        help='visualize fake_scores_gen, real_feats_gen, and fake_feats_gen')
+    
     def __init__(self, args):
         super(NetworkWrapper, self).__init__()
         self.args = args
@@ -111,10 +114,12 @@ class NetworkWrapper(nn.Module):
     def visualize_outputs(self, data_dict):
         transformer = torch.nn.Upsample(size=256, mode='nearest')
         
-        visuals = []    
-        visuals += [data_dict['fake_scores_gen'][None]]
-        visuals += [data_dict['real_scores'][None]]
-        visuals += [data_dict['fake_scores_dis'][None]]
+        visuals = []
+        if self.args.visualize_discriminator_scores:   
+            visuals += [data_dict['fake_scores_gen'][None]]
+            visuals += [data_dict['real_scores'][None]]
+            visuals += [data_dict['fake_scores_dis'][None]]
+            
         for i in range(len(visuals)):
             visuals[i] = transformer(visuals[i])
             visuals[i] = visuals[i].expand(1,3,256,256) 

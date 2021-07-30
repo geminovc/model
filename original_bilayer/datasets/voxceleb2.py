@@ -77,14 +77,17 @@ class DatasetWrapper(data.Dataset):
                                                  help='gradually increase the weight of general dataset while training the per_person dataset')
 
         parser.add('--mask_source_and_target',   default='True', type=rn_utils.str2bool, choices=[True, False],
-                                                 help='mask the source and target from the beginning')
+                                                 help='mask the souce and target from the beginning')                                                      
+
+        parser.add('--same_source_and_target',   default='False', type=rn_utils.str2bool, choices=[True, False],
+                                                 help='set source = target in the experminet')
                                                       
         parser.add('--rebalance',                default='False', type=rn_utils.str2bool, choices=[True, False],
                                                  help='rebalance the dataset?')
 
         return parser
 
-    def __init__(self, args, phase):
+    def __init__(self, args, phase, pose_component = 'none'):
         super(DatasetWrapper, self).__init__()
         # Store options
         self.phase = phase
@@ -195,6 +198,10 @@ class DatasetWrapper(data.Dataset):
                 index = (index + 1) % len(self)
 
         filenames = sorted(filenames)
+
+        if self.args.same_source_and_target:
+            selected_filename = random.randint(0, (len(filenames) - 1))
+
         imgs = []
         poses = []
         stickmen = []
@@ -216,6 +223,7 @@ class DatasetWrapper(data.Dataset):
                 filename = filenames[reserve_index]
 
             else:
+
                 if self.phase == 'metrics':
                     # If you are taking the metrics, you want to return frame_num 0 then frame_num 1
                     # we can check which one to return in this iteration by checking the length of imgs
@@ -252,8 +260,7 @@ class DatasetWrapper(data.Dataset):
                     filename = filenames[frame_num]
 
             # Read images
-            img_path = pathlib.Path(self.imgs_dir) / \
-                filename.with_suffix('.jpg')
+            img_path = pathlib.Path(self.imgs_dir) / filename.with_suffix('.jpg')
 
             if self.phase == 'test':
                 print("selected test image path is: ", img_path)
@@ -360,7 +367,6 @@ class DatasetWrapper(data.Dataset):
             if self.args.num_source_frames:
                 data_dict['source_segs'] = segs[:self.args.num_source_frames]
             data_dict['target_segs'] = segs[self.args.num_source_frames:]
-
 
         if self.args.mask_source_and_target and self.args.output_segmentation:
             data_dict['source_imgs'] = data_dict['source_imgs'] * data_dict['source_segs'] + (-1) * (1 - data_dict['source_segs'])
