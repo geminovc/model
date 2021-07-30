@@ -18,8 +18,10 @@ root_to_yaws=${13}
 # Depending on the machine you run the code from, the directory to save experiments is different due to write access
 if [[ "$machine" == "chunky" ]]; then
     experiment_dir=/data/pantea/pantea_experiments_chunky/${dataset_name}/${initialization}
+
 elif [[ "$machine" == "mapmaker" ]]; then
     experiment_dir=/video-conf/scratch/pantea_experiments_mapmaker/${dataset_name}/${initialization}
+
 fi 
 
 
@@ -48,23 +50,26 @@ then
    gpu_number=0
    found_empty_gpu=true
    break
+
 elif [ ! -f /data/pouya/gpu_reserves/1.full  ]
 then
    echo " gpu 1 is empty."
    gpu_number=1
    found_empty_gpu=true
    break
+
 elif [ ! -f /data/pouya/gpu_reserves/2.full ]
 then
    echo " gpu 2 is empty."
    gpu_number=2
    found_empty_gpu=true
    break
+
 else
 echo "no empty gpu, waiting!"
    sleep 10
-fi
 
+fi
 done
 
 touch /data/pouya/gpu_reserves/${gpu_number}.full  
@@ -210,7 +215,6 @@ python train.py \
 --train_dataloader_name ${train_dataloader_name} \
 --visualize_discriminator_scores False \
 --root_to_yaws ${root_to_yaws} \
-
 
 
 rm /data/pouya/gpu_reserves/${gpu_number}.full 
