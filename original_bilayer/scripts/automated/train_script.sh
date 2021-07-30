@@ -35,6 +35,7 @@ elif [[ "$initialization" == "from_paper" ]]; then
     init_which_epoch=2000
 
 fi
+# Find an empty gpu to use
 found_empty_gpu=false
 
 while [ "$found_empty_gpu" = false ]
