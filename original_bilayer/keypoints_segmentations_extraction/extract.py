@@ -116,6 +116,9 @@ class KeypointSegmentationGenerator():
         parser.add('--data_root',               default="/video-conf/scratch/pantea/temp_extracts", type=str,
                                                 help='root directory to save the dataset')
 
+        parser.add('--time_keypoint_extracts',  default="/video-conf/scratch/pantea/temp_extracts", type=rn_utils.str2bool,
+                                                choices=[True, False], help='root directory to save the dataset')
+
         parser.add('--phase',                   default='test', type=str,
                                                 help='train or test phase')
         
@@ -221,8 +224,15 @@ class KeypointSegmentationGenerator():
         # Iterate over all the images in the batch
         for i in range(N):
             
-            # Get the pose of the i-th image in the batch 
+            if self.args.time_keypoint_extraction:
+                start = torch.cuda.Event(enable_timing=True)
+                end = torch.cuda.Event(enable_timing=True)
+                start.record()
             pose = self.fa.get_landmarks(input_imgs[i])[0]
+            if self.args.time_keypoint_extraction:
+                torch.cuda.synchronize()
+                end.record()
+                print('Keypoints', "took: ", start.elapsed_time(end), "ms")    # Get the pose of the i-th image in the batch 
 
             # Finding the center of the face using the pose coordinates
             center = ((pose.min(0) + pose.max(0)) / 2).round().astype(int)
@@ -234,7 +244,7 @@ class KeypointSegmentationGenerator():
             if input_imgs is None:
                 if crop_data:
                     # Crop poses
-                    s = size * 2
+                    output_size = size * 2
                     pose -= center - size
 
             else:
@@ -244,7 +254,7 @@ class KeypointSegmentationGenerator():
                 if crop_data:
                     # Crop images and poses
                     img = img.crop((center[0]-size, center[1]-size, center[0]+size, center[1]+size))
-                    s = img.size[0]
+                    output_size = img.size[0]
                     pose -= center - size
                 
                 # Resizing the image before storing it. If the image is small, this action would add black border around the image
@@ -256,10 +266,10 @@ class KeypointSegmentationGenerator():
                     imgs_segs.append((self.to_tensor(img) - 0.5) * 2)
             
             # This following action (scaling the poses) is done in training pipeline, and should not be done for generating the dataset. 
-            ## if crop_data:
-            ##     pose = pose / float(s)
+            if crop_data:
+                # This sets the range of pose to 0-256. This is what is needed for voxceleb.py 
+                pose = args.image_size*pose / float(output_size)
             ## poses.append(torch.from_numpy((pose - 0.5) * 2).view(-1))            
-            
             poses.append(torch.from_numpy((pose)).view(-1))
 
         # Stack the poses from different images
@@ -335,6 +345,7 @@ class KeypointSegmentationGenerator():
                         pass
                     
                     else:
+                        print(frame_num)
                         # Reformat to proper RGB/BGR
                         frame = frame[:,:,::-1]
                         
@@ -357,8 +368,8 @@ class KeypointSegmentationGenerator():
                                     os.makedirs(str(self.segs_dir) +"/"+ str(filename), exist_ok=True)
                                     save_image(segs[0,0,:,:,:], segs_path + '.png')
 
-                        except: 
-                            print("Excaption happened in reading the poses of the frame.") 
+                        except Exception as e:
+                            print("Exception happened in reading the poses of the frame.")
 
                     frame_num+=1
                 video.release()

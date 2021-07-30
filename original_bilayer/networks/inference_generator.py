@@ -20,6 +20,8 @@ class NetworkWrapper(nn.Module):
 
         parser.add('--inf_pred_segmentation',    default='True', type=rn_utils.str2bool, choices=[True, False],
                                                  help='set inference generator to output a segmentation mask')
+        parser.add('--plot_unet_inputs',         default='False', type=rn_utils.str2bool, choices=[True, False],
+                                                 help='plot all unet inputs')
 
         parser.add('--inf_norm_layer_type',      default='ada_bn', type=str,
                                                  help='norm layer inside the inference generator')
@@ -168,7 +170,6 @@ class NetworkWrapper(nn.Module):
                 pred_target_imgs = pred_target_imgs * pred_target_masks + (-1) * (1 - pred_target_masks)
 
                 pred_target_delta_lf_rgbs = pred_target_delta_lf_rgbs * pred_target_masks + (-1) * (1 - pred_target_masks)
-
                 if 'inference_generator' in networks_to_train or self.args.inf_calc_grad:
                     pred_target_imgs_lf_detached = pred_target_imgs_lf_detached * pred_target_masks + (-1) * (1 - pred_target_masks)
                 
@@ -180,7 +181,7 @@ class NetworkWrapper(nn.Module):
         
         # Unet input values
         if self.args.use_unet:
-            # Add the code for making hte neural textures here
+            # Add the code for making the neural textures here
             warped_neural_textures = pred_target_delta_hf_rgbs
             # depending on wether you have the lf and hf content as inputs
             data_dict['warped_neural_textures'] = warped_neural_textures
@@ -204,8 +205,8 @@ class NetworkWrapper(nn.Module):
         if not self.args.use_unet and ('inference_generator' in networks_to_train or self.args.inf_calc_grad):
             data_dict['pred_target_imgs_lf_detached'] = reshape_target_data(pred_target_imgs_lf_detached)
 
-            if self.args.inf_pred_segmentation:
-                data_dict['pred_target_segs_logits'] = reshape_target_data(pred_target_segs_logits)
+        if self.args.inf_pred_segmentation:
+            data_dict['pred_target_segs_logits'] = reshape_target_data(pred_target_segs_logits)
 
         if self.args.inf_apply_masks and self.args.inf_pred_segmentation:
             data_dict['target_imgs'] = reshape_target_data(target_imgs)
@@ -217,7 +218,6 @@ class NetworkWrapper(nn.Module):
 
             if self.args.inf_pred_segmentation:
                 data_dict['pred_source_segs'] = reshape_source_data(pred_source_segs)
-
         return data_dict
 
     @torch.no_grad()
@@ -319,6 +319,11 @@ class NetworkWrapper(nn.Module):
 
             visuals += [torch.cat([pred_target_delta_uvs])]
 
+        if self.args.plot_unet_inputs:
+            for i in range(data_dict['unet_input'].shape[1]):
+                visuals += [data_dict['unet_input'][:,i,:,:].expand(1,3,256,256)]
+
+
         return visuals
 
     @staticmethod
@@ -399,6 +404,12 @@ class Generator(nn.Module):
         layers += [
             norm_layer(out_channels, spatial_size=1, eps=args.eps),
             activation(inplace=True)]
+        
+        # Drop out layer before the final conv. layer
+        nets_dropout = rn_utils.parse_str_to_dict(args.dropout_networks, value_type=float)
+        if args.use_dropout and 'inference_generator' in nets_dropout.keys():
+            dropout_rate = nets_dropout['inference_generator']
+            layers += [nn.Dropout(p=dropout_rate, inplace=False)]
 
         self.blocks = nn.Sequential(*layers)
 

@@ -37,6 +37,7 @@ class Logger(object):
                     ('unseen_test', 'easy_pose'): 0, ('unseen_test', 'hard_pose'): 0, ('unseen_test', 'combined_pose'): 0} 
         else:
             self.num_iter = {'train': 0, 'test': 0, 'metrics' : 0, 'unseen_test': 0} # Added metrics set to 0
+
         
         self.no_disk_write_ops = args.no_disk_write_ops
         self.rank = args.rank
@@ -170,7 +171,9 @@ class Logger(object):
         print(phase, pose_component, 'losses:', ', '.join('%s: %.3f' % (key, value) for key, value in losses.items()) + ', time: %.3f' % time)
         print(phase, pose_component, 'metrics:', ', '.join('%s: %.3f' % (key, value) for key, value in metrics.items()) + ', time: %.3f' % time)
 
+
     def set_num_iter_no_pose(self, train_iter, test_iter, metrics_iter, unseen_test_iter):
+        
         self.num_iter = {
             'train': train_iter,
             'test': test_iter,
@@ -183,3 +186,4 @@ class Logger(object):
         self.num_iter = {('train', 'none'): train_iter, ('metrics', 'none'): metrics_iter, ('test', 'easy_pose'): test_easy_pose_iter, 
         ('test', 'hard_pose'): test_hard_pose_iter, ('test', 'combined_pose'): test_combined_pose_iter,('unseen_test', 'easy_pose'): unseen_test_easy_pose_iter,
          ('unseen_test', 'hard_pose'): unseen_test_hard_pose_iter, ('unseen_test', 'combined_pose'): unseen_test_combined_pose_iter} 
+

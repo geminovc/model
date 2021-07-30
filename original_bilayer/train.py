@@ -12,7 +12,8 @@ import sys
 import random 
 from datasets import utils as ds_utils
 from networks import utils as nt_utils
-from runners  import utils as rn_utils
+from datasets import utils as ds_utils
+from runners import utils as rn_utils
 from logger import Logger
 
 
@@ -98,7 +99,7 @@ class TrainingWrapper(object):
         parser.add('--num_metrics_images',                              default=9, type=int,
                                                                         help='number of pairs of images in your metrics dir')
 
-        parser.add('--checkpoint_freq',                                 default=25, type=int,
+        parser.add('--checkpoint_freq',                                 default=500, type=int,
                                                                         help='frequency of checkpoints creation in epochs')
 
         parser.add('--test_freq',                                       default=5, type=int, 
@@ -122,7 +123,7 @@ class TrainingWrapper(object):
         parser.add('--calc_stats',                                      action='store_true',
                                                                         help='calculate batch norm standing stats')
         
-        parser.add('--visual_freq',                                     default=-1, type=int, 
+        parser.add('--visual_freq',                                     default=100, type=int, 
                                                                         help='in iterations, -1 -- output logs every epoch')
 
         # Mixed precision options
@@ -214,7 +215,12 @@ class TrainingWrapper(object):
            
         parser.add('--root_to_yaws',                                    default='/video-conf/scratch/pantea/pose_results/yaws/per_person_1_three_datasets/angles', type=str, 
                                                                         help='The directory where the yaws are stored in voxceleb2 format')
+                             
+        # Mask the source and target before the pipeline
+        parser.add('--mask_source_and_target',                          default='True', type=rn_utils.str2bool, choices=[True, False],
+                                                                        help='mask the source and target from the beginning')
 
+     
         # Technical options that are set automatically
         parser.add('--local_rank', default=0, type=int)
         parser.add('--rank',       default=0, type=int)
@@ -451,7 +457,7 @@ class TrainingWrapper(object):
             else:
                 test_dataloader = ds_utils.get_dataloader(args, 'test', 'none')
                 unseen_test_dataloader = ds_utils.get_dataloader(args, 'unseen_test', 'none')
-        
+
         if not args.skip_metrics:
             metrics_dataloader = ds_utils.get_dataloader(args, 'metrics', 'none')
 
@@ -499,7 +505,7 @@ class TrainingWrapper(object):
 
         if args.visual_freq != -1:
             train_iter /= args.visual_freq
-        
+
         if args.debug and not args.use_apex:
             torch.autograd.set_detect_anomaly(True)
 
@@ -626,6 +632,7 @@ class TrainingWrapper(object):
 
                 if not epoch % args.visual_freq:
                     logger.output_logs('train', 'none', runner.output_visuals(), runner.output_losses(), \
+
                             runner.output_metrics(), time.time() - time_start)
                     if args.debug:
                         break
@@ -648,6 +655,7 @@ class TrainingWrapper(object):
                     self.test_the_model (runner, model, test_combined_pose_dataloader, args.num_gpus, args.debug, logger, ['test','combined_pose'] )
                     self.test_the_model (runner, model, test_easy_pose_dataloader, args.num_gpus, args.debug, logger, ['test','easy_pose'] )
                     self.test_the_model (runner, model, test_hard_pose_dataloader, args.num_gpus, args.debug, logger, ['test','hard_pose'] )
+
                     
                     # Test on unseen videos
                     self.test_the_model (runner, model, unseen_test_combined_pose_dataloader, args.num_gpus, args.debug, logger, ['unseen_test','combined_pose'] )

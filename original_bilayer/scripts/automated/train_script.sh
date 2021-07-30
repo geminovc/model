@@ -15,6 +15,7 @@ train_dataloader_name=${11}
 data_root=${12}
 root_to_yaws=${13}
 
+
 # Depending on the machine you run the code from, the directory to save experiments is different due to write access
 if [[ "$machine" == "chunky" ]]; then
     experiment_dir=/data/pantea/pantea_experiments_chunky/${dataset_name}/${initialization}
@@ -23,6 +24,7 @@ elif [[ "$machine" == "mapmaker" ]]; then
     experiment_dir=/video-conf/scratch/pantea_experiments_mapmaker/${dataset_name}/${initialization}
 
 fi 
+
 
 
 # Add initialization options
@@ -193,7 +195,7 @@ python train.py \
 --wpr_loss_weight_decay 1.0 \
 --nme_num_threads 1  \
 --skip_test False \
---frozen_networks 'keypoints_embedder, identity_embedder' \
+--frozen_networks ' ' \
 --unfreeze_texture_generator_last_layers True \
 --unfreeze_inference_generator_last_layers True \
 --replace_AdaSpade_with_conv False \
@@ -218,3 +220,4 @@ python train.py \
 
 
 rm /data/pouya/gpu_reserves/${gpu_number}.full 
+
