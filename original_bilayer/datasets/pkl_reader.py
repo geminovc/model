@@ -219,14 +219,14 @@ class DatasetWrapper(data.Dataset):
             keypoints_pickles = list(pathlib.Path(self.pkl_keypoints_dir + '/' + self.sequences[index]).glob('*/*'))
             
             # Sample one session from the video
-            keypoints_pickle_path = random.sample(keypoints_pickles, 1)[0]
+            keypoints_pickle_path = random.choice(keypoints_pickles)
             keypoints_dict =  self.load_pickle(keypoints_pickle_path)
 
             if self.args.dataset_method == 'l2_distance':
                 close_keys = self.find_frame_pairs_with_close_keypoints(keypoints_dict, self.args.close_keypoints_threshold)
                 # The source and target relative paths (sample one pair from the close keypoints in a session)
                 relative_path = '/'.join(str(keypoints_pickle_path).split('/')[-4:-1])
-                source_target_pair = random.sample(close_keys, 1)[0]
+                source_target_pair = random.choice(close_keys)
             
             elif self.args.dataset_method == 'difficult_pose':
                 difficult_frames = self.find_frames_with_difficult_poses(keypoints_dict)

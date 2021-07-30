@@ -315,22 +315,22 @@ class DatasetWrapper(data.Dataset):
 
             if self.yaw_method == 'min_max' :
                 sessions = self.get_sessions(self.sequences[index], self.sequence_session_frames_dict)
-                random_session = random.sample(sessions, 1)[0]
+                random_session = random.choice(sessions)
                 difficult_frames = self.sequence_session_frames_dict[(self.sequences[index], random_session)]
 
             if self.yaw_method == 'close_original' :
                 sessions = self.get_sessions(self.sequences[index], self.sequence_session_bins_frames_dict)
-                random_session = random.sample(sessions, 1)[0]
+                random_session = random.choice(sessions)
                 session_dict = self.sequence_session_bins_frames_dict[(self.sequences[index], random_session)]
                 session_bins = session_dict.keys()
-                random_bin = random.sample(session_bins, 1)[0]
+                random_bin = random.choice(session_bins)
                 difficult_frames = session_dict[random_bin]
 
 
             if self.yaw_method == 'close_uniform' :
                 self.sequence_session_frames_dict = self.bins_sequence_session_frames_dict[(str(self.current_bin),1)]
                 sessions = self.get_sessions(self.sequences[index], self.sequence_session_frames_dict)
-                random_session = random.sample(sessions, 1)[0]
+                random_session = random.choice(sessions)
                 difficult_frames = self.sequence_session_frames_dict[(self.sequences[index], random_session)]
 
 

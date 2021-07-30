@@ -531,6 +531,7 @@ class TrainingWrapper(object):
             print("Testing the model before starts training for sanity check")
             if args.augment_with_general and args.data_root!=args.general_data_root:
                 train_dataloader = personal_train_dataloader
+                
             else:
                 train_dataloader = original_train_dataloader
             
