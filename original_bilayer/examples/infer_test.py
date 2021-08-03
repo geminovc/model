@@ -77,6 +77,7 @@ import math
 from skimage.metrics import structural_similarity as ssim
 import lpips
 import torch
+import cv2
 
 # Parser
 
@@ -236,6 +237,30 @@ def process_output_data_dict (output_data_dict):
     psnr_value, ssim_value, lpips_value = compute_metric_for_files(target, predicted_target)
     return  psnr_value, ssim_value, lpips_value, target, predicted_target
 
+
+def make_lut_u():
+    return np.array([[[i,255-i,0] for i in range(256)]],dtype=np.uint8)
+
+def make_lut_v():
+    return np.array([[[0,255-i,i] for i in range(256)]],dtype=np.uint8)
+
+def convert_PLI_to_YUV (pli_image, name_to_save):
+    pil_image = pli_image.convert('RGB') 
+    open_cv_image = np.array(pil_image) 
+    # Convert RGB to BGR 
+    img = open_cv_image[:, :, ::-1].copy() 
+    img_yuv = cv2.cvtColor(img, cv2.COLOR_BGR2YUV)
+    y, u, v = cv2.split(img_yuv)
+    # lut_u, lut_v = make_lut_u(), make_lut_v()
+    # # Convert back to BGR so we can apply the LUT and stack the images
+    # y1 = cv2.cvtColor(y, cv2.COLOR_GRAY2BGR)
+    # u = cv2.cvtColor(u, cv2.COLOR_GRAY2BGR)
+    # v = cv2.cvtColor(v, cv2.COLOR_GRAY2BGR)
+    # u_mapped = cv2.LUT(u, lut_u)
+    # v_mapped = cv2.LUT(v, lut_v)
+    # result = np.vstack([img, y1, u_mapped, v_mapped])
+    # cv2.imwrite(str(args.save_dir) + '/' + str(name_to_save) + '.png', result)
+    return y
 # ------------------------------------------------------------------------------------------------------------------------
 
 # Assigning correct argument dictionary and input data dictionary
@@ -256,7 +281,11 @@ args_dict = {
     'inf_apply_masks': True,
     'dataset_load_from_txt': False,
     'replace_Gtex_output_with_trainable_tensor': False,
-    'replace_source_specific_with_trainable_tensors': False}
+    'replace_source_specific_with_trainable_tensors': False,
+    'dropout_networks': 'texture_generator: 0.5',
+    'use_dropout': False,
+    'texture_output_dim': 3,
+    'use_unet': False}
 
 input_data_dict = {}
 
@@ -293,17 +322,24 @@ output_data_dict = module(input_data_dict,
                           source_relative_path=source_relative_path,
                           target_relative_path=target_relative_path) 
 
-psnr_values, ssim_values, lpips_values, target, predicted_target = process_output_data_dict (output_data_dict)
-print("psnr_values, ssim_values, lpips_values", psnr_values, ssim_values, lpips_values)
-# Save the output images
 if not os.path.exists(args.save_dir):
     os.makedirs(args.save_dir)
 
-np.save(str(args.save_dir) + '/metrics.npy', np.array([psnr_values, ssim_values, lpips_values]))
+
+psnr_values, ssim_values, lpips_values, target, predicted_target = process_output_data_dict (output_data_dict)
+print("psnr_values, ssim_values, lpips_values", psnr_values, ssim_values, lpips_values)
+target_y = convert_PLI_to_YUV (target, "target")
+predicted_target_y = convert_PLI_to_YUV (predicted_target, "predicted_target")
+yuv_psnr = per_frame_psnr(np.array(target_y).astype(np.float32), np.array(predicted_target_y).astype(np.float32))
+print("yuv_psnr",yuv_psnr)
+
+# Save the output images
+
+np.save(str(args.save_dir) + '/metrics.npy', np.array([psnr_values, yuv_psnr, ssim_values, lpips_values]))
 
 if 'pred_target_imgs' in output_data_dict.keys():
     pred_img = to_image(output_data_dict['pred_target_imgs'][0, 0])
-    pred_img.save("{}/pred_target_{}_{}.jpg".format(str(args.save_dir), str(preprocess), str(draw_source_target_from_video)))  
+    pred_img.save("{}/pred_target_{}_{}.png".format(str(args.save_dir), str(preprocess), str(draw_source_target_from_video)))  
 
 if 'target_stickmen' in output_data_dict.keys():
     target_stickmen = to_image(output_data_dict['target_stickmen'][0, 0])
