@@ -410,7 +410,7 @@ class InferenceWrapper(nn.Module):
 
     def forward(self, data_dict,
                       preprocess,
-                      from_video ,
+                      draw_source_target_from_video ,
                       video_path = '',
                       source_frame_num = 0,
                       target_frame_num = 1,
@@ -426,8 +426,8 @@ class InferenceWrapper(nn.Module):
         crop_data : A flag used center-crop output images and poses (the original paper used crop_data=True,
                     so for consistency we use crop_data=True as well) 
         preprocess : If you want to preprocess two images, put this to True, if not the code will load preprocessed images and keypoints.
-        from_video : If preprocess==True, you have the option two choose two frames from a video as source and target frames by setting this flag to True.
-        video_path: The video path for when from_video is True
+        draw_source_target_from_video : If preprocess==True, you have the option two choose two frames from a video as source and target frames by setting this flag to True.
+        video_path: The video path for when draw_source_target_from_video is True
         source_frame_num: The video frame number assigned for source
         target_frame_num: The video frame number assigned for target
         dataset_root : The dataset root (Example: '/video-conf/scratch/pantea/temp_extracts')
@@ -458,7 +458,7 @@ class InferenceWrapper(nn.Module):
 
         # Preparing the target and source imgs, segs, and keypoints
         if preprocess:
-            if from_video:
+            if draw_source_target_from_video:
                 # Picks two frames (source_frame_num and target_frame_num) from video in video_path preprocess them to find the keypoints    
                 data_dict = self.get_images_from_videos( video_path = video_path, source_frame_num=source_frame_num, target_frame_num=target_frame_num)
             else:

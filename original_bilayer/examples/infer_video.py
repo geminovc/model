@@ -5,27 +5,27 @@ This file, loads two images as target and source image and performs inference on
 Arguments
 ----------
 preprocess : If you want to preprocess two images, put this to True, if not the code will load preprocessed images and keypoints.
-from_video : If preprocess==True, you have the option two choose two frames from a video as source and target frames by setting this flag to True.
+draw_source_target_from_video : If preprocess==True, you have the option two choose two frames from a video as source and target frames by setting this flag to True.
 experiment_name : The name of the experiment that you want to test
 experiment_dir  : The root of experiments
 init_which_epoch: The epoch that you want to test
 
-If you set preprocess and from_video to True, you will use two frames from a video as source and target images. You need to change the following variables:
+If you set preprocess and draw_source_target_from_video to True, you will use two frames from a video as source and target images. You need to change the following variables:
     video_path : Path to the video (Example: '/video-conf/scratch/pantea/temp_dataset/id00012/_raOc3-IRsw/00110.mp4')
     source_frame_num : The frame number of the source  (Example: 0)
     target_frame_num : The frame number of the target  (Example: 10)
 
-If you set preprocess to True and from_video to False, you will use to images as source and target imges. You need to define these paths like:
+If you set preprocess to True and draw_source_target_from_video to False, you will use to images as source and target imges. You need to define these paths like:
     source_img_path = Full path to the source image (Example: '/home/pantea/NETS/nets_implementation/original_bilayer/examples/images/video_imgs/train_frames/0.jpg')
     target_img_path = Full path to the source image (Example: '/home/pantea/NETS/nets_implementation/original_bilayer/examples/images/video_imgs/train_frames/1.jpg')
 
-If you set preprocess and from_video to False, you will load the images, keypoints, and segmentations from stored datasets: 
+If you set preprocess and draw_source_target_from_video to False, you will load the images, keypoints, and segmentations from stored datasets: 
     dataset_root = The dataset root (Example: '/video-conf/scratch/pantea/temp_extracts')
     source_relative_path = The source image's relative path to dataset_root/imgs (Example: 'train/id00012/_raOc3-IRsw/00110/0')
     target_relative_path = The target image's relative path to dataset_root/imgs (Example: 'train/id00012/_raOc3-IRsw/00110/1')
 
 
-You can set preprocess and from_video in these orders:
+You can set preprocess and draw_source_target_from_video in these orders:
 
 +------------+------------+----------------------------------------------------------------------------------------------------------------------------------------------+
 | preprocess | from_video |                                                        Source & Target                                                                       |
@@ -112,7 +112,7 @@ parser.add_argument('--video_technique',
 parser.add_argument('--video_path',
         type=str,
         default='/video-conf/vedantha/voxceleb2/dev/mp4/id00015/0fijmz4vTVU/00001.mp4',
-        help='path to the video')
+        help='path to the video you want to reproduce')
 
 parser.add_argument('--dataset_root',
         type=str,
@@ -169,6 +169,8 @@ def to_image(img_tensor, seg_tensor=None):
     PIL Image to save (masked with the seg_tensor optionally)
 
     """
+    if seg_tensor is not None:
+        img_tensor = img_tensor * seg_tensor + (-1) * (1 - seg_tensor)
     img_tensor = torch.mul(torch.add(img_tensor, 1), 0.5).clamp(0, 1)
     to_image_module = transforms.ToPILImage()
     img_tensor = img_tensor.cpu()
@@ -212,7 +214,7 @@ def compute_metric_for_files(img1, img2):
     # read one frame at a time and compute average metric
 
     ssim_value = ssim(np.array(img1), np.array(img2), multichannel=True)
-    psnr_value = per_frame_psnr(np.array(img1), np.array(img2))
+    psnr_value = per_frame_psnr(np.array(img1).astype(np.float32), np.array(img2).astype(np.float32)) # float 32 is very important!
     img1 = regular_transform(Image.fromarray(np.array(img1)))
     img2 = regular_transform(Image.fromarray(np.array(img2)))
     
@@ -221,9 +223,9 @@ def compute_metric_for_files(img1, img2):
     return psnr_value, ssim_value, lpips_value
 
 def process_output_data_dict (output_data_dict, target_video, predicted_video, psnr_values, ssim_values, lpips_values):
-    predicted_target = to_image(output_data_dict['pred_target_imgs'][0, 0],output_data_dict['target_segs'] [0, 0])
+    predicted_target = to_image(output_data_dict['pred_target_imgs'][0, 0], output_data_dict['target_segs'] [0, 0])
     predicted_video.append(predicted_target)
-    target = to_image(output_data_dict['target_imgs'][0, 0],output_data_dict['target_segs'] [0, 0])
+    target = to_image(output_data_dict['target_imgs'][0, 0], output_data_dict['target_segs'] [0, 0])
     target_video.append(target)
     psnr_frame, ssim_frame , lpips_frame = compute_metric_for_files(target, predicted_target)
     psnr_values.append(psnr_frame)
@@ -248,7 +250,11 @@ args_dict = {
     'inf_apply_masks': True,
     'dataset_load_from_txt': False,
     'replace_Gtex_output_with_trainable_tensor': False,
-    'replace_source_specific_with_trainable_tensors': False}
+    'replace_source_specific_with_trainable_tensors': False,
+    'dropout_networks': 'texture_generator: 0.5',
+    'use_dropout': False,
+    'texture_output_dim': 3,
+    'use_unet': False }
 
 
 # Instantiate the Inference Module
@@ -290,7 +296,7 @@ if video_technique != 'representative_sources':
         }
 
         # Pass the inputs to the Inference Module
-        output_data_dict = module(input_data_dict, preprocess= True, from_video = False)
+        output_data_dict = module(input_data_dict, preprocess= True, draw_source_target_from_video = False)
         target_video, predicted_video, psnr_values, ssim_values, lpips_values = process_output_data_dict ( output_data_dict,
                                                                                                            target_video,
                                                                                                            predicted_video,
@@ -330,7 +336,7 @@ else:
             #Pass the inputs to the Inference Module
             output_data_dict = module(data_dict = {},
                                     preprocess= False,
-                                    from_video = False,
+                                    draw_source_target_from_video = False,
                                     dataset_root = dataset_root,
                                     source_relative_path=source_relative_path,
                                     target_relative_path=target_relative_path)
@@ -381,6 +387,8 @@ concat_clip_new.write_videofile(str(args.save_dir) + '/' + video_technique + ".m
 imgs2 = [np.array(i) for i in target_video]
 clips2 = [mp.ImageClip(m).set_duration(0.04) for m in imgs2]
 concat_clip2 = mp.concatenate_videoclips(clips2, method="compose")
+concat_clip2_new = concat_clip2.set_audio(original_audio.set_duration(concat_clip.duration))
+concat_clip2_new.write_videofile(str(args.save_dir) + '/masked_original.mp4',fps=25)
 
 # stacking the original and predicted videos
 # final = mp.clips_array([[concat_clip_new], [original_video]])
