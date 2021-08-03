@@ -233,8 +233,8 @@ def compute_metric_for_files(img1, img2):
 def process_output_data_dict (output_data_dict):
     predicted_target = to_image(output_data_dict['pred_target_imgs'][0, 0], output_data_dict['target_segs'] [0, 0])
     target = to_image(output_data_dict['target_imgs'][0, 0], output_data_dict['target_segs'] [0, 0])
-    psnr_frame, ssim_frame , lpips_frame = compute_metric_for_files(target, predicted_target)
-    return  psnr_values, ssim_values, lpips_values, target, predicted_target
+    psnr_value, ssim_value, lpips_value = compute_metric_for_files(target, predicted_target)
+    return  psnr_value, ssim_value, lpips_value, target, predicted_target
 
 # ------------------------------------------------------------------------------------------------------------------------
 
@@ -294,7 +294,7 @@ output_data_dict = module(input_data_dict,
                           target_relative_path=target_relative_path) 
 
 psnr_values, ssim_values, lpips_values, target, predicted_target = process_output_data_dict (output_data_dict)
-
+print("psnr_values, ssim_values, lpips_values", psnr_values, ssim_values, lpips_values)
 # Save the output images
 if not os.path.exists(args.save_dir):
     os.makedirs(args.save_dir)
