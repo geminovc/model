@@ -73,7 +73,10 @@ import argparse
 from natsort import natsorted
 from torchvision import transforms
 import argparse
-
+import math
+from skimage.metrics import structural_similarity as ssim
+import lpips
+import torch
 
 # Parser
 
@@ -84,7 +87,7 @@ parser.add_argument('--experiment_dir',
         default= '/data/pantea/pantea_experiments_chunky/per_person/from_paper',
         help='root directory where the experiment and its checkpoints are saved ')
 
-parser.add_argument('--experiment-name',
+parser.add_argument('--experiment_name',
         type=str,
         default= 'close_source_target_original_easy_diff_combo',
         help='associated name of the experimnet')
