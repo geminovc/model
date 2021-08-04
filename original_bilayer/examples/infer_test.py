@@ -253,12 +253,12 @@ def convert_PLI_to_YUV (pli_image, name_to_save):
     y, u, v = cv2.split(img_yuv)
     # lut_u, lut_v = make_lut_u(), make_lut_v()
     # # Convert back to BGR so we can apply the LUT and stack the images
-    # y1 = cv2.cvtColor(y, cv2.COLOR_GRAY2BGR)
+    y = cv2.cvtColor(y, cv2.COLOR_GRAY2BGR)
     # u = cv2.cvtColor(u, cv2.COLOR_GRAY2BGR)
     # v = cv2.cvtColor(v, cv2.COLOR_GRAY2BGR)
     # u_mapped = cv2.LUT(u, lut_u)
     # v_mapped = cv2.LUT(v, lut_v)
-    # result = np.vstack([img, y1, u_mapped, v_mapped])
+    # result = np.vstack([img, y, u_mapped, v_mapped])
     # cv2.imwrite(str(args.save_dir) + '/' + str(name_to_save) + '.png', result)
     return y
 # ------------------------------------------------------------------------------------------------------------------------
