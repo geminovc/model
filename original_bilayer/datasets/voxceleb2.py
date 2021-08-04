@@ -1,7 +1,6 @@
 import torch
 import pickle
 from torch.autograd import Variable
-from datasets import hopenet
 import dlib
 import cv2
 from torch.utils import data
