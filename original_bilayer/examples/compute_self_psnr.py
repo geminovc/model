@@ -2,6 +2,10 @@
 This script finds the average psnr of two frame with frame numbers `n` and `n + shift` for all possible combinations
 of n and shift in a video and draws the psnr vs shift graph.
 
+Outpus an array of length N - 1 where N is the number of frames in the video with path --video_path. 
+The index i of the output array is the average psnr of all frames with frame number k and k+i for 0 < k < N-k. 
+The script plots the graph y = array [x] and saves it to --save_dir.  
+
 Sample usage:
 
 python compute_self_psnr.py --video_path <YOUR_VIDEO_PATH> --save_dir <YOUR_SAVE_DIR> 
@@ -24,7 +28,7 @@ parser= argparse.ArgumentParser("Video self psnr")
 parser.add_argument('--video_path',
         type=str,
         default='/video-conf/vedantha/voxceleb2/dev/mp4/id00015/0fijmz4vTVU/00001.mp4',
-        help='path to the video')
+        help='path to the video that we want compute the average shifted frame psnr on')
 
 parser.add_argument('--save_dir',
         type=str,

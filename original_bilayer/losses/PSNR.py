@@ -1,3 +1,16 @@
+'''
+This script computes the psnr of the data_dict values with keys in psnr_loss_apply_to. 
+
+Peak signal-to-noise ratio (PSNR) is an engineering term for the ratio between the maximum possible
+power of a signal and the power of corrupting noise that affects the fidelity of its representation.
+
+Maximum possible power is measured with the maximum peak-to-peak ampliude of the input signals denoted by MAX_PP_AMP. 
+The noise is computed with the root mean square of the differences of the input signals denoted by RMS_NOISE. 
+
+psnr = 20 * log10 (MAX_PP_AMP/RMS_NOISE)
+
+'''
+
 # Third party
 import torch
 from torch import nn
@@ -21,13 +34,10 @@ class LossWrapper(nn.Module):
     def PSNR(self, img1, img2):
         img1 = torch.mul(torch.add(img1, 1), 0.5).clamp(0, 1)
         img2 = torch.mul(torch.add(img2, 1), 0.5).clamp(0, 1)
-        
         img1 = 255 * np.array(img1.cpu()) 
-        img1 = img1.astype(np.uint8).astype(np.float32)
-        
+        img1 = img1.astype(np.uint8).astype(np.float32) # Typecasting to float values is really important
         img2 = 255 * np.array(img2.cpu()) 
         img2 = img2.astype(np.uint8).astype(np.float32)
-
         mse = np.mean((img1 - img2)**2)
         return torch.tensor(10 * math.log10( 255**2 /mse))
             
