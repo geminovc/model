@@ -36,7 +36,7 @@ def load_pickle(path_string):
     pkl_file.close()
     return my_dict
 
-def move_directoriess (session_ids, source_phase, destination_phase):
+def move_directoriess(session_ids, source_phase, destination_phase):
     for session_id in session_ids:
         # move imgs, keypoints, and segs
         for x in ['imgs', 'keypoints', 'segs']:
@@ -54,7 +54,7 @@ def move_directoriess (session_ids, source_phase, destination_phase):
 train_session_ids =  pathlib.Path(args.data_root + '/imgs/train').glob('*/*/*')
 train_session_ids = sorted(['/'.join(str(seq).split('/')[-3:]) for seq in train_session_ids])
 print(train_session_ids) 
-move_directoriess (train_session_ids, 'train', 'unseen_test') 
+move_directoriess(train_session_ids, 'train', 'unseen_test') 
 
 # Now delete everything in the train
 train_session_ids =  pathlib.Path(args.data_root + '/imgs/train').glob('*/*')
@@ -70,7 +70,7 @@ for video in train_session_ids:
 test_session_ids =  pathlib.Path(args.data_root + '/imgs/test').glob('*/*/*')
 test_session_ids = sorted(['/'.join(str(seq).split('/')[-3:]) for seq in test_session_ids])
 print(test_session_ids) 
-move_directoriess (test_session_ids, 'test', 'unseen_test') 
+move_directoriess(test_session_ids, 'test', 'unseen_test') 
 # Now delete everything in the test
 test_session_ids =  pathlib.Path(args.data_root + '/imgs/test').glob('*/*')
 test_session_ids = sorted(['/'.join(str(seq).split('/')[-2:]) for seq in test_session_ids])
@@ -90,8 +90,8 @@ train_session_ids = new_train_session_ids [:-args.num_test_sessions]
 print("new train_session_ids", train_session_ids)
 test_session_ids = new_train_session_ids [-args.num_test_sessions:]
 print("new test_session_ids", test_session_ids)
-move_directoriess (train_session_ids, 'unseen_test' , 'train')
-move_directoriess (test_session_ids, 'unseen_test' , 'test') 
+move_directoriess(train_session_ids, 'unseen_test' , 'train')
+move_directoriess(test_session_ids, 'unseen_test' , 'test') 
 
 shutil.rmtree(str(args.yaw_root + '/' + 'unseen_test' + '/' + str(args.target_video_id)))
 for x in ['imgs', 'keypoints', 'segs']:
