@@ -111,21 +111,16 @@ with open(args.result_file_name, 'w') as f:
 
     # Recording without pose information
     if args.skip_pose_distribution_data:
-
         f.write("%s,%s"%('experiment_name',common_column_names ()))
         for experiment_name, result_file in zip(args.experiment_name_list, args.result_file_list):
             experiment_data = load_pickle(result_file)
             f.write("%s,%s" % (experiment_name, common_column_values (experiment_data , window)))
+
     # Recording with pose information
     else:
-
         f.write("%s,%s,%s"%('experiment_name','pose_name', common_column_names ()))     
         for experiment_name, pose_name, result_file in zip(args.experiment_name_list, args.pose_name_list, args.result_file_list):
-            print(experiment_name, pose_name)
-        #     if experiment_name == 'unseen_test':
-        #         window = 1
-        #     else:
-        #         window = 
+            print(experiment_name, pose_name) 
             experiment_data = load_pickle(result_file)
             f.write("%s,%s,%s" % (experiment_name, pose_name, common_column_values (experiment_data , window)))
 
