@@ -26,6 +26,7 @@ If you set preprocess and draw_source_target_from_video to False, you will load 
 
 
 You can set preprocess and draw_source_target_from_video in these orders:
+from_video = draw_source_target_from_video
 
 +------------+------------+----------------------------------------------------------------------------------------------------------------------------------------------+
 | preprocess | from_video |                                                        Source & Target                                                                       |
@@ -38,7 +39,6 @@ You can set preprocess and draw_source_target_from_video in these orders:
 |   False    |============+==============================================================================================================================================+
 |            |   False    |  Loads preprocessed and save keypoints, images, and segmentations from dataset_root/[imgs, keypoints, segs]/{source or target}_relative_path |
 +------------+------------+----------------------------------------------------------------------------------------------------------------------------------------------+
-
 
 
 Outputs
@@ -79,8 +79,33 @@ import lpips
 import torch
 import cv2
 from examples import utils as infer_utils
-# Parser
 
+# Util functions
+def make_lut_u():
+    return np.array([[[i,255-i,0] for i in range(256)]],dtype=np.uint8)
+
+def make_lut_v():
+    return np.array([[[0,255-i,i] for i in range(256)]],dtype=np.uint8)
+
+def convert_PLI_to_YUV (pli_image, name_to_save):
+    pil_image = pli_image.convert('RGB') 
+    open_cv_image = np.array(pil_image) 
+    # Convert RGB to BGR 
+    img = open_cv_image[:, :, ::-1].copy() 
+    img_yuv = cv2.cvtColor(img, cv2.COLOR_BGR2YUV)
+    y, u, v = cv2.split(img_yuv)
+    # lut_u, lut_v = make_lut_u(), make_lut_v()
+    # # Convert back to BGR so we can apply the LUT and stack the images
+    y = cv2.cvtColor(y, cv2.COLOR_GRAY2BGR)
+    # u = cv2.cvtColor(u, cv2.COLOR_GRAY2BGR)
+    # v = cv2.cvtColor(v, cv2.COLOR_GRAY2BGR)
+    # u_mapped = cv2.LUT(u, lut_u)
+    # v_mapped = cv2.LUT(v, lut_v)
+    # result = np.vstack([img, y, u_mapped, v_mapped])
+    # cv2.imwrite(str(args.save_dir) + '/' + str(name_to_save) + '.png', result)
+    return y
+
+# Parser
 parser= argparse.ArgumentParser("Inference of models")
 
 parser.add_argument('--experiment_dir',
@@ -101,7 +126,7 @@ parser.add_argument('--which_epoch',
 parser.add_argument('--video_path',
         type=str,
         default='/video-conf/vedantha/voxceleb2/dev/mp4/id00018/5BVBfpfzjIk/00006.mp4',
-        help='path to the video')
+        help='path to the video that we collect the two test frames from')
 
 parser.add_argument('--source_frame_num',
         type=int,
@@ -174,48 +199,15 @@ target_relative_path = args.target_relative_path
 source_img_path = args.source_img_path
 target_img_path = args.target_img_path
 
-
 # Video options if both preprocess and draw_source_target_from_video are True
 video_path = args.video_path
 source_frame_num = int(args.source_frame_num)
 target_frame_num = int(args.target_frame_num)
 
-
-# Util functions
-
-
-def make_lut_u():
-    return np.array([[[i,255-i,0] for i in range(256)]],dtype=np.uint8)
-
-def make_lut_v():
-    return np.array([[[0,255-i,i] for i in range(256)]],dtype=np.uint8)
-
-def convert_PLI_to_YUV (pli_image, name_to_save):
-    pil_image = pli_image.convert('RGB') 
-    open_cv_image = np.array(pil_image) 
-    # Convert RGB to BGR 
-    img = open_cv_image[:, :, ::-1].copy() 
-    img_yuv = cv2.cvtColor(img, cv2.COLOR_BGR2YUV)
-    y, u, v = cv2.split(img_yuv)
-    # lut_u, lut_v = make_lut_u(), make_lut_v()
-    # # Convert back to BGR so we can apply the LUT and stack the images
-    y = cv2.cvtColor(y, cv2.COLOR_GRAY2BGR)
-    # u = cv2.cvtColor(u, cv2.COLOR_GRAY2BGR)
-    # v = cv2.cvtColor(v, cv2.COLOR_GRAY2BGR)
-    # u_mapped = cv2.LUT(u, lut_u)
-    # v_mapped = cv2.LUT(v, lut_v)
-    # result = np.vstack([img, y, u_mapped, v_mapped])
-    # cv2.imwrite(str(args.save_dir) + '/' + str(name_to_save) + '.png', result)
-    return y
-# ------------------------------------------------------------------------------------------------------------------------
-
 # Instantiate the Inference Module
 args_dict = infer_utils.get_model_input_arguments(experiment_dir, experiment_name, which_epoch)
 module = InferenceWrapper(args_dict)
-
-
 input_data_dict = {}
-
 if preprocess and not draw_source_target_from_video:
     input_data_dict = {
         'source_imgs': np.asarray(Image.open(source_img_path)), # H x W x 3
@@ -234,8 +226,6 @@ else:
     draw_source_target_from_video = False
     print("You are loading preprocessed .jpg, .npy, .png imags, keypoints, and segmentations.")
 
-
-
 # Pass the inputs to the Inference Module
 output_data_dict = module(input_data_dict,
                           preprocess= preprocess,
@@ -250,18 +240,14 @@ output_data_dict = module(input_data_dict,
 if not os.path.exists(args.save_dir):
     os.makedirs(args.save_dir)
 
-
 rgb_psnr, ssim_value, lpips_value, target, predicted_target = infer_utils.process_output_data_dict(output_data_dict, False)
-print("rgb_psnr, ssim_value, lpips_value", rgb_psnr, ssim_value, lpips_value)
 target_y = convert_PLI_to_YUV (target, "target")
 predicted_target_y = convert_PLI_to_YUV (predicted_target, "predicted_target")
 yuv_psnr = infer_utils.per_frame_psnr(np.array(target_y).astype(np.float32), np.array(predicted_target_y).astype(np.float32))
-print("yuv_psnr",yuv_psnr)
+print("rgb_psnr, yuv_psnr, ssim_value, lpips_value", rgb_psnr, yuv_psnr, ssim_value, lpips_value)
 
 # Save the output images
-
 np.save(str(args.save_dir) + '/metrics.npy', np.array([rgb_psnr, yuv_psnr, ssim_value, lpips_value]))
-
 desired_keys = ['pred_target_imgs', 'target_stickmen', 'source_stickmen', 'source_imgs', \
 'target_imgs', 'source_segs', 'target_segs', 'pred_target_delta_hf_rgbs', 'pred_tex_hf_rgbs']
 
@@ -270,14 +256,9 @@ for key in desired_keys:
         pred_img = infer_utils.to_image(output_data_dict[key][0, 0])
         pred_img.save("{}/{}_{}_{}.png".format(str(args.save_dir), str(key), str(preprocess), str(draw_source_target_from_video)))  
 
-if 'source_imgs' in output_data_dict.keys():
-    masked_source_imgs = infer_utils.to_image(output_data_dict['source_imgs'] [0, 0], output_data_dict['source_segs'] [0, 0] )
-    masked_source_imgs.save("{}/masked_source_imgs_{}_{}.png".format(str(args.save_dir), str(preprocess), str(draw_source_target_from_video)))
-
-if 'target_imgs' in output_data_dict.keys():
-    masked_target_imgs = infer_utils.to_image(output_data_dict['target_imgs'] [0, 0], output_data_dict['target_segs'] [0, 0])
-    masked_target_imgs.save("{}/masked_target_imgs_{}_{}.png".format(str(args.save_dir), str(preprocess), str(draw_source_target_from_video)))
-
-
+for key, output_seg in zip (['source_imgs', 'target_imgs'], ['source_segs', 'target_segs']):
+    if key in output_data_dict.keys():
+        masked_source_imgs = infer_utils.to_image(output_data_dict[key] [0, 0], output_data_dict[output_seg] [0, 0])
+        masked_source_imgs.save("{}/masked_{}_{}_{}.png".format(str(args.save_dir), str(output_image), str(preprocess), str(draw_source_target_from_video)))
 
 print("Done!")  
