@@ -37,15 +37,15 @@ python infer_test.py \
 
 ffmpeg -i ${save_dir}/per_person_yaw_${video_id}/masked_source_imgs_False_False.png \
 -i ${save_dir}/per_person_yaw_${video_id}/masked_target_imgs_False_False.png \
--i ${save_dir}/bilayer_${video_id}/pred_target_False_False.png \
--i ${save_dir}/per_person_voxceleb2_${video_id}/pred_target_False_False.png \
--i ${save_dir}/per_person_yaw_${video_id}/pred_target_False_False.png \
+-i ${save_dir}/bilayer_${video_id}/pred_target_imgs_False_False.png \
+-i ${save_dir}/per_person_voxceleb2_${video_id}/pred_target_imgs_False_False.png \
+-i ${save_dir}/per_person_yaw_${video_id}/pred_target_imgs_False_False.png \
 -filter_complex "[0][1][2][3][4]hstack=inputs=5" ${save_dir}/stacked_per_person_with_yaw.png
 
 ffmpeg -i ${save_dir}/per_person_yaw_${video_id}/masked_source_imgs_False_False.png \
 -i ${save_dir}/per_person_yaw_${video_id}/masked_target_imgs_False_False.png \
--i ${save_dir}/bilayer_${video_id}/pred_target_False_False.png \
--i ${save_dir}/per_person_voxceleb2_${video_id}/pred_target_False_False.png \
+-i ${save_dir}/bilayer_${video_id}/pred_target_imgs_False_False.png \
+-i ${save_dir}/per_person_voxceleb2_${video_id}/pred_target_imgs_False_False.png \
 -filter_complex "[0][1][2][3]hstack=inputs=4" ${save_dir}/stacked_per_person_no_yaw.png
 
 if  [ "$difficult_pose_flag" = true ]
@@ -55,44 +55,44 @@ then
 ffmpeg -i ${save_dir}/per_person_yaw_${video_id}/masked_source_imgs_False_False.png \
 -i ${save_dir}/per_person_yaw_${video_id}/masked_target_imgs_False_False.png \
 -i ${save_dir}/bilayer_${video_id}/pred_tex_hf_rgbs_False_False.png \
--i ${save_dir}/bilayer_${video_id}/pred_target_False_False.png \
+-i ${save_dir}/bilayer_${video_id}/pred_target_imgs_False_False.png \
 -filter_complex "[0][1][2][3]hstack=inputs=4" ${save_dir}/bilayer_with_pred_tex.png
 
 ffmpeg -i ${save_dir}/per_person_yaw_${video_id}/masked_source_imgs_False_False.png \
 -i ${save_dir}/per_person_yaw_${video_id}/masked_target_imgs_False_False.png \
--i ${save_dir}/bilayer_${video_id}/pred_hf_False_False.png \
--i ${save_dir}/bilayer_${video_id}/pred_target_False_False.png \
+-i ${save_dir}/bilayer_${video_id}/pred_target_delta_hf_rgbs_False_False.png \
+-i ${save_dir}/bilayer_${video_id}/pred_target_imgs_False_False.png \
 -filter_complex "[0][1][2][3]hstack=inputs=4" ${save_dir}/bilayer_with_pred_hf.png
 
 
 ffmpeg -i ${save_dir}/per_person_yaw_${video_id}/masked_source_imgs_False_False.png \
 -i ${save_dir}/per_person_yaw_${video_id}/masked_target_imgs_False_False.png \
 -i ${save_dir}/per_person_voxceleb2_${video_id}/pred_tex_hf_rgbs_False_False.png \
--i ${save_dir}/per_person_voxceleb2_${video_id}/pred_target_False_False.png \
+-i ${save_dir}/per_person_voxceleb2_${video_id}/pred_target_imgs_False_False.png \
 -filter_complex "[0][1][2][3]hstack=inputs=4" ${save_dir}/per_person_voxceleb2_${video_id}_with_pred_tex.png
 
 ffmpeg -i ${save_dir}/per_person_yaw_${video_id}/masked_source_imgs_False_False.png \
 -i ${save_dir}/per_person_yaw_${video_id}/masked_target_imgs_False_False.png \
--i ${save_dir}/per_person_voxceleb2_${video_id}/pred_hf_False_False.png \
--i ${save_dir}/per_person_voxceleb2_${video_id}/pred_target_False_False.png \
+-i ${save_dir}/per_person_voxceleb2_${video_id}/pred_target_delta_hf_rgbs_False_False.png \
+-i ${save_dir}/per_person_voxceleb2_${video_id}/pred_target_imgs_False_False.png \
 -filter_complex "[0][1][2][3]hstack=inputs=4" ${save_dir}/per_person_voxceleb2_${video_id}_with_pred_hf.png
 
 ffmpeg -i ${save_dir}/per_person_yaw_${video_id}/masked_source_imgs_False_False.png \
 -i ${save_dir}/per_person_yaw_${video_id}/masked_target_imgs_False_False.png \
 -i ${save_dir}/per_person_yaw_${video_id}/pred_tex_hf_rgbs_False_False.png \
--i ${save_dir}/per_person_yaw_${video_id}/pred_target_False_False.png \
+-i ${save_dir}/per_person_yaw_${video_id}/pred_target_imgs_False_False.png \
 -filter_complex "[0][1][2][3]hstack=inputs=4" ${save_dir}/per_person_yaw_${video_id}_with_pred_tex.png
 
 ffmpeg -i ${save_dir}/per_person_yaw_${video_id}/masked_source_imgs_False_False.png \
 -i ${save_dir}/per_person_yaw_${video_id}/masked_target_imgs_False_False.png \
--i ${save_dir}/per_person_yaw_${video_id}/pred_hf_False_False.png \
--i ${save_dir}/per_person_yaw_${video_id}/pred_target_False_False.png \
+-i ${save_dir}/per_person_yaw_${video_id}/pred_target_delta_hf_rgbs_False_False.png \
+-i ${save_dir}/per_person_yaw_${video_id}/pred_target_imgs_False_False.png \
 -filter_complex "[0][1][2][3]hstack=inputs=4" ${save_dir}/per_person_yaw_${video_id}_with_pred_hf.png
 
 ffmpeg -i ${save_dir}/per_person_yaw_${video_id}/masked_source_imgs_False_False.png \
 -i ${save_dir}/per_person_yaw_${video_id}/masked_target_imgs_False_False.png \
--i ${save_dir}/per_person_voxceleb2_${video_id}/pred_target_False_False.png \
--i ${save_dir}/per_person_yaw_${video_id}/pred_target_False_False.png \
+-i ${save_dir}/per_person_voxceleb2_${video_id}/pred_target_imgs_False_False.png \
+-i ${save_dir}/per_person_yaw_${video_id}/pred_target_imgs_False_False.png \
 -filter_complex "[0][1][2][3]hstack=inputs=4" ${save_dir}/close_random_compare.png
 
 
@@ -121,18 +121,18 @@ python infer_test.py \
 
 ffmpeg -i ${save_dir}/per_person_yaw_${video_id}/masked_source_imgs_False_False.png \
 -i ${save_dir}/per_person_yaw_${video_id}/masked_target_imgs_False_False.png \
--i ${save_dir}/bilayer_${video_id}/pred_target_False_False.png \
--i ${save_dir}/per_person_voxceleb2_${video_id}/pred_target_False_False.png \
--i ${save_dir}/per_person_yaw_${video_id}/pred_target_False_False.png \
--i ${save_dir}/per_video_voxceleb2_${video_id}/pred_target_False_False.png \
--i ${save_dir}/per_video_yaw_${video_id}/pred_target_False_False.png \
+-i ${save_dir}/bilayer_${video_id}/pred_target_imgs_False_False.png \
+-i ${save_dir}/per_person_voxceleb2_${video_id}/pred_target_imgs_False_False.png \
+-i ${save_dir}/per_person_yaw_${video_id}/pred_target_imgs_False_False.png \
+-i ${save_dir}/per_video_voxceleb2_${video_id}/pred_target_imgs_False_False.png \
+-i ${save_dir}/per_video_yaw_${video_id}/pred_target_imgs_False_False.png \
 -filter_complex "[0][1][2][3][4][5][6]hstack=inputs=7" ${save_dir}/stacked_per_video_with_yaw.png
 
 ffmpeg -i ${save_dir}/per_person_yaw_${video_id}/masked_source_imgs_False_False.png \
 -i ${save_dir}/per_person_yaw_${video_id}/masked_target_imgs_False_False.png \
--i ${save_dir}/bilayer_${video_id}/pred_target_False_False.png \
--i ${save_dir}/per_person_voxceleb2_${video_id}/pred_target_False_False.png \
--i ${save_dir}/per_video_voxceleb2_${video_id}/pred_target_False_False.png \
+-i ${save_dir}/bilayer_${video_id}/pred_target_imgs_False_False.png \
+-i ${save_dir}/per_person_voxceleb2_${video_id}/pred_target_imgs_False_False.png \
+-i ${save_dir}/per_video_voxceleb2_${video_id}/pred_target_imgs_False_False.png \
 -filter_complex "[0][1][2][3][4]hstack=inputs=5" ${save_dir}/stacked_per_video_no_yaw.png
 
 fi

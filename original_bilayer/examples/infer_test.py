@@ -78,7 +78,7 @@ from skimage.metrics import structural_similarity as ssim
 import lpips
 import torch
 import cv2
-
+from examples import utils as infer_utils
 # Parser
 
 parser= argparse.ArgumentParser("Inference of models")
@@ -180,62 +180,8 @@ video_path = args.video_path
 source_frame_num = int(args.source_frame_num)
 target_frame_num = int(args.target_frame_num)
 
-loss_fn = lpips.LPIPS(net='alex')
-# transform for centering picture
-regular_transform = transforms.Compose([
-        transforms.Resize((256, 256)),
-        transforms.ToTensor(),
-        transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
-])
-
 
 # Util functions
-
-def to_image(img_tensor, seg_tensor=None):
-    """ This function transforms Inference output images to savable .jpg
-    
-    Inputs
-    ----------
-    img_tensor: the tensor that we want to save
-    seg_tensor : optional, the inference segmentation to mask the background
-
-    Returns
-    -------
-    PIL Image to save (masked with the seg_tensor optionally)
-
-    """
-    if seg_tensor is not None:
-        img_tensor = img_tensor * seg_tensor + (-1) * (1 - seg_tensor)
-    img_tensor = torch.mul(torch.add(img_tensor, 1), 0.5).clamp(0, 1)
-    to_image_module = transforms.ToPILImage()
-    img_tensor = img_tensor.cpu()
-    return to_image_module(img_tensor)
-
-def per_frame_psnr(x, y):
-    assert(x.size == y.size)
-
-    mse = np.mean(np.square(x - y))
-    if mse > 0:
-        psnr = 10 * math.log10(255*255/mse)
-    else:
-        psnr = 100000
-    return psnr
-
-""" compute metric for all filenames matching prefix relative to the reference video """
-def compute_metric_for_files(img1, img2):
-    # read one frame at a time and compute average metric
-    ssim_value = ssim(np.array(img1), np.array(img2), multichannel=True)
-    psnr_value = per_frame_psnr(np.array(img1).astype(np.float32), np.array(img2).astype(np.float32)) # float 32 is very important!
-    img1 = regular_transform(Image.fromarray(np.array(img1)))
-    img2 = regular_transform(Image.fromarray(np.array(img2)))
-    lpips_value = torch.flatten(loss_fn(img1, img2).detach())[0].item()
-    return psnr_value, ssim_value, lpips_value
-
-def process_output_data_dict (output_data_dict):
-    predicted_target = to_image(output_data_dict['pred_target_imgs'][0, 0], output_data_dict['target_segs'] [0, 0])
-    target = to_image(output_data_dict['target_imgs'][0, 0], output_data_dict['target_segs'] [0, 0])
-    psnr_value, ssim_value, lpips_value = compute_metric_for_files(target, predicted_target)
-    return  psnr_value, ssim_value, lpips_value, target, predicted_target
 
 
 def make_lut_u():
@@ -263,29 +209,10 @@ def convert_PLI_to_YUV (pli_image, name_to_save):
     return y
 # ------------------------------------------------------------------------------------------------------------------------
 
-# Assigning correct argument dictionary and input data dictionary
-args_dict = {
-    'experiment_dir': experiment_dir,
-    'experiment_name': experiment_name,
-    'which_epoch': which_epoch,
-    'init_experiment_dir': experiment_dir + '/runs/' + experiment_name,
-    'init_networks': 'identity_embedder, texture_generator, keypoints_embedder, inference_generator',
-    'init_which_epoch': which_epoch,
-    'metrics': 'PSNR, lpips',
-    'psnr_loss_apply_to': 'pred_target_delta_lf_rgbs, target_imgs',
-    'num_gpus': 1,
-    'stickmen_thickness': 2,
-    'pretrained_weights_dir': '/video-conf/scratch/pantea', 
-    'spn_networks': 'identity_embedder, texture_generator, keypoints_embedder, inference_generator',
-    'enh_apply_masks': False,
-    'inf_apply_masks': True,
-    'dataset_load_from_txt': False,
-    'replace_Gtex_output_with_trainable_tensor': False,
-    'replace_source_specific_with_trainable_tensors': False,
-    'dropout_networks': 'texture_generator: 0.5',
-    'use_dropout': False,
-    'texture_output_dim': 3,
-    'use_unet': False}
+# Instantiate the Inference Module
+args_dict = infer_utils.get_model_input_arguments(experiment_dir, experiment_name, which_epoch)
+module = InferenceWrapper(args_dict)
+
 
 input_data_dict = {}
 
@@ -308,8 +235,6 @@ else:
     print("You are loading preprocessed .jpg, .npy, .png imags, keypoints, and segmentations.")
 
 
-# Instantiate the Inference Module
-module = InferenceWrapper(args_dict)
 
 # Pass the inputs to the Inference Module
 output_data_dict = module(input_data_dict,
@@ -326,56 +251,33 @@ if not os.path.exists(args.save_dir):
     os.makedirs(args.save_dir)
 
 
-psnr_values, ssim_values, lpips_values, target, predicted_target = process_output_data_dict (output_data_dict)
-print("psnr_values, ssim_values, lpips_values", psnr_values, ssim_values, lpips_values)
+rgb_psnr, ssim_value, lpips_value, target, predicted_target = infer_utils.process_output_data_dict(output_data_dict, False)
+print("rgb_psnr, ssim_value, lpips_value", rgb_psnr, ssim_value, lpips_value)
 target_y = convert_PLI_to_YUV (target, "target")
 predicted_target_y = convert_PLI_to_YUV (predicted_target, "predicted_target")
-yuv_psnr = per_frame_psnr(np.array(target_y).astype(np.float32), np.array(predicted_target_y).astype(np.float32))
+yuv_psnr = infer_utils.per_frame_psnr(np.array(target_y).astype(np.float32), np.array(predicted_target_y).astype(np.float32))
 print("yuv_psnr",yuv_psnr)
 
 # Save the output images
 
-np.save(str(args.save_dir) + '/metrics.npy', np.array([psnr_values, yuv_psnr, ssim_values, lpips_values]))
+np.save(str(args.save_dir) + '/metrics.npy', np.array([rgb_psnr, yuv_psnr, ssim_value, lpips_value]))
 
-if 'pred_target_imgs' in output_data_dict.keys():
-    pred_img = to_image(output_data_dict['pred_target_imgs'][0, 0])
-    pred_img.save("{}/pred_target_{}_{}.png".format(str(args.save_dir), str(preprocess), str(draw_source_target_from_video)))  
+desired_keys = ['pred_target_imgs', 'target_stickmen', 'source_stickmen', 'source_imgs', \
+'target_imgs', 'source_segs', 'target_segs', 'pred_target_delta_hf_rgbs', 'pred_tex_hf_rgbs']
 
-if 'target_stickmen' in output_data_dict.keys():
-    target_stickmen = to_image(output_data_dict['target_stickmen'][0, 0])
-    target_stickmen.save("{}/target_stickmen_{}_{}.png".format(str(args.save_dir), str(preprocess), str(draw_source_target_from_video)))
-
-if 'source_stickmen' in output_data_dict.keys():
-    source_stickmen = to_image(output_data_dict['source_stickmen'] [0, 0])
-    source_stickmen.save("{}/source_stickmen_{}_{}.png".format(str(args.save_dir), str(preprocess), str(draw_source_target_from_video)))
+for key in desired_keys: 
+    if key in output_data_dict.keys():
+        pred_img = infer_utils.to_image(output_data_dict[key][0, 0])
+        pred_img.save("{}/{}_{}_{}.png".format(str(args.save_dir), str(key), str(preprocess), str(draw_source_target_from_video)))  
 
 if 'source_imgs' in output_data_dict.keys():
-    source_imgs = to_image(output_data_dict['source_imgs'] [0, 0])
-    source_imgs.save("{}/source_imgs_{}_{}.png".format(str(args.save_dir), str(preprocess), str(draw_source_target_from_video)))
-    masked_source_imgs = to_image(output_data_dict['source_imgs'] [0, 0], output_data_dict['source_segs'] [0, 0] )
+    masked_source_imgs = infer_utils.to_image(output_data_dict['source_imgs'] [0, 0], output_data_dict['source_segs'] [0, 0] )
     masked_source_imgs.save("{}/masked_source_imgs_{}_{}.png".format(str(args.save_dir), str(preprocess), str(draw_source_target_from_video)))
 
 if 'target_imgs' in output_data_dict.keys():
-    target_imgs = to_image(output_data_dict['target_imgs'] [0, 0])
-    target_imgs.save("{}/target_imgs_{}_{}.png".format(str(args.save_dir), str(preprocess), str(draw_source_target_from_video)))
-    masked_target_imgs = to_image(output_data_dict['target_imgs'] [0, 0], output_data_dict['target_segs'] [0, 0])
+    masked_target_imgs = infer_utils.to_image(output_data_dict['target_imgs'] [0, 0], output_data_dict['target_segs'] [0, 0])
     masked_target_imgs.save("{}/masked_target_imgs_{}_{}.png".format(str(args.save_dir), str(preprocess), str(draw_source_target_from_video)))
 
-if 'source_segs' in output_data_dict.keys():
-    source_segs = to_image(output_data_dict['source_segs'] [0, 0])
-    source_segs.save("{}/source_segs_{}_{}.png".format(str(args.save_dir), str(preprocess), str(draw_source_target_from_video)))
 
-if 'target_segs' in output_data_dict.keys():
-    target_segs = to_image(output_data_dict['target_segs'] [0, 0])
-    target_segs.save("{}/target_segs_{}_{}.png".format(str(args.save_dir), str(preprocess), str(draw_source_target_from_video)))
-
-if 'pred_target_delta_hf_rgbs' in output_data_dict.keys():
-    pred_hf = to_image(output_data_dict['pred_target_delta_hf_rgbs'] [0, 0])
-    pred_hf.save("{}/pred_hf_{}_{}.png".format(str(args.save_dir), str(preprocess), str(draw_source_target_from_video)))
-
-if 'pred_tex_hf_rgbs' in output_data_dict.keys():
-    pred_tex = to_image(output_data_dict['pred_tex_hf_rgbs'] [0, 0])
-    pred_tex.save("{}/pred_tex_hf_rgbs_{}_{}.png".format(str(args.save_dir), str(preprocess), str(draw_source_target_from_video)))
-  
 
 print("Done!")  
