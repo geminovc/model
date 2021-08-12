@@ -1,3 +1,8 @@
+'''
+This script makes the proper dataset for training the video with id target_video_id. 
+This script moves the video with id target_video_id to train and moves num_test_sessions session(s) to test. 
+It moves all the other videos to unseen_test. 
+'''
 import glob
 import pathlib
 import numpy as np

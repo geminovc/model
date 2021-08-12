@@ -72,6 +72,44 @@ def find_session_bins (yaw_dict, bins):
                 frames_bin_dict[x] = str(current_bin)
     return representatives , frames_bin_dict
 
+# This function saves the output metrics (psnr, ssim, lpips) in video_technique_metrics.npy, 
+# the predicted video with original audio in video_technique.mp4
+# the predicted video attached to the original video in video_technique_stacked.mp4
+def save_outputs (save_dir, psnr_values, ssim_values, lpips_values, video_technique, video_self_psnr, video_path, predicted_video, target_video):
+    if not os.path.exists(save_dir):
+        os.makedirs(save_dir)
+
+    print("psnr_values mean", sum(psnr_values)/len(psnr_values))
+    print("ssim_values mean", sum(ssim_values)/len(ssim_values))
+    print("lpips_values mean",sum(lpips_values)/len(lpips_values))
+    np.save(str(save_dir) + '/' + video_technique + ".npy", np.array([min(psnr_values),sum(psnr_values)/len(psnr_values),max(psnr_values),
+                                                                        min(ssim_values),sum(ssim_values)/len(ssim_values),max(ssim_values),
+                                                                        min(lpips_values),sum(lpips_values)/len(lpips_values),max(lpips_values)]))
+
+    if video_technique == 'last_frame_next_source':
+        print("Video self psnr (frame(n), frame(n-1))")
+        print(min(video_self_psnr),sum(video_self_psnr)/len(video_self_psnr),max(video_self_psnr))
+
+    # Making videos
+    # original video and audio
+    original_video = mp.VideoFileClip(str(pathlib.Path(video_path)))
+    original_audio = original_video.audio
+    # construct the predicted video
+    predicted_imgs = [np.array(i) for i in predicted_video]
+    predicted_clips = [mp.ImageClip(m).set_duration(0.04) for m in predicted_imgs]
+    concat_clip = mp.concatenate_videoclips(predicted_clips, method="compose")
+    concat_clip_new = concat_clip.set_audio(original_audio.set_duration(concat_clip.duration))
+    concat_clip_new.write_videofile(str(save_dir) + '/' + video_technique + ".mp4",fps=25)
+    # construct the masked original video
+    original_imgs = [np.array(i) for i in target_video]
+    original_clips = [mp.ImageClip(m).set_duration(0.04) for m in original_imgs]
+    concat_clip2 = mp.concatenate_videoclips(original_clips, method="compose")
+    concat_clip2_new = concat_clip2.set_audio(original_audio.set_duration(concat_clip.duration))
+    concat_clip2_new.write_videofile(str(save_dir) + '/masked_original.mp4',fps=25)
+    # stacking the original and predicted videos
+    final_stacked = mp.clips_array([[concat_clip_new , concat_clip2]])
+    final_stacked.write_videofile(str(save_dir) + '/' + video_technique + "_stacked" + ".mp4",fps=25)
+
 
 # Parser
 parser= argparse.ArgumentParser("Video making")
@@ -213,50 +251,17 @@ else:
                                     source_relative_path=source_relative_path,
                                     target_relative_path=target_relative_path)
 
-            psnr_values, ssim_values, lpips_values, target_video, predicted_video = infer_utils.process_output_data_dict (output_data_dict,
+            psnr_values, ssim_values, lpips_values, target_video, predicted_video = infer_utils.process_output_data_dict (
+                                                                                                            output_data_dict,
                                                                                                             True,
                                                                                                             target_video,
                                                                                                             predicted_video,
                                                                                                             psnr_values,
                                                                                                             ssim_values,
                                                                                                             lpips_values)
-# Save the output images
-if not os.path.exists(args.save_dir):
-    os.makedirs(args.save_dir)
 
-
-print("psnr_values mean", sum(psnr_values)/len(psnr_values))
-print("ssim_values mean", sum(ssim_values)/len(ssim_values))
-print("lpips_values mean",sum(lpips_values)/len(lpips_values))
-np.save(str(args.save_dir) + '/' + video_technique + ".npy", np.array([min(psnr_values),sum(psnr_values)/len(psnr_values),max(psnr_values),
-                                                                       min(ssim_values),sum(ssim_values)/len(ssim_values),max(ssim_values),
-                                                                       min(lpips_values),sum(lpips_values)/len(lpips_values),max(lpips_values)]))
-
-
-if video_technique == 'last_frame_next_source':
-    print("Video self psnr (frame(n), frame(n-1))")
-    print(min(video_self_psnr),sum(video_self_psnr)/len(video_self_psnr),max(video_self_psnr))
-
-
-# Making videos
-# original video and audio
-original_video = mp.VideoFileClip(str(pathlib.Path(args.video_path)))
-original_audio = original_video.audio
-# construct the predicted video
-predicted_imgs = [np.array(i) for i in predicted_video]
-predicted_clips = [mp.ImageClip(m).set_duration(0.04) for m in predicted_imgs]
-concat_clip = mp.concatenate_videoclips(predicted_clips, method="compose")
-concat_clip_new = concat_clip.set_audio(original_audio.set_duration(concat_clip.duration))
-concat_clip_new.write_videofile(str(args.save_dir) + '/' + video_technique + ".mp4",fps=25)
-# construct the masked original video
-original_imgs = [np.array(i) for i in target_video]
-original_clips = [mp.ImageClip(m).set_duration(0.04) for m in original_imgs]
-concat_clip2 = mp.concatenate_videoclips(original_clips, method="compose")
-concat_clip2_new = concat_clip2.set_audio(original_audio.set_duration(concat_clip.duration))
-concat_clip2_new.write_videofile(str(args.save_dir) + '/masked_original.mp4',fps=25)
-# stacking the original and predicted videos
-final_stacked = mp.clips_array([[concat_clip_new , concat_clip2]])
-final_stacked.write_videofile(str(args.save_dir) + '/' + video_technique + "_stacked" + ".mp4",fps=25)
+save_outputs(args.save_dir, psnr_values, ssim_values, lpips_values, \
+video_technique, video_self_psnr, args.video_path, predicted_video, target_video)
 
 cv2.destroyAllWindows()
         

@@ -1,3 +1,7 @@
+'''
+This script adds the name of a directory to all it's subfiles as prefix. 
+
+'''
 import glob
 import pathlib
 import os
