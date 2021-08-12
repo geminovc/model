@@ -21,6 +21,13 @@ import math
 from skimage.metrics import structural_similarity as ssim
 import lpips
 
+loss_fn = lpips.LPIPS(net='alex')
+# transform for centering picture
+regular_transform = transforms.Compose([
+        transforms.Resize((256, 256)),
+        transforms.ToTensor(),
+        transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
+
 # This function transforms Inference output images to savable .jpg
 # Inputs:
 # img_tensor: the tensor that we want to save
@@ -49,14 +56,8 @@ def per_frame_psnr(x, y):
 
 # Computes psnr, lpips, and ssim for img1 and img2
 def compute_metric_for_files(img1, img2):
-    loss_fn = lpips.LPIPS(net='alex')
-    # transform for centering picture
-    regular_transform = transforms.Compose([
-            transforms.Resize((256, 256)),
-            transforms.ToTensor(),
-            transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
     ssim_value = ssim(np.array(img1), np.array(img2), multichannel=True)
-    psnr_value = infer_utils.per_frame_psnr(np.array(img1).astype(np.float32), np.array(img2).astype(np.float32)) # float 32 is very important!
+    psnr_value = per_frame_psnr(np.array(img1).astype(np.float32), np.array(img2).astype(np.float32)) # float 32 is very important!
     
     img1 = regular_transform(Image.fromarray(np.array(img1)))
     img2 = regular_transform(Image.fromarray(np.array(img2)))
@@ -78,7 +79,7 @@ def process_output_data_dict (output_data_dict, if_make_video, target_video = []
         lpips_values.append(lpips_frame)
         return  psnr_values, ssim_values, lpips_values, target_video, predicted_video
     else:
-        return  psnr_value, ssim_value, lpips_value, target, predicted_target
+        return  psnr_frame, ssim_frame , lpips_frame, target, predicted_target
 
 
 # Assigning correct argument dictionary and input data dictionary

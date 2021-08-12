@@ -259,6 +259,6 @@ for key in desired_keys:
 for key, output_seg in zip (['source_imgs', 'target_imgs'], ['source_segs', 'target_segs']):
     if key in output_data_dict.keys():
         masked_source_imgs = infer_utils.to_image(output_data_dict[key] [0, 0], output_data_dict[output_seg] [0, 0])
-        masked_source_imgs.save("{}/masked_{}_{}_{}.png".format(str(args.save_dir), str(output_image), str(preprocess), str(draw_source_target_from_video)))
+        masked_source_imgs.save("{}/masked_{}_{}_{}.png".format(str(args.save_dir), str(key), str(preprocess), str(draw_source_target_from_video)))
 
 print("Done!")  
