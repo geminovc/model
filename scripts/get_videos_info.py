@@ -20,7 +20,7 @@ The output is a csv file called csv_file_name that contains the coulmns:
 
 Sample usage:
 
-python get_videos_info.py --video_root '/path/to/videos' --csv_file_name results.csv --hist_file_name /path/to/save/hist.png \
+python get_videos_info.py --video_root '/path/to/videos' --csv_file_name /path/to/save/results.csv --hist_file_name /path/to/save/hist.png \
 --bit_rate_threshold 500000
 
 
@@ -31,6 +31,7 @@ import argparse
 import ffmpeg
 import sys
 import glob
+import os
 import pathlib
 
 parser = argparse.ArgumentParser(description='Get video information')
@@ -63,7 +64,8 @@ def get_video_info (in_filename):
     video_stream = next((stream for stream in probe['streams'] if stream['codec_type'] == 'video'), None)
     if video_stream is None:
         print('No video stream found', file=sys.stderr)
-        width , height, num_frames, bit_rate, duration, avg_frame_rate, pix_fmt = '0', '0', '0', '0', '0', '0', 'None'
+        width, height, num_frames, avg_frame_rate, bit_rate, duration, pix_fmt, crf, chroma_qp_offset, qpmin, qpmax, qpstep = '0', '0', '0', '0', '0', '0', \
+                                                                                                                              'None', '0', '0', '0', '0', '0'
     else:
         width = int(video_stream['width'])
         height = int(video_stream['height'])
@@ -72,9 +74,26 @@ def get_video_info (in_filename):
         duration = video_stream['duration']
         avg_frame_rate = video_stream['avg_frame_rate']
         pix_fmt = video_stream['pix_fmt']
-    print('width: {} , height: {}, num_frames: {}, avg_frame_rate: {}, bit_rate: {}, \
-    duration: {} s, pix_fmt: {}'.format(width, height, num_frames, avg_frame_rate, bit_rate, duration, pix_fmt))
-    return width, height, num_frames, avg_frame_rate, bit_rate, duration, pix_fmt
+        try:
+            mediainfo_crf = os.popen("mediainfo \"%s\" | grep \"Encoding settings\" | cut -d':' -f2- | tr '/' '\n' | sed 's/ //' | grep crf= " % (str(in_filename))).read()
+            crf = (mediainfo_crf.split('=')[1]).split('\n')[0]
+            mediainfo_chroma_qp_offset = os.popen("mediainfo \"%s\" | grep \"Encoding settings\" | cut -d':' -f2- | tr '/' '\n' | sed 's/ //' | grep chroma_qp_offset= " % (str(in_filename))).read()
+            chroma_qp_offset = (mediainfo_chroma_qp_offset.split('=')[1]).split('\n')[0]
+            mediainfo_qpmin = os.popen("mediainfo \"%s\" | grep \"Encoding settings\" | cut -d':' -f2- | tr '/' '\n' | sed 's/ //' | grep qpmin= " % (str(in_filename))).read()
+            qpmin = (mediainfo_qpmin.split('=')[1]).split('\n')[0]
+            mediainfo_qpmax = os.popen("mediainfo \"%s\" | grep \"Encoding settings\" | cut -d':' -f2- | tr '/' '\n' | sed 's/ //' | grep qpmax= " % (str(in_filename))).read()
+            qpmax = (mediainfo_qpmax.split('=')[1]).split('\n')[0]
+            mediainfo_qpstep = os.popen("mediainfo \"%s\" | grep \"Encoding settings\" | cut -d':' -f2- | tr '/' '\n' | sed 's/ //' | grep qpstep= " % (str(in_filename))).read()
+            qpstep = (mediainfo_qpstep.split('=')[1]).split('\n')[0]
+        except: 
+            crf, chroma_qp_offset, qpmin, qpmax, qpstep = 100, 100, 100, 100, 100
+
+    print('width: {} , height: {}, num_frames: {}, avg_frame_rate: {}, bit_rate: {}, duration: {} s, pix_fmt: {}, crf: {} '.format(width,
+                                                                                                                            height, num_frames,
+                                                                                                                            avg_frame_rate, bit_rate,
+                                                                                                                            duration, pix_fmt, crf))
+    print('chroma_qp_offset: {}, qpmin: {}, qpmax: {}, qpstep: {}'.format(chroma_qp_offset, qpmin, qpmax, qpstep))
+    return width, height, num_frames, avg_frame_rate, bit_rate, duration, pix_fmt, crf, chroma_qp_offset, qpmin, qpmax, qpstep
 
 def get_most_frequent_element(List):
     counter = 0
@@ -93,16 +112,16 @@ if __name__ == '__main__':
     video_paths = pathlib.Path(args.video_root).glob('*/*/*')
     count = 0
     # write to csv
-    with open(args.csv_file_name, 'w') as f:
-        f.write("%s,%s,%s,%s,%s,%s,%s,%s\n"%('video_path','width','height', 'num_frames', 
-                'avg_frame_rate', 'bit_rate','duration', 'pix_fmt'))
+    with open(args.cvs_file_name, 'w') as f:
+        f.write("%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s\n"%('video_path','width','height', 'num_frames', 
+                'avg_frame_rate', 'bit_rate','duration', 'pix_fmt','crf', 'chroma_qp_offset', 'qpmin', 'qpmax', 'qpstep'))
 
         for video_path in video_paths:
             count += 1
             try:
-                width, height, num_frames, avg_frame_rate, bit_rate, duration, pix_fmt = get_video_info (video_path)
-                f.write("%s,%s,%s,%s,%s,%s,%s,%s\n" % (video_path, width, height, num_frames, 
-                    avg_frame_rate, bit_rate, duration, pix_fmt))
+                width, height, num_frames, avg_frame_rate, bit_rate, duration, pix_fmt, crf, chroma_qp_offset, qpmin, qpmax, qpstep = get_video_info (video_path)
+                f.write("%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s\n" % (video_path, width, height, num_frames, 
+                    avg_frame_rate, bit_rate, duration, pix_fmt, crf, chroma_qp_offset, qpmin, qpmax, qpstep))
             except:
                 print("Exception happend in getting the information of", video_path)
     
