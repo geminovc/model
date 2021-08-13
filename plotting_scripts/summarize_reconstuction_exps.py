@@ -65,6 +65,7 @@ def load_pickle(path_string):
 def average (my_dict, key, window_size):
     temp = my_dict[key]
     float_values = [x.item() for x in temp]
+    print(len(float_values))
     float_values = float_values[-window_size:]
     return sum(float_values) / len(float_values)
     
@@ -84,12 +85,14 @@ def min_in_window (my_dict, key, window_size):
 
 # Returns the common column names with or without pose information
 def common_metrics_names ():
+
         return "%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s\n"%('G_PSNR_min', 'G_PSNR_mean', 
                 'G_PSNR_max', 'G_LPIPS_min','G_LPIPS_mean','G_LPIPS_max', 'G_PME_min', 'G_PME_mean','G_PME_max',
                 'G_CSIM_min','G_CSIM_mean','G_CSIM_max','G_SSIM_min','G_SSIM_mean','G_SSIM_max')
 
 # Returns the common column values with or without pose information
 def common_metrics_values (experiment_data , window):
+
         return "%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s\n" % (min_in_window (experiment_data, 'G_PSNR', window),
                                                                    average (experiment_data, 'G_PSNR', window),
                                                                    max_in_window (experiment_data, 'G_PSNR', window),
@@ -105,6 +108,7 @@ def common_metrics_values (experiment_data , window):
                                                                    min_in_window (experiment_data, 'G_SSIM', window),
                                                                    average (experiment_data, 'G_SSIM', window),
                                                                    max_in_window (experiment_data, 'G_SSIM', window))
+
 
 # Load the pickle files one at a time and write to csv
 with open(args.result_file_name, 'w') as f:
@@ -125,5 +129,4 @@ with open(args.result_file_name, 'w') as f:
             f.write("%s,%s,%s" % (experiment_name, pose_name, common_metrics_values (experiment_data , window)))
 
 print('Saving to file Successfully done!')
-
 

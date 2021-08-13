@@ -14,7 +14,11 @@ visual_freq=${10}
 train_dataloader_name=${11}
 data_root=${12}
 root_to_yaws=${13}
+frozen_networks=${14}
+unfreeze_texture_generator_last_layers=${15}
+unfreeze_inference_generator_last_layers=${16}
 
+echo "frozen_networks: $frozen_networks"
 
 # Depending on the machine you run the code from, the directory to save experiments is different due to write access
 if [[ "$machine" == "chunky" ]]; then
@@ -195,9 +199,9 @@ python train.py \
 --wpr_loss_weight_decay 1.0 \
 --nme_num_threads 1  \
 --skip_test False \
---frozen_networks ' ' \
---unfreeze_texture_generator_last_layers True \
---unfreeze_inference_generator_last_layers True \
+--frozen_networks "${frozen_networks}" \
+--unfreeze_texture_generator_last_layers ${unfreeze_texture_generator_last_layers} \
+--unfreeze_inference_generator_last_layers ${unfreeze_inference_generator_last_layers} \
 --replace_AdaSpade_with_conv False \
 --replace_Gtex_output_with_trainable_tensor False \
 --replace_source_specific_with_trainable_tensors False \
@@ -221,3 +225,4 @@ python train.py \
 
 rm /data/pouya/gpu_reserves/${gpu_number}.full 
 
+ 
