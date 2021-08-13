@@ -1,7 +1,8 @@
 """
 This script records the following information for videos in --video_root:
 
-    'video_path','width','height', 'num_frames','avg_frame_rate', 'bit_rate','duration' 'pix_fmt'
+    'video_path','width','height', 'num_frames','avg_frame_rate', 'bit_rate','duration' 'pix_fmt', 
+    'crf', 'chroma_qp_offset', 'qpmin', 'qpmax', 'qpstep'
 
 Inputs
 ----------
@@ -16,7 +17,8 @@ Outputs
 
 The output is a csv file called csv_file_name that contains the coulmns: 
 
-'video_path','width','height', 'num_frames','avg_frame_rate', 'bit_rate','duration', 'pix_fmt'
+'video_path','width','height', 'num_frames','avg_frame_rate', 'bit_rate','duration', 'pix_fmt',
+'crf', 'chroma_qp_offset', 'qpmin', 'qpmax', 'qpstep'
 
 Sample usage:
 
@@ -55,6 +57,8 @@ parser.add_argument('--bit_rate_threshold',
                        default = 480000,
                        help = 'threshold of acceptable bit rates')
 
+# Outputs the 'width','height', 'num_frames','avg_frame_rate', 'bit_rate','duration', 'pix_fmt', 'crf',
+# 'chroma_qp_offset', 'qpmin', 'qpmax', 'qpstep' for the video in in_filename
 def get_video_info (in_filename):
     try:
         probe = ffmpeg.probe(in_filename)
@@ -95,6 +99,7 @@ def get_video_info (in_filename):
     print('chroma_qp_offset: {}, qpmin: {}, qpmax: {}, qpstep: {}'.format(chroma_qp_offset, qpmin, qpmax, qpstep))
     return width, height, num_frames, avg_frame_rate, bit_rate, duration, pix_fmt, crf, chroma_qp_offset, qpmin, qpmax, qpstep
 
+# Finds the element in an array with the most frequency of appearance in the array
 def get_most_frequent_element(List):
     counter = 0
     num = List[0]

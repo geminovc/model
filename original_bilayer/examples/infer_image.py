@@ -241,9 +241,12 @@ if not os.path.exists(args.save_dir):
     os.makedirs(args.save_dir)
 
 rgb_psnr, ssim_value, lpips_value, target, predicted_target = infer_utils.process_output_data_dict(output_data_dict, False)
+
 target_y = convert_PLI_to_YUV (target, "target")
 predicted_target_y = convert_PLI_to_YUV (predicted_target, "predicted_target")
-yuv_psnr = infer_utils.per_frame_psnr(np.array(target_y).astype(np.float32), np.array(predicted_target_y).astype(np.float32))
+target_y_float = np.array(target_y).astype(np.float32)
+predicted_target_y_float = np.array(predicted_target_y).astype(np.float32)
+yuv_psnr = infer_utils.per_frame_psnr(target_y_float, predicted_target_y_float)
 print("rgb_psnr, yuv_psnr, ssim_value, lpips_value", rgb_psnr, yuv_psnr, ssim_value, lpips_value)
 
 # Save the output images

@@ -14,7 +14,11 @@ yaw_root: The absolute path to the yaw directory
 
 Outputs
 ----------
-
+1) Original video masked with the target segmentation saved in <save_dir>/masked_original.mp4
+2) Predicted video with audio saved in <save_dir>/<video_technique>.mp4
+3) Predicted video stacked to the original video saved in <save_dir>/<video_technique>_stacked.mp4
+4) Metrics, lpips and ssim and psnr (comparing the predicted video and original video),
+   saved in <save_dir>/merics_<video_technique>.npy
 
 """
 
@@ -45,13 +49,16 @@ from examples import utils as infer_utils
 
 
 # Util functions
+
+# Loads the numpy files contating yaw, pitch, roll and forms a dictionary yaw_dict[frame_num] = yaw_of_the_frame
 def load_session_yaws (yaw_npy_paths):
     yaw_dict = {}
     for yaw_path in yaw_npy_paths:
         frame_num = (str(yaw_path).split('/')[-1]).split('.')[0]
-        yaw_dict [frame_num] = load_npy(yaw_path)
+        yaw_dict[frame_num] = load_npy(yaw_path)
     return yaw_dict
 
+# Loads a numpy file and retrieves the first index
 def load_npy(path_string):
     np_array = np.load(path_string)
     yaw = np_array [0]
@@ -145,7 +152,7 @@ parser.add_argument('--video_path',
 parser.add_argument('--dataset_root',
         type=str,
         default='/video-conf/scratch/pantea/per_person_1_three_datasets',
-        help='root to the dataset containg images')
+        help='root to the dataset containing images')
 
 parser.add_argument('--relative_path_base',
         type=str,
@@ -193,7 +200,7 @@ if video_technique != 'representative_sources':
             break
 
         frame = frame[:,:,::-1]
-        if frame_num==0:
+        if frame_num == 0:
             source_frame = frame
 
         target_frame = frame
@@ -206,7 +213,7 @@ if video_technique != 'representative_sources':
         }
         # Pass the inputs to the Inference Module
         output_data_dict = module(input_data_dict, preprocess= True, draw_source_target_from_video = False)
-        psnr_values, ssim_values, lpips_values, target_video, predicted_video = infer_utils.process_output_data_dict ( 
+        psnr_values, ssim_values, lpips_values, target_video, predicted_video = infer_utils.process_output_data_dict( 
                                                                                                            output_data_dict,
                                                                                                            True, 
                                                                                                            target_video,
@@ -245,13 +252,13 @@ else:
             source_relative_path = source_relative_path_base +'/'+str(representatives[str(frames_bin_dict[str(i)])])
             #Pass the inputs to the Inference Module
             output_data_dict = module(data_dict = {},
-                                    preprocess= False,
+                                    preprocess = False,
                                     draw_source_target_from_video = False,
                                     dataset_root = dataset_root,
-                                    source_relative_path=source_relative_path,
-                                    target_relative_path=target_relative_path)
+                                    source_relative_path = source_relative_path,
+                                    target_relative_path = target_relative_path)
 
-            psnr_values, ssim_values, lpips_values, target_video, predicted_video = infer_utils.process_output_data_dict (
+            psnr_values, ssim_values, lpips_values, target_video, predicted_video = infer_utils.process_output_data_dict(
                                                                                                             output_data_dict,
                                                                                                             True,
                                                                                                             target_video,

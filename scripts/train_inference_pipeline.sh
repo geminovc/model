@@ -10,7 +10,6 @@ This script runs the experiments and makes image and video strips accordingly
 # per_video_flag: includes per_video with yaw and per_video without yaw predicted images to the strips 
 # source_relative_path: relative path from dataset_root (after keypoints, imgs, and segs) to the source images 
 # target_relative_path: target path from dataset_root (after keypoints, imgs, and segs) to the source images
-
 make_images () {
     cd /home/pantea/NETS/video_trials/nets_implementation/original_bilayer/examples
     
@@ -143,7 +142,6 @@ make_images () {
 # per_video without yaw, and per_video with yaw and attaches the videos in different order for comparison
 # Inputs: 
 # relative_path_base: relative path from dataset_root (after keypoints, imgs, and segs) to the session
-
 make_videos () {
     cd /home/pantea/NETS/video_trials/nets_implementation/original_bilayer/examples
 

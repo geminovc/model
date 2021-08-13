@@ -2,8 +2,9 @@
 This script finds the average psnr of two frame with frame numbers `n` and `n + shift` for all possible combinations
 of n and shift in a video and draws the psnr vs shift graph.
 
+
 Outpus an array of length N - 1 where N is the number of frames in the video with path --video_path. 
-The index i of the output array is the average psnr of all frames with frame number k and k+i for 0 < k < N-k. 
+The index i of the output array is the average psnr when comparing frame k to frame k + i k for 0 < k < N-k. 
 The script plots the graph y = array [x] and saves it to --save_dir.  
 
 Sample usage:
