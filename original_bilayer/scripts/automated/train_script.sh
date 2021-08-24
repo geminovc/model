@@ -22,13 +22,12 @@ echo "frozen_networks: $frozen_networks"
 
 # Depending on the machine you run the code from, the directory to save experiments is different due to write access
 if [[ "$machine" == "chunky" ]]; then
-    experiment_dir=/data/pantea/pantea_experiments_chunky/${dataset_name}/${initialization}
+    experiment_dir=/data/pantea/per_video_experiments/${dataset_name}/${initialization}
 
 elif [[ "$machine" == "mapmaker" ]]; then
     experiment_dir=/video-conf/scratch/pantea_experiments_mapmaker/${dataset_name}/${initialization}
 
 fi 
-
 
 
 # Add initialization options

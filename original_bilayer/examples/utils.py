@@ -105,6 +105,7 @@ def get_model_input_arguments (experiment_dir, experiment_name, which_epoch):
     'dropout_networks': 'texture_generator: 0.5',
     'use_dropout': False,
     'texture_output_dim': 3,
-    'use_unet': False }
+    'use_unet': False,
+    'time_networks': False }
     
     return args_dict
