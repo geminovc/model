@@ -350,7 +350,7 @@ class TrainingWrapper(object):
                 if net_name not in init_networks:
                     self.runner.nets[net_name].load_state_dict(torch.load(self.checkpoints_dir / f'{args.which_epoch}_{net_name}.pth', map_location='cpu'))
 
-                    
+
         if args.num_gpus > 0:
             self.runner.cuda()
 
@@ -362,6 +362,20 @@ class TrainingWrapper(object):
         # if args.dataset_load_from_txt:
         #     args.save_dataset_filenames = False
 
+        number_of_trainable_parameters = 0
+        total_number_of_parameters = 0
+        for net_name in ['identity_embedder', 'texture_generator', 'keypoints_embedder', 'inference_generator', 'discriminator']:
+            for p in self.runner.nets[net_name].parameters():
+                total_number_of_parameters += 1
+                if p.requires_grad:
+                     number_of_trainable_parameters += 1 
+
+        with open(self.experiment_dir / 'model_summary.txt', 'wt') as model_file:
+            model_file.write('%s: %s\n' % ('total_number_of_parameters', str(total_number_of_parameters)))
+            model_file.write('%s: %s\n' % ('number_of_trainable_parameters', str(number_of_trainable_parameters)))
+        
+        print("Number of trainable parameters in the model: ", number_of_trainable_parameters)
+       
         if args.save_dataset_filenames:
             print("Clearing the files already stored as train_filenames.txt and test_filenames.txt.")
             train_file = "train_filenames.txt"
@@ -641,6 +655,8 @@ class TrainingWrapper(object):
                     total_iters += 1
                     total_iters %= args.visual_freq
             
+            print("The training epoch", str(epoch),  "took (s):", time.time()-self.epoch_start)
+            print("Length of train dataloader is:", len(train_dataloader))
             # Increment the epoch counter in the training dataset
             train_dataloader.dataset.epoch += 1
             # If skip test flag is set -- only check if a checkpoint if required
@@ -708,7 +724,7 @@ class TrainingWrapper(object):
                     # Save amp
                     if args.use_apex:
                         torch.save(amp.state_dict(), self.checkpoints_dir / f'{epoch}_amp.pth')
-            print("The epoch", str(epoch),  "took (s):", time.time()-self.epoch_start)
+            
         
         return runner
 

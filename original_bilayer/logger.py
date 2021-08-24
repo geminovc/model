@@ -163,6 +163,7 @@ class Logger(object):
             # Save losses and metrics
             pickle.dump(self.losses,  open(str(self.experiment_dir) + "/" + 'losses_'  + str(tensorboard_phase) + '.pkl', 'wb'))
             pickle.dump(self.metrics, open(str(self.experiment_dir) + "/" + 'metrics_' + str(tensorboard_phase) + '.pkl', 'wb'))
+            pickle.dump(time, open(str(self.experiment_dir) + "/" + 'times_' + str(tensorboard_phase) + '.pkl', 'wb'))
 
         elif self.rank != 0:
             return
