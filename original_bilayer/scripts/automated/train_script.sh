@@ -17,18 +17,10 @@ root_to_yaws=${13}
 frozen_networks=${14}
 unfreeze_texture_generator_last_layers=${15}
 unfreeze_inference_generator_last_layers=${16}
+experiment_dir=${17}
+
 
 echo "frozen_networks: $frozen_networks"
-
-# Depending on the machine you run the code from, the directory to save experiments is different due to write access
-if [[ "$machine" == "chunky" ]]; then
-    experiment_dir=/data/pantea/per_video_experiments/${dataset_name}/${initialization}
-
-elif [[ "$machine" == "mapmaker" ]]; then
-    experiment_dir=/video-conf/scratch/pantea_experiments_mapmaker/${dataset_name}/${initialization}
-
-fi 
-
 
 # Add initialization options
 if [[ "$initialization" == "from_base" ]]; then
