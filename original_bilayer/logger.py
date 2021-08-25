@@ -160,7 +160,7 @@ class Logger(object):
                 else:
                     self.writer.add_scalar(f'metrics/{key}_{tensorboard_phase}', value, self.num_iter[phase])
             
-            # Save losses and metrics
+            # Save losses, metrics, and the time each phase takes 
             pickle.dump(self.losses,  open(str(self.experiment_dir) + "/" + 'losses_'  + str(tensorboard_phase) + '.pkl', 'wb'))
             pickle.dump(self.metrics, open(str(self.experiment_dir) + "/" + 'metrics_' + str(tensorboard_phase) + '.pkl', 'wb'))
             pickle.dump(time, open(str(self.experiment_dir) + "/" + 'times_' + str(tensorboard_phase) + '.pkl', 'wb'))

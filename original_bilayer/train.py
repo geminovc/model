@@ -323,8 +323,6 @@ class TrainingWrapper(object):
                                             for p in subsubmodule.parameters():
                                                 p.requires_grad = True
 
-
-
                 if net_name == "inference_generator" and net_name in frozen_networks and args.unfreeze_inference_generator_last_layers: 
                     for name, module in self.runner.nets[net_name].named_children():
                         if name =='prj_inf':
@@ -655,8 +653,9 @@ class TrainingWrapper(object):
                     total_iters += 1
                     total_iters %= args.visual_freq
             
-            print("The training epoch", str(epoch),  "took (s):", time.time()-self.epoch_start)
+            print("The training epoch %s took %s (s)." % (str(epoch), str(time.time() - self.epoch_start)))
             print("Length of train dataloader is:", len(train_dataloader))
+            
             # Increment the epoch counter in the training dataset
             train_dataloader.dataset.epoch += 1
             # If skip test flag is set -- only check if a checkpoint if required

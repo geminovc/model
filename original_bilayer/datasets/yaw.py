@@ -323,7 +323,7 @@ class DatasetWrapper(data.Dataset):
                 random_session = random.choice(sessions)
                 session_dict = self.sequence_session_bins_frames_dict[(self.sequences[index], random_session)]
                 session_bins = session_dict.keys()
-                random_bin = random.sample(session_bins,1)[0]
+                random_bin = random.sample(session_bins, 1)[0]
                 difficult_frames = session_dict[random_bin]
 
 
