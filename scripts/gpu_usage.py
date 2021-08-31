@@ -63,7 +63,7 @@ def get_free_gpus(max_usage_by_all_mb=1000):
     """
     Returns the ids of GPUs which are occupied to less than 1 GB by other users.
     """
-
+    
     return [ int(gpu_id) -1 for gpu_id, usage in get_gpu_usage().items()
         if (usage["used_by_others"] + usage["used"] <= max_usage_by_all_mb and gpu_id != '0') ]
 

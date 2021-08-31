@@ -1,6 +1,10 @@
+# Go to the NETS project directory
+train_script_dir=$(dirname ${0} 2>&1)
+cd $train_script_dir 
+cd ../../.. #inside nets_implementation
+NETS_DIR=$(pwd)
+
 # Variables from the user
-#MAIN_DIR="${HOME}/NETS/nets_implementation/original_bilayer"
-MAIN_DIR=../..
 experiment_name=${1}
 initialization=${2}
 dataset_name=${3}
@@ -39,43 +43,29 @@ elif [[ "$initialization" == "from_bilayer" ]]; then
 
 fi
 # Find an empty gpu to use
+
+
 found_empty_gpu=false
-
+ 
 while [ "$found_empty_gpu" = false ]
-do
-echo "entering the loop"
+   do
+   echo "entering the loop"
 
-if [ ! -f /data/pouya/gpu_reserves/0.full  ]
-then
-   echo " gpu 0 is empty."
-   gpu_number=0
-   found_empty_gpu=true
-   break
+   list_of_free_gpus=($(python scripts/gpu_usage.py  2>&1 | tr -d '[],'))
+   echo "list of free gpus [${list_of_free_gpus[@]}]"
+   
+   if ! [ ${#list_of_free_gpus} -eq 0 ]; then
+      gpu_number=${list_of_free_gpus[0]}
+      echo " gpu ${gpu_number} is empty."
+      found_empty_gpu=true
+      break
+   fi
 
-elif [ ! -f /data/pouya/gpu_reserves/1.full  ]
-then
-   echo " gpu 1 is empty."
-   gpu_number=1
-   found_empty_gpu=true
-   break
-
-elif [ ! -f /data/pouya/gpu_reserves/2.full ]
-then
-   echo " gpu 2 is empty."
-   gpu_number=2
-   found_empty_gpu=true
-   break
-
-else
-echo "no empty gpu, waiting!"
-   sleep 10
-
-fi
 done
 
 touch /data/pouya/gpu_reserves/${gpu_number}.full  
 
-cd $MAIN_DIR/
+cd $NETS_DIR/original_bilayer
 
 CUDA_VISIBLE_DEVICES=${gpu_number} 
 

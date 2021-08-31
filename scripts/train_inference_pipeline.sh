@@ -268,9 +268,9 @@ run_experiments () {
         cd ${nets_repo}/original_bilayer/scripts/automated
         
 
-        CUDA_VISIBLE_DEVICES=0 ./train_script.sh  ${experiments_name}_voxceleb_${video_id}  "from_bilayer" "per_video" 2 ${num_epochs} 20 20 20 20 'voxceleb2' ${data_root} ${root_to_yaws} "${frozen_networks}" "${unfreeze_texture_generator_last_layers}" "${unfreeze_inference_generator_last_layers}" ${experiment_dir}
+        #CUDA_VISIBLE_DEVICES=0 ./train_script.sh  ${experiments_name}_voxceleb_${video_id}  "from_bilayer" "per_video" 2 ${num_epochs} 20 20 20 20 'voxceleb2' ${data_root} ${root_to_yaws} "${frozen_networks}" "${unfreeze_texture_generator_last_layers}" "${unfreeze_inference_generator_last_layers}" ${experiment_dir}
 
-        CUDA_VISIBLE_DEVICES=0 ./train_script.sh  ${experiments_name}_yaw_${video_id}  "from_bilayer" "per_video" 2 ${num_epochs} 20 20 20 20 'yaw' ${data_root} ${root_to_yaws} "${frozen_networks}" "${unfreeze_texture_generator_last_layers}" "${unfreeze_inference_generator_last_layers}" ${experiment_dir}
+        #CUDA_VISIBLE_DEVICES=0 ./train_script.sh  ${experiments_name}_yaw_${video_id}  "from_bilayer" "per_video" 2 ${num_epochs} 20 20 20 20 'yaw' ${data_root} ${root_to_yaws} "${frozen_networks}" "${unfreeze_texture_generator_last_layers}" "${unfreeze_inference_generator_last_layers}" ${experiment_dir}
 
         cd ${nets_repo}/original_bilayer/examples
 
