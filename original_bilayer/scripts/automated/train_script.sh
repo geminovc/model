@@ -19,6 +19,7 @@ unfreeze_texture_generator_last_layers=${15}
 unfreeze_inference_generator_last_layers=${16}
 experiment_dir=${17}
 
+
 echo "frozen_networks: $frozen_networks"
 
 # Add initialization options

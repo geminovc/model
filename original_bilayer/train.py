@@ -155,7 +155,7 @@ class TrainingWrapper(object):
                                                                         help='metrics to evaluate the model while training') 
 
         # Saving and logging options
-        parser.add('--psnr_loss_apply_to',                              default='pred_target_delta_lf_rgbs , target_imgs', type=str,
+        parser.add('--psnr_loss_apply_to',                              default='pred_target_imgs , target_imgs', type=str,
                                                                         help='psnr loss to apply') 
 
         parser.add('--save_initial_test_before_training',               default='True', type=rn_utils.str2bool, choices=[True, False],

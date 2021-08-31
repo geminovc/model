@@ -76,10 +76,10 @@ class DatasetWrapper(data.Dataset):
                                                  help='gradually increase the weight of general dataset while training the per_person dataset')
 
         parser.add('--mask_source_and_target',   default='True', type=rn_utils.str2bool, choices=[True, False],
-                                                 help='mask the souce and target from the beginning')                                                      
-
+                                                 help='mask the source and target from the beginning')
+        
         parser.add('--same_source_and_target',   default='False', type=rn_utils.str2bool, choices=[True, False],
-                                                 help='set source = target in the experminet')
+                                                 help='set source = target in the experiment')
                                                       
         parser.add('--rebalance',                default='False', type=rn_utils.str2bool, choices=[True, False],
                                                  help='rebalance the dataset?')
@@ -197,9 +197,10 @@ class DatasetWrapper(data.Dataset):
                 index = (index + 1) % len(self)
 
         filenames = sorted(filenames)
-
+        
         if self.args.same_source_and_target:
             selected_filename = random.randint(0, (len(filenames) - 1))
+            filenames = [filenames[selected_filename] for i in filenames]
 
         imgs = []
         poses = []

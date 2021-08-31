@@ -15,3 +15,5 @@ source_bilayer/**
 ./SPADE/cityscapes/
 ./SPADE/FFHQ/
 ./SPADE/segmentation/
+scripts/*.png
+scripts/*.csv
