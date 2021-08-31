@@ -63,7 +63,11 @@ while [ "$found_empty_gpu" = false ]
 
 done
 
-touch /data/pouya/gpu_reserves/${gpu_number}.full  
+# Based on the conversation with pouya, make the .full file for gpu occupancy on Chunky
+host_name=$(hostname)
+if [[ "$host_name" == "lab" ]]; then
+   touch /data/pouya/gpu_reserves/${gpu_number}.full  
+fi
 
 cd $NETS_DIR/original_bilayer
 
@@ -207,7 +211,9 @@ python train.py \
 --visualize_discriminator_scores False \
 --root_to_yaws ${root_to_yaws} \
 
-
-rm /data/pouya/gpu_reserves/${gpu_number}.full 
+# Based on the conversation with pouya, remove the .full file for gpu occupancy on Chunky
+if [[ "$host_name" == "lab" ]]; then
+   rm /data/pouya/gpu_reserves/${gpu_number}.full   
+fi
 
  
