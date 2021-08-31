@@ -79,7 +79,7 @@ class DatasetWrapper(data.Dataset):
         parser.add('--root_to_yaws',             default='/video-conf/scratch/pantea/pose_results/yaws/per_person_1_three_datasets/angles', type=str, 
                                                  help='The directory where the yaws are stored in voxceleb2 format')
         
-        parser.add('--abs_min_yaw',              default=50, type=float, 
+        parser.add('--abs_min_yaw',              default=0, type=float, 
                                                  help='The minimum abs value for yaw')
         
         parser.add('--abs_max_yaw',              default=90, type=float, 
@@ -323,7 +323,7 @@ class DatasetWrapper(data.Dataset):
                 random_session = random.choice(sessions)
                 session_dict = self.sequence_session_bins_frames_dict[(self.sequences[index], random_session)]
                 session_bins = session_dict.keys()
-                random_bin = random.choice(session_bins)
+                random_bin = random.sample(session_bins, 1)[0]
                 difficult_frames = session_dict[random_bin]
 
 
