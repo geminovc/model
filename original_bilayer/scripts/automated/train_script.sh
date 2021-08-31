@@ -1,23 +1,22 @@
 # Variables from the user
 #MAIN_DIR="${HOME}/NETS/nets_implementation/original_bilayer"
 MAIN_DIR=../..
-machine=${1}
-experiment_name=${2}
-initialization=${3}
-dataset_name=${4}
-batch_size=${5}
-num_epochs=${6}
-test_freq=${7}
-metrics_freq=${8}
-checkpoint_freq=${9}
-visual_freq=${10}
-train_dataloader_name=${11}
-data_root=${12}
-root_to_yaws=${13}
-frozen_networks=${14}
-unfreeze_texture_generator_last_layers=${15}
-unfreeze_inference_generator_last_layers=${16}
-experiment_dir=${17}
+experiment_name=${1}
+initialization=${2}
+dataset_name=${3}
+batch_size=${4}
+num_epochs=${5}
+test_freq=${6}
+metrics_freq=${7}
+checkpoint_freq=${8}
+visual_freq=${9}
+train_dataloader_name=${10}
+data_root=${11}
+root_to_yaws=${12}
+frozen_networks=${13}
+unfreeze_texture_generator_last_layers=${14}
+unfreeze_inference_generator_last_layers=${15}
+experiment_dir=${16}
 
 
 echo "frozen_networks: $frozen_networks"
@@ -28,10 +27,15 @@ if [[ "$initialization" == "from_base" ]]; then
     init_experiment_dir='.'
     init_which_epoch='none'
 
-elif [[ "$initialization" == "from_paper" ]]; then
+elif [[ "$initialization" == "from_personalized" ]]; then
     init_networks='identity_embedder, texture_generator, keypoints_embedder, inference_generator, discriminator'
     init_experiment_dir=/data/pantea/pantea_experiments_chunky/per_person/from_paper/runs/original_frozen_Gtex_from_identical
     init_which_epoch=2000
+
+elif [[ "$initialization" == "from_bilayer" ]]; then
+    init_networks='identity_embedder, texture_generator, keypoints_embedder, inference_generator, discriminator'
+    init_experiment_dir=/video-conf/scratch/pantea/bilayer_paper_released/runs/vc2-hq_adrianb_paper_main
+    init_which_epoch=2225
 
 fi
 # Find an empty gpu to use

@@ -1,5 +1,6 @@
 
 import subprocess, getpass, json
+import sys
 
 def get_gpu_usage():
     """
@@ -67,8 +68,4 @@ def get_free_gpus(max_usage_by_all_mb=1000):
         if (usage["used_by_others"] + usage["used"] <= max_usage_by_all_mb and gpu_id != '0') ]
 
 if __name__ == "__main__":
-    # print("GPU memory usage information:")
-    # print(json.dumps(get_gpu_usage(), indent=4))
-    # print()
-    # print("GPU ids of free GPUs:", get_free_gpus(max_usage_by_all_mb=0))
-    print(get_free_gpus(max_usage_by_all_mb=0))
+    sys.exit(get_free_gpus(max_usage_by_all_mb=0))

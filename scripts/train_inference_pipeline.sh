@@ -1,7 +1,6 @@
 
-'''
-This script runs the experiments and makes image and video strips accordingly
-'''
+# This script runs the experiments and makes image and video strips accordingly
+
 
 # This function produces the predicted images from bilayer, per_person without yaw, per_person with yaw,
 # per_video without yaw, and per_video with yaw and attaches them in different strips for comparison
@@ -11,7 +10,7 @@ This script runs the experiments and makes image and video strips accordingly
 # source_relative_path: relative path from dataset_root (after keypoints, imgs, and segs) to the source images 
 # target_relative_path: target path from dataset_root (after keypoints, imgs, and segs) to the source images
 make_images () {
-    cd /home/pantea/NETS/debug/nets_implementation/original_bilayer/examples
+    cd ${nets_repo}/original_bilayer/examples
     
     if  [ "$generate_bilayer_results" = true ]
     then 
@@ -22,7 +21,7 @@ make_images () {
         --dataset_root '/video-conf/scratch/pantea/per_person_1_three_datasets' \
         --source_relative_path ${source_relative_path} \
         --target_relative_path ${target_relative_path} \
-        --save_dir ${save_dir}/bilayer_${video_id} \
+        --save_dir ${save_dir}/bilayer_${video_id} 
     fi
     
     if  [ "$generate_per_person_results" = true ]
@@ -34,7 +33,7 @@ make_images () {
         --dataset_root '/video-conf/scratch/pantea/per_person_1_three_datasets' \
         --source_relative_path ${source_relative_path} \
         --target_relative_path ${target_relative_path} \
-        --save_dir ${save_dir}/per_person_yaw_${video_id} \
+        --save_dir ${save_dir}/per_person_yaw_${video_id} 
         
         python infer_image.py \
         --experiment_dir '/video-conf/scratch/pantea_experiments_mapmaker/per_person/from_paper' \
@@ -43,11 +42,11 @@ make_images () {
         --dataset_root '/video-conf/scratch/pantea/per_person_1_three_datasets' \
         --source_relative_path ${source_relative_path} \
         --target_relative_path ${target_relative_path} \
-        --save_dir ${save_dir}/per_person_voxceleb2_${video_id} \
+        --save_dir ${save_dir}/per_person_voxceleb2_${video_id} 
 
-    then
+    fi
 
-    if  [ "$generate_bilayer_results" = true ] && [ "$generate_per_person_results" = true ]
+    if  [ "$generate_bilayer_results" = true ] && [ "$generate_per_person_results" = true ] 
     then 
         ### Make a strip of images containing: source | target | bilayer prediction | per_person random source-target | per_person close source-target 
         ffmpeg -y -i ${save_dir}/per_person_yaw_${video_id}/masked_source_imgs_False_False.png \
@@ -65,7 +64,7 @@ make_images () {
         -filter_complex "[0][1][2][3]hstack=inputs=4" ${save_dir}/stacked_per_person_no_yaw.png
     
 
-        if  [ "$difficult_pose_flag" = true ]
+        if  [ "$difficult_pose_flag" = true ] 
         then 
 
             for current_model in bilayer per_person_voxceleb2 per_person_yaw
@@ -95,25 +94,25 @@ make_images () {
     fi
 
 
-    if  [ "$per_video_flag" = true ]
+    if  [ "$per_video_flag" = true ] 
     then 
         python infer_image.py \
-        --experiment_dir ${checkpoint_dir}/per_video/from_paper \
+        --experiment_dir ${experiment_dir} \
         --experiment_name ${experiments_name}_voxceleb_${video_id} \
         --which_epoch ${num_epochs} \
         --dataset_root '/video-conf/scratch/pantea/per_person_1_three_datasets' \
         --source_relative_path ${source_relative_path} \
         --target_relative_path ${target_relative_path} \
-        --save_dir ${save_dir}/per_video_voxceleb2_${video_id} \
+        --save_dir ${save_dir}/per_video_voxceleb2_${video_id} 
 
         python infer_image.py \
-        --experiment_dir ${checkpoint_dir}/per_video/from_paper \
+        --experiment_dir ${experiment_dir} \
         --experiment_name ${experiments_name}_yaw_${video_id} \
         --which_epoch ${num_epochs} \
         --dataset_root '/video-conf/scratch/pantea/per_person_1_three_datasets' \
         --source_relative_path ${source_relative_path} \
         --target_relative_path ${target_relative_path} \
-        --save_dir ${save_dir}/per_video_yaw_${video_id} \
+        --save_dir ${save_dir}/per_video_yaw_${video_id} 
 
         ### Make a strip of images containing: source | target | per_video close prediction
         ffmpeg -y -i ${save_dir}/per_video_yaw_${video_id}/masked_source_imgs_False_False.png \
@@ -127,7 +126,7 @@ make_images () {
         -i ${save_dir}/per_video_voxceleb2_${video_id}/pred_target_imgs_False_False.png \
         -filter_complex "[0][1][2]hstack=inputs=3" ${save_dir}/source_target_per_video_voxceleb2.png
 
-        if  [ "$generate_bilayer_results" = true ] && [ "$generate_per_person_results" = true ]
+        if  [ "$generate_bilayer_results" = true ] && [ "$generate_per_person_results" = true ] 
         then 
 
             ### Make a strip of images containing: source | target | Bilayer | per_person random source-target| per_person close source-target | per_video random source-target \
@@ -151,7 +150,7 @@ make_images () {
         fi
     fi
 
-}
+} 
 
 
 # This function produces the predicted video from bilayer, per_person without yaw, per_person with yaw,
@@ -159,7 +158,7 @@ make_images () {
 # Inputs: 
 # relative_path_base: relative path from dataset_root (after keypoints, imgs, and segs) to the session
 make_videos () {
-    cd /home/pantea/NETS/debug/nets_implementation/original_bilayer/examples
+    cd ${nets_repo}/original_bilayer/examples
 
     for video_technique in representative_sources last_frame_next_source last_predicted_next_source
     do
@@ -206,7 +205,7 @@ make_videos () {
         if  [ "$per_video_flag" = true ]
         then 
             python infer_video.py \
-            --experiment_dir ${checkpoint_dir}/per_video/from_paper \
+            --experiment_dir ${experiment_dir} \
             --experiment_name ${experiments_name}_yaw_${video_id} \
             --which_epoch ${num_epochs} \
             --video_path /video-conf/vedantha/voxceleb2/dev/mp4/id00015/${video_id}/${video_path} \
@@ -217,7 +216,7 @@ make_videos () {
             --video_technique ${video_technique}
 
             python infer_video.py \
-            --experiment_dir ${checkpoint_dir}/per_video/from_paper \
+            --experiment_dir ${experiment_dir} \
             --experiment_name ${experiments_name}_voxceleb_${video_id} \
             --which_epoch ${num_epochs} \
             --video_path /video-conf/vedantha/voxceleb2/dev/mp4/id00015/${video_id}/${video_path} \
@@ -262,34 +261,35 @@ make_videos () {
 run_experiments () {
     for video_id in  V9mbKUqFx0o V4nIKszy_gc M_u0SV9wLro W4RJtdXRz-c fd_mtL88o1k
     do
-        cd /home/pantea/NETS
+        cd ${nets_repo}/original_bilayer/generate_dataset
 
         python make_new_per_video_dataset.py --target_video_id id00015/${video_id} --num_test_sessions 1 --data_root ${data_root} --yaw_root ${root_to_yaws} 
         
-        cd /home/pantea/NETS/fix_prs/nets_implementation/original_bilayer/scripts/automated
+        cd ${nets_repo}/original_bilayer/scripts/automated
+        
 
-        CUDA_VISIBLE_DEVICES=0 ./train_script.sh  "${machine}" ${experiments_name}_voxceleb_${video_id}  "from_paper" "per_video" 2 ${num_epochs} 15 15 15 15 'voxceleb2' ${data_root} ${root_to_yaws} "${frozen_networks}" "${unfreeze_texture_generator_last_layers}" "${unfreeze_inference_generator_last_layers}"
+        CUDA_VISIBLE_DEVICES=0 ./train_script.sh  ${experiments_name}_voxceleb_${video_id}  "from_bilayer" "per_video" 2 ${num_epochs} 20 20 20 20 'voxceleb2' ${data_root} ${root_to_yaws} "${frozen_networks}" "${unfreeze_texture_generator_last_layers}" "${unfreeze_inference_generator_last_layers}" ${experiment_dir}
 
-        CUDA_VISIBLE_DEVICES=0 ./train_script.sh  "${machine}" ${experiments_name}_yaw_${video_id}  "from_paper" "per_video" 2 ${num_epochs} 15 15 15 15 'yaw' ${data_root} ${root_to_yaws} "${frozen_networks}" "${unfreeze_texture_generator_last_layers}" "${unfreeze_inference_generator_last_layers}"
+        CUDA_VISIBLE_DEVICES=0 ./train_script.sh  ${experiments_name}_yaw_${video_id}  "from_bilayer" "per_video" 2 ${num_epochs} 20 20 20 20 'yaw' ${data_root} ${root_to_yaws} "${frozen_networks}" "${unfreeze_texture_generator_last_layers}" "${unfreeze_inference_generator_last_layers}" ${experiment_dir}
 
-        cd /home/pantea/NETS/debug/nets_implementation/original_bilayer/examples
+        cd ${nets_repo}/original_bilayer/examples
 
         video_path=$(ls /video-conf/vedantha/voxceleb2/dev/mp4/id00015/${video_id} | sort -V | tail -n 1)
 
-        generate_bilayer_results=false
-        generate_per_person_results=false
+        generate_bilayer_results=true
+        generate_per_person_results=true
         difficult_pose_flag=true
         per_video_flag=true
-        save_dir=/data/pantea/debug_freezing_logs/${experiments_name}/images/${video_id}
+        save_dir=${experiment_logs}/${experiments_name}/images/${video_id}
         source_relative_path=unseen_test/id00015/${video_id}/${video_path%.*}/0 
         target_relative_path=unseen_test/id00015/${video_id}/${video_path%.*}/10 
         make_images
 
         ## unseen_test
         per_video_flag=true
-        save_dir=/data/pantea/debug_freezing_logs/${experiments_name}/videos/${video_id}
+        save_dir=${experiment_logs}/${experiments_name}/videos/${video_id}
         relative_path_base=unseen_test/id00015/${video_id}/${video_path%.*}
-        make_videos
+        make_videos 
 
     done
 
@@ -297,103 +297,117 @@ run_experiments () {
 
 data_root=/data/pantea/per_video_freezing_dataset
 root_to_yaws=/data/pantea/per_video_freezing_dataset_yaws/angles
-machine=chunky
-num_epochs=30
-checkpoint_dir=/data/pantea/debug_freezing_experiments
-
-
-frozen_networks='identity_embedder, keypoints_embedder'
-unfreeze_texture_generator_last_layers='True'
-unfreeze_inference_generator_last_layers='True'
-experiments_name=my_model_unfrozen_G_tex_and_G_inf_frozen_rest
-run_experiments
+num_epochs=60
+experiment_dir=/data/pantea/bilayer_per_video_checkpoints
+nets_repo=/home/pantea/NETS/fix_prs/nets_implementation
+experiment_logs=/data/pantea/bilayer_per_video_logs
+experiment_name_prefix=bi_
+with_frozen_last_layer_flag=false
+single_layer_flag=false
 
 frozen_networks=' '
 unfreeze_texture_generator_last_layers='True'
 unfreeze_inference_generator_last_layers='True'
-experiments_name=my_model_no_frozen
-run_experiments
-
-frozen_networks='identity_embedder, keypoints_embedder'
-unfreeze_texture_generator_last_layers='False'
-unfreeze_inference_generator_last_layers='True'
-experiments_name=my_model_unfrozen_G_tex_with_frozen_last_layer_and_G_inf_frozen_rest
+experiments_name=${experiment_name_prefix}no_frozen
 run_experiments
 
 frozen_networks='identity_embedder, keypoints_embedder'
 unfreeze_texture_generator_last_layers='True'
-unfreeze_inference_generator_last_layers='False'
-experiments_name=my_model_unfrozen_G_tex_and_G_inf_with_frozen_last_layer_frozen_rest
-run_experiments
-
-frozen_networks='identity_embedder, keypoints_embedder'
-unfreeze_texture_generator_last_layers='False'
-unfreeze_inference_generator_last_layers='False'
-experiments_name=my_model_unfrozen_G_tex_with_frozen_last_layer_and_G_inf_with_frozen_last_layer_frozen_rest
+unfreeze_inference_generator_last_layers='True'
+experiments_name=${experiment_name_prefix}unfrozen_G_tex_and_G_inf_frozen_rest
 run_experiments
 
 frozen_networks="identity_embedder, keypoints_embedder, inference_generator"
 unfreeze_texture_generator_last_layers='True'
 unfreeze_inference_generator_last_layers='False'
-experiments_name=my_model_unfrozen_G_tex_frozen_rest
+experiments_name=${experiment_name_prefix}unfrozen_G_tex_frozen_rest
 run_experiments
 
 frozen_networks="identity_embedder, keypoints_embedder, inference_generator"
 unfreeze_texture_generator_last_layers='True'
 unfreeze_inference_generator_last_layers='True'
-experiments_name=my_model_unfrozen_G_tex_and_last_layer_of_G_inf_frozen_rest
-run_experiments
-
-frozen_networks="identity_embedder, keypoints_embedder, inference_generator"
-unfreeze_texture_generator_last_layers='False'
-unfreeze_inference_generator_last_layers='False'
-experiments_name=my_model_unfrozen_G_tex_with_frozen_last_layer_frozen_rest
-run_experiments
-
-frozen_networks="identity_embedder, keypoints_embedder, inference_generator"
-unfreeze_texture_generator_last_layers='False'
-unfreeze_inference_generator_last_layers='True'
-experiments_name=my_model_unfrozen_G_tex_with_frozen_last_layer_and_last_layer_of_G_inf_frozen_rest
+experiments_name=${experiment_name_prefix}unfrozen_G_tex_and_last_layer_of_G_inf_frozen_rest
 run_experiments
 
 frozen_networks="identity_embedder, keypoints_embedder, texture_generator"
 unfreeze_texture_generator_last_layers='False'
 unfreeze_inference_generator_last_layers='True'
-experiments_name=my_model_unfrozen_G_inf_frozen_rest
+experiments_name=${experiment_name_prefix}unfrozen_G_inf_frozen_rest
 run_experiments
 
 frozen_networks="identity_embedder, keypoints_embedder, texture_generator"
 unfreeze_texture_generator_last_layers='True'
 unfreeze_inference_generator_last_layers='True'
-experiments_name=my_model_unfrozen_G_inf_and_last_layer_of_G_tex_frozen_rest
+experiments_name=${experiment_name_prefix}unfrozen_G_inf_and_last_layer_of_G_tex_frozen_rest
 run_experiments
 
-frozen_networks="identity_embedder, keypoints_embedder, texture_generator"
-unfreeze_texture_generator_last_layers='False'
-unfreeze_inference_generator_last_layers='False'
-experiments_name=my_model_unfrozen_G_inf_with_frozen_last_layer_frozen_rest
-run_experiments
+if  [ "$with_frozen_last_layer_flag" = true ] 
+then 
 
-frozen_networks="identity_embedder, keypoints_embedder, texture_generator"
-unfreeze_texture_generator_last_layers='False'
-unfreeze_inference_generator_last_layers='True'
-experiments_name=my_model_unfrozen_G_inf_with_frozen_last_layer_and_last_layer_of_G_tex_frozen_rest
-run_experiments
+    frozen_networks='identity_embedder, keypoints_embedder'
+    unfreeze_texture_generator_last_layers='False'
+    unfreeze_inference_generator_last_layers='True'
+    experiments_name=${experiment_name_prefix}unfrozen_G_tex_with_frozen_last_layer_and_G_inf_frozen_rest
+    run_experiments
 
-frozen_networks="identity_embedder, keypoints_embedder, texture_generator, inference_generator"
-unfreeze_texture_generator_last_layers='False'
-unfreeze_inference_generator_last_layers='True'
-experiments_name=my_model_unfrozen_last_layer_G_inf_frozen_rest
-run_experiments
+    frozen_networks='identity_embedder, keypoints_embedder'
+    unfreeze_texture_generator_last_layers='True'
+    unfreeze_inference_generator_last_layers='False'
+    experiments_name=${experiment_name_prefix}unfrozen_G_tex_and_G_inf_with_frozen_last_layer_frozen_rest
+    run_experiments
 
-frozen_networks="identity_embedder, keypoints_embedder, texture_generator, inference_generator"
-unfreeze_texture_generator_last_layers='True'
-unfreeze_inference_generator_last_layers='False'
-experiments_name=my_model_unfrozen_last_layer_G_tex_frozen_rest
-run_experiments
+    frozen_networks='identity_embedder, keypoints_embedder'
+    unfreeze_texture_generator_last_layers='False'
+    unfreeze_inference_generator_last_layers='False'
+    experiments_name=${experiment_name_prefix}unfrozen_G_tex_with_frozen_last_layer_and_G_inf_with_frozen_last_layer_frozen_rest
+    run_experiments
 
-frozen_networks="identity_embedder, keypoints_embedder, texture_generator, inference_generator"
-unfreeze_texture_generator_last_layers='True'
-unfreeze_inference_generator_last_layers='True'
-experiments_name=my_model_unfrozen_last_layer_G_tex_and_last_layer_G_inf_frozen_rest
-run_experiments
+    frozen_networks="identity_embedder, keypoints_embedder, inference_generator"
+    unfreeze_texture_generator_last_layers='False'
+    unfreeze_inference_generator_last_layers='False'
+    experiments_name=${experiment_name_prefix}unfrozen_G_tex_with_frozen_last_layer_frozen_rest
+    run_experiments
+
+    frozen_networks="identity_embedder, keypoints_embedder, inference_generator"
+    unfreeze_texture_generator_last_layers='False'
+    unfreeze_inference_generator_last_layers='True'
+    experiments_name=${experiment_name_prefix}unfrozen_G_tex_with_frozen_last_layer_and_last_layer_of_G_inf_frozen_rest
+    run_experiments
+
+    frozen_networks="identity_embedder, keypoints_embedder, texture_generator"
+    unfreeze_texture_generator_last_layers='False'
+    unfreeze_inference_generator_last_layers='False'
+    experiments_name=${experiment_name_prefix}unfrozen_G_inf_with_frozen_last_layer_frozen_rest
+    run_experiments
+
+    frozen_networks="identity_embedder, keypoints_embedder, texture_generator"
+    unfreeze_texture_generator_last_layers='False'
+    unfreeze_inference_generator_last_layers='True'
+    experiments_name=${experiment_name_prefix}unfrozen_G_inf_with_frozen_last_layer_and_last_layer_of_G_tex_frozen_rest
+    run_experiments
+
+
+fi
+
+if  [ "$single_layer_flag" = true ] 
+then 
+
+    frozen_networks="identity_embedder, keypoints_embedder, texture_generator, inference_generator"
+    unfreeze_texture_generator_last_layers='False'
+    unfreeze_inference_generator_last_layers='True'
+    experiments_name=${experiment_name_prefix}unfrozen_last_layer_G_inf_frozen_rest
+    run_experiments
+
+    frozen_networks="identity_embedder, keypoints_embedder, texture_generator, inference_generator"
+    unfreeze_texture_generator_last_layers='True'
+    unfreeze_inference_generator_last_layers='False'
+    experiments_name=${experiment_name_prefix}unfrozen_last_layer_G_tex_frozen_rest
+    run_experiments
+
+    frozen_networks="identity_embedder, keypoints_embedder, texture_generator, inference_generator"
+    unfreeze_texture_generator_last_layers='True'
+    unfreeze_inference_generator_last_layers='True'
+    experiments_name=${experiment_name_prefix}unfrozen_last_layer_G_tex_and_last_layer_G_inf_frozen_rest
+    run_experiments
+
+fi
