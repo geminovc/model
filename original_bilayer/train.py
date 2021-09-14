@@ -195,6 +195,9 @@ class TrainingWrapper(object):
                                                                         
         parser.add('--replace_Gtex_output_with_trainable_tensor',       default='False', type=rn_utils.str2bool, choices=[True, False],
                                                                         help='set to true if you want to replace all of G_tex with a tensor')
+
+        parser.add('--replace_Gtex_output_with_source',                 default='False', type=rn_utils.str2bool, choices=[True, False],
+                                                                        help='set to true if you want to replace all of G_tex output with source')
         
         # Augentation opions
         parser.add('--sample_general_dataset',                          default='False', type=rn_utils.str2bool, choices=[True, False],

@@ -56,7 +56,9 @@ class NetworkWrapper(nn.Module):
         parser.add('--use_source_background',    default='True', type=rn_utils.str2bool, choices=[True, False], 
                                                  help='apply the segmenattion mask and use the source background')
 
-                                                 
+        parser.add('--replace_Gtex_output_with_source',     default='False', type=rn_utils.str2bool, choices=[True, False],
+                                                            help='set to true if you want to replace all of G_tex output with source')
+
     def __init__(self, args):
         super(NetworkWrapper, self).__init__()
         # Initialize options
@@ -155,7 +157,10 @@ class NetworkWrapper(nn.Module):
             torch.set_grad_enabled(prev)
         # Final image
         if not self.args.use_unet:
-            pred_target_imgs = pred_target_delta_lf_rgbs + pred_target_delta_hf_rgbs
+            if self.args.replace_Gtex_output_with_source:
+                pred_target_imgs = pred_target_delta_hf_rgbs
+            else:
+                pred_target_imgs = pred_target_delta_lf_rgbs + pred_target_delta_hf_rgbs
         
             if 'inference_generator' in networks_to_train or self.args.inf_calc_grad:
                 # Get an image with a low-frequency component detached

@@ -50,6 +50,8 @@ class NetworkWrapper(nn.Module):
         parser.add('--replace_Gtex_output_with_trainable_tensor',   default='False', type=rn_utils.str2bool, choices=[True, False],
                                                                     help='set to true if you want to replace all of G_tex with a tensor')
 
+        parser.add('--replace_Gtex_output_with_source',             default='False', type=rn_utils.str2bool, choices=[True, False],
+                                                                    help='set to true if you want to replace all of G_tex output with source')
 
     def __init__(self, args):
         super(NetworkWrapper, self).__init__()
@@ -82,7 +84,7 @@ class NetworkWrapper(nn.Module):
             prev = torch.is_grad_enabled()
             torch.set_grad_enabled(False)
 
-        if not self.args.replace_Gtex_output_with_trainable_tensor:
+        if not self.args.replace_Gtex_output_with_trainable_tensor and not self.args.replace_Gtex_output_with_source:
             ### Prepare inputs ###
             idt_embeds = data_dict['source_idt_embeds']
             b = idt_embeds[0].shape[0]
@@ -105,9 +107,11 @@ class NetworkWrapper(nn.Module):
 
             data_dict['pred_tex_hf_rgbs'] = pred_tex_hf_rgbs[:, None]
         
-        else:
+        elif self.args.replace_Gtex_output_with_trainable_tensor:
             data_dict['pred_tex_hf_rgbs']  = self.gen_tex_output [:, None]
 
+        elif self.args.replace_Gtex_output_with_source:
+            data_dict['pred_tex_hf_rgbs'] = data_dict['source_imgs']
 
         return data_dict
 
