@@ -21,8 +21,9 @@ frozen_networks=${13}
 unfreeze_texture_generator_last_layers=${14}
 unfreeze_inference_generator_last_layers=${15}
 experiment_dir=${16}
-
-
+wpr_loss_weight=${17}
+replace_Gtex_output_with_source=${18}
+echo "replace_Gtex_output_with_source: $replace_Gtex_output_with_source"
 echo "frozen_networks: $frozen_networks"
 
 # Add initialization options
@@ -46,7 +47,7 @@ fi
 
 
 found_empty_gpu=false
- 
+
 while [ "$found_empty_gpu" = false ]
    do
    echo "entering the loop"
@@ -66,7 +67,8 @@ done
 # Based on the conversation with pouya, make the .full file for gpu occupancy on Chunky
 host_name=$(hostname)
 if [[ "$host_name" == "lab" ]]; then
-   touch /data/pouya/gpu_reserves/${gpu_number}.full  
+   filename=/data/pouya/gpu_reserves/${gpu_number}.full
+   [[ -f ${filename} ]] || touch ${filename}
 fi
 
 cd $NETS_DIR/original_bilayer
@@ -184,7 +186,7 @@ python train.py \
 --wpr_loss_apply_to pred_target_delta_uvs \
 --wpr_loss_decay_schedule '-1' \
 --wpr_loss_type l1 \
---wpr_loss_weight 0.1 \
+--wpr_loss_weight ${wpr_loss_weight} \
 --wpr_loss_weight_decay 1.0 \
 --nme_num_threads 1  \
 --skip_test False \
@@ -193,6 +195,7 @@ python train.py \
 --unfreeze_inference_generator_last_layers ${unfreeze_inference_generator_last_layers} \
 --replace_AdaSpade_with_conv False \
 --replace_Gtex_output_with_trainable_tensor False \
+--replace_Gtex_output_with_source ${replace_Gtex_output_with_source} \
 --replace_source_specific_with_trainable_tensors False \
 --augment_with_general False \
 --sample_general_dataset False \
@@ -213,7 +216,10 @@ python train.py \
 
 # Based on the conversation with pouya, remove the .full file for gpu occupancy on Chunky
 if [[ "$host_name" == "lab" ]]; then
-   rm /data/pouya/gpu_reserves/${gpu_number}.full   
+   uname2="$(stat --format '%U' "/data/pouya/gpu_reserves/${gpu_number}.full")"
+   if [ "x${uname2}" = "x${USER}" ]; then
+      rm /data/pouya/gpu_reserves/${gpu_number}.full
+   fi
 fi
 
  
