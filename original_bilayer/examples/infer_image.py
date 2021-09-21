@@ -252,12 +252,18 @@ print("rgb_psnr, yuv_psnr, ssim_value, lpips_value", rgb_psnr, yuv_psnr, ssim_va
 # Save the output images
 np.save(str(args.save_dir) + '/metrics.npy', np.array([rgb_psnr, yuv_psnr, ssim_value, lpips_value]))
 desired_keys = ['pred_target_imgs', 'target_stickmen', 'source_stickmen', 'source_imgs', \
-'target_imgs', 'source_segs', 'target_segs', 'pred_target_delta_hf_rgbs', 'pred_tex_hf_rgbs']
+'target_imgs', 'source_segs', 'target_segs', 'pred_target_delta_hf_rgbs', 'pred_tex_hf_rgbs', 'pred_target_uvs', 'pred_target_delta_uvs']
+
+
+for key in ['pred_target_uvs', 'pred_target_delta_uvs']:
+    if key in output_data_dict.keys():
+        pred_array = output_data_dict[key].cpu()[0,0].numpy()
+        np.save("{}/{}_{}_{}".format(str(args.save_dir), str(key), str(preprocess), str(draw_source_target_from_video)), pred_array)
 
 for key in desired_keys: 
     if key in output_data_dict.keys():
         pred_img = infer_utils.to_image(output_data_dict[key][0, 0])
-        pred_img.save("{}/{}_{}_{}.png".format(str(args.save_dir), str(key), str(preprocess), str(draw_source_target_from_video)))  
+        pred_img.save("{}/{}_{}_{}.png".format(str(args.save_dir), str(key), str(preprocess), str(draw_source_target_from_video)))
 
 for key, output_seg in zip (['source_imgs', 'target_imgs'], ['source_segs', 'target_segs']):
     if key in output_data_dict.keys():
