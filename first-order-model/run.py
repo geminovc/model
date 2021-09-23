@@ -33,6 +33,7 @@ if __name__ == "__main__":
     parser.add_argument("--device_ids", default="0", type=lambda x: list(map(int, x.split(','))),
                         help="Names of the devices comma separated.")
     parser.add_argument("--verbose", dest="verbose", action="store_true", help="Print model architecture")
+    parser.add_argument("--enable_timing", dest="enable_timing", action="store_true", help="Time the model")
     parser.set_defaults(verbose=False)
 
     opt = parser.parse_args()
@@ -81,7 +82,7 @@ if __name__ == "__main__":
         train(config, generator, discriminator, kp_detector, opt.checkpoint, log_dir, dataset, opt.device_ids)
     elif opt.mode == 'reconstruction':
         print("Reconstruction...")
-        reconstruction(config, generator, kp_detector, opt.checkpoint, log_dir, dataset)
+        reconstruction(config, generator, kp_detector, opt.checkpoint, log_dir, dataset, opt.enable_timing)
     elif opt.mode == 'animate':
         print("Animate...")
         animate(config, generator, kp_detector, opt.checkpoint, log_dir, dataset)
