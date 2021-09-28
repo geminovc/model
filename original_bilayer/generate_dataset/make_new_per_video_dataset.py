@@ -52,9 +52,9 @@ def move_directories(session_ids, source_phase, destination_phase):
         source = pathlib.Path(args.yaw_root + '/' + source_phase + '/' + session_id)
         destination = pathlib.Path(args.yaw_root + '/' + destination_phase + '/' + session_id)
         try:
-                shutil.move(str(source), str(destination))
+            shutil.move(str(source), str(destination))
         except:
-                pass
+            pass
         print ("moving {} to {}".format(source , destination))
 
 # Move train to unseen 
@@ -68,16 +68,16 @@ train_session_ids =  pathlib.Path(args.data_root + '/imgs/train').glob('*/*')
 train_session_ids = sorted(['/'.join(str(seq).split('/')[-2:]) for seq in train_session_ids])
 print("remove from train", train_session_ids) 
 for video in train_session_ids:
+    try:
+        shutil.rmtree(str(args.yaw_root + '/' + 'train' + '/' + video))
+    except:
+        pass
+    for x in ['imgs', 'keypoints', 'segs']:
         try:
-                shutil.rmtree(str(args.yaw_root + '/' + 'train' + '/' + video))
+            shutil.rmtree(str(args.data_root + '/' + x + '/' + 'train' + '/' + video))
         except:
-                pass
-        for x in ['imgs', 'keypoints', 'segs']:
-                try:
-                        shutil.rmtree(str(args.data_root + '/' + x + '/' + 'train' + '/' + video))
-                except:
-                        pass
-                print("removing", str(args.data_root + '/' + x + '/' + 'train' + '/' + video))
+            pass
+        print("removing", str(args.data_root + '/' + x + '/' + 'train' + '/' + video))
 
 
 # Move test to unseen
@@ -91,16 +91,16 @@ test_session_ids = sorted(['/'.join(str(seq).split('/')[-2:]) for seq in test_se
 print("remove from test", test_session_ids) 
 
 for video in test_session_ids:
+    try:
+        shutil.rmtree(str(args.yaw_root + '/' + 'test' + '/' + video))
+    except:
+        pass
+    for x in ['imgs', 'keypoints', 'segs']:
         try:
-                shutil.rmtree(str(args.yaw_root + '/' + 'test' + '/' + video))
+            shutil.rmtree(str(args.data_root + '/' + x + '/' + 'test' + '/' + video))
         except:
-                pass
-        for x in ['imgs', 'keypoints', 'segs']:
-                try:
-                        shutil.rmtree(str(args.data_root + '/' + x + '/' + 'test' + '/' + video))
-                except:
-                        pass
-                print("removing", str(args.data_root + '/' + x + '/' + 'test' + '/' + video))
+            pass
+        print("removing", str(args.data_root + '/' + x + '/' + 'test' + '/' + video))
 
 
 # Move an unseen_test video to test and train
@@ -114,12 +114,12 @@ move_directories(train_session_ids, 'unseen_test' , 'train')
 move_directories(test_session_ids, 'unseen_test' , 'test')
 
 try:
-        shutil.rmtree(str(args.yaw_root + '/' + 'unseen_test' + '/' + str(args.target_video_id)))
+    shutil.rmtree(str(args.yaw_root + '/' + 'unseen_test' + '/' + str(args.target_video_id)))
 except:
-        pass
+    pass
 for x in ['imgs', 'keypoints', 'segs']:
-        try:
-                shutil.rmtree(str(args.data_root + '/' + x + '/' + 'unseen_test' + '/' + str(args.target_video_id)))
-        except:
-                pass
-        print("removing", str(args.data_root + '/' + x + '/' + 'unseen_test' + '/' + str(args.target_video_id)))
+    try:
+        shutil.rmtree(str(args.data_root + '/' + x + '/' + 'unseen_test' + '/' + str(args.target_video_id)))
+    except:
+        pass
+    print("removing", str(args.data_root + '/' + x + '/' + 'unseen_test' + '/' + str(args.target_video_id)))
