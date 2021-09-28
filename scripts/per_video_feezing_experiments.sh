@@ -294,13 +294,13 @@ run_per_video_experiments () {
  
 }
 
-data_root=/data/pantea/per_video_freezing_dataset
-root_to_yaws=/data/pantea/per_video_freezing_dataset_yaws/angles
+data_root=/data/pantea/datasets/per_video_freezing_dataset
+root_to_yaws=/data/pantea/dataset_yaws/per_video_freezing_dataset_yaws/angles
 num_epochs=60
-experiment_dir=/data/pantea/bilayer_per_video_checkpoints
-nets_repo=/home/pantea/NETS/fix_prs/nets_implementation
-experiment_logs=/data/pantea/bilayer_per_video_logs
-experiment_name_prefix=bi_
+experiment_dir=/data/pantea/freezing_per_video/checkpoints
+nets_repo=/home/pantea/NETS/nets_implementation
+experiment_logs=/data/pantea/freezing_per_video/logs
+experiment_name_prefix=
 #if with_frozen_last_layer_flag is set to true, experiments in which the last layer of G_inf or G_tex is frozen are conducted
 with_frozen_last_layer_flag=false
 #if single_last_layer_flag is set to true, experiments in which only the last layer of G_inf or G_tex is unfrozen are conducted
