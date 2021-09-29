@@ -5,7 +5,6 @@ from torch.utils.data import DataLoader
 from logger import Logger, Visualizer
 import numpy as np
 import imageio
-from datetime import datetime
 from sync_batchnorm import DataParallelWithCallback
 
 """ helper to get size of nested parameter list """
@@ -71,32 +70,32 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
             if torch.cuda.is_available():
                 x['video'] = x['video'].cuda()
             
-            start = datetime.now() #record()
+            start.record()
             kp_source = kp_detector(x['video'][:, :, 0])
-            end = datetime.now()
-            #torch.cuda.synchronize()
+            end.record()
+            torch.cuda.synchronize()
             
             if timing_enabled:
-                source_time = (end - start).total_seconds() * 1000
+                source_time = start.elapsed_time(end)
                 driving_times, generator_times, visualization_times = [], [], []
 
             for frame_idx in range(x['video'].shape[2]):
                 source = x['video'][:, :, 0]
                 driving = x['video'][:, :, frame_idx]
                 
-                start = datetime.now() #record()
+                start.record()
                 kp_driving = kp_detector(driving)
-                end = datetime.now() #record()
-                #torch.cuda.synchronize()
+                end.record()
+                torch.cuda.synchronize()
                 if timing_enabled:
-                    driving_times.append((end - start).total_seconds() * 1000)
+                    driving_times.append(start.elapsed_time(end))
                 
-                start = datetime.now() #record()
+                start.record()
                 out = generator(source, kp_source=kp_source, kp_driving=kp_driving)
-                end = datetime.now() #record()
-                #torch.cuda.synchronize()
+                end.record()
+                torch.cuda.synchronize()
                 if timing_enabled:
-                    generator_times.append((end - start).total_seconds() * 1000)
+                    generator_times.append(start.elapsed_time(end))
                 
                 out['kp_source'] = kp_source
                 out['kp_driving'] = kp_driving
@@ -104,13 +103,13 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
 
                 predictions.append(np.transpose(out['prediction'].data.cpu().numpy(), [0, 2, 3, 1])[0])
 
-                start = datetime.now() #record()
+                start.record()
                 visualization = Visualizer(**config['visualizer_params']).visualize(source=source,
                                                                                     driving=driving, out=out)
-                end = datetime.now() #record()
-                #torch.cuda.synchronize()
+                end.record()
+                torch.cuda.synchronize()
                 if timing_enabled:
-                    visualization_times.append((end - start).total_seconds() * 1000)
+                    visualization_times.append(start.elapsed_time(end))
                 visualizations.append(visualization)
 
                 loss_list.append(torch.abs(out['prediction'] - driving).mean().cpu().numpy())
