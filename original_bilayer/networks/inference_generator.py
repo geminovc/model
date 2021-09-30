@@ -12,49 +12,50 @@ from networks import utils as nt_utils
 class NetworkWrapper(nn.Module):
     @staticmethod
     def get_args(parser):
-        parser.add('--inf_num_channels',         default=32, type=int, 
-                                                 help='minimum number of channels')
+        parser.add('--inf_num_channels',                    default=32, type=int,
+                                                            help='minimum number of channels')
 
-        parser.add('--inf_max_channels',         default=256, type=int, 
-                                                 help='maximum number of channels')
+        parser.add('--inf_max_channels',                    default=256, type=int,
+                                                            help='maximum number of channels')
 
-        parser.add('--inf_pred_segmentation',    default='True', type=rn_utils.str2bool, choices=[True, False],
-                                                 help='set inference generator to output a segmentation mask')
-        parser.add('--plot_unet_inputs',         default='False', type=rn_utils.str2bool, choices=[True, False],
-                                                 help='plot all unet inputs')
+        parser.add('--inf_pred_segmentation',               default='True', type=rn_utils.str2bool, choices=[True, False],
+                                                            help='set inference generator to output a segmentation mask')
 
-        parser.add('--inf_norm_layer_type',      default='ada_bn', type=str,
-                                                 help='norm layer inside the inference generator')
+        parser.add('--plot_unet_inputs',                    default='False', type=rn_utils.str2bool, choices=[True, False],
+                                                            help='plot all unet inputs')
 
-        parser.add('--inf_input_tensor_size',    default=4, type=int, 
-                                                 help='input spatial size of the convolutional part')
+        parser.add('--inf_norm_layer_type',                 default='ada_bn', type=str,
+                                                            help='norm layer inside the inference generator')
 
-        parser.add('--inf_activation_type',      default='leakyrelu', type=str,
-                                                 help='activation layer inside the generators')
+        parser.add('--inf_input_tensor_size',               default=4, type=int,
+                                                            help='input spatial size of the convolutional part')
 
-        parser.add('--inf_upsampling_type',      default='nearest', type=str,
-                                                 help='upsampling layer inside the generator')
+        parser.add('--inf_activation_type',                 default='leakyrelu', type=str,
+                                                            help='activation layer inside the generators')
+
+        parser.add('--inf_upsampling_type',                 default='nearest', type=str,
+                                                            help='upsampling layer inside the generator')
         
-        parser.add('--use_unet',                 default='True', type=rn_utils.str2bool, choices=[True, False],
-                                                 help='set to True to use unet')
+        parser.add('--use_unet',                            default='True', type=rn_utils.str2bool, choices=[True, False],
+                                                            help='set to True to use unet')
         
-        parser.add('--unet_inputs',              default='hf', type=str,
-                                                 help='list of unet inputs as string : "hf, lf"') 
+        parser.add('--unet_inputs',                         default='hf', type=str,
+                                                            help='list of unet inputs as string : "hf, lf"')
         
-        parser.add('--inf_skip_layer_type',      default='ada_conv', type=str,
-                                                 help='skip connection layer type')
+        parser.add('--inf_skip_layer_type',                 default='ada_conv', type=str,
+                                                            help='skip connection layer type')
 
-        parser.add('--inf_pred_source_data',     default='False', type=rn_utils.str2bool, choices=[True, False], 
-                                                 help='predict inference generator outputs for the source data')
+        parser.add('--inf_pred_source_data',                default='False', type=rn_utils.str2bool, choices=[True, False],
+                                                            help='predict inference generator outputs for the source data')
 
-        parser.add('--inf_calc_grad',            default='False', type=rn_utils.str2bool, choices=[True, False], 
-                                                 help='force gradients calculation in the generator')
+        parser.add('--inf_calc_grad',                       default='False', type=rn_utils.str2bool, choices=[True, False],
+                                                            help='force gradients calculation in the generator')
 
-        parser.add('--inf_apply_masks',          default='True', type=rn_utils.str2bool, choices=[True, False], 
-                                                 help='apply segmentation masks to predicted and ground-truth images')
+        parser.add('--inf_apply_masks',                     default='True', type=rn_utils.str2bool, choices=[True, False],
+                                                            help='apply segmentation masks to predicted and ground-truth images')
        
-        parser.add('--use_source_background',    default='True', type=rn_utils.str2bool, choices=[True, False], 
-                                                 help='apply the segmenattion mask and use the source background')
+        parser.add('--use_source_background',               default='True', type=rn_utils.str2bool, choices=[True, False],
+                                                            help='apply the segmenattion mask and use the source background')
 
         parser.add('--replace_Gtex_output_with_source',     default='False', type=rn_utils.str2bool, choices=[True, False],
                                                             help='set to true if you want to replace all of G_tex output with source')
