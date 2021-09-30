@@ -165,7 +165,8 @@ class NetworkWrapper(nn.Module):
         
             if 'inference_generator' in networks_to_train or self.args.inf_calc_grad:
                 # Get an image with a low-frequency component detached
-                pred_target_imgs_lf_detached = pred_target_delta_lf_rgbs.detach() + pred_target_delta_hf_rgbs
+                pred_target_imgs_lf_detached = pred_target_delta_lf_rgbs.detach() + \
+                 pred_target_delta_hf_rgbs
 
             # Mask output images (if needed)
             if self.args.inf_apply_masks and self.args.inf_pred_segmentation:
@@ -175,9 +176,12 @@ class NetworkWrapper(nn.Module):
 
                 pred_target_imgs = pred_target_imgs * pred_target_masks + (-1) * (1 - pred_target_masks)
 
-                pred_target_delta_lf_rgbs = pred_target_delta_lf_rgbs * pred_target_masks + (-1) * (1 - pred_target_masks)
+                pred_target_delta_lf_rgbs = pred_target_delta_lf_rgbs * pred_target_masks + \
+                (-1) * (1 - pred_target_masks)
+
                 if 'inference_generator' in networks_to_train or self.args.inf_calc_grad:
-                    pred_target_imgs_lf_detached = pred_target_imgs_lf_detached * pred_target_masks + (-1) * (1 - pred_target_masks)
+                    pred_target_imgs_lf_detached = pred_target_imgs_lf_detached * pred_target_masks + \
+                    (-1) * (1 - pred_target_masks)
                 
             data_dict['pred_target_delta_hf_rgbs']=reshape_target_data(pred_target_delta_hf_rgbs)
             data_dict['pred_target_imgs'] = reshape_target_data(pred_target_imgs)
@@ -319,7 +323,8 @@ class NetworkWrapper(nn.Module):
             b, _, h, w = pred_target_delta_uvs.shape
             pred_target_delta_uvs = torch.cat([
                     pred_target_delta_uvs, 
-                    torch.empty(b, 1, h, w, dtype=pred_target_delta_uvs.dtype, device=pred_target_delta_uvs.device).fill_(-1)
+                    torch.empty(b, 1, h, w, dtype=pred_target_delta_uvs.dtype, \
+                    device=pred_target_delta_uvs.device).fill_(-1)
                 ], 
                 dim=1)
 
