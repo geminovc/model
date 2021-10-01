@@ -17,7 +17,10 @@ def get_size_of_nested_list(list_of_elem):
             count += 1    
     return count
 
-
+""" reconstruct driving frames for each video in the dataset using the first frame
+    as a source frame. Config specifies configration details, while timing 
+    determines whether to time the functions on a gpu or not
+"""
 def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset, timing_enabled):
     png_dir = os.path.join(log_dir, 'reconstruction/png')
     log_dir = os.path.join(log_dir, 'reconstruction')
