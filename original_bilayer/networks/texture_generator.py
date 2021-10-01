@@ -84,7 +84,8 @@ class NetworkWrapper(nn.Module):
             prev = torch.is_grad_enabled()
             torch.set_grad_enabled(False)
 
-        if not self.args.replace_Gtex_output_with_trainable_tensor and not self.args.replace_Gtex_output_with_source:
+        if not self.args.replace_Gtex_output_with_trainable_tensor and \
+        not self.args.replace_Gtex_output_with_source:
             ### Prepare inputs ###
             idt_embeds = data_dict['source_idt_embeds']
             b = idt_embeds[0].shape[0]

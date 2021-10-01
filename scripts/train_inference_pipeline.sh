@@ -1,3 +1,7 @@
+# This script train the Bilayer network with the flags in this script
+# Then, the script picks the trained network and uses them in the inference pipeline
+# The inference pipeline infers the predicted image on some unseen videos
+
 data_root=/video-conf/scratch/pantea/per_person_1_three_datasets
 root_to_yaws=/video-conf/scratch/pantea/pose_results/yaws/per_person_1_three_datasets/angles
 num_epochs=6000

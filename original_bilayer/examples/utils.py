@@ -106,6 +106,7 @@ def get_model_input_arguments (experiment_dir, experiment_name, which_epoch):
     'use_dropout': False,
     'texture_output_dim': 3,
     'use_unet': False,
-    'time_networks': False }
+    'time_networks': False,
+    'replace_Gtex_output_with_source': False}
     
     return args_dict
