@@ -17,6 +17,25 @@ def get_size_of_nested_list(list_of_elem):
             count += 1    
     return count
 
+""" get model summary information for the passed in keypoint detector and 
+    generator in a text file in the log directory 
+"""
+def get_model_info(log_dir, kp_detector, generator):
+    with open(os.path.join(log_dir, 'model_summary.txt'), 'wt') as model_file:
+        for model, name in zip([kp_detector, generator], ['kp', 'generator']):
+            number_of_trainable_parameters = 0
+            total_number_of_parameters = 0
+            for param in model.parameters():
+                total_number_of_parameters += get_size_of_nested_list(list(param))
+                if param.requires_grad:
+                    number_of_trainable_parameters += get_size_of_nested_list(list(param))
+
+            model_file.write('%s %s: %s\n' % (name, 'total_number_of_parameters', \
+                    str(total_number_of_parameters)))
+            model_file.write('%s %s: %s\n' % (name, 'number_of_trainable_parameters', \
+                    str(number_of_trainable_parameters)))
+
+
 """ reconstruct driving frames for each video in the dataset using the first frame
     as a source frame. Config specifies configration details, while timing 
     determines whether to time the functions on a gpu or not
@@ -45,21 +64,8 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
     generator.eval()
     kp_detector.eval()
 
-    # get number of model parameters
-    with open('model_summary.txt', 'wt') as model_file:
-        for model, name in zip([kp_detector, generator], ['kp', 'generator']):
-            number_of_trainable_parameters = 0
-            total_number_of_parameters = 0
-            for param in model.parameters():
-                total_number_of_parameters += get_size_of_nested_list(list(param))
-                if param.requires_grad:
-                    number_of_trainable_parameters += get_size_of_nested_list(list(param))
-
-            model_file.write('%s %s: %s\n' % (name, 'total_number_of_parameters', \
-                    str(total_number_of_parameters)))
-            model_file.write('%s %s: %s\n' % (name, 'number_of_trainable_parameters', \
-                    str(number_of_trainable_parameters)))
-
+    # get number of model parameters and timing stats
+    get_model_info(log_dir, kp_detector, generator)
     start = torch.cuda.Event(enable_timing=timing_enabled)
     end = torch.cuda.Event(enable_timing=timing_enabled)
 
