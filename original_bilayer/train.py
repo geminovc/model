@@ -21,207 +21,270 @@ class TrainingWrapper(object):
     @staticmethod
     def get_args(parser):
         # General options
-        parser.add('--experiment_dir',                                  default='.', type=str,
-                                                                        help='directory to save logs')
+        parser.add('--experiment_dir',
+            default='.', type=str,
+            help='directory to save logs')
         
-        parser.add('--pretrained_weights_dir',                          default='/video_conf/scratch/pantea', type=str,
-                                                                        help='directory for pretrained weights of loss networks (lpips , ...)')
+        parser.add('--pretrained_weights_dir',
+            default='/video_conf/scratch/pantea', type=str,
+            help='directory for pretrained weights of loss networks (lpips, ...)')
         
-        parser.add('--project_dir',                                     default='.', type=str,
-                                                                        help='root directory of the code')
+        parser.add('--project_dir',
+            default='.', type=str,
+            help='root directory of the code')
 
-        parser.add('--torch_home',                                      default='', type=str,
-                                                                        help='directory used for storage of the checkpoints')
+        parser.add('--torch_home',
+            default='', type=str,
+            help='directory used for storage of the checkpoints')
 
-        parser.add('--experiment_name',                                 default='test', type=str,
-                                                                        help='name of the experiment used for logging')
+        parser.add('--experiment_name',
+            default='test', type=str,
+            help='name of the experiment used for logging')
 
-        parser.add('--train_dataloader_name',                           default='voxceleb2', type=str,
-                                                                        help='name of the file in dataset directory which is used for train data loading')
+        parser.add('--train_dataloader_name',
+            default='voxceleb2', type=str,
+            help='name of the file in dataset directory which is used for train data loading')
 
-        parser.add('--test_dataloader_name',                            default='yaw', type=str,
-                                                                        help='name of the file in dataset directory which is used for test data loading')
+        parser.add('--test_dataloader_name',
+            default='yaw', type=str,
+            help='name of the file in dataset directory which is used for test data loading')
 
-        parser.add('--dataloader_name',                                 default='yaw', type=str,
-                                                                        help='name of the file in dataset directory which is used for data loading flag')
+        parser.add('--dataloader_name',
+            default='yaw', type=str,
+            help='name of the file in dataset directory which is used for data loading flag')
 
-        parser.add('--dataset_name',                                    default='voxceleb2_512px', type=str,
-                                                                        help='name of the dataset in the data root folder')
+        parser.add('--dataset_name',
+            default='voxceleb2_512px', type=str,
+            help='name of the dataset in the data root folder')
 
-        parser.add('--frame_num_from_paper',                            default='False', type=rn_utils.str2bool, choices=[True, False],
-                                                                        help='The random method to sample frame numbers for source and target from dataset')
+        parser.add('--frame_num_from_paper',
+            default='False', type=rn_utils.str2bool, choices=[True, False],
+            help='The random method to sample frame numbers for source and target from dataset')
 
-        parser.add('--metrics_root',                                    default=".", type=str,
-                                                                        help='root directory of the metrics')
+        parser.add('--metrics_root',
+            default=".", type=str,
+            help='root directory of the metrics')
         
-        parser.add('--data_root',                                       default=".", type=str,
-                                                                        help='root directory of the data')
+        parser.add('--data_root',
+            default=".", type=str,
+            help='root directory of the data')
         
-        parser.add('--general_data_root',                               default="/video-conf/scratch/pantea/video_conf_datasets/general_dataset", type=str,
-                                                                        help='root directory of the general dataset, used for varying the weight of general to personal dataset')
+        parser.add('--general_data_root',
+            default="/video-conf/scratch/pantea/video_conf_datasets/general_dataset", type=str,
+            help='root directory of the general dataset, used for varying the weight of general to personal dataset')
 
-        parser.add('--debug',                                           action='store_true',
-                                                                        help='turn on the debug mode: fast epoch, useful for testing')
+        parser.add('--debug',
+            action='store_true',
+            help='turn on the debug mode: fast epoch, useful for testing')
 
-        parser.add('--runner_name',                                     default='default', type=str,
-                                                                        help='class that wraps the models and performs training and inference steps')
+        parser.add('--runner_name',
+            default='default', type=str,
+            help='class that wraps the models and performs training and inference steps')
 
-        parser.add('--no_disk_write_ops',                               action='store_true',
-                                                                        help='avoid doing write operations to disk')
+        parser.add('--no_disk_write_ops',
+            action='store_true',
+            help='avoid doing write operations to disk')
 
-        parser.add('--redirect_print_to_file',                          default='False', type=rn_utils.str2bool, choices=[True, False],
-                                                                        help='redirect stdout and stderr to file')
+        parser.add('--redirect_print_to_file',
+            default='False', type=rn_utils.str2bool, choices=[True, False],
+            help='redirect stdout and stderr to file')
 
-        parser.add('--random_seed',                                     default=0, type=int,
-                                                                        help='used for initialization of pytorch and numpy seeds')
+        parser.add('--random_seed',
+            default=0, type=int,
+            help='used for initialization of pytorch and numpy seeds')
 
         # Initialization options
-        parser.add('--init_experiment_dir',                             default='', type=str,
-                                                                        help='directory of the experiment used for the initialization of the networks')
+        parser.add('--init_experiment_dir',
+            default='', type=str,
+            help='directory of the experiment used for the initialization of the networks')
 
-        parser.add('--init_networks',                                   default='', type=str,
-                                                                        help='list of networks to intialize')
+        parser.add('--init_networks',
+            default='', type=str,
+            help='list of networks to intialize')
 
-        parser.add('--init_which_epoch',                                default='none', type=str,
-                                                                        help='epoch to initialize from')
+        parser.add('--init_which_epoch',
+            default='none', type=str,
+            help='epoch to initialize from')
 
-        parser.add('--which_epoch',                                     default='none', type=str,
-                                                                        help='epoch to continue training from')
+        parser.add('--which_epoch',
+            default='none', type=str,
+            help='epoch to continue training from')
 
         # Distributed options
-        parser.add('--num_gpus',                                        default=1, type=int,
-                                                                        help='>1 enables DDP')
+        parser.add('--num_gpus',
+            default=1, type=int,
+            help='>1 enables DDP')
 
         # Training options
-        parser.add('--num_epochs',                                      default=1, type=int,
-                                                                        help='number of epochs for training')
+        parser.add('--num_epochs',
+            default=1, type=int,
+            help='number of epochs for training')
 
-        parser.add('--num_metrics_images',                              default=9, type=int,
-                                                                        help='number of pairs of images in your metrics dir')
+        parser.add('--num_metrics_images',
+            default=9, type=int,
+            help='number of pairs of images in your metrics dir')
 
-        parser.add('--checkpoint_freq',                                 default=500, type=int,
-                                                                        help='frequency of checkpoints creation in epochs')
+        parser.add('--checkpoint_freq',
+            default=500, type=int,
+            help='frequency of checkpoints creation in epochs')
 
-        parser.add('--test_freq',                                       default=5, type=int, 
-                                                                        help='frequency of testing in epochs')
+        parser.add('--test_freq',
+            default=5, type=int, 
+            help='frequency of testing in epochs')
         
-        parser.add('--metrics_freq',                                    default=5, type=int, 
-                                                                        help='frequency of metrics in epochs')
+        parser.add('--metrics_freq',
+            default=5, type=int, 
+            help='frequency of metrics in epochs')
         
-        parser.add('--batch_size',                                      default=1, type=int,
-                                                                        help='batch size across all GPUs')
+        parser.add('--batch_size',
+            default=1, type=int,
+            help='batch size across all GPUs')
         
-        parser.add('--num_workers_per_process',                         default=20, type=int,
-                                                                        help='number of workers used for data loading in each process')
+        parser.add('--num_workers_per_process',
+            default=20, type=int,
+            help='number of workers used for data loading in each process')
         
-        parser.add('--skip_test',                                       default='False', type=rn_utils.str2bool, choices=[True, False],
-                                                                        help='do not perform testing')
+        parser.add('--skip_test',
+            default='False', type=rn_utils.str2bool, choices=[True, False],
+            help='do not perform testing')
         
-        parser.add('--skip_metrics',                                    default='False', type=rn_utils.str2bool, choices=[True, False],
-                                                                        help='do not perform metrics assessment')
+        parser.add('--skip_metrics',
+            default='False', type=rn_utils.str2bool, choices=[True, False],
+            help='do not perform metrics assessment')
         
-        parser.add('--calc_stats',                                      action='store_true',
-                                                                        help='calculate batch norm standing stats')
+        parser.add('--calc_stats',
+            action='store_true',
+            help='calculate batch norm standing stats')
         
-        parser.add('--visual_freq',                                     default=100, type=int, 
-                                                                        help='in iterations, -1 -- output logs every epoch')
+        parser.add('--visual_freq',
+            default=100, type=int, 
+            help='in iterations, -1 -- output logs every epoch')
 
         # Mixed precision options
-        parser.add('--use_half',                                        action='store_true',
-                                                                        help='enable half precision calculation')
+        parser.add('--use_half',
+            action='store_true',
+            help='enable half precision calculation')
         
-        parser.add('--use_closure',                                     action='store_true',
-                                                                        help='use closure function during optimization (required by LBFGS)')
+        parser.add('--use_closure',
+            action='store_true',
+            help='use closure function during optimization (required by LBFGS)')
         
-        parser.add('--use_apex',                                        action='store_true',
-                                                                        help='enable apex')
+        parser.add('--use_apex',
+            action='store_true',
+            help='enable apex')
         
-        parser.add('--amp_opt_level',                                   default='O0', type=str,
-                                                                        help='full/mixed/half precision, refer to apex.amp docs')
+        parser.add('--amp_opt_level',
+            default='O0', type=str,
+            help='full/mixed/half precision, refer to apex.amp docs')
         
-        parser.add('--amp_loss_scale',                                  default='dynamic', type=str,
-                                                                        help='fixed or dynamic loss scale')
+        parser.add('--amp_loss_scale',
+            default='dynamic', type=str,
+            help='fixed or dynamic loss scale')
         
-        parser.add('--folder_postfix',                                  default='2d_crop', type=str,
-                                                                        help='crop the stickman')
+        parser.add('--folder_postfix',
+            default='2d_crop', type=str,
+            help='crop the stickman')
         
-        parser.add('--output_segmentation',                             default='False', type=rn_utils.str2bool, choices=[True, False],
-                                                                        help='read segmentation mask')
+        parser.add('--output_segmentation',
+            default='False', type=rn_utils.str2bool, choices=[True, False],
+            help='read segmentation mask')
 
-        parser.add('--output_segmentation',                             default='False', type=rn_utils.str2bool, choices=[True, False],
-                                                                        help='read segmentation mask')
+        parser.add('--output_segmentation',
+            default='False', type=rn_utils.str2bool, choices=[True, False],
+            help='read segmentation mask')
         
-        parser.add('--metrics',                                         default='PSNR, lpips, pose_matching', type=str,
-                                                                        help='metrics to evaluate the model while training') 
+        parser.add('--metrics',
+            default='PSNR, lpips, pose_matching', type=str,
+            help='metrics to evaluate the model while training') 
 
         # Saving and logging options
-        parser.add('--psnr_loss_apply_to',                              default='pred_target_imgs , target_imgs', type=str,
-                                                                        help='psnr loss to apply') 
+        parser.add('--psnr_loss_apply_to',default='pred_target_imgs , target_imgs', type=str,
+            help='psnr loss to apply') 
 
-        parser.add('--save_initial_test_before_training',               default='True', type=rn_utils.str2bool, choices=[True, False],
-                                                                        help='save how he model performs on test before training, useful for sanity check') 
+        parser.add('--save_initial_test_before_training',
+            default='True', type=rn_utils.str2bool, choices=[True, False],
+            help='save how he model performs on test before training, useful for sanity check') 
         
-        parser.add('--nme_num_threads',                                 default=1, type=int,
-                                                                        help='logging rate for images')     
+        parser.add('--nme_num_threads',
+            default=1, type=int,
+            help='logging rate for images')     
         
-        parser.add('--dataset_load_from_txt',                           default='False', type=rn_utils.str2bool, choices=[True, False],
-                                                                        help='If True, the train is loaded from train_load_from_filename, the test is loaded from test_load_from_filename. If false, the data is loaded from data-root')
+        parser.add('--dataset_load_from_txt',
+            default='False', type=rn_utils.str2bool, choices=[True, False],
+            help='If True, load from train_load_from_filename or test_load_from_filename. If false, load from data-root')
         
-        parser.add('--save_dataset_filenames',                          default='False', type=rn_utils.str2bool, choices=[True, False],
-                                                                        help='If True, the train/test data is saved in train/test_filnames.txt')
+        parser.add('--save_dataset_filenames',
+            default='False', type=rn_utils.str2bool, choices=[True, False],
+            help='If True, the train/test data is saved in train/test_filnames.txt')
         
-        parser.add('--train_load_from_filename',                        default='train_filnames.txt', type=str,
-                                                                        help='filename that we read the training dataset images from if dataset_load_from_txt==True')                                    
+        parser.add('--train_load_from_filename',
+            default='train_filnames.txt', type=str,
+            help='filename that we read the training dataset images from if dataset_load_from_txt==True')      
 
-        parser.add('--test_load_from_filename',                         default='test_filnames.txt', type=str,
-                                                                        help='filename that we read the testing dataset images from if dataset_load_from_txt==True')  
+        parser.add('--test_load_from_filename',
+            default='test_filnames.txt', type=str,
+            help='filename that we read the testing dataset images from if dataset_load_from_txt==True')  
 
         # Freezing options        
-        parser.add('--frozen_networks',                                 default='', type=str,
-                                                                        help='list of frozen networks')
+        parser.add('--frozen_networks',
+            default='', type=str,
+            help='list of frozen networks')
 
-        parser.add('--networks_to_train',                               default='identity_embedder, texture_generator, keypoints_embedder, inference_generator, discriminator' , type=str,
-                                                                        help='networks that are being trained')
+        parser.add('--networks_to_train',
+            default='identity_embedder, texture_generator, keypoints_embedder, inference_generator, discriminator', type=str,
+            help='networks that are being trained')
 
-        parser.add('--unfreeze_texture_generator_last_layers',          default='True', type=rn_utils.str2bool, choices=[True, False],
-                                                                        help='set to false if you want to freeze the last layers (after up samlping blocks) in the texture generator')
+        parser.add('--unfreeze_texture_generator_last_layers',
+            default='True', type=rn_utils.str2bool, choices=[True, False],
+            help='set to false if you want to freeze the last layers (after up samlping blocks) in the texture generator')
 
-        parser.add('--unfreeze_inference_generator_last_layers',        default='False', type=rn_utils.str2bool, choices=[True, False],
-                                                                        help='set to false if you want to freeze the last layers (after up samlping blocks) in the inference generator')
+        parser.add('--unfreeze_inference_generator_last_layers',
+            default='False', type=rn_utils.str2bool, choices=[True, False],
+            help='set to false if you want to freeze the last layers (after up samlping blocks) in the inference generator')
 
         # Structure change options
-        parser.add('--replace_source_specific_with_trainable_tensors',  default='False', type=rn_utils.str2bool, choices=[True, False],
-                                                                        help='set to true if you want to replace all source-specific modules with a tensor')
-                                                                        
-        parser.add('--replace_Gtex_output_with_trainable_tensor',       default='False', type=rn_utils.str2bool, choices=[True, False],
-                                                                        help='set to true if you want to replace all of G_tex with a tensor')
+        parser.add('--replace_source_specific_with_trainable_tensors',
+            default='False', type=rn_utils.str2bool, choices=[True, False],
+            help='set to true if you want to replace all source-specific modules with a tensor')
 
-        parser.add('--replace_Gtex_output_with_source',                 default='False', type=rn_utils.str2bool, choices=[True, False],
-                                                                        help='set to true if you want to replace all of G_tex output with source')
+        parser.add('--replace_Gtex_output_with_trainable_tensor',
+            default='False', type=rn_utils.str2bool, choices=[True, False],
+            help='set to true if you want to replace all of G_tex with a tensor')
+
+        parser.add('--replace_Gtex_output_with_source',
+            default='False', type=rn_utils.str2bool, choices=[True, False],
+            help='set to true if you want to replace all of G_tex output with source')
         
         # Augentation opions
-        parser.add('--sample_general_dataset',                          default='False', type=rn_utils.str2bool, choices=[True, False],
-                                                                        help='set to true if you want to take smaller number of data in general dataset')
+        parser.add('--sample_general_dataset',
+            default='False', type=rn_utils.str2bool, choices=[True, False],
+            help='set to true if you want to take smaller number of data in general dataset')
 
-        parser.add('--augment_with_general',                            default='False', type=rn_utils.str2bool, choices=[True, False],
-                                                                        help='augment the personal dataset with general dataset while training the per_person dataset')
+        parser.add('--augment_with_general',
+            default='False', type=rn_utils.str2bool, choices=[True, False],
+            help='augment the personal dataset with general dataset while training the per_person dataset')
 
-        parser.add('--augment_with_general_ratio',                      default=0.5, type=float,
-                                                                        help='augmentation ratio for augmenting the personal dataset with general dataset while training')
+        parser.add('--augment_with_general_ratio',
+            default=0.5, type=float,
+            help='augmentation ratio for augmenting the personal dataset with general dataset while training')
 
         # Dropout options
-        parser.add('--use_dropout',                                     default='False', type=rn_utils.str2bool, choices=[True, False],
-                                                                        help='use dropout in the convolutional layers')
+        parser.add('--use_dropout',
+            default='False', type=rn_utils.str2bool, choices=[True, False],
+            help='use dropout in the convolutional layers')
 
-        parser.add('--dropout_networks',                                default='texture_generator: 0.5' ,
-                                                                        help='networks to use dropout in: the dropout rate')
+        parser.add('--dropout_networks',
+            default='texture_generator: 0.5',
+            help='networks to use dropout in: the dropout rate')
            
-        parser.add('--root_to_yaws',                                    default='/video-conf/scratch/pantea/pose_results/yaws/per_person_1_three_datasets/angles', type=str, 
-                                                                        help='The directory where the yaws are stored in voxceleb2 format')
-                             
+        parser.add('--root_to_yaws',
+            default='/video-conf/scratch/pantea/pose_results/yaws/per_person_1_three_datasets/angles', type=str, 
+            help='The directory where the yaws are stored in voxceleb2 format')
+
         # Mask the source and target before the pipeline
-        parser.add('--mask_source_and_target',                          default='True', type=rn_utils.str2bool, choices=[True, False],
-                                                                        help='mask the source and target from the beginning')
+        parser.add('--mask_source_and_target',
+            default='True', type=rn_utils.str2bool, choices=[True, False],
+             help='mask the source and target from the beginning')
 
      
         # Technical options that are set automatically
@@ -302,7 +365,8 @@ class TrainingWrapper(object):
 
         if args.init_which_epoch != 'none' and args.init_experiment_dir:
             for net_name in init_networks:
-                self.runner.nets[net_name].load_state_dict(torch.load(pathlib.Path(args.init_experiment_dir) / 'checkpoints' / f'{args.init_which_epoch}_{net_name}.pth', map_location='cpu'))    
+                self.runner.nets[net_name].load_state_dict(torch.load(pathlib.Path(args.init_experiment_dir) \
+                / 'checkpoints' / f'{args.init_which_epoch}_{net_name}.pth', map_location='cpu'))
                 if net_name in frozen_networks: #dictionary
                     for p in self.runner.nets[net_name].parameters():
                         p.requires_grad = False
@@ -415,7 +479,7 @@ class TrainingWrapper(object):
             if debug:
                 break
         # Output logs
-        my_logger.output_logs(my_string[0], my_string[1] ,runner.output_visuals(), runner.output_losses(), runner.output_metrics(), time.time() - time_start)
+        my_logger.output_logs(my_string[0], my_string[1],runner.output_visuals(), runner.output_losses(), runner.output_metrics(), time.time() - time_start)
 
 
     def get_current_lr(self, optimizer, group_idx, parameter_idx, step):

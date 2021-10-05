@@ -44,8 +44,7 @@ import time
 from datasets import utils as ds_utils
 from runners import utils as rn_utils
 from external.Graphonomy import wrapper
-import face_alignment
-
+from api import extract_keypoints
 
 
 class InferenceWrapper(nn.Module):
@@ -108,8 +107,6 @@ class InferenceWrapper(nn.Module):
         # Remove spectral norm to improve the performance
         self.runner.apply(rn_utils.remove_spectral_norm)
 
-        # Stickman/facemasks drawer
-        self.fa = face_alignment.FaceAlignment(face_alignment.LandmarksType._2D, flip_input=True)
 
         # Segmentation Wrapper module
         self.net_seg = wrapper.SegmentationWrapper(self.args)
@@ -157,7 +154,7 @@ class InferenceWrapper(nn.Module):
         for i in range(N):
 
             # Get the pose of the i-th image in the batch 
-            pose = self.fa.get_landmarks(input_imgs[i])[0]
+            pose = extract_keypoints(input_imgs[i])[0]
 
             # Finding the center of the face using the pose coordinates
             center = ((pose.min(0) + pose.max(0)) / 2).round().astype(int)
@@ -250,7 +247,7 @@ class InferenceWrapper(nn.Module):
         imgs += [self.to_tensor(img)]
 
         # Loading and preprocessing the source keypints
-        keypoints = np.load(dataset_root + '/keypoints/'+source_relative_path+'.npy').astype('float32')
+        keypoints = np.load(dataset_root + '/keypoints/' + source_relative_path + '.npy').astype('float32')
         keypoints = keypoints.reshape((68,2))
         keypoints = keypoints[:self.args.num_keypoints, :]
         keypoints[:, :2] /= s
@@ -285,7 +282,7 @@ class InferenceWrapper(nn.Module):
         imgs += [self.to_tensor(img)]
 
         # Loading and preprocessing the target keypints
-        keypoints = np.load(dataset_root + '/keypoints/'+target_relative_path+'.npy').astype('float32')
+        keypoints = np.load(dataset_root + '/keypoints/' + target_relative_path + '.npy').astype('float32')
         keypoints = keypoints.reshape((68,2))
         keypoints = keypoints[:self.args.num_keypoints, :]
         keypoints[:, :2] /= s

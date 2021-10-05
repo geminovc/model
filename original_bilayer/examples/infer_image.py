@@ -169,13 +169,11 @@ parser.add_argument('--save_dir',
         help='the directory to save the generated images')       
 
 parser.add_argument('--preprocess',
-        type=bool,
-        default= False,
+        action='store_true',
         help='If preprocess is needed')   
 
 parser.add_argument('--draw_source_target_from_video',
-        type=bool,
-        default= False,
+        action='store_true',
         help='If source-target pair is from a video')   
 
 args = parser.parse_args()
