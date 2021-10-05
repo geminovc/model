@@ -44,7 +44,7 @@ import time
 from datasets import utils as ds_utils
 from runners import utils as rn_utils
 from external.Graphonomy import wrapper
-from api import extract_keypoints
+import face_alignment
 
 
 class InferenceWrapper(nn.Module):
@@ -107,6 +107,8 @@ class InferenceWrapper(nn.Module):
         # Remove spectral norm to improve the performance
         self.runner.apply(rn_utils.remove_spectral_norm)
 
+        # Stickman/facemasks drawer
+        self.fa = face_alignment.FaceAlignment(face_alignment.LandmarksType._2D, flip_input=True)
 
         # Segmentation Wrapper module
         self.net_seg = wrapper.SegmentationWrapper(self.args)
@@ -154,7 +156,7 @@ class InferenceWrapper(nn.Module):
         for i in range(N):
 
             # Get the pose of the i-th image in the batch 
-            pose = extract_keypoints(input_imgs[i])[0]
+            pose = self.fa.get_landmarks(input_imgs[i])[0]
 
             # Finding the center of the face using the pose coordinates
             center = ((pose.min(0) + pose.max(0)) / 2).round().astype(int)
