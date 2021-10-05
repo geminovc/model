@@ -87,7 +87,8 @@ do
     if  [ "$generate_bilayer_results" = true ] && [ "$generate_per_person_results" = true ] && [ "$per_video_flag" = true ]
     then 
 
-        ### Make a strip of videos containing: target | Bilayer | per_person random source-target | per_person close source-target | per_video random source-target | per_video close source-target 
+        ### Make a strip of videos containing: target | Bilayer | per_person random source-target |\
+        ### per_person close source-target | per_video random source-target | per_video close source-target
         ffmpeg -y -i ${save_dir}/per_video_yaw_${video_id}/masked_original.mp4 \
         -i ${save_dir}/bilayer_${video_id}/${video_technique}.mp4 \
         -i ${save_dir}/per_person_voxceleb2_${video_id}/${video_technique}.mp4 \
@@ -96,14 +97,14 @@ do
         -i ${save_dir}/per_video_yaw_${video_id}/${video_technique}.mp4 \
         -filter_complex "[0][1][2][3][4][5]hstack=inputs=6" ${save_dir}/stacked_${video_technique}_all.mp4
     
-        ### Make a strip of videos containing: target | Bilayer | per_person close source-target | per_video close source-target 
+        ### Make a strip of videos containing: target | Bilayer | per_person close source-target | per_video close source-target
         ffmpeg -y -i ${save_dir}/per_video_yaw_${video_id}/masked_original.mp4 \
         -i ${save_dir}/bilayer_${video_id}/${video_technique}.mp4 \
         -i ${save_dir}/per_person_yaw_${video_id}/${video_technique}.mp4 \
         -i ${save_dir}/per_video_yaw_${video_id}/${video_technique}.mp4 \
         -filter_complex "[0][1][2][3]hstack=inputs=4" ${save_dir}/stacked_${video_technique}_with_yaw.mp4
         
-        ### Make a strip of videos containing: target | Bilayer | per_video close source-target 
+        ### Make a strip of videos containing: target | Bilayer | per_video close source-target
         ffmpeg -y -i ${save_dir}/per_video_yaw_${video_id}/masked_original.mp4 \
         -i ${save_dir}/bilayer_${video_id}/${video_technique}.mp4 \
         -i ${save_dir}/per_video_yaw_${video_id}/${video_technique}.mp4 \

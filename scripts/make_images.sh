@@ -138,7 +138,8 @@ then
     if  [ "$generate_bilayer_results" = true ] && [ "$generate_per_person_results" = true ] 
     then 
 
-        ### Make a strip of images containing: source | target | Bilayer | per_person random source-target| per_person close source-target | per_video random source-target \
+        ### Make a strip of images containing: source | target | Bilayer | per_person random source-target|\
+        ### per_person close source-target | per_video random source-target \
         ### per_video close source-target
         ffmpeg -y -i ${save_dir}/per_person_yaw_${video_id}/masked_source_imgs_False_False.png \
         -i ${save_dir}/per_person_yaw_${video_id}/masked_target_imgs_False_False.png \
@@ -149,7 +150,7 @@ then
         -i ${save_dir}/per_video_yaw_${video_id}/pred_target_imgs_False_False.png \
         -filter_complex "[0][1][2][3][4][5][6]hstack=inputs=7" ${save_dir}/stacked_per_video_with_yaw.png
 
-        ### Make a strip of images containing: source | target | Bilayer | per_person random source-target | per_video close source-target 
+        ### Make a strip of images containing: source | target | Bilayer | per_person random source-target | per_video close source-target
         ffmpeg -y -i ${save_dir}/per_person_yaw_${video_id}/masked_source_imgs_False_False.png \
         -i ${save_dir}/per_person_yaw_${video_id}/masked_target_imgs_False_False.png \
         -i ${save_dir}/bilayer_${video_id}/pred_target_imgs_False_False.png \

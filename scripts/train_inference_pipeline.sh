@@ -19,7 +19,10 @@ do
 
     cd ${nets_repo}/original_bilayer/scripts/automated
     
-    CUDA_VISIBLE_DEVICES=0 ./train_script.sh  ${experiments_name}  "from_bilayer" "per_person" 2 ${num_epochs} 100 100 1000 100 'yaw' ${data_root} ${root_to_yaws} "${frozen_networks}" "${unfreeze_texture_generator_last_layers}" "${unfreeze_inference_generator_last_layers}"  ${experiment_dir} ${wpr_loss_weight} "${replace_Gtex_output_with_source}"
+    CUDA_VISIBLE_DEVICES=0 ./train_script.sh  ${experiments_name}  "from_bilayer" \
+    "per_person" 2 ${num_epochs} 100 100 1000 100 'yaw' ${data_root} ${root_to_yaws} \
+    "${frozen_networks}" "${unfreeze_texture_generator_last_layers}" "${unfreeze_inference_generator_last_layers}" \
+    ${experiment_dir} ${wpr_loss_weight} "${replace_Gtex_output_with_source}"
 
     cd ${nets_repo}/original_bilayer/examples
 
