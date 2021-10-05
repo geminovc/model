@@ -57,6 +57,11 @@ with_frozen_last_layer_flag=false
 single_last_layer_flag=false
 
 
+# The following experiments try freezing different parts of the Bilayer networks and train on a single video
+# The frist argument is the name of the networks that are frozen
+# The second argument is a boolan and unfreezes the texture generator's last layers (after AdaSpade layer) if True
+# The third argument is a boolan and unfreezes the inference generator's last layers (after AdaSpade layer) if True
+# The fourth argument is the name of the experiment
 
 run_per_video_experiments ' ' 'True' 'True' ${experiment_name_prefix}no_frozen
 
