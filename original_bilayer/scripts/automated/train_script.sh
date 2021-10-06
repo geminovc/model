@@ -1,25 +1,29 @@
+# Go to the NETS project directory
+train_script_dir=$(dirname ${0} 2>&1)
+cd $train_script_dir 
+cd ../../.. #inside nets_implementation
+NETS_DIR=$(pwd)
+
 # Variables from the user
-#MAIN_DIR="${HOME}/NETS/nets_implementation/original_bilayer"
-MAIN_DIR=../..
-machine=${1}
-experiment_name=${2}
-initialization=${3}
-dataset_name=${4}
-batch_size=${5}
-num_epochs=${6}
-test_freq=${7}
-metrics_freq=${8}
-checkpoint_freq=${9}
-visual_freq=${10}
-train_dataloader_name=${11}
-data_root=${12}
-root_to_yaws=${13}
-frozen_networks=${14}
-unfreeze_texture_generator_last_layers=${15}
-unfreeze_inference_generator_last_layers=${16}
-experiment_dir=${17}
-
-
+experiment_name=${1}
+initialization=${2}
+dataset_name=${3}
+batch_size=${4}
+num_epochs=${5}
+test_freq=${6}
+metrics_freq=${7}
+checkpoint_freq=${8}
+visual_freq=${9}
+train_dataloader_name=${10}
+data_root=${11}
+root_to_yaws=${12}
+frozen_networks=${13}
+unfreeze_texture_generator_last_layers=${14}
+unfreeze_inference_generator_last_layers=${15}
+experiment_dir=${16}
+wpr_loss_weight=${17}
+replace_Gtex_output_with_source=${18}
+echo "replace_Gtex_output_with_source: $replace_Gtex_output_with_source"
 echo "frozen_networks: $frozen_networks"
 
 # Add initialization options
@@ -28,50 +32,46 @@ if [[ "$initialization" == "from_base" ]]; then
     init_experiment_dir='.'
     init_which_epoch='none'
 
-elif [[ "$initialization" == "from_paper" ]]; then
+elif [[ "$initialization" == "from_personalized" ]]; then
     init_networks='identity_embedder, texture_generator, keypoints_embedder, inference_generator, discriminator'
     init_experiment_dir=/data/pantea/pantea_experiments_chunky/per_person/from_paper/runs/original_frozen_Gtex_from_identical
     init_which_epoch=2000
 
+elif [[ "$initialization" == "from_bilayer" ]]; then
+    init_networks='identity_embedder, texture_generator, keypoints_embedder, inference_generator, discriminator'
+    init_experiment_dir=/video-conf/scratch/pantea/bilayer_paper_released/runs/vc2-hq_adrianb_paper_main
+    init_which_epoch=2225
+
 fi
 # Find an empty gpu to use
+
+
 found_empty_gpu=false
 
 while [ "$found_empty_gpu" = false ]
-do
-echo "entering the loop"
+   do
+   echo "entering the loop"
 
-if [ ! -f /data/pouya/gpu_reserves/0.full  ]
-then
-   echo " gpu 0 is empty."
-   gpu_number=0
-   found_empty_gpu=true
-   break
+   list_of_free_gpus=($(python scripts/gpu_usage.py  2>&1 | tr -d '[],'))
+   echo "list of free gpus [${list_of_free_gpus[@]}]"
+   
+   if ! [ ${#list_of_free_gpus} -eq 0 ]; then
+      gpu_number=${list_of_free_gpus[0]}
+      echo " gpu ${gpu_number} is empty."
+      found_empty_gpu=true
+      break
+   fi
 
-elif [ ! -f /data/pouya/gpu_reserves/1.full  ]
-then
-   echo " gpu 1 is empty."
-   gpu_number=1
-   found_empty_gpu=true
-   break
-
-elif [ ! -f /data/pouya/gpu_reserves/2.full ]
-then
-   echo " gpu 2 is empty."
-   gpu_number=2
-   found_empty_gpu=true
-   break
-
-else
-echo "no empty gpu, waiting!"
-   sleep 10
-
-fi
 done
 
-touch /data/pouya/gpu_reserves/${gpu_number}.full  
+# Based on the conversation with pouya, make the .full file for gpu occupancy on Chunky
+host_name=$(hostname)
+if [[ "$host_name" == "lab" ]]; then
+   filename=/data/pouya/gpu_reserves/${gpu_number}.full
+   [[ -f ${filename} ]] || touch ${filename}
+fi
 
-cd $MAIN_DIR/
+cd $NETS_DIR/original_bilayer
 
 CUDA_VISIBLE_DEVICES=${gpu_number} 
 
@@ -186,7 +186,7 @@ python train.py \
 --wpr_loss_apply_to pred_target_delta_uvs \
 --wpr_loss_decay_schedule '-1' \
 --wpr_loss_type l1 \
---wpr_loss_weight 0.1 \
+--wpr_loss_weight ${wpr_loss_weight} \
 --wpr_loss_weight_decay 1.0 \
 --nme_num_threads 1  \
 --skip_test False \
@@ -195,6 +195,7 @@ python train.py \
 --unfreeze_inference_generator_last_layers ${unfreeze_inference_generator_last_layers} \
 --replace_AdaSpade_with_conv False \
 --replace_Gtex_output_with_trainable_tensor False \
+--replace_Gtex_output_with_source ${replace_Gtex_output_with_source} \
 --replace_source_specific_with_trainable_tensors False \
 --augment_with_general False \
 --sample_general_dataset False \
@@ -213,7 +214,12 @@ python train.py \
 --visualize_discriminator_scores False \
 --root_to_yaws ${root_to_yaws} \
 
-
-rm /data/pouya/gpu_reserves/${gpu_number}.full 
+# Based on the conversation with pouya, remove the .full file for gpu occupancy on Chunky
+if [[ "$host_name" == "lab" ]]; then
+   uname2="$(stat --format '%U' "/data/pouya/gpu_reserves/${gpu_number}.full")"
+   if [ "x${uname2}" = "x${USER}" ]; then
+      rm /data/pouya/gpu_reserves/${gpu_number}.full
+   fi
+fi
 
  

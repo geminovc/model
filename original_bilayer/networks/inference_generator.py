@@ -12,51 +12,54 @@ from networks import utils as nt_utils
 class NetworkWrapper(nn.Module):
     @staticmethod
     def get_args(parser):
-        parser.add('--inf_num_channels',         default=32, type=int, 
-                                                 help='minimum number of channels')
+        parser.add('--inf_num_channels',                    default=32, type=int,
+                                                            help='minimum number of channels')
 
-        parser.add('--inf_max_channels',         default=256, type=int, 
-                                                 help='maximum number of channels')
+        parser.add('--inf_max_channels',                    default=256, type=int,
+                                                            help='maximum number of channels')
 
-        parser.add('--inf_pred_segmentation',    default='True', type=rn_utils.str2bool, choices=[True, False],
-                                                 help='set inference generator to output a segmentation mask')
-        parser.add('--plot_unet_inputs',         default='False', type=rn_utils.str2bool, choices=[True, False],
-                                                 help='plot all unet inputs')
+        parser.add('--inf_pred_segmentation',               default='True', type=rn_utils.str2bool, choices=[True, False],
+                                                            help='set inference generator to output a segmentation mask')
 
-        parser.add('--inf_norm_layer_type',      default='ada_bn', type=str,
-                                                 help='norm layer inside the inference generator')
+        parser.add('--plot_unet_inputs',                    default='False', type=rn_utils.str2bool, choices=[True, False],
+                                                            help='plot all unet inputs')
 
-        parser.add('--inf_input_tensor_size',    default=4, type=int, 
-                                                 help='input spatial size of the convolutional part')
+        parser.add('--inf_norm_layer_type',                 default='ada_bn', type=str,
+                                                            help='norm layer inside the inference generator')
 
-        parser.add('--inf_activation_type',      default='leakyrelu', type=str,
-                                                 help='activation layer inside the generators')
+        parser.add('--inf_input_tensor_size',               default=4, type=int,
+                                                            help='input spatial size of the convolutional part')
 
-        parser.add('--inf_upsampling_type',      default='nearest', type=str,
-                                                 help='upsampling layer inside the generator')
+        parser.add('--inf_activation_type',                 default='leakyrelu', type=str,
+                                                            help='activation layer inside the generators')
+
+        parser.add('--inf_upsampling_type',                 default='nearest', type=str,
+                                                            help='upsampling layer inside the generator')
         
-        parser.add('--use_unet',                 default='True', type=rn_utils.str2bool, choices=[True, False],
-                                                 help='set to True to use unet')
+        parser.add('--use_unet',                            default='True', type=rn_utils.str2bool, choices=[True, False],
+                                                            help='set to True to use unet')
         
-        parser.add('--unet_inputs',              default='hf', type=str,
-                                                 help='list of unet inputs as string : "hf, lf"') 
+        parser.add('--unet_inputs',                         default='hf', type=str,
+                                                            help='list of unet inputs as string : "hf, lf"')
         
-        parser.add('--inf_skip_layer_type',      default='ada_conv', type=str,
-                                                 help='skip connection layer type')
+        parser.add('--inf_skip_layer_type',                 default='ada_conv', type=str,
+                                                            help='skip connection layer type')
 
-        parser.add('--inf_pred_source_data',     default='False', type=rn_utils.str2bool, choices=[True, False], 
-                                                 help='predict inference generator outputs for the source data')
+        parser.add('--inf_pred_source_data',                default='False', type=rn_utils.str2bool, choices=[True, False],
+                                                            help='predict inference generator outputs for the source data')
 
-        parser.add('--inf_calc_grad',            default='False', type=rn_utils.str2bool, choices=[True, False], 
-                                                 help='force gradients calculation in the generator')
+        parser.add('--inf_calc_grad',                       default='False', type=rn_utils.str2bool, choices=[True, False],
+                                                            help='force gradients calculation in the generator')
 
-        parser.add('--inf_apply_masks',          default='True', type=rn_utils.str2bool, choices=[True, False], 
-                                                 help='apply segmentation masks to predicted and ground-truth images')
+        parser.add('--inf_apply_masks',                     default='True', type=rn_utils.str2bool, choices=[True, False],
+                                                            help='apply segmentation masks to predicted and ground-truth images')
        
-        parser.add('--use_source_background',    default='True', type=rn_utils.str2bool, choices=[True, False], 
-                                                 help='apply the segmenattion mask and use the source background')
+        parser.add('--use_source_background',               default='True', type=rn_utils.str2bool, choices=[True, False],
+                                                            help='apply the segmenattion mask and use the source background')
 
-                                                 
+        parser.add('--replace_Gtex_output_with_source',     default='False', type=rn_utils.str2bool, choices=[True, False],
+                                                            help='set to true if you want to replace all of G_tex output with source')
+
     def __init__(self, args):
         super(NetworkWrapper, self).__init__()
         # Initialize options
@@ -155,11 +158,15 @@ class NetworkWrapper(nn.Module):
             torch.set_grad_enabled(prev)
         # Final image
         if not self.args.use_unet:
-            pred_target_imgs = pred_target_delta_lf_rgbs + pred_target_delta_hf_rgbs
+            if self.args.replace_Gtex_output_with_source:
+                pred_target_imgs = pred_target_delta_hf_rgbs
+            else:
+                pred_target_imgs = pred_target_delta_lf_rgbs + pred_target_delta_hf_rgbs
         
             if 'inference_generator' in networks_to_train or self.args.inf_calc_grad:
                 # Get an image with a low-frequency component detached
-                pred_target_imgs_lf_detached = pred_target_delta_lf_rgbs.detach() + pred_target_delta_hf_rgbs
+                pred_target_imgs_lf_detached = pred_target_delta_lf_rgbs.detach() + \
+                 pred_target_delta_hf_rgbs
 
             # Mask output images (if needed)
             if self.args.inf_apply_masks and self.args.inf_pred_segmentation:
@@ -169,9 +176,12 @@ class NetworkWrapper(nn.Module):
 
                 pred_target_imgs = pred_target_imgs * pred_target_masks + (-1) * (1 - pred_target_masks)
 
-                pred_target_delta_lf_rgbs = pred_target_delta_lf_rgbs * pred_target_masks + (-1) * (1 - pred_target_masks)
+                pred_target_delta_lf_rgbs = pred_target_delta_lf_rgbs * pred_target_masks + \
+                (-1) * (1 - pred_target_masks)
+
                 if 'inference_generator' in networks_to_train or self.args.inf_calc_grad:
-                    pred_target_imgs_lf_detached = pred_target_imgs_lf_detached * pred_target_masks + (-1) * (1 - pred_target_masks)
+                    pred_target_imgs_lf_detached = pred_target_imgs_lf_detached * pred_target_masks + \
+                    (-1) * (1 - pred_target_masks)
                 
             data_dict['pred_target_delta_hf_rgbs']=reshape_target_data(pred_target_delta_hf_rgbs)
             data_dict['pred_target_imgs'] = reshape_target_data(pred_target_imgs)
@@ -313,7 +323,8 @@ class NetworkWrapper(nn.Module):
             b, _, h, w = pred_target_delta_uvs.shape
             pred_target_delta_uvs = torch.cat([
                     pred_target_delta_uvs, 
-                    torch.empty(b, 1, h, w, dtype=pred_target_delta_uvs.dtype, device=pred_target_delta_uvs.device).fill_(-1)
+                    torch.empty(b, 1, h, w, dtype=pred_target_delta_uvs.dtype, \
+                    device=pred_target_delta_uvs.device).fill_(-1)
                 ], 
                 dim=1)
 

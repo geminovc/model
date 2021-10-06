@@ -110,13 +110,13 @@ class DatasetWrapper(data.Dataset):
         # setting values for pose_realted test/unseen_test dataloaders
         if self.pose_component == 'easy_pose' and self.phase != 'train':
             self.yaw_method = 'min_max'
-            self.abs_max_yaw = 10
+            self.abs_max_yaw = 90
             self.abs_min_yaw = 0
 
         elif self.pose_component == 'hard_pose' and self.phase != 'train':
             self.yaw_method = 'min_max'
             self.abs_max_yaw = 90
-            self.abs_min_yaw = 50
+            self.abs_min_yaw = 0
         
         elif self.pose_component == 'combined_pose' and self.phase != 'train':
             self.yaw_method = 'close_original'
