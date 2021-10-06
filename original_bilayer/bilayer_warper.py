@@ -15,6 +15,23 @@ This script exposes endpoints to the Bilayer Inference pipeline
 3.  To find the predicted PLI image based source images, use the following API:
     predicted_target = model.predict(target_pose, target_segs)
 
+Example:
+
+config_path = '/path/to/yaml_file'
+source_img_path = '/path/to/source_image'
+target_img_path = '/path/to/target_image'
+
+source_frame = np.asarray(Image.open(source_img_path))
+target_frame = np.asarray(Image.open(target_img_path))
+
+model = BilayerAPI(config_path)
+
+Set the source and target frames
+_, _ = model.extract_keypoints(source_frame, 'source')
+target_pose, target_segs = model.extract_keypoints(target_frame, 'target')
+predicted_target = model.predict(target_pose, target_segs)
+predicted_target.save("pred_target_test.png")
+
 """
 
 
