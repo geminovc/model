@@ -1,8 +1,19 @@
 """
-model = BilayerAPI(config_path)
-source_pose = model.extract_keypoints(source_frame, 'source')
-target_pose = model.extract_keypoints(target_frame, 'target')
-predicted_target = model.predict(target_pose, target_segs)
+This script exposes endpoints to the Bilayer Inference pipeline
+
+1.  To initialte the model use:
+    model = BilayerAPI(config_path)
+
+    where the config_path is the path to the config yaml file
+
+2.  To set the target and source images, use the following APIs:
+    source_pose, _ = model.extract_keypoints(source_frame, 'source')
+    target_pose, target_pose = model.extract_keypoints(target_frame, 'target')
+
+    Note that each time you want to update the source or target frame, just call these APIs.
+
+3.  To find the predicted PLI image based source images, use the following API:
+    predicted_target = model.predict(target_pose, target_segs)
 
 """
 
@@ -24,6 +35,7 @@ import pdb
 import time
 from datasets import utils as ds_utils
 from runners import utils as rn_utils
+from examples import utils as infer_utils
 from external.Graphonomy import wrapper
 import face_alignment
 import yaml
@@ -41,7 +53,6 @@ class BilayerAPI(nn.Module):
             value, _ = rn_utils.typecast_value(key, str(value))
             print(key, value)
         return args_dict
-        
 
     def convert_yaml_to_dict(self, config_path):
         with open(config_path) as f:
@@ -53,9 +64,9 @@ class BilayerAPI(nn.Module):
 
     def __init__(self, config_path):
         super(BilayerAPI, self).__init__()
+
         # Get a config for the network
         self.args = self.convert_yaml_to_dict(str(config_path))
-        print("self.args", self.args)
         self.to_tensor = transforms.ToTensor()
 
         # Load the runner file and set it to the evaluation(test) mode
@@ -111,7 +122,7 @@ class BilayerAPI(nn.Module):
 
         if stickmen is not None:
             self.data_dict['{}_stickmen'.format(str(image_name))] = stickmen
-        return poses
+        return poses, segs
     
     def preprocess_data(self, input_imgs, crop_data=True):
         imgs = []
@@ -194,11 +205,14 @@ class BilayerAPI(nn.Module):
 
         # Prepare input data
         if self.args.num_gpus > 0:
-            for key, value in data_dict.items():
+            for key, value in self.data_dict.items():
                 self.data_dict[key] = value.cuda()
 
         # Forward pass
         with torch.no_grad():
             model(self.data_dict)
 
-        return model.data_dict['predicted_target_imgs']
+        predicted_tensor = model.data_dict['pred_target_imgs'][0, 0]
+        predicted_pli_img = infer_utils.to_image(predicted_tensor)
+
+        return predicted_pli_img
