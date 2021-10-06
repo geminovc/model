@@ -47,7 +47,6 @@ from external.Graphonomy import wrapper
 import face_alignment
 
 
-
 class InferenceWrapper(nn.Module):
     @staticmethod
     def get_args(args_dict):
@@ -250,7 +249,7 @@ class InferenceWrapper(nn.Module):
         imgs += [self.to_tensor(img)]
 
         # Loading and preprocessing the source keypints
-        keypoints = np.load(dataset_root + '/keypoints/'+source_relative_path+'.npy').astype('float32')
+        keypoints = np.load(dataset_root + '/keypoints/' + source_relative_path + '.npy').astype('float32')
         keypoints = keypoints.reshape((68,2))
         keypoints = keypoints[:self.args.num_keypoints, :]
         keypoints[:, :2] /= s
@@ -285,7 +284,7 @@ class InferenceWrapper(nn.Module):
         imgs += [self.to_tensor(img)]
 
         # Loading and preprocessing the target keypints
-        keypoints = np.load(dataset_root + '/keypoints/'+target_relative_path+'.npy').astype('float32')
+        keypoints = np.load(dataset_root + '/keypoints/' + target_relative_path + '.npy').astype('float32')
         keypoints = keypoints.reshape((68,2))
         keypoints = keypoints[:self.args.num_keypoints, :]
         keypoints[:, :2] /= s
