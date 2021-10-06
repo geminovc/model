@@ -111,7 +111,7 @@ python train.py \
 --emb_norm_layer_type none \
 --emb_num_channels 64 \
 --emb_output_tensor_size 8 \
---eps 1e-07 \
+--eps 0.0000001 \
 --fem_loss_type l1 \
 --fem_loss_weight 10.0 \
 --folder_postfix '2d_crop' \
@@ -140,7 +140,7 @@ python train.py \
 --metrics 'PSNR, lpips, pose_matching, csim, ssim' \
 --psnr_loss_apply_to 'pred_target_imgs, target_imgs'  \
 --losses_train 'adversarial, feature_matching, perceptual, pixelwise, warping_regularizer, segmentation'  \
---lrs 'identity_embedder: 2e-4, texture_generator: 2e-4, keypoints_embedder: 2e-4, inference_generator: 2e-4, discriminator: 2e-4'  \
+--lrs 'identity_embedder: 0.0002, texture_generator: 0.0002, keypoints_embedder: 0.0002, inference_generator: 0.0002, discriminator: 0.0002'  \
 --networks_calc_stats 'identity_embedder, texture_generator, keypoints_embedder, inference_generator' \
 --networks_test 'identity_embedder, texture_generator, keypoints_embedder, inference_generator' \
 --networks_train 'identity_embedder, texture_generator, keypoints_embedder, inference_generator, discriminator' \
