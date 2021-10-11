@@ -112,9 +112,12 @@ class BilayerAPI(nn.Module):
         # Remove spectral norm to improve the performance
         self.runner.apply(rn_utils.remove_spectral_norm)
 
-        # Stickman/facemasks drawer
-        self.fa = face_alignment.FaceAlignment(face_alignment.LandmarksType._2D, flip_input=True)
-        
+        if self.args.num_gpus > 0:
+            # Stickman/facemasks drawer
+            self.fa = face_alignment.FaceAlignment(face_alignment.LandmarksType._2D, flip_input=True)
+        else:
+            self.fa = face_alignment.FaceAlignment(face_alignment.LandmarksType._2D, \
+                                        flip_input=True, device='cpu')
         # Segmentation Wrapper module
         self.net_seg = wrapper.SegmentationWrapper(self.args)
 
