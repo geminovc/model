@@ -26,11 +26,18 @@ target_frame = np.asarray(Image.open(target_img_path))
 
 model = BilayerAPI(config_path)
 
-Set the source and target frames
-_, _ = model.extract_keypoints(source_frame, 'source')
-target_pose, target_segs = model.extract_keypoints(target_frame, 'target')
-predicted_target = model.predict(target_pose, target_segs)
-predicted_target.save("pred_target_test.png")
+source_poses = model.extract_keypoints(source_frame)
+target_poses = model.extract_keypoints(target_frame)
+
+model.update_source(source_poses, source_frame)
+
+# Passing the Target Frame
+predicted_target = model.predict(target_poses, target_frame)
+predicted_target.save("pred_target_with_the_target_frame.png") #TODO expose APIs for metrics and stickmen
+
+# Not Passing the Target Frame
+predicted_target = model.predict(target_poses)
+predicted_target.save("pred_target_without_the_target_frame.png")
 
 """
 
