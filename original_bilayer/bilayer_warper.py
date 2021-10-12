@@ -63,7 +63,6 @@ class AttrDict(dict):
         self.__dict__ = self
 
 class BilayerAPI(nn.Module):
-
     def type_fix(self, args_dict):
         for key in args_dict.keys():
             value = args_dict[key]
@@ -81,7 +80,6 @@ class BilayerAPI(nn.Module):
 
     def __init__(self, config_path):
         super(BilayerAPI, self).__init__()
-
         # Get a config for the network
         self.args = self.convert_yaml_to_dict(str(config_path))
         self.to_tensor = transforms.ToTensor()
@@ -130,95 +128,115 @@ class BilayerAPI(nn.Module):
     def change_args(self, args_dict):
         self.args = self.get_args(args_dict)
 
-    # Set the source-target imgs, poses, segs in self.data_dict
-    def extract_keypoints(self, frame, image_name='target'):
+    # Get the pose of the input frame
+    def extract_keypoints(self, frame):
+        pose = self.fa.get_landmarks(frame)[0]
+        return pose
 
-        poses, imgs, segs, stickmen = self.preprocess_data(frame, crop_data=True)
-        self.data_dict['{}_imgs'.format(str(image_name))] = imgs
-        self.data_dict['{}_poses'.format(str(image_name))] = poses
+    # Get the stickmen for the pose
+    def get_stickmen(self, poses):
+        stickmen = ds_utils.draw_stickmen(self.args, poses)
+        stickmen = stickmen[None]
+        return stickmen
 
-        if segs is not None:
-            self.data_dict['{}_segs'.format(str(image_name))] = segs
-
-        if stickmen is not None:
-            self.data_dict['{}_stickmen'.format(str(image_name))] = stickmen
-        return poses, segs
-    
-    def preprocess_data(self, input_imgs, crop_data=True):
+    # Scale and crop and resize frame and poses
+    # Find Stickmen and segmentations
+    def preprocess_data(self, pose, input_frame, image_name, crop_data=True):
         imgs = []
         poses = []
         stickmen = []        
         
-        # Finding the batch-size of the input imgs
-        if len(input_imgs.shape) == 3:
-            input_imgs = input_imgs[None]
-            N = 1
+        if input_frame is not None:
+            # Adding a new dimention for consistency
+            if len(input_frame.shape) == 3:
+                input_frame = input_frame[None]
 
+        # Finding the center of the face using the pose coordinates
+        center = ((pose.min(0) + pose.max(0)) / 2).round().astype(int)
+
+        # Finding the maximum between the width and height of the image
+        size = int(max(pose[:, 0].max() - pose[:, 0].min(), pose[:, 1].max() - pose[:, 1].min()))
+        center[1] -= size // 6
+
+        if input_frame is not None:
+            img = Image.fromarray(input_frame[0])
         else:
-            N = input_imgs.shape[0]
+            img = None
 
-        # Iterate over all the images in the batch
-        for i in range(N):
-
-            # Get the pose of the i-th image in the batch 
-            pose = self.fa.get_landmarks(input_imgs[i])[0]
-
-            # Finding the center of the face using the pose coordinates
-            center = ((pose.min(0) + pose.max(0)) / 2).round().astype(int)
-
-            # Finding the maximum between the width and height of the image 
-            size = int(max(pose[:, 0].max() - pose[:, 0].min(), pose[:, 1].max() - pose[:, 1].min()))
-            center[1] -= size // 6
-
-            img = Image.fromarray(input_imgs[i])
-
-            if crop_data:
-                # Crop images and poses
+        if crop_data:
+            # Crop images and poses
+            if img is not None:
                 img = img.crop((center[0]-size, center[1]-size, center[0]+size, center[1]+size))
-                s = img.size[0]
-                pose -= center - size
+                self.s = img.size[0]
+            pose -= center - size
 
+        if img is not None:
             img = img.resize((self.args.image_size, self.args.image_size), Image.BICUBIC)
-            
             # This step is not done in keypoints_segmentations_extraction module
             imgs.append((self.to_tensor(img) - 0.5) * 2)
+        else:
+            imgs = None
+
+        # This step is not done in keypoints_segmentations_extraction module
+        if crop_data:
+            pose = pose / float(self.s)
         
-            # This step is not done in keypoints_segmentations_extraction module
-            if crop_data:
-                pose = pose / float(s)
-            
-            # This step is not done in keypoints_segmentations_extraction module
-            poses.append(torch.from_numpy((pose - 0.5) * 2).view(-1))
-        
-        # Stack the poses from different images
+        # This step is not done in keypoints_segmentations_extraction module
+        poses.append(torch.from_numpy((pose - 0.5) * 2).view(-1))
         poses = torch.stack(poses, 0)[None]
 
         if self.args.output_stickmen:
-            stickmen = ds_utils.draw_stickmen(self.args, poses[0])
-            stickmen = stickmen[None]
+            stickmen = self.get_stickmen(poses[0])
 
-        if input_imgs is not None:
+        if input_frame is not None:
             imgs = torch.stack(imgs, 0)[None]
 
-        if self.args.num_gpus > 0:
-            poses = poses.cuda()
-            
-            if input_imgs is not None:
-                imgs = imgs.cuda()
-
-                if self.args.output_stickmen:
-                    stickmen = stickmen.cuda()
-        
         # Get the segmentations
+        segs = self.get_segmentations(imgs)
+
+        if self.args.num_gpus > 0:
+            poses, imgs, stickmen = assign_to_cuda(poses, imgs, stickmen)
+
+        self.update_data_dict(imgs, poses, segs, stickmen, image_name)
+
+    # Updates the values in the data_dict
+    def update_data_dict(self, imgs, poses, segs, stickmen, image_name):
+        self.data_dict['{}_imgs'.format(str(image_name))] = imgs
+        self.data_dict['{}_poses'.format(str(image_name))] = poses
+        self.data_dict['{}_segs'.format(str(image_name))] = segs
+        self.data_dict['{}_stickmen'.format(str(image_name))] = stickmen
+
+    # Assign the variables to cuda if using gpu
+    def assign_to_cuda(self, poses, imgs, stickmen):
+        poses = poses.cuda()
+        if imgs is not None:
+            imgs = imgs.cuda()
+
+            if self.args.output_stickmen:
+                stickmen = stickmen.cuda()
+
+        return poses, imgs, stickmen
+
+    # Get the segmentations
+    def get_segmentations(self, imgs):
         segs = None
-        if hasattr(self, 'net_seg') and not isinstance(imgs, list):
-            segs = self.net_seg(imgs)[None]
+        if imgs is not None:
+            if hasattr(self, 'net_seg') and not isinstance(imgs, list):
+                segs = self.net_seg(imgs)[None]
 
-        return poses, imgs, segs, stickmen
+        return segs
 
+    # Updates the source frame for inference
+    def update_source(self, source_poses, source_frame):
+        print("Updated the source frame")
+        # Set the variables of data_dict for source image
+        self.preprocess_data(source_poses, source_frame, 'source', crop_data=True)
 
-    def predict(self, target_poses, target_segs=None):
-
+    # Predicts an image based on the target_pose and the source_frame
+    # source_frame has been set in update_source fucntion
+    def predict(self, target_poses, target_frame=None):
+        # Set the variables of data_dict for target image
+        self.preprocess_data(target_poses, target_frame, 'target', crop_data=True)
         # Setting the model in test mode
         model = self.runner
         model.eval()
@@ -234,5 +252,5 @@ class BilayerAPI(nn.Module):
 
         predicted_tensor = model.data_dict['pred_target_imgs'][0, 0]
         predicted_pli_img = infer_utils.to_image(predicted_tensor)
-
+        print("Prediction successfully finished!")
         return predicted_pli_img
