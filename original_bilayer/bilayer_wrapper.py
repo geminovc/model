@@ -17,10 +17,12 @@ This script exposes endpoints to the Bilayer Inference pipeline
 
 Example:
 
+# Paths
 config_path = '/path/to/yaml_file'
 source_img_path = '/path/to/source_image'
 target_img_path = '/path/to/target_image'
 
+# Convert to numpy
 source_frame = np.asarray(Image.open(source_img_path))
 target_frame = np.asarray(Image.open(target_img_path))
 
@@ -70,21 +72,6 @@ class AttrDict(dict):
         self.__dict__ = self
 
 class BilayerAPI(nn.Module):
-    def type_fix(self, args_dict):
-        for key in args_dict.keys():
-            value = args_dict[key]
-            value, _ = rn_utils.typecast_value(key, str(value))
-            print(key, value)
-        return args_dict
-
-    def convert_yaml_to_dict(self, config_path):
-        with open(config_path) as f:
-            args_dict = yaml.safe_load(f)
-
-        # args_dict = self.type_fix(args_dict)
-        args_dict = AttrDict(args_dict)
-        return args_dict
-
     def __init__(self, config_path):
         super(BilayerAPI, self).__init__()
         # Get a config for the network
@@ -132,8 +119,21 @@ class BilayerAPI(nn.Module):
         if self.args.num_gpus > 0:
             self.cuda()
 
-    def change_args(self, args_dict):
-        self.args = self.get_args(args_dict)
+    # Fix the type for non-str
+    def type_fix(self, args_dict):
+        for key in args_dict.keys():
+            value = args_dict[key]
+            value, _ = rn_utils.typecast_value(key, str(value))
+            print(key, value)
+        return args_dict
+
+    def convert_yaml_to_dict(self, config_path):
+        with open(config_path) as f:
+            args_dict = yaml.safe_load(f)
+
+        # args_dict = self.type_fix(args_dict)
+        args_dict = AttrDict(args_dict)
+        return args_dict
 
     # Get the pose of the input frame
     def extract_keypoints(self, frame):
@@ -146,13 +146,16 @@ class BilayerAPI(nn.Module):
         stickmen = stickmen[None]
         return stickmen
 
-    # Scale and crop and resize frame and poses
-    # Find Stickmen and segmentations
-    def preprocess_data(self, pose, input_frame, image_name, crop_data=True):
-        imgs = []
-        poses = []
-        stickmen = []        
-        
+    # Get the segmentations
+    def get_segmentations(self, imgs):
+        segs = None
+        if imgs is not None:
+            if hasattr(self, 'net_seg') and not isinstance(imgs, list):
+                segs = self.net_seg(imgs)[None]
+
+        return segs
+
+    def normalize_imgs_and_poses (self, ):
         if input_frame is not None:
             # Adding a new dimention for consistency
             if len(input_frame.shape) == 3:
@@ -192,11 +195,20 @@ class BilayerAPI(nn.Module):
         poses.append(torch.from_numpy((pose - 0.5) * 2).view(-1))
         poses = torch.stack(poses, 0)[None]
 
-        if self.args.output_stickmen:
-            stickmen = self.get_stickmen(poses[0])
-
         if input_frame is not None:
             imgs = torch.stack(imgs, 0)[None]
+
+    # Scale and crop and resize frame and poses
+    # Find Stickmen and segmentations
+    def preprocess_data(self, pose, input_frame, image_name, crop_data=True):
+        imgs = []
+        poses = []
+        stickmen = []        
+        
+
+
+        if self.args.output_stickmen:
+            stickmen = self.get_stickmen(poses[0])
 
         # Get the segmentations
         segs = self.get_segmentations(imgs)
@@ -224,14 +236,6 @@ class BilayerAPI(nn.Module):
 
         return poses, imgs, stickmen
 
-    # Get the segmentations
-    def get_segmentations(self, imgs):
-        segs = None
-        if imgs is not None:
-            if hasattr(self, 'net_seg') and not isinstance(imgs, list):
-                segs = self.net_seg(imgs)[None]
-
-        return segs
 
     # Updates the source frame for inference
     def update_source(self, source_poses, source_frame):
