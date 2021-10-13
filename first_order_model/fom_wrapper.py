@@ -66,14 +66,14 @@ class FirstOrderModel(KeypointBasedFaceModels):
         self.source = None
 
 
-    def update_source(self, source_frame):
+    def update_source(self, source_frame, source_keypoints):
         """ update the source and keypoints the frame is using 
             from the RGB source provided as input
         """
         transformed_source = np.array([img_as_float32(source_frame)])
         transformed_source = transformed_source.transpose((0, 3, 1, 2))
         self.source = torch.from_numpy(transformed_source)
-        self.source_keypoints = self.extract_keypoints(source_frame)
+        self.source_keypoints = source_keypoints 
 
 
     def extract_keypoints(self, frame):

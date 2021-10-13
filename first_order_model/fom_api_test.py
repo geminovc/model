@@ -7,7 +7,8 @@ video_array = np.array(imageio.mimread(video_name))
 
 source = video_array[0, :, :, :]
 model = FirstOrderModel("config/api_sample.yaml")
-model.update_source(source)
+source_kp = model.extract_keypoints(source)
+model.update_source(source, source_kp)
 predictions = []
 
 for i in range(1, len(video_array) - 1):

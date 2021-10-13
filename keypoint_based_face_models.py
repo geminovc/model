@@ -9,12 +9,14 @@ class KeypointBasedFaceModels(torch.nn.Module):
 
     @abstractmethod
     def predict(self, target_keypoints):
-        """ predict the target frame from its keypoints """
+        """ predict and return the target RGB frame 
+            from its keypoints 
+        """
         pass
 
     @abstractmethod
-    def update_source(self, source_frame):
-        """ update the source frame used by the model
+    def update_source(self, source_frame, source_keypoints):
+        """ update the source frame and keypoints used by the model
             based on the RGB frame received as input
         """
         pass
