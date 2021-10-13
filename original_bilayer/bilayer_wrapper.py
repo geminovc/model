@@ -155,7 +155,10 @@ class BilayerAPI(nn.Module):
 
         return segs
 
-    def normalize_imgs_and_poses (self, ):
+    def normalize_frame_and_poses(self, pose, input_frame, crop_data=True):
+        imgs = []
+        poses = []
+
         if input_frame is not None:
             # Adding a new dimention for consistency
             if len(input_frame.shape) == 3:
@@ -198,14 +201,14 @@ class BilayerAPI(nn.Module):
         if input_frame is not None:
             imgs = torch.stack(imgs, 0)[None]
 
+        return poses, imgs
+
     # Scale and crop and resize frame and poses
     # Find Stickmen and segmentations
     def preprocess_data(self, pose, input_frame, image_name, crop_data=True):
-        imgs = []
-        poses = []
         stickmen = []        
-        
 
+        poses, imgs = self.normalize_frame_and_poses(pose, input_frame, crop_data)
 
         if self.args.output_stickmen:
             stickmen = self.get_stickmen(poses[0])
