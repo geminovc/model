@@ -352,7 +352,7 @@ class TrainingWrapper(object):
                         args_file.write('%s: %s\n' % (str(k), str(v)))
 
                 config_file = self.experiment_dir / 'config.yaml'
-                config_file.write_text(yaml.dump(args), "utf-8") #TODO: add the unknown args of the parser -> infer_utils
+                config_file.write_text(yaml.dump(args), "utf-8")
 
 
         # Initialize model
