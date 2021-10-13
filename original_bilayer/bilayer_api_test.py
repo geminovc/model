@@ -18,7 +18,7 @@ source_frame = np.asarray(Image.open(source_img_path))
 target_frame = np.asarray(Image.open(target_img_path))
 
 source_poses = model.extract_keypoints(source_frame)
-model.update_source(source_poses, source_frame)
+model.update_source(source_frame, source_poses)
 
 target_poses = model.extract_keypoints(target_frame)
 

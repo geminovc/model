@@ -29,7 +29,7 @@ target_frame = np.asarray(Image.open(target_img_path))
 model = BilayerAPI(config_path)
 source_keypoints = model.extract_keypoints(source_frame)
 target_keypoints = model.extract_keypoints(target_frame)
-model.update_source(source_keypoints, source_frame)
+model.update_source(source_frame, source_keypoints)
 
 # Passing the Target Frame
 predicted_target = model.predict(target_keypoints, target_frame)
@@ -63,7 +63,7 @@ from examples import utils as infer_utils
 from external.Graphonomy import wrapper
 import face_alignment
 import yaml
-sys.path.append('..')
+sys.path.append('/Users/panteababaahmadi/Documents/GitHub/nets_implementation')
 from keypoint_based_face_models import KeypointBasedFaceModels
 
 
@@ -239,7 +239,7 @@ class BilayerAPI(KeypointBasedFaceModels):
 
 
     # Updates the source frame for inference
-    def update_source(self, source_keypoints, source_frame):
+    def update_source(self, source_frame, source_keypoints):
         print("Updated the source frame")
         # Set the variables of data_dict for source image
         self.preprocess_data(source_keypoints, source_frame, 'source', crop_data=True)
