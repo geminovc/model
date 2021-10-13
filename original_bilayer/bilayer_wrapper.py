@@ -27,18 +27,16 @@ source_frame = np.asarray(Image.open(source_img_path))
 target_frame = np.asarray(Image.open(target_img_path))
 
 model = BilayerAPI(config_path)
-
-source_poses = model.extract_keypoints(source_frame)
-target_poses = model.extract_keypoints(target_frame)
-
-model.update_source(source_poses, source_frame)
+source_keypoints = model.extract_keypoints(source_frame)
+target_keypoints = model.extract_keypoints(target_frame)
+model.update_source(source_keypoints, source_frame)
 
 # Passing the Target Frame
-predicted_target = model.predict(target_poses, target_frame)
+predicted_target = model.predict(target_keypoints, target_frame)
 predicted_target.save("pred_target_with_the_target_frame.png") #TODO expose APIs for metrics and stickmen
 
 # Not Passing the Target Frame
-predicted_target = model.predict(target_poses)
+predicted_target = model.predict(target_keypoints)
 predicted_target.save("pred_target_without_the_target_frame.png")
 
 """
@@ -65,13 +63,16 @@ from examples import utils as infer_utils
 from external.Graphonomy import wrapper
 import face_alignment
 import yaml
+sys.path.append('..')
+from keypoint_based_face_models import KeypointBasedFaceModels
+
 
 class AttrDict(dict):
     def __init__(self, *args, **kwargs):
         super(AttrDict, self).__init__(*args, **kwargs)
         self.__dict__ = self
 
-class BilayerAPI(nn.Module):
+class BilayerAPI(KeypointBasedFaceModels):
     def __init__(self, config_path):
         super(BilayerAPI, self).__init__()
         # Get a config for the network
@@ -241,16 +242,16 @@ class BilayerAPI(nn.Module):
 
 
     # Updates the source frame for inference
-    def update_source(self, source_poses, source_frame):
+    def update_source(self, source_keypoints, source_frame):
         print("Updated the source frame")
         # Set the variables of data_dict for source image
-        self.preprocess_data(source_poses, source_frame, 'source', crop_data=True)
+        self.preprocess_data(source_keypoints, source_frame, 'source', crop_data=True)
 
     # Predicts an image based on the target_pose and the source_frame
     # source_frame has been set in update_source fucntion
-    def predict(self, target_poses, target_frame=None):
+    def predict(self, target_keypoints, target_frame=None):
         # Set the variables of data_dict for target image
-        self.preprocess_data(target_poses, target_frame, 'target', crop_data=True)
+        self.preprocess_data(target_keypoints, target_frame, 'target', crop_data=True)
         # Setting the model in test mode
         model = self.runner
         model.eval()
