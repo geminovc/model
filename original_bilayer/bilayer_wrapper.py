@@ -33,14 +33,14 @@ model.update_source(source_keypoints, source_frame)
 
 # Passing the Target Frame
 predicted_target = model.predict(target_keypoints, target_frame)
-predicted_target.save("pred_target_with_the_target_frame.png") #TODO expose APIs for metrics and stickmen
+predicted_target.save("pred_target_with_the_target_frame.png")
 
 # Not Passing the Target Frame
 predicted_target = model.predict(target_keypoints)
 predicted_target.save("pred_target_without_the_target_frame.png")
 
 """
-
+#TODO expose APIs for metrics and stickmen
 
 # Loading libraries
 import argparse
@@ -80,7 +80,8 @@ class BilayerAPI(KeypointBasedFaceModels):
         self.to_tensor = transforms.ToTensor()
 
         # Load the runner file and set it to the evaluation(test) mode
-        self.runner = importlib.import_module(f'runners.{self.args.runner_name}').RunnerWrapper(self.args, training=False)
+        self.runner = importlib.import_module(\
+        f'runners.{self.args.runner_name}').RunnerWrapper(self.args, training=False)
         self.runner.eval()
 
         # Load checkpoints from experiment
@@ -94,14 +95,10 @@ class BilayerAPI(KeypointBasedFaceModels):
         # Initialize the model with experiment weights
         if self.args.init_which_epoch != 'none' and self.args.init_experiment_dir:
             for net_name in init_networks:
-                print("loaded ", net_name, "from ", str(pathlib.Path(self.args.init_experiment_dir) / 'checkpoints' / f'{self.args.init_which_epoch}_{net_name}.pth'))
-                self.runner.nets[net_name].load_state_dict(torch.load(pathlib.Path(self.args.init_experiment_dir) / 'checkpoints' / f'{self.args.init_which_epoch}_{net_name}.pth', map_location='cpu'))
+                self.runner.nets[net_name].load_state_dict(torch.load(pathlib.Path(\
+                self.args.init_experiment_dir) / 'checkpoints' / f'{self.args.init_which_epoch}_{net_name}.pth'\
+                , map_location='cpu'))
 
-        for net_name in networks_to_train:
-            if net_name not in init_networks and net_name in self.runner.nets.keys():
-                print("loaded ", net_name, "from ", str(checkpoints_dir / f'{self.args.which_epoch}_{net_name}.pth'))
-                self.runner.nets[net_name].load_state_dict(torch.load(checkpoints_dir / f'{self.args.which_epoch}_{net_name}.pth', map_location='cpu'))
-        
         # Remove spectral norm to improve the performance
         self.runner.apply(rn_utils.remove_spectral_norm)
 
