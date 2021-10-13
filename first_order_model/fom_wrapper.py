@@ -2,14 +2,10 @@ import torch
 import yaml
 import numpy as np
 from skimage import img_as_float32
-from logger import Logger
-from modules.generator import OcclusionAwareGenerator
-from modules.keypoint_detector import KPDetector
-
-#TODO: fix this import issue when setting up final organization
-import sys
-sys.path.append('..')
-from keypoint_based_face_models import KeypointBasedFaceModels
+from first_order_model.logger import Logger
+from first_order_model.modules.generator import OcclusionAwareGenerator
+from first_order_model.modules.keypoint_detector import KPDetector
+from ..keypoint_based_face_models import KeypointBasedFaceModels
 
 """ Implementation of abstract class KeypointBasedFaceModels
     that uses the first order model to predict the driving 

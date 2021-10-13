@@ -1,4 +1,4 @@
-from fom_wrapper import FirstOrderModel
+from first_order_model.fom_wrapper import FirstOrderModel
 import imageio 
 import numpy as np
 
