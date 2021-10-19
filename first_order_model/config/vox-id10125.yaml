@@ -1,7 +1,8 @@
 dataset_params:
-  root_dir: /video-conf/scratch/vibhaa/voxceleb_original 
+  root_dir: /video-conf/scratch/vibhaa/voxceleb_original
   frame_shape: [256, 256, 3]
-  id_sampling: True
+  person_id: 10125
+  id_sampling: False
   pairs_list: data/vox256.csv
   augmentation_params:
     flip_param:
@@ -44,9 +45,9 @@ model_params:
     sn: True
 
 train_params:
-  num_epochs: 500
-  num_repeats: 15
-  epoch_milestones: [300, 450]
+  num_epochs: 100
+  num_repeats: 75
+  epoch_milestones: [60, 90]
   lr_generator: 2.0e-4
   lr_discriminator: 2.0e-4
   lr_kp_detector: 2.0e-4

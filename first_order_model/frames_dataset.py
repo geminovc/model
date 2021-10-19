@@ -61,22 +61,31 @@ class FramesDataset(Dataset):
     """
 
     def __init__(self, root_dir, frame_shape=(256, 256, 3), id_sampling=False, is_train=True,
-                 random_seed=0, pairs_list=None, augmentation_params=None):
+                 random_seed=0, pairs_list=None, augmentation_params=None, person_id=None):
         self.root_dir = root_dir
         self.videos = os.listdir(root_dir)
         self.frame_shape = tuple(frame_shape)
         self.pairs_list = pairs_list
         self.id_sampling = id_sampling
+        self.person_id = person_id
+
         if os.path.exists(os.path.join(root_dir, 'train')):
             assert os.path.exists(os.path.join(root_dir, 'test'))
             print("Use predefined train-test split.")
-            if id_sampling:
-                train_videos = {os.path.basename(video).split('#')[0] for video in
-                                os.listdir(os.path.join(root_dir, 'train'))}
-                train_videos = list(train_videos)
+            if person_id is None:
+                if id_sampling:
+                    train_videos = {os.path.basename(video).split('#')[0] for video in
+                                    os.listdir(os.path.join(root_dir, 'train'))}
+                    train_videos = list(train_videos)
+                else:
+                    train_videos = os.listdir(os.path.join(root_dir, 'train'))
+                print("number of train videos", len(train_videos))
+                test_videos = os.listdir(os.path.join(root_dir, 'test'))
             else:
-                train_videos = os.listdir(os.path.join(root_dir, 'train'))
-            test_videos = os.listdir(os.path.join(root_dir, 'test'))
+                print("Training on specific person", person_id)
+                train_videos = ["id" + str(person_id)]
+                test_videos = ["id" + str(person_id)]
+            
             self.root_dir = os.path.join(self.root_dir, 'train' if is_train else 'test')
         else:
             print("Use random train-test split.")
@@ -98,7 +107,7 @@ class FramesDataset(Dataset):
         return len(self.videos)
 
     def __getitem__(self, idx):
-        if self.is_train and self.id_sampling:
+        if (self.is_train and self.id_sampling) or (self.person_id is not None):
             name = self.videos[idx]
             path = np.random.choice(glob.glob(os.path.join(self.root_dir, name + '*.mp4')))
         else:
