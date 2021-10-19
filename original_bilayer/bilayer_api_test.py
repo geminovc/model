@@ -6,6 +6,7 @@ from PIL import Image
 
 config_path = '/Users/panteababaahmadi/Documents/GitHub/Bilayer_Checkpoints/runs/\
 my_model_no_frozen_yaw_V9mbKUqFx0o/args.yaml'
+if_save = False
 
 model = BilayerAPI(config_path)
 
@@ -24,11 +25,13 @@ target_poses = model.extract_keypoints(target_frame)
 
 # Passing the Target Frame
 predicted_target = model.predict(target_poses, target_frame)
-predicted_target.save("10_pred_target_with_the_target_frame.png")
+if if_save:
+    predicted_target.save("10_pred_target_with_the_target_frame.png")
 
 # Not Passing the Target Frame
 predicted_target = model.predict(target_poses)
-predicted_target.save("10_pred_target_without_the_target_frame.png")
+if if_save:
+    predicted_target.save("10_pred_target_without_the_target_frame.png")
 
 target_img_path = img_base_path + '100.jpg'
 target_frame = np.asarray(Image.open(target_img_path))
@@ -36,8 +39,10 @@ target_poses = model.extract_keypoints(target_frame)
 
 # Passing the Target Frame
 predicted_target = model.predict(target_poses, target_frame)
-predicted_target.save("100_pred_target_with_the_target_frame.png")
+if if_save:
+    predicted_target.save("100_pred_target_with_the_target_frame.png")
 
 # Not Passing the Target Frame
 predicted_target = model.predict(target_poses)
-predicted_target.save("100_pred_target_without_the_target_frame.png")
+if if_save:
+    predicted_target.save("100_pred_target_without_the_target_frame.png")
