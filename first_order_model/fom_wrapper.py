@@ -5,7 +5,10 @@ from skimage import img_as_float32
 from first_order_model.logger import Logger
 from first_order_model.modules.generator import OcclusionAwareGenerator
 from first_order_model.modules.keypoint_detector import KPDetector
-from ..keypoint_based_face_models import KeypointBasedFaceModels
+
+import sys
+sys.path.append("..")
+from keypoint_based_face_models import KeypointBasedFaceModels
 
 """ Implementation of abstract class KeypointBasedFaceModels
     that uses the first order model to predict the driving 
