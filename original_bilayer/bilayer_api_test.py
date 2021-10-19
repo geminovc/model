@@ -1,17 +1,15 @@
-import sys
-sys.path.append('/Users/panteababaahmadi/Documents/GitHub/nets_implementation/original_bilayer')
 from bilayer_wrapper import BilayerAPI
 import numpy as np
 from PIL import Image
 
-config_path = '/Users/panteababaahmadi/Documents/GitHub/Bilayer_Checkpoints/runs/\
-my_model_no_frozen_yaw_V9mbKUqFx0o/args.yaml'
+config_path = '/video-conf/scratch/pantea_experiments_chunky/per_video_freezing_checkpoints\
+/per_video/from_paper/runs/my_model_no_frozen_yaw_V9mbKUqFx0o/args.yaml'
 if_save = False
 
 model = BilayerAPI(config_path)
 
-img_base_path = '/Users/panteababaahmadi/Downloads/Datasets/per_video_1_three_datasets\
-/imgs/unseen_test/id00015/V9mbKUqFx0o/00268/'
+img_base_path = '/video-conf/scratch/pantea/per_person_1_three_datasets\
+/imgs/unseen_test/id00015/V9mbKUqFx0o/00268'
 source_img_path = img_base_path + '0.jpg'
 target_img_path = img_base_path + '10.jpg'
 
