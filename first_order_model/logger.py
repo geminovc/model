@@ -8,6 +8,7 @@ from skimage.draw import circle
 
 import matplotlib.pyplot as plt
 import collections
+import tensorboardX
 
 
 class Logger:
@@ -25,6 +26,7 @@ class Logger:
         self.epoch = 0
         self.best_loss = float('inf')
         self.names = None
+        self.writer = tensorboardX.SummaryWriter(os.path.join(log_dir, 'tensorboard')) 
 
     def log_scores(self, loss_names):
         loss_mean = np.array(self.loss_list).mean(axis=0)
@@ -35,10 +37,15 @@ class Logger:
         print(loss_string, file=self.log_file)
         self.loss_list = []
         self.log_file.flush()
+        
+        for name, value in zip(loss_names, loss_mean):
+            self.writer.add_scalar(f'losses/{name}', value, self.epoch)
 
     def visualize_rec(self, inp, out):
         image = self.visualizer.visualize(inp['driving'], inp['source'], out)
-        imageio.imsave(os.path.join(self.visualizations_dir, "%s-rec.png" % str(self.epoch).zfill(self.zfill_num)), image)
+        imageio.imsave(os.path.join(self.visualizations_dir, 
+                "%s-rec.png" % str(self.epoch).zfill(self.zfill_num)), image)
+        self.writer.add_image('reconstruction', image, self.epoch, dataformats='HWC')
 
     def save_cpk(self, emergent=False):
         cpk = {k: v.state_dict() for k, v in self.models.items()}
