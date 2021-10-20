@@ -72,9 +72,9 @@ class AttrDict(dict):
         super(AttrDict, self).__init__(*args, **kwargs)
         self.__dict__ = self
 
-class BilayerAPI(KeypointBasedFaceModels):
+class BilayerModel(KeypointBasedFaceModels):
     def __init__(self, config_path):
-        super(BilayerAPI, self).__init__()
+        super(BilayerModel, self).__init__()
         # Get a config for the network
         self.args = self.convert_yaml_to_dict(str(config_path))
         self.to_tensor = transforms.ToTensor()
