@@ -63,16 +63,13 @@ from examples import utils as infer_utils
 from external.Graphonomy import wrapper
 import face_alignment
 import yaml
-sys.path.append('/Users/panteababaahmadi/Documents/GitHub/nets_implementation')
-from keypoint_based_face_models import KeypointBasedFaceModels
-
 
 class AttrDict(dict):
     def __init__(self, *args, **kwargs):
         super(AttrDict, self).__init__(*args, **kwargs)
         self.__dict__ = self
 
-class BilayerModel(KeypointBasedFaceModels):
+class BilayerModel(nn.Module):
     def __init__(self, config_path):
         super(BilayerModel, self).__init__()
         # Get a config for the network
