@@ -34,4 +34,3 @@ target_poses = model.extract_keypoints(target_frame)
 predicted_target = model.predict(target_poses)
 if if_save:
     predicted_target.save("100_pred_target.png")
-
