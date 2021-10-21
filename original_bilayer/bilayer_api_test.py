@@ -1,4 +1,4 @@
-from bilayer_wrapper import BilayerAPI
+from bilayer_wrapper import BIlayerModel
 import numpy as np
 from PIL import Image
 
@@ -6,7 +6,7 @@ config_path = '/video-conf/scratch/pantea_experiments_chunky/per_video_freezing_
 /per_video/from_paper/runs/my_model_no_frozen_yaw_V9mbKUqFx0o/args.yaml'
 if_save = False
 
-model = BilayerAPI(config_path)
+model = BIlayerModel(config_path)
 
 img_base_path = '/video-conf/scratch/pantea/per_person_1_three_datasets\
 /imgs/unseen_test/id00015/V9mbKUqFx0o/00268'

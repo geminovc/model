@@ -18,17 +18,17 @@ from examples import utils as infer_utils
 from external.Graphonomy import wrapper
 import face_alignment
 import yaml
+sys.path.append('..')
 
 """ This script exposes endpoints to the Bilayer pipeline
 
     Example usage (given source and target paths)
-    =================================
+    =============================================
 
     source_frame = np.asarray(Image.open('/path/to/source'))
     target_frame = np.asarray(Image.open('/path/to/target'))
 
-    config_path = '/path/to/yaml_file'
-    model = BilayerModel(config_path)
+    model = BilayerModel('/path/to/yaml_file')
     source_keypoints = model.extract_keypoints(source_frame)
     target_keypoints = model.extract_keypoints(target_frame)
     model.update_source(source_frame, source_keypoints)
@@ -40,9 +40,11 @@ class AttrDict(dict):
         super(AttrDict, self).__init__(*args, **kwargs)
         self.__dict__ = self
 
+
 class BilayerModel(nn.Module):
     def __init__(self, config_path):
         super(BilayerModel, self).__init__()
+
         # Get a config for the network
         self.args = self.convert_yaml_to_dict(str(config_path))
         self.to_tensor = transforms.ToTensor()
@@ -52,7 +54,7 @@ class BilayerModel(nn.Module):
         init_networks = rn_utils.parse_str_to_list(self.args.init_networks) if self.args.init_networks else {}
         print("init_networks:", init_networks)
 
-        # # Initialize the model with experiment weights in evaluation(test) mode
+        # Initialize the model with experiment weights in evaluation(test) mode
         self.runner = importlib.import_module(\
         f'runners.{self.args.runner_name}').RunnerWrapper(self.args, training=False)
         self.runner.eval()
@@ -79,12 +81,15 @@ class BilayerModel(nn.Module):
         if self.args.num_gpus > 0:
             self.cuda()
 
-    # Fix the type for non-str
+
     def type_fix(self, args_dict):
+        """ Typecast the non-str values of the dictionary to
+        correspinding type (int, float, etc) """
         for key in args_dict.keys():
             value = args_dict[key]
             value, _ = rn_utils.typecast_value(key, str(value))
         return args_dict
+
 
     def convert_yaml_to_dict(self, config_path):
         with open(config_path) as f:
@@ -94,6 +99,7 @@ class BilayerModel(nn.Module):
 
 
     def extract_keypoints(self, frame):
+        """ extract keypoint from the provided RGB image """
         pose = self.fa.get_landmarks(frame)[0]
         return pose
 
@@ -112,8 +118,10 @@ class BilayerModel(nn.Module):
 
         return segs
 
-    # Centering the face and pose, normalize the pose and input frame to [-1,1]
+
     def normalize_frame_and_poses(self, pose, input_frame, crop_data=True):
+        """ Ceroping the input_frame with respect to pose top and down positions
+        , normalize the pose and input frame to [-1,1] """
         imgs = []
         poses = []
 
@@ -140,26 +148,23 @@ class BilayerModel(nn.Module):
                 img = img.crop((center[0] - size, center[1] - size, center[0] + size, center[1] + size))
                 self.s = img.size[0]
             pose -= center - size
+            pose = pose / float(self.s)
+
+        poses.append(torch.from_numpy((pose - 0.5) * 2).view(-1))
+        poses = torch.stack(poses, 0)[None]
 
         if img is not None:
             img = img.resize((self.args.image_size, self.args.image_size), Image.BICUBIC)
             imgs.append((self.to_tensor(img) - 0.5) * 2)
+            imgs = torch.stack(imgs, 0)[None]
         else:
             imgs = None
 
-        if crop_data:
-            pose = pose / float(self.s)
-        
-        poses.append(torch.from_numpy((pose - 0.5) * 2).view(-1))
-        poses = torch.stack(poses, 0)[None]
-
-        if input_frame is not None:
-            imgs = torch.stack(imgs, 0)[None]
-
         return poses, imgs
 
-    # Crop and resize frame and poses, find stickmen and segmentations
+
     def preprocess_data(self, pose, input_frame, image_name, crop_data=True):
+        """ Crop and resize frame and poses, find stickmen and segmentations """
         stickmen = []        
 
         poses, imgs = self.normalize_frame_and_poses(pose, input_frame, crop_data)
@@ -195,14 +200,18 @@ class BilayerModel(nn.Module):
 
 
     def update_source(self, source_frame, source_keypoints):
+        """ update the source and keypoints the frame is using
+            from the RGB source provided as input
+        """
         print("Updated the source frame")
         # Set the variables of data_dict for source image
         self.preprocess_data(source_keypoints, source_frame, 'source', crop_data=True)
 
 
-    def predict(self, target_keypoints, target_frame=None):
+    def predict(self, target_keypoints):
+        """ takes target keypoints and returns an RGB image for the prediction """
         # Set the variables of data_dict for target image
-        self.preprocess_data(target_keypoints, target_frame, 'target', crop_data=True)
+        self.preprocess_data(target_keypoints, None, 'target', crop_data=True)
 
         model = self.runner
         model.eval()
