@@ -24,7 +24,8 @@ from keypoint_based_face_models import KeypointBasedFaceModels
     target = video_array[1:2, :, :, :]
     
     model = FirstOrderModel("temp.yaml")
-    model.update_source(source)
+    source_kp = model.extract_keypoints(source)
+    model.update_source(source, source_kp)
     target_kp = model.extract_keypoints(target)
     prediction = model.predict(target_kp))
 """
