@@ -84,7 +84,7 @@ class BilayerModel(nn.Module):
 
     def type_fix(self, args_dict):
         """ Typecast the non-str values of the dictionary to
-        correspinding type (int, float, etc) """
+            corresponding type (int, float, etc) """
         for key in args_dict.keys():
             value = args_dict[key]
             value, _ = rn_utils.typecast_value(key, str(value))
@@ -120,8 +120,9 @@ class BilayerModel(nn.Module):
 
 
     def normalize_frame_and_poses(self, pose, input_frame, crop_data=True):
-        """ Ceroping the input_frame with respect to pose top and down positions
-        , normalize the pose and input frame to [-1,1] """
+        """ Crops the numpy array RGB input_frame with respect to the top/bottom face positions,
+            and normalizes the pose and input_frame to [-1,1]
+        """
         imgs = []
         poses = []
 
