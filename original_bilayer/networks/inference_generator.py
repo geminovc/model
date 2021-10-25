@@ -104,7 +104,7 @@ class NetworkWrapper(nn.Module):
         b, t = target_pose_embeds.shape[:2]
         target_pose_embeds = target_pose_embeds.view(b*t, *target_pose_embeds.shape[2:])
 
-        if self.args.inf_apply_masks and self.args.inf_pred_segmentation:
+        if self.args.inf_apply_masks and self.args.inf_pred_segmentation and target_imgs is not None:
             target_imgs = target_imgs.view(b*t, *target_imgs.shape[2:])
 
         if self.args.inf_pred_source_data:
@@ -171,8 +171,8 @@ class NetworkWrapper(nn.Module):
             # Mask output images (if needed)
             if self.args.inf_apply_masks and self.args.inf_pred_segmentation:
                 pred_target_masks = pred_target_segs.detach()
-
-                target_imgs = target_imgs * pred_target_masks + (-1) * (1 - pred_target_masks)
+                if target_imgs is not None:
+                    target_imgs = target_imgs * pred_target_masks + (-1) * (1 - pred_target_masks)
 
                 pred_target_imgs = pred_target_imgs * pred_target_masks + (-1) * (1 - pred_target_masks)
 
@@ -219,7 +219,10 @@ class NetworkWrapper(nn.Module):
             data_dict['pred_target_segs_logits'] = reshape_target_data(pred_target_segs_logits)
 
         if self.args.inf_apply_masks and self.args.inf_pred_segmentation:
-            data_dict['target_imgs'] = reshape_target_data(target_imgs)
+            if target_imgs is not None:
+                data_dict['target_imgs'] = reshape_target_data(target_imgs)
+            else:
+                data_dict['target_imgs'] = None
 
         # Output results related to source imgs (if needed)
         if self.args.inf_pred_source_data:

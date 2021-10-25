@@ -243,7 +243,7 @@ class RunnerWrapper(nn.Module):
         
         metrics_dict = {}
         for metric_name in metrics_names:
-            if hasattr(self, 'metrics') and metric_name in self.metrics.keys():
+            if hasattr(self, 'metrics') and metric_name in self.metrics.keys() and self.data_dict['target_imgs'] is not None:
                 metrics_dict = self.metrics[metric_name](self.data_dict, metrics_dict)
 
         # Calculate the total loss and store history

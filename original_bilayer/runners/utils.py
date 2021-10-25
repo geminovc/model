@@ -50,6 +50,11 @@ def parse_args_line(line):
     if len(parts) > 2:
         parts = [parts[0], ': '.join(parts[1:])]
     k, v = parts
+    v, v_type = typecast_value(k, v)
+
+    return k, v, v_type
+
+def typecast_value(k, v):
     v_type = str
     if v.isdigit():
         v = int(v)
@@ -61,8 +66,7 @@ def parse_args_line(line):
         v = True
     elif v == 'False':
         v = False
-
-    return k, v, v_type
+    return v, v_type
 
 ############################################################
 # Hook for calculation of "standing" statistics for BN lrs #

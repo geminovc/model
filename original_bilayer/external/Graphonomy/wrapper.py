@@ -19,7 +19,12 @@ class SegmentationWrapper(nn.Module):
         self.net = deeplab_xception_transfer.deeplab_xception_transfer_projection_savemem(
             n_classes=20, hidden_layers=128, source_classes=7)
         
-        x = torch.load(f'{args.pretrained_weights_dir}/pretrained_weights/graphonomy/pretrained_model.pth')
+        if self.use_gpus:
+            x = torch.load(f'{args.pretrained_weights_dir}/pretrained_weights/graphonomy/pretrained_model.pth')
+        else:
+            x = torch.load(f'{args.pretrained_weights_dir}/pretrained_weights/graphonomy/pretrained_model.pth', \
+            map_location=torch.device('cpu'))
+
         self.net.load_source_model(x)
 
         if self.use_gpus:
@@ -32,14 +37,19 @@ class SegmentationWrapper(nn.Module):
 
         # adj
         adj2_ = torch.from_numpy(graph.cihp2pascal_nlp_adj).float()
-        self.adj2_test = adj2_.unsqueeze(0).unsqueeze(0).expand(1, 1, 7, 20).cuda().transpose(2, 3)
-
         adj1_ = Variable(torch.from_numpy(graph.preprocess_adj(graph.pascal_graph)).float())
-        self.adj3_test = adj1_.unsqueeze(0).unsqueeze(0).expand(1, 1, 7, 7).cuda()
 
         cihp_adj = graph.preprocess_adj(graph.cihp_graph)
         adj3_ = Variable(torch.from_numpy(cihp_adj).float())
-        self.adj1_test = adj3_.unsqueeze(0).unsqueeze(0).expand(1, 1, 20, 20).cuda()
+
+        if self.use_gpus:
+            self.adj2_test = adj2_.unsqueeze(0).unsqueeze(0).expand(1, 1, 7, 20).cuda().transpose(2, 3)
+            self.adj3_test = adj1_.unsqueeze(0).unsqueeze(0).expand(1, 1, 7, 7).cuda()
+            self.adj1_test = adj3_.unsqueeze(0).unsqueeze(0).expand(1, 1, 20, 20).cuda()
+        else:
+            self.adj2_test = adj2_.unsqueeze(0).unsqueeze(0).expand(1, 1, 7, 20).transpose(2, 3)
+            self.adj3_test = adj1_.unsqueeze(0).unsqueeze(0).expand(1, 1, 7, 7)
+            self.adj1_test = adj3_.unsqueeze(0).unsqueeze(0).expand(1, 1, 20, 20)
 
         # Erosion kernel
         SIZE = 5
