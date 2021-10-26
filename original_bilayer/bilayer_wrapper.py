@@ -101,7 +101,8 @@ class BilayerModel(nn.Module):
     def extract_keypoints(self, frame):
         """ extract keypoint from the provided RGB image """
         pose = self.fa.get_landmarks(frame)[0]
-        return pose
+        keypoint_dict = {'keypoints': pose}
+        return keypoint_dict
 
 
     def get_stickmen(self, poses):
@@ -166,8 +167,8 @@ class BilayerModel(nn.Module):
 
     def preprocess_data(self, pose, input_frame, image_name, crop_data=True):
         """ Crop and resize frame and poses, find stickmen and segmentations """
-        stickmen = []        
-
+        stickmen = []
+        pose = np.array(pose['keypoints']).astype(dtype=np.float32)
         poses, imgs = self.normalize_frame_and_poses(pose, input_frame, crop_data)
 
         if self.args.output_stickmen:
