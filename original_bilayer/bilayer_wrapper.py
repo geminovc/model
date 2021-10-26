@@ -177,7 +177,7 @@ class BilayerModel(nn.Module):
         segs = self.get_segmentations(imgs)
 
         if self.args.num_gpus > 0:
-            poses, imgs, stickmen = assign_to_cuda(poses, imgs, stickmen)
+            poses, imgs, stickmen = self.assign_to_cuda(poses, imgs, stickmen)
 
         self.update_data_dict(imgs, poses, segs, stickmen, image_name)
 
@@ -220,7 +220,8 @@ class BilayerModel(nn.Module):
         # Prepare input data
         if self.args.num_gpus > 0:
             for key, value in self.data_dict.items():
-                self.data_dict[key] = value.cuda()
+                if value is not None:
+                    self.data_dict[key] = value.cuda()
 
         # Forward pass
         with torch.no_grad():
