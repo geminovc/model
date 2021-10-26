@@ -89,10 +89,10 @@ class FirstOrderModel(KeypointBasedFaceModels):
         keypoint_struct = self.kp_detector(frame)
 
         # change to arrays and standardize
-        keypoint_struct['value'] = keypoint_struct['value'].data.cpu().numpy()
+        keypoint_struct['value'] = keypoint_struct['value'].data.cpu().numpy()[0]
         keypoint_struct['keypoints'] = keypoint_struct.pop('value')
         if 'jacobian' in keypoint_struct:
-            keypoint_struct['jacobian'] = keypoint_struct['jacobian'].data.cpu().numpy()
+            keypoint_struct['jacobian'] = keypoint_struct['jacobian'].data.cpu().numpy()[0]
             keypoint_struct['jacobians'] = keypoint_struct.pop('jacobian')
         
         return keypoint_struct
@@ -102,8 +102,13 @@ class FirstOrderModel(KeypointBasedFaceModels):
         """ takes a keypoint dictionary and tensors the values appropriately """
         new_kp_dict = {}
         new_kp_dict['value'] = torch.from_numpy(keypoint_dict['keypoints'])
+        new_kp_dict['value'] = torch.unsqueeze(new_kp_dict['value'], 0)
+        new_kp_dict['value'] = new_kp_dict['value'].float()
+
         if 'jacobians' in keypoint_dict:
             new_kp_dict['jacobian'] = torch.from_numpy(keypoint_dict['jacobians'])
+            new_kp_dict['jacobian'] = torch.unsqueeze(new_kp_dict['jacobian'], 0)
+            new_kp_dict['jacobian'] = new_kp_dict['jacobian'].float()
         
         if torch.cuda.is_available():
             for k in new_kp_dict.keys():
