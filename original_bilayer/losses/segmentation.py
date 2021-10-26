@@ -4,7 +4,7 @@ from torch import nn
 import torch.nn.functional as F
 
 # This project
-from runners import utils as rn_utils
+from original_bilayer.runners import utils as rn_utils
 
 
 

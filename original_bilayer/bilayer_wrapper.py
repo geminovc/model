@@ -12,10 +12,10 @@ import importlib
 import ssl
 import pdb
 import time
-from datasets import utils as ds_utils
-from runners import utils as rn_utils
-from examples import utils as infer_utils
-from external.Graphonomy import wrapper
+from original_bilayer.datasets import utils as ds_utils
+from original_bilayer.runners import utils as rn_utils
+from original_bilayer.examples import utils as infer_utils
+from original_bilayer.external.Graphonomy import wrapper
 import face_alignment
 import yaml
 sys.path.append('..')
@@ -56,7 +56,7 @@ class BilayerModel(nn.Module):
 
         # Initialize the model with experiment weights in evaluation(test) mode
         self.runner = importlib.import_module(\
-        f'runners.{self.args.runner_name}').RunnerWrapper(self.args, training=False)
+        f'original_bilayer.runners.{self.args.runner_name}').RunnerWrapper(self.args, training=False)
         self.runner.eval()
 
         if self.args.init_which_epoch != 'none' and self.args.init_experiment_dir:

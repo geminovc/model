@@ -2,7 +2,7 @@ import torch
 from torch import nn
 import torch.nn.functional as F
 
-from runners import utils as rn_utils
+from original_bilayer.runners import utils as rn_utils
 
 
 

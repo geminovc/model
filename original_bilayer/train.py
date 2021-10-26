@@ -11,11 +11,11 @@ import time
 import copy
 import sys
 import random 
-from datasets import utils as ds_utils
-from networks import utils as nt_utils
-from datasets import utils as ds_utils
-from runners import utils as rn_utils
-from logger import Logger
+from original_bilayer.datasets import utils as ds_utils
+from original_bilayer.networks import utils as nt_utils
+from original_bilayer.datasets import utils as ds_utils
+from original_bilayer.runners import utils as rn_utils
+from original_bilayer.logger import Logger
 
 
 class TrainingWrapper(object):
@@ -299,11 +299,14 @@ class TrainingWrapper(object):
 
         os.environ['TORCH_HOME'] = args.torch_home
 
-        importlib.import_module(f'datasets.{args.train_dataloader_name}').DatasetWrapper.get_args(parser)
-        importlib.import_module(f'datasets.{args.test_dataloader_name}').DatasetWrapper.get_args(parser)
+        importlib.import_module(
+                f'original_bilayer.datasets.{args.train_dataloader_name}').DatasetWrapper.get_args(parser)
+        importlib.import_module(
+                f'original_bilayer.datasets.{args.test_dataloader_name}').DatasetWrapper.get_args(parser)
 
         # runner options
-        importlib.import_module(f'runners.{args.runner_name}').RunnerWrapper.get_args(parser)
+        importlib.import_module(
+                f'original_bilayer.runners.{args.runner_name}').RunnerWrapper.get_args(parser)
         
 
         return parser

@@ -2,8 +2,8 @@ import pathlib
 import torch
 from torch import nn
 import torch.nn.functional as F
-from runners import utils as rn_utils
-from networks import utils as nt_utils
+from original_bilayer.runners import utils as rn_utils
+from original_bilayer.networks import utils as nt_utils
 
 
 

@@ -5,7 +5,7 @@ import torch.nn.functional as F
 import numpy as np
 
 # This project
-from networks import utils
+from original_bilayer.networks import utils
 
 
 

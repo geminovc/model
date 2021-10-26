@@ -2,7 +2,7 @@
 import torch
 from torch import nn
 import math
-from networks import utils
+from original_bilayer.networks import utils
 
 
 
