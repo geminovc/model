@@ -89,6 +89,7 @@ class FirstOrderModel(KeypointBasedFaceModels):
         keypoint_struct = self.kp_detector(frame)
 
         # change to arrays and standardize
+        # Note: keypoints are stored at key 'value' in FOM
         keypoint_struct['value'] = keypoint_struct['value'].data.cpu().numpy()[0]
         keypoint_struct['keypoints'] = keypoint_struct.pop('value')
         if 'jacobian' in keypoint_struct:
@@ -101,6 +102,8 @@ class FirstOrderModel(KeypointBasedFaceModels):
     def convert_kp_dict_to_tensors(self, keypoint_dict):
         """ takes a keypoint dictionary and tensors the values appropriately """
         new_kp_dict = {}
+        
+        # Note: keypoints are stored at key 'value' in FOM
         new_kp_dict['value'] = torch.from_numpy(keypoint_dict['keypoints'])
         new_kp_dict['value'] = torch.unsqueeze(new_kp_dict['value'], 0)
         new_kp_dict['value'] = new_kp_dict['value'].float()
