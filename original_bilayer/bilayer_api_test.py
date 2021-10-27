@@ -9,7 +9,7 @@ if_save = False
 model = BilayerModel(config_path)
 
 img_base_path = '/video-conf/scratch/pantea/per_person_1_three_datasets\
-/imgs/unseen_test/id00015/V9mbKUqFx0o/00268'
+/imgs/unseen_test/id00015/V9mbKUqFx0o/00268/'
 source_img_path = img_base_path + '0.jpg'
 target_img_path = img_base_path + '10.jpg'
 

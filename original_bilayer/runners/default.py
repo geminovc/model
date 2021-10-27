@@ -8,8 +8,8 @@ import time
 from matplotlib import pyplot as plt
 
 # This project
-from runners import utils
-from datasets import utils as ds_utils
+from original_bilayer.runners import utils
+from original_bilayer.datasets import utils as ds_utils
 
 
 
@@ -92,19 +92,22 @@ class RunnerWrapper(nn.Module):
             + utils.parse_str_to_list(args.networks_test, sep=',')))
 
         for network_name in networks_names:
-            importlib.import_module(f'networks.{network_name}').NetworkWrapper.get_args(parser)
+            importlib.import_module(
+                    f'original_bilayer.networks.{network_name}').NetworkWrapper.get_args(parser)
         
         # Add args from the losses
         losses_names = list(set(
             utils.parse_str_to_list(args.losses_train, sep=',')
             + utils.parse_str_to_list(args.losses_test, sep=',')))
         for loss_name in losses_names:
-            importlib.import_module(f'losses.{loss_name}').LossWrapper.get_args(parser)
+            importlib.import_module(
+                    f'original_bilayer.losses.{loss_name}').LossWrapper.get_args(parser)
 
         metrics_names = list(set(
             utils.parse_str_to_list(args.metrics, sep=',')))
         for metric_name in metrics_names:
-            importlib.import_module(f'losses.{metric_name}').LossWrapper.get_args(parser)
+            importlib.import_module(
+                    f'original_bilayer.losses.{metric_name}').LossWrapper.get_args(parser)
 
         return parser
 
@@ -127,7 +130,8 @@ class RunnerWrapper(nn.Module):
 
         
         for net_name in sorted(nets_names):
-            self.nets[net_name] = importlib.import_module(f'networks.{net_name}').NetworkWrapper(args)
+            self.nets[net_name] = importlib.import_module(
+                    f'original_bilayer.networks.{net_name}').NetworkWrapper(args)
 
             if args.num_gpus > 1:
                 # Apex is only needed for multi-gpu training
@@ -146,13 +150,15 @@ class RunnerWrapper(nn.Module):
             self.losses = nn.ModuleDict()
 
             for loss_name in sorted(losses_names):
-                self.losses[loss_name] = importlib.import_module(f'losses.{loss_name}').LossWrapper(args)
+                self.losses[loss_name] = importlib.import_module(
+                        f'original_bilayer.losses.{loss_name}').LossWrapper(args)
 
         metrics_names = list(set(self.metrics_names))
         self.metrics = nn.ModuleDict()
 
         for metric_name in sorted(metrics_names):
-            self.metrics[metric_name] = importlib.import_module(f'losses.{metric_name}').LossWrapper(args)
+            self.metrics[metric_name] = importlib.import_module(
+                    f'original_bilayer.losses.{metric_name}').LossWrapper(args)
 
         # Spectral norm
         if args.spn_layers:

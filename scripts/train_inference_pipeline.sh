@@ -5,7 +5,7 @@
 data_root=/video-conf/scratch/pantea/per_person_1_three_datasets
 root_to_yaws=/video-conf/scratch/pantea/pose_results/yaws/per_person_1_three_datasets/angles
 num_epochs=6000
-nets_repo=/home/pantea/NETS/fix_prs/nets_implementation
+nets_repo=/home/pantea/NETS/nets_implementation
 experiment_dir=/data/pantea/replace_Gtex_output_with_source/checkpoints
 experiment_logs=/data/pantea/replace_Gtex_output_with_source/logs
 replace_Gtex_output_with_source='True'

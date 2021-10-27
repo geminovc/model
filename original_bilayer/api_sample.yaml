@@ -1,0 +1,98 @@
+emb_activation_type: leakyrelu
+emb_apply_masks: True
+emb_downsampling_type: avgpool
+emb_max_channels: 512
+emb_no_stickman: False
+emb_norm_layer_type: none
+emb_num_channels: 64
+emb_output_tensor_size: 8
+eps: 0.0000001
+folder_postfix: 2d_crop
+image_size: 256
+inf_activation_type: leakyrelu
+inf_apply_masks: True
+inf_calc_grad: True
+inf_input_tensor_size: 4
+inf_max_channels: 256
+inf_norm_layer_type: ada_bn
+inf_num_channels: 32
+inf_pred_segmentation: True
+inf_pred_source_data: False
+inf_skip_layer_type: ada_conv
+inf_upsampling_type: nearest
+local_rank: 0
+losses_test: PSNR, lpips, csim, ssim
+losses_train: adversarial, feature_matching, perceptual, pixelwise, warping_regularizer, segmentation
+lps_calc_grad: False
+lps_model: net-lin
+lps_net: vgg
+lrs: 'identity_embedder: 0.0002, texture_generator: 0.0002, keypoints_embedder: 0.0002, inference_generator: 0.0002, discriminator: 0.0002'
+networks_calc_stats: 'identity_embedder, texture_generator, keypoints_embedder, inference_generator'
+networks_test: 'identity_embedder, texture_generator, keypoints_embedder, inference_generator'
+networks_to_train: 'identity_embedder, texture_generator, keypoints_embedder, inference_generator, discriminator'
+networks_train: 'identity_embedder, texture_generator, keypoints_embedder, inference_generator, discriminator'
+nme_num_threads: 1
+num_keypoints: 68
+num_source_frames: 1
+num_target_frames: 1
+num_workers_per_process: 20
+optims: 'identity_embedder: adam, texture_generator: adam, keypoints_embedder: adam, inference_generator: adam, discriminator: adam'
+output_segmentation: True
+output_stickmen: True
+per_full_net_names: vgg19_imagenet_pytorch, vgg16_face_caffe
+per_layer_weights: 0.03125, 0.0625, 0.125, 0.25, 1.0
+per_net_layers: 1,6,11,20,29; 1,6,11,18,25
+per_pooling: avgpool
+pse_activation_type: leakyrelu
+pse_emb_source_pose: True
+pse_in_channels: 136
+pse_norm_layer_type: none
+pse_num_blocks: 4
+pse_num_channels: 256
+pse_num_harmonics: 4
+pse_use_harmonic_enc: False
+psnr_loss_apply_to: pred_target_imgs, target_imgs
+random_seed: 0
+runner_name: default
+spn_exceptions: 
+spn_layers: conv2d, linear
+spn_networks: identity_embedder, texture_generator, keypoints_embedder, inference_generator, discriminator
+ssm_calc_grad: False
+ssm_use_masks: False
+stats_calc_iters: 500
+tex_activation_type: leakyrelu
+tex_input_tensor_size: 4
+tex_max_channels: 512
+tex_norm_layer_type: ada_spade_bn
+tex_num_channels: 64
+tex_pixelwise_bias_type: none
+tex_skip_layer_type: ada_conv
+tex_upsampling_type: nearest
+texture_output_dim: 3
+unet_inputs: lf, hf
+unfreeze_inference_generator_last_layers: True
+unfreeze_texture_generator_last_layers: True
+use_apex: False
+use_closure: False
+use_half: False
+use_source_background: True
+wgv_mode: none
+wgv_momentum: 0.999
+metrics: PSNR, lpips
+num_gpus: 1
+stickmen_thickness: 2
+pretrained_weights_dir: /video-conf/scratch/pantea 
+spn_networks: identity_embedder, texture_generator, keypoints_embedder, inference_generator
+enh_apply_masks: False
+inf_apply_masks: True
+replace_Gtex_output_with_trainable_tensor: False
+replace_source_specific_with_trainable_tensors: False
+dropout_networks: 'texture_generator: 0.5'
+use_dropout: False
+texture_output_dim: 3
+use_unet: False
+time_networks: False
+replace_Gtex_output_with_source: False
+init_experiment_dir: /video-conf/scratch/pantea_experiments_chunky/per_video_freezing_checkpoints/per_video/from_paper/runs/my_model_no_frozen_yaw_V9mbKUqFx0o
+init_networks: identity_embedder, texture_generator, keypoints_embedder, inference_generator
+init_which_epoch: 30

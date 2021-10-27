@@ -77,13 +77,47 @@ class FirstOrderModel(KeypointBasedFaceModels):
 
 
     def extract_keypoints(self, frame):
-        """ extract keypoint from the provided RGB image """
+        """ extract keypoints into a keypoint dictionary with/without jacobians
+            from the provided RGB image 
+        """
         transformed_frame = np.array([img_as_float32(frame)])
         transformed_frame = transformed_frame.transpose((0, 3, 1, 2))
+
         frame = torch.from_numpy(transformed_frame)
         if torch.cuda.is_available():
             frame = frame.cuda() 
-        return self.kp_detector(frame)
+        keypoint_struct = self.kp_detector(frame)
+
+        # change to arrays and standardize
+        # Note: keypoints are stored at key 'value' in FOM
+        keypoint_struct['value'] = keypoint_struct['value'].data.cpu().numpy()[0]
+        keypoint_struct['keypoints'] = keypoint_struct.pop('value')
+        if 'jacobian' in keypoint_struct:
+            keypoint_struct['jacobian'] = keypoint_struct['jacobian'].data.cpu().numpy()[0]
+            keypoint_struct['jacobians'] = keypoint_struct.pop('jacobian')
+        
+        return keypoint_struct
+
+
+    def convert_kp_dict_to_tensors(self, keypoint_dict):
+        """ takes a keypoint dictionary and tensors the values appropriately """
+        new_kp_dict = {}
+        
+        # Note: keypoints are stored at key 'value' in FOM
+        new_kp_dict['value'] = torch.from_numpy(keypoint_dict['keypoints'])
+        new_kp_dict['value'] = torch.unsqueeze(new_kp_dict['value'], 0)
+        new_kp_dict['value'] = new_kp_dict['value'].float()
+
+        if 'jacobians' in keypoint_dict:
+            new_kp_dict['jacobian'] = torch.from_numpy(keypoint_dict['jacobians'])
+            new_kp_dict['jacobian'] = torch.unsqueeze(new_kp_dict['jacobian'], 0)
+            new_kp_dict['jacobian'] = new_kp_dict['jacobian'].float()
+        
+        if torch.cuda.is_available():
+            for k in new_kp_dict.keys():
+                new_kp_dict[k] = new_kp_dict[k].cuda() 
+
+        return new_kp_dict
 
 
     def predict(self, target_keypoints):
@@ -92,10 +126,13 @@ class FirstOrderModel(KeypointBasedFaceModels):
         assert(self.source is not None)
 
         if torch.cuda.is_available():
-            self.source = self.source.cuda() 
+            self.source = self.source.cuda()
+
+        source_kp_tensors = self.convert_kp_dict_to_tensors(self.source_keypoints)
+        target_kp_tensors = self.convert_kp_dict_to_tensors(target_keypoints)
 
         out = self.generator(self.source, \
-                kp_source=self.source_keypoints, kp_driving=target_keypoints)
+                kp_source=source_kp_tensors, kp_driving=target_kp_tensors)
         prediction_cpu = out['prediction'].data.cpu().numpy()
         prediction = np.transpose(prediction_cpu, [0, 2, 3, 1])[0]
         return (255 * prediction).astype(np.uint8)

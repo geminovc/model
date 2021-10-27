@@ -3,7 +3,7 @@ from torch import nn
 from torch.nn.utils.spectral_norm import SpectralNorm
 from copy import deepcopy
 
-from networks import utils as nt_utils
+from original_bilayer.networks import utils as nt_utils
 
 
 

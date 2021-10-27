@@ -11,7 +11,7 @@ import numpy as np
 from PIL import Image
 from matplotlib import pyplot as plt
 import time
-from infer import InferenceWrapper
+from original_bilayer.infer import InferenceWrapper
 import argparse
 from natsort import natsorted
 from torchvision import transforms

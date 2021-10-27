@@ -12,10 +12,10 @@ import importlib
 import ssl
 import pdb
 import time
-from datasets import utils as ds_utils
-from runners import utils as rn_utils
-from examples import utils as infer_utils
-from external.Graphonomy import wrapper
+from original_bilayer.datasets import utils as ds_utils
+from original_bilayer.runners import utils as rn_utils
+from original_bilayer.examples import utils as infer_utils
+from original_bilayer.external.Graphonomy import wrapper
 import face_alignment
 import yaml
 sys.path.append('..')
@@ -56,7 +56,7 @@ class BilayerModel(nn.Module):
 
         # Initialize the model with experiment weights in evaluation(test) mode
         self.runner = importlib.import_module(\
-        f'runners.{self.args.runner_name}').RunnerWrapper(self.args, training=False)
+        f'original_bilayer.runners.{self.args.runner_name}').RunnerWrapper(self.args, training=False)
         self.runner.eval()
 
         if self.args.init_which_epoch != 'none' and self.args.init_experiment_dir:
@@ -101,7 +101,8 @@ class BilayerModel(nn.Module):
     def extract_keypoints(self, frame):
         """ extract keypoint from the provided RGB image """
         pose = self.fa.get_landmarks(frame)[0]
-        return pose
+        keypoint_dict = {'keypoints': pose}
+        return keypoint_dict
 
 
     def get_stickmen(self, poses):
@@ -166,8 +167,8 @@ class BilayerModel(nn.Module):
 
     def preprocess_data(self, pose, input_frame, image_name, crop_data=True):
         """ Crop and resize frame and poses, find stickmen and segmentations """
-        stickmen = []        
-
+        stickmen = []
+        pose = np.array(pose['keypoints']).astype(dtype=np.float32)
         poses, imgs = self.normalize_frame_and_poses(pose, input_frame, crop_data)
 
         if self.args.output_stickmen:
@@ -177,7 +178,7 @@ class BilayerModel(nn.Module):
         segs = self.get_segmentations(imgs)
 
         if self.args.num_gpus > 0:
-            poses, imgs, stickmen = assign_to_cuda(poses, imgs, stickmen)
+            poses, imgs, stickmen = self.assign_to_cuda(poses, imgs, stickmen)
 
         self.update_data_dict(imgs, poses, segs, stickmen, image_name)
 
@@ -220,7 +221,8 @@ class BilayerModel(nn.Module):
         # Prepare input data
         if self.args.num_gpus > 0:
             for key, value in self.data_dict.items():
-                self.data_dict[key] = value.cuda()
+                if value is not None:
+                    self.data_dict[key] = value.cuda()
 
         # Forward pass
         with torch.no_grad():

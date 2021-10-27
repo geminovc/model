@@ -41,9 +41,9 @@ import importlib
 import ssl
 import pdb
 import time
-from datasets import utils as ds_utils
-from runners import utils as rn_utils
-from external.Graphonomy import wrapper
+from original_bilayer.datasets import utils as ds_utils
+from original_bilayer.runners import utils as rn_utils
+from original_bilayer.external.Graphonomy import wrapper
 import face_alignment
 
 
