@@ -1,32 +1,3 @@
-abs_max_yaw: 90
-abs_min_yaw: 0
-adam_beta1: 0.5
-adv_loss_weight: 0.5
-adv_pred_type: ragan
-amp_loss_scale: dynamic
-amp_opt_level: O0
-augment_with_general: False
-augment_with_general_ratio: 0.5
-batch_size: 2
-bn_momentum: 1.0
-calc_stats: True
-checkpoint_freq: 10
-csm_model: insight_face
-data_root: '/data/pantea/per_video_freezing_dataset'
-dataloader_name: yaw
-dataset_load_from_txt: False
-dataset_name: voxceleb2_512px
-debug: False
-dis_activation_type: leakyrelu
-dis_downsampling_type: avgpool
-dis_fake_imgs_name: pred_target_imgs
-dis_max_channels: 512
-dis_no_stickman: False
-dis_norm_layer_type: bn
-dis_num_blocks: 6
-dis_num_channels: 64
-dis_output_tensor_size: 8
-dropout_networks: 'texture_generator: 0.5'
 emb_activation_type: leakyrelu
 emb_apply_masks: True
 emb_downsampling_type: avgpool
@@ -36,12 +7,7 @@ emb_norm_layer_type: none
 emb_num_channels: 64
 emb_output_tensor_size: 8
 eps: 0.0000001
-fem_loss_type: l1
-fem_loss_weight: 10.0
 folder_postfix: 2d_crop
-frame_num_from_paper: False
-frozen_networks:  
-general_data_root: /video-conf/scratch/pantea/temp_general_extracts
 image_size: 256
 inf_activation_type: leakyrelu
 inf_apply_masks: True
@@ -61,42 +27,22 @@ lps_calc_grad: False
 lps_model: net-lin
 lps_net: vgg
 lrs: 'identity_embedder: 0.0002, texture_generator: 0.0002, keypoints_embedder: 0.0002, inference_generator: 0.0002, discriminator: 0.0002'
-mask_source_and_target: True
-metrics: 'PSNR, lpips, pose_matching, csim, ssim'
-metrics_freq: 10
-metrics_root: '/video-conf/scratch/pantea/metrics_dataset'
 networks_calc_stats: 'identity_embedder, texture_generator, keypoints_embedder, inference_generator'
 networks_test: 'identity_embedder, texture_generator, keypoints_embedder, inference_generator'
 networks_to_train: 'identity_embedder, texture_generator, keypoints_embedder, inference_generator, discriminator'
 networks_train: 'identity_embedder, texture_generator, keypoints_embedder, inference_generator, discriminator'
 nme_num_threads: 1
-no_disk_write_ops: False
-num_epochs: 30
-num_gpus: 0
 num_keypoints: 68
-num_metrics_images: 9
 num_source_frames: 1
 num_target_frames: 1
-num_visuals: 1
 num_workers_per_process: 20
 optims: 'identity_embedder: adam, texture_generator: adam, keypoints_embedder: adam, inference_generator: adam, discriminator: adam'
 output_segmentation: True
 output_stickmen: True
 per_full_net_names: vgg19_imagenet_pytorch, vgg16_face_caffe
 per_layer_weights: 0.03125, 0.0625, 0.125, 0.25, 1.0
-per_loss_apply_to: pred_target_imgs_lf_detached, target_imgs
-per_loss_names: VGG19, VGGFace
-per_loss_type: l1
-per_loss_weights: 10.0, 0.01
 per_net_layers: 1,6,11,20,29; 1,6,11,18,25
 per_pooling: avgpool
-pix_loss_apply_to: pred_target_delta_lf_rgbs, target_imgs
-pix_loss_names: L1
-pix_loss_type: l1
-pix_loss_weights: 10.0
-plot_unet_inputs: False
-pretrained_weights_dir: /video-conf/scratch/pantea
-project_dir: .
 pse_activation_type: leakyrelu
 pse_emb_source_pose: True
 pse_in_channels: 136
@@ -107,32 +53,13 @@ pse_num_harmonics: 4
 pse_use_harmonic_enc: False
 psnr_loss_apply_to: pred_target_imgs, target_imgs
 random_seed: 0
-rank: 0
-redirect_print_to_file: False
-replace_Gtex_output_with_trainable_tensor: False
-replace_source_specific_with_trainable_tensors: False
-root_to_yaws: /data/pantea/per_video_freezing_dataset_yaws/angles
 runner_name: default
-same_source_and_target: False
-sample_general_dataset: False
-save_dataset_filenames: False
-save_initial_test_before_training: True
-seg_loss_apply_to: pred_target_segs_logits, target_segs
-seg_loss_names: BCE
-seg_loss_type: bce
-seg_loss_weights: 10.0
-skip_metrics: True
-skip_test: False
 spn_exceptions: 
 spn_layers: conv2d, linear
 spn_networks: identity_embedder, texture_generator, keypoints_embedder, inference_generator, discriminator
 ssm_calc_grad: False
 ssm_use_masks: False
 stats_calc_iters: 500
-stickmen_thickness: 2
-test_dataloader_name: yaw
-test_freq: 10
-test_load_from_filename: test_filnames.txt
 tex_activation_type: leakyrelu
 tex_input_tensor_size: 4
 tex_max_channels: 512
@@ -142,44 +69,22 @@ tex_pixelwise_bias_type: none
 tex_skip_layer_type: ada_conv
 tex_upsampling_type: nearest
 texture_output_dim: 3
-time_networks: False
-torch_home: 
-train_dataloader_name: yaw
-train_load_from_filename: train_filnames.txt
-train_size: 1
 unet_inputs: lf, hf
 unfreeze_inference_generator_last_layers: True
 unfreeze_texture_generator_last_layers: True
 use_apex: False
 use_closure: False
-use_dropout: False
 use_half: False
 use_source_background: True
-visual_freq: 1
-visualize_discriminator_scores: True
 wgv_mode: none
 wgv_momentum: 0.999
-which_epoch: none
-world_size: 1
-wpr_loss_apply_to: pred_target_delta_uvs
-wpr_loss_decay_schedule: -1
-wpr_loss_type: l1
-wpr_loss_weight: 0.1
-wpr_loss_weight_decay: 1.0
-yaw_method: close_original
-experiment_dir: /Users/panteababaahmadi/Documents/GitHub/Bilayer_Checkpoints
-experiment_name: my_model_no_frozen_yaw_V9mbKUqFx0o
-which_epoch: 30
-init_experiment_dir: /video-conf/scratch/pantea_experiments_chunky/per_person/from_paper/runs/augmented_0.1_with_mask/ 
-init_networks: identity_embedder, texture_generator, keypoints_embedder, inference_generator
-init_which_epoch: 1000
 metrics: PSNR, lpips
-psnr_loss_apply_to: pred_target_delta_lf_rgbs, target_imgs
+num_gpus: 1
 stickmen_thickness: 2
+pretrained_weights_dir: /video-conf/scratch/pantea 
 spn_networks: identity_embedder, texture_generator, keypoints_embedder, inference_generator
 enh_apply_masks: False
 inf_apply_masks: True
-dataset_load_from_txt: False
 replace_Gtex_output_with_trainable_tensor: False
 replace_source_specific_with_trainable_tensors: False
 dropout_networks: 'texture_generator: 0.5'
@@ -188,3 +93,6 @@ texture_output_dim: 3
 use_unet: False
 time_networks: False
 replace_Gtex_output_with_source: False
+init_experiment_dir: /video-conf/scratch/pantea_experiments_chunky/per_video_freezing_checkpoints/per_video/from_paper/runs/my_model_no_frozen_yaw_V9mbKUqFx0o
+init_networks: identity_embedder, texture_generator, keypoints_embedder, inference_generator
+init_which_epoch: 30
