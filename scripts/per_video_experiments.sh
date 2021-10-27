@@ -64,9 +64,11 @@ run_per_video_experiments () {
 data_root=/data/pantea/datasets/per_video_freezing_dataset
 root_to_yaws=/data/pantea/dataset_yaws/per_video_freezing_dataset_yaws/angles
 num_epochs=60
+wpr_loss_weight=0.1
+replace_Gtex_output_with_source='False'
 experiment_dir=/data/pantea/Experiments/per_video_freezing/per_video_freezing_checkpoints/per_video/from_paper
 nets_repo=/home/pantea/NETS/nets_implementation
-experiment_logs=/data/pantea/Experiments/per_video_freezing/per_video_freezing_logs_debug
+experiment_logs=/data/pantea/Experiments/per_video_freezing/per_video_freezing_logs
 experiment_name_prefix=
 do_training=false
 #if with_frozen_last_layer_flag is true, experiments in which the last layer of G_inf or G_tex is frozen are conducted
