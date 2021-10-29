@@ -66,7 +66,7 @@ train_params:
     equivariance_jacobian: 10
 
 reconstruction_params:
-  num_videos: 0
+  num_videos: 4
   format: '.mp4'
 
 animate_params:
