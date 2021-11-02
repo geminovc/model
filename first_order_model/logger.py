@@ -5,6 +5,7 @@ import imageio
 
 import os
 from skimage.draw import circle
+from skimage.metrics import structural_similarity
 
 import matplotlib.pyplot as plt
 import collections
@@ -192,8 +193,14 @@ class Visualizer:
             images.append((prediction, kp_norm))
         images.append(prediction)
 
+        # residual/difference
+        residual = np.zeros(driving.shape)
+        for c, (d, p) in enumerate(zip(driving, prediction)):
+            (score, diff) = structural_similarity(d, p, full=True, multichannel=True)
+            residual[c] = diff
+        images.append(residual)
 
-        ## Occlusion map
+        # Occlusion map
         if 'occlusion_map' in out:
             occlusion_map = out['occlusion_map'].data.cpu().repeat(1, 3, 1, 1)
             occlusion_map = F.interpolate(occlusion_map, size=source.shape[1:3]).numpy()
