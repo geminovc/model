@@ -41,8 +41,11 @@ if __name__ == "__main__":
     with open(opt.config) as f:
         config = yaml.load(f)
 
-    log_dir = os.path.join(opt.log_dir, opt.experiment_name)
-    log_dir += ' ' + strftime("%d_%m_%y_%H.%M.%S", gmtime())
+    if opt.mode == "reconstruction":
+        log_dir = os.path.dirname(opt.checkpoint)
+    else:
+        log_dir = os.path.join(opt.log_dir, opt.experiment_name)
+        log_dir += ' ' + strftime("%d_%m_%y_%H.%M.%S", gmtime())
 
     generator = OcclusionAwareGenerator(**config['model_params']['generator_params'],
                                         **config['model_params']['common_params'])
