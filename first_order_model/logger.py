@@ -196,7 +196,8 @@ class Visualizer:
         # residual/difference
         residual = np.zeros(driving.shape)
         for c, (d, p) in enumerate(zip(driving, prediction)):
-            (score, diff) = structural_similarity(d, p, full=True, multichannel=True)
+            diff = d - p
+            diff = (diff + np.ones_like(d)) / 2.0
             residual[c] = diff
         images.append(residual)
 
