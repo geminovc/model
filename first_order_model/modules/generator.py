@@ -4,7 +4,6 @@ import torch.nn.functional as F
 from first_order_model.modules.util import ResBlock2d, SameBlock2d, UpBlock2d, DownBlock2d
 from first_order_model.modules.dense_motion import DenseMotionNetwork
 
-
 class OcclusionAwareGenerator(nn.Module):
     """
     Generator that given source image and and keypoints try to transform image according to movement trajectories
@@ -12,13 +11,17 @@ class OcclusionAwareGenerator(nn.Module):
     """
 
     def __init__(self, num_channels, num_kp, block_expansion, max_features, num_down_blocks,
-                 num_bottleneck_blocks, estimate_occlusion_map=False, dense_motion_params=None, estimate_jacobian=False):
+                 num_bottleneck_blocks, estimate_occlusion_map=False, 
+                 predict_pixel_features=False, num_pixel_features=0,
+                 dense_motion_params=None, estimate_jacobian=False):
         super(OcclusionAwareGenerator, self).__init__()
 
         if dense_motion_params is not None:
-            self.dense_motion_network = DenseMotionNetwork(num_kp=num_kp, num_channels=num_channels,
-                                                           estimate_occlusion_map=estimate_occlusion_map,
-                                                           **dense_motion_params)
+            self.dense_motion_network = DenseMotionNetwork(num_kp=num_kp, num_channels=num_channels, 
+                    estimate_residual=predict_pixel_features,
+                    num_pixel_features=num_pixel_features,
+                    estimate_occlusion_map=estimate_occlusion_map, 
+                    **dense_motion_params)
         else:
             self.dense_motion_network = None
 
@@ -82,6 +85,9 @@ class OcclusionAwareGenerator(nn.Module):
                 if out.shape[2] != occlusion_map.shape[2] or out.shape[3] != occlusion_map.shape[3]:
                     occlusion_map = F.interpolate(occlusion_map, size=out.shape[2:], mode='bilinear')
                 out = out * occlusion_map
+            
+            if 'residual' in dense_motion:
+                out += dense_motion['residual']
 
             output_dict["deformed"], deformation = self.deform_input(source_image, deformation)
             output_dict["deformation"] = deformation

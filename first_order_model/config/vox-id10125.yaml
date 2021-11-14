@@ -20,6 +20,8 @@ model_params:
     num_kp: 10
     num_channels: 3
     estimate_jacobian: True
+    predict_pixel_features: True
+    num_pixel_features: 3
   kp_detector_params:
      temperature: 0.1
      block_expansion: 32
