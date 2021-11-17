@@ -172,6 +172,7 @@ class Visualizer:
         driving = driving.data.cpu().numpy()
         driving = np.transpose(driving, [0, 2, 3, 1])
         images.append((driving, kp_driving))
+        images.append(driving)
 
         # Deformed image
         if 'deformed' in out:

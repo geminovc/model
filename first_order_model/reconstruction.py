@@ -40,8 +40,10 @@ def get_model_info(log_dir, kp_detector, generator):
     as a source frame. Config specifies configration details, while timing 
     determines whether to time the functions on a gpu or not
 """
-def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset, timing_enabled):
+def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset, timing_enabled, 
+        save_visualizations_as_images):
     png_dir = os.path.join(log_dir, 'reconstruction/png')
+    visualization_dir = os.path.join(log_dir, 'reconstruction/visualization')
     log_dir = os.path.join(log_dir, 'reconstruction')
 
     if checkpoint is not None:
@@ -56,6 +58,9 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
     if not os.path.exists(png_dir):
         os.makedirs(png_dir)
 
+    if not os.path.exists(visualization_dir):
+        os.makedirs(visualization_dir)
+    
     loss_list = []
     if torch.cuda.is_available():
         generator = DataParallelWithCallback(generator)
@@ -127,6 +132,12 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
             imageio.imsave(os.path.join(png_dir, x['name'][0] + '.png'), (255 * predictions).astype(np.uint8))
 
             image_name = x['name'][0] + config['reconstruction_params']['format']
+           
+            if save_visualization_as_images:
+                for i, v in enumerate(visualizations):
+                    frame_name = x['name'][0] + '_frame' + str(i) + '.png'
+                    imageio.imsave(os.path.join(visualization_dir, frame_name), v)
+
             imageio.mimsave(os.path.join(log_dir, image_name), visualizations)
             
             if timing_enabled:
