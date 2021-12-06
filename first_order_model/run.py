@@ -85,7 +85,7 @@ if __name__ == "__main__":
     elif opt.mode == 'reconstruction':
         print("Reconstruction...")
         reconstruction(config, generator, kp_detector, opt.checkpoint, log_dir, dataset, opt.enable_timing, 
-                opt.save_visualizations_as_images)
+                opt.save_visualizations_as_images, opt.experiment_name)
     elif opt.mode == 'animate':
         print("Animate...")
         animate(config, generator, kp_detector, opt.checkpoint, log_dir, dataset)
