@@ -145,8 +145,8 @@ class Visualizer:
         for x in range(h):
             for y in range(w):
                 input_location = deformation[0][x][y] 
-                deformation_heatmap[0][x][y][0] = (input_location[0] + 1.0) / 2.0
-                deformation_heatmap[0][x][y][1] = (input_location[1] + 1.0) / 2.0
+                deformation_heatmap[0][x][y][0] = (input_location[0] + 1.0) / 2.0 - float(y) / h
+                deformation_heatmap[0][x][y][1] = (input_location[1] + 1.0) / 2.0  - float(x) / w
         return deformation_heatmap
 
 
