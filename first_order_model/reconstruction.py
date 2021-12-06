@@ -133,7 +133,7 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
 
             image_name = x['name'][0] + config['reconstruction_params']['format']
            
-            if save_visualization_as_images:
+            if save_visualizations_as_images:
                 for i, v in enumerate(visualizations):
                     frame_name = x['name'][0] + '_frame' + str(i) + '.png'
                     imageio.imsave(os.path.join(visualization_dir, frame_name), v)
