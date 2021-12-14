@@ -9,6 +9,7 @@ from time import gmtime, strftime
 from shutil import copy
 
 from frames_dataset import FramesDataset
+from voxceleb2_dataset import Voxceleb2Dataset
 
 from modules.generator import OcclusionAwareGenerator
 from modules.discriminator import MultiScaleDiscriminator
@@ -73,7 +74,10 @@ if __name__ == "__main__":
     if opt.verbose:
         print(kp_detector)
 
-    dataset = FramesDataset(is_train=(opt.mode == 'train'), **config['dataset_params'])
+    if "voxceleb2" in config['dataset_params']['root_dir']:
+        dataset = Voxceleb2Dataset(is_train=(opt.mode == 'train'), **config['dataset_params'])
+    else:
+        dataset = FramesDataset(is_train=(opt.mode == 'train'), **config['dataset_params'])
 
     if not os.path.exists(log_dir):
         os.makedirs(log_dir)
