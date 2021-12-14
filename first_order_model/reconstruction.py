@@ -67,11 +67,10 @@ def get_avg_visual_metrics(visual_metrics):
     determines whether to time the functions on a gpu or not
 """
 def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset, timing_enabled, 
-        save_visualizations_as_images, experiment_name):
-    png_dir = os.path.join(log_dir, 'reconstruction/png')
-    visualization_dir = os.path.join(log_dir, 'reconstruction/visualization')
-    log_dir = os.path.join(log_dir, 'reconstruction')
-    metrics_file = open(os.path.join(log_dir, experiment_name + '_metrics_summary.txt'), 'wt')
+        save_visualizations_as_images, experiment_name, reference_frame_update_freq=None):
+    log_dir = os.path.join(log_dir, 'reconstruction' + '_' + experiment_name)
+    png_dir = os.path.join(log_dir, 'png')
+    visualization_dir = os.path.join(log_dir, 'visualization')
 
     if checkpoint is not None:
         Logger.load_cpk(checkpoint, generator=generator, kp_detector=kp_detector)
@@ -88,6 +87,7 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
     if not os.path.exists(visualization_dir):
         os.makedirs(visualization_dir)
     
+    metrics_file = open(os.path.join(log_dir, experiment_name + '_metrics_summary.txt'), 'wt')
     loss_list = []
     visual_metrics = []
     loss_fn_vgg = lpips.LPIPS(net='vgg')
@@ -124,7 +124,12 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
                 driving_times, generator_times, visualization_times = [], [], []
 
             for frame_idx in range(x['video'].shape[2]):
-                source = x['video'][:, :, 0]
+                if reference_frame_update_freq is not None:
+                    if frame_idx % reference_frame_update_freq == 0:
+                        source = x['video'][:, :, frame_idx]
+                        kp_source = kp_detector(source)
+                else:
+                    source = x['video'][:, :, 0]
                 driving = x['video'][:, :, frame_idx]
                 
                 start.record()
