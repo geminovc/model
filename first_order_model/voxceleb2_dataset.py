@@ -32,29 +32,52 @@ class Voxceleb2Dataset(Dataset):
         - folder organized by person identifiers
         - further subdivided into sessions
         - and multiple video clips .mp4 files per session
+
+    If session id is supplied, separated into test/train 
+    for that session (for the corresponding person)
+
+    If only person id is supplied, separate sessions of the person
+    into test/train.
     """
 
     def __init__(self, root_dir, frame_shape=(256, 256, 3), is_train=True,
-                    augmentation_params=None, person_id=None, train_percentage=0.75):
+                    augmentation_params=None, person_id=None, 
+                    train_percentage=0.75, session_id=None):
         self.root_dir = os.path.join(root_dir, "id" + str(person_id))
-        self.sessions = os.listdir(self.root_dir)
         self.frame_shape = tuple(frame_shape)
         self.person_id = person_id
+        self.session_id = session_id
 
-        print("Training/testing on person", person_id, "from", self.root_dir)
-        total_sessions = len(self.sessions)
-        num_train_sessions = round(train_percentage * total_sessions)
-        
         train_videos = []
         test_videos = []
-        for i, session in enumerate(self.sessions):
-            session_dir = os.path.join(self.root_dir, session)
+        
+        # separate sessions into test/train and add all videos of a single
+        # session either to test or train (no overlap)
+        if self.session_id is None:
+            print("Dataset is person", self.person_id, "from", self.root_dir) 
+            sessions = os.listdir(self.root_dir)
+            total_sessions = len(sessions)
+            num_train_sessions = round(train_percentage * total_sessions)
+        
+            for i, session in enumerate(sessions):
+                session_dir = os.path.join(self.root_dir, session)
+                video_names = os.listdir(session_dir)
+                session_videos = [os.path.join(session_dir, v) for v in video_names]
+                if i < num_train_sessions:
+                    train_videos.extend(session_videos)
+                else:
+                    test_videos.extend(session_videos)
+
+        # separate videos of a single session into either test or train
+        else:
+            print("Dataset is person", self.person_id, "session", self.session_id)
+            session_dir = os.path.join(self.root_dir, self.session_id)
             video_names = os.listdir(session_dir)
             session_videos = [os.path.join(session_dir, v) for v in video_names]
-            if i < num_train_sessions:
-                train_videos.extend(session_videos)
-            else:
-                test_videos.extend(session_videos)
+            num_train_videos = round(train_percentage * len(video_names))
+            train_videos = session_videos[:num_train_videos]
+            test_videos = session_videos[num_train_videos:]
+
 
         if is_train:
             self.videos = train_videos
