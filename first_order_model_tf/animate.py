@@ -4,6 +4,7 @@ from logger import Visualizer
 from tqdm import tqdm
 from contextlib import nullcontext
 import numpy as np
+import time
 
 @tf.function
 def first_elem_reshape(x):
@@ -74,10 +75,13 @@ def animate(source_image, driving_video, generator, kp_detector, process_kp_driv
             driving_video_tensor, driving_video = next_batch(driving_video)
             kp_driving = kp_detector(driving_video_tensor)
             if estimate_jacobian:
+                start_time_1 = time.time()
                 kp_norm = kp_driving if not use_relative_movement else process_kp_driving(
                     kp_driving['value'], kp_driving['jacobian'], kp_driving_initial['value'], kp_driving_initial['jacobian'], kp_source['value'], kp_source['jacobian'],
                     float(use_relative_jacobian), float(adapt_movement_scale)
                 )
+                print("Time to extract keyoints from process_kp_driving:", time.time() - start_time_1)
+                start_time_2 = time.time()
                 if prescale:
                     out = generator(source_image, kp_norm['value'], kp_norm['jacobian'], kp_source['value'], kp_source['jacobian'], source_image_scaled)
                 else:
@@ -86,10 +90,13 @@ def animate(source_image, driving_video, generator, kp_detector, process_kp_driv
                 kp_norm = kp_driving if not use_relative_movement else process_kp_driving(
                     kp_driving['value'], kp_driving_initial['value'], kp_source['value'], float(adapt_movement_scale)
                 )
+                start_time_2 = time.time()
                 if prescale:
                     out = generator(source_image, kp_norm['value'], kp_norm['value'], source_image_scaled)
                 else:
                     out = generator(source_image, kp_norm['value'], kp_norm['value'])
+
+            print("Time to predict farme in generator:", time.time() - start_time_2)
             try:
                 predictions.append(out['prediction'])
             except:
