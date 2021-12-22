@@ -16,24 +16,24 @@ def representative_dataset_kp_detector():
 
 def representative_dataset_generator():
     yield [
-       tf.random.uniform((1, 10, 2), minval=0, maxval=100, seed=None, name=None),
-       tf.random.uniform((1, 10, 2), minval=0, maxval=100, seed=None, name=None),
-       tf.random.uniform((1, 256, 256, 3), minval=0, maxval=100, seed=None, name=None),
-       tf.random.uniform((1, 10, 2, 2), minval=0, maxval=100, seed=None, name=None),
-       tf.random.uniform((1, 10, 2, 2), minval=0, maxval=100, seed=None, name=None),
+       tf.random.uniform((1, 256, 256, 3), minval=0, maxval=10, seed=None, name=None),
+       tf.random.uniform((1, 10, 2), minval=0, maxval=10, seed=None, name=None),
+       tf.random.uniform((1, 10, 2, 2), minval=0, maxval=10, seed=None, name=None),
+       tf.random.uniform((1, 10, 2), minval=0, maxval=10, seed=None, name=None),
+       tf.random.uniform((1, 10, 2, 2), minval=0, maxval=10, seed=None, name=None),
     ]
 
 def representative_dataset_kp_processing():
-    yield[
-       tf.random.uniform((1, 10, 2, 2), minval=0, maxval=100, seed=None, name=None),
-       tf.random.uniform((1, 10, 2), minval=0, maxval=100, seed=None, name=None),
-       tf.random.uniform((1, 10, 2), minval=0, maxval=100, seed=None, name=None),
-       tf.convert_to_tensor(float(False)),
-       tf.random.uniform((1, 10, 2), minval=0, maxval=100, seed=None, name=None),
-       tf.random.uniform((1, 10, 2, 2), minval=0, maxval=100, seed=None, name=None),
-       tf.random.uniform((1, 10, 2, 2), minval=0, maxval=100, seed=None, name=None),
-       tf.convert_to_tensor(float(False)),
-    ]
+    yield{
+      "kp_driving":tf.random.uniform((1, 10, 2), minval=0, maxval=100, seed=None, name=None),
+      "kp_driving_jacobian":tf.random.uniform((1, 10, 2, 2), minval=0, maxval=100, seed=None, name=None),
+      "kp_driving_initial":tf.random.uniform((1, 10, 2), minval=0, maxval=100, seed=None, name=None),
+      "kp_driving_initial_jacobian":tf.random.uniform((1, 10, 2, 2), minval=0, maxval=100, seed=None, name=None),
+      "kp_source":tf.random.uniform((1, 10, 2), minval=0, maxval=100, seed=None, name=None),
+      "kp_source_jacobian":tf.random.uniform((1, 10, 2, 2), minval=0, maxval=100, seed=None, name=None),
+      "use_relative_jacobian":tf.convert_to_tensor(float(False)),
+      "adapt_movement_scale":tf.convert_to_tensor(float(False)),
+    }
 
 def build(checkpoint_path, config_path, output_name, module, prediction_only, hardcode, tfjs, static_batch_size, nolite, float16, int8, prescale):
     js_command = js_command_base
@@ -69,17 +69,17 @@ def build(checkpoint_path, config_path, output_name, module, prediction_only, ha
                 kp_detector_converter.target_spec.supported_types = [tf.float16]
             elif int8:
                 kp_detector_converter.optimizations = [tf.lite.Optimize.DEFAULT]
-                kp_detector_converter.representative_dataset = representative_dataset_kp_detector
-                # kp_detector_converter.target_spec.supported_ops = [tf.lite.OpsSet.TFLITE_BUILTINS_INT8]
+                # kp_detector_converter.target_spec.supported_ops = [tf.lite.OpsSet.TFLITE_BUILTINS_INT8, tf.lite.OpsSet.SELECT_TF_OPS]
                 kp_detector_converter.inference_input_type = tf.int8  # or tf.uint8
                 kp_detector_converter.inference_output_type = tf.int8  # or tf.uint8
                 kp_detector_converter.target_spec.supported_types = [tf.int8]
+                kp_detector_converter.representative_dataset = representative_dataset_kp_detector
+
             kp_detector_tflite = kp_detector_converter.convert()
             open("tflite/" + output_name + "/kp_detector.tflite", "wb").write(kp_detector_tflite)
-            if not int8:
-                signature = tf.lite.Interpreter(model_content=kp_detector_tflite).get_signature_runner()
-                tensor_index_map = {'inputs':dict(signature._inputs), 'outputs':dict(signature._outputs)}
-                json.dump(tensor_index_map, open("tflite/" + output_name + "/kp_detector.json", 'w'))
+            signature = tf.lite.Interpreter(model_content=kp_detector_tflite).get_signature_runner()
+            tensor_index_map = {'inputs':dict(signature._inputs), 'outputs':dict(signature._outputs)}
+            json.dump(tensor_index_map, open("tflite/" + output_name + "/kp_detector.json", 'w'))
         if tfjs:
             command = js_command.format(output_name, 'kp_detector')
             subprocess.run(command.split())
@@ -100,12 +100,12 @@ def build(checkpoint_path, config_path, output_name, module, prediction_only, ha
                 generator_converter.inference_input_type = tf.int8  # or tf.uint8
                 generator_converter.inference_output_type = tf.int8  # or tf.uint8
                 generator_converter.target_spec.supported_types = [tf.int8]
+
             generator_tflite = generator_converter.convert()
             open("tflite/" + output_name + "/generator.tflite", "wb").write(generator_tflite)
-            if not int8:
-                signature = tf.lite.Interpreter(model_content=generator_tflite).get_signature_runner()
-                tensor_index_map = {'inputs':dict(signature._inputs), 'outputs':dict(signature._outputs)}
-                json.dump(tensor_index_map, open("tflite/" + output_name + "/generator.json", 'w'))
+            signature = tf.lite.Interpreter(model_content=generator_tflite).get_signature_runner()
+            tensor_index_map = {'inputs':dict(signature._inputs), 'outputs':dict(signature._outputs)}
+            json.dump(tensor_index_map, open("tflite/" + output_name + "/generator.json", 'w'))
         if tfjs:
             command = js_command.format(output_name, 'generator')
             subprocess.run(command.split())
@@ -127,12 +127,12 @@ def build(checkpoint_path, config_path, output_name, module, prediction_only, ha
                 process_kp_driving_converter.inference_input_type = tf.int8  # or tf.uint8
                 process_kp_driving_converter.inference_output_type = tf.int8  # or tf.uint8
                 process_kp_driving_converter.target_spec.supported_types = [tf.int8]  
+
             process_kp_driving_tflite = process_kp_driving_converter.convert()
             open("tflite/" + output_name + "/process_kp_driving.tflite", "wb").write(process_kp_driving_tflite)
-            if not int8:
-                signature = tf.lite.Interpreter(model_content=process_kp_driving_tflite).get_signature_runner()
-                tensor_index_map = {'inputs':dict(signature._inputs), 'outputs':dict(signature._outputs)}
-                json.dump(tensor_index_map, open("tflite/" + output_name + "/process_kp_driving.json", 'w'))
+            signature = tf.lite.Interpreter(model_content=process_kp_driving_tflite).get_signature_runner()
+            tensor_index_map = {'inputs':dict(signature._inputs), 'outputs':dict(signature._outputs)}
+            json.dump(tensor_index_map, open("tflite/" + output_name + "/process_kp_driving.json", 'w'))
         if tfjs:
             command = js_command.format(output_name, 'process_kp_driving')
             subprocess.run(command.split())
