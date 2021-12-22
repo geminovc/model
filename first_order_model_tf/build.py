@@ -8,9 +8,13 @@ from tqdm import tqdm
 import json
 
 js_command_base = "tensorflowjs_converter --control_flow_v2=True --input_format=tf_saved_model --metadata= --saved_model_tags=serve --signature_name=serving_default --strip_debug_ops=True --weight_shard_size_bytes=4194304 saved_models/{0}/{1} js/{0}/{1}"
-    
 
-def build(checkpoint_path, config_path, output_name, module, prediction_only, hardcode, tfjs, static_batch_size, nolite, float16, prescale):
+def representative_dataset_kp_detector():
+    yield [
+      tf.random.uniform((1, 256, 256, 3), minval=0, maxval=30, seed=None, name=None)
+    ]
+
+def build(checkpoint_path, config_path, output_name, module, prediction_only, hardcode, tfjs, static_batch_size, nolite, float16, int8, prescale):
     js_command = js_command_base
     if float:
         js_command = js_command_base.replace('--metadata= ', '--metadata= --quantize_float16=* ')
@@ -42,11 +46,19 @@ def build(checkpoint_path, config_path, output_name, module, prediction_only, ha
             if float16:
                 kp_detector_converter.optimizations = [tf.lite.Optimize.DEFAULT]
                 kp_detector_converter.target_spec.supported_types = [tf.float16]
+            elif int8:
+                kp_detector_converter.optimizations = [tf.lite.Optimize.DEFAULT]
+                kp_detector_converter.representative_dataset = representative_dataset_kp_detector
+                # kp_detector_converter.target_spec.supported_ops = [tf.lite.OpsSet.TFLITE_BUILTINS_INT8]
+                kp_detector_converter.inference_input_type = tf.int8  # or tf.uint8
+                kp_detector_converter.inference_output_type = tf.int8  # or tf.uint8
+                kp_detector_converter.target_spec.supported_types = [tf.int8]
             kp_detector_tflite = kp_detector_converter.convert()
             open("tflite/" + output_name + "/kp_detector.tflite", "wb").write(kp_detector_tflite)
-            signature = tf.lite.Interpreter(model_content=kp_detector_tflite).get_signature_runner()
-            tensor_index_map = {'inputs':dict(signature._inputs), 'outputs':dict(signature._outputs)}
-            json.dump(tensor_index_map, open("tflite/" + output_name + "/kp_detector.json", 'w'))            
+            if not int8:
+                signature = tf.lite.Interpreter(model_content=kp_detector_tflite).get_signature_runner()
+                tensor_index_map = {'inputs':dict(signature._inputs), 'outputs':dict(signature._outputs)}
+                json.dump(tensor_index_map, open("tflite/" + output_name + "/kp_detector.json", 'w'))
         if tfjs:
             command = js_command.format(output_name, 'kp_detector')
             subprocess.run(command.split())
@@ -64,7 +76,7 @@ def build(checkpoint_path, config_path, output_name, module, prediction_only, ha
             open("tflite/" + output_name + "/generator.tflite", "wb").write(generator_tflite)
             signature = tf.lite.Interpreter(model_content=generator_tflite).get_signature_runner()
             tensor_index_map = {'inputs':dict(signature._inputs), 'outputs':dict(signature._outputs)}
-            json.dump(tensor_index_map, open("tflite/" + output_name + "/generator.json", 'w'))            
+            json.dump(tensor_index_map, open("tflite/" + output_name + "/generator.json", 'w'))
         if tfjs:
             command = js_command.format(output_name, 'generator')
             subprocess.run(command.split())
@@ -95,6 +107,7 @@ parser.add_argument('--module', choices=['all', 'kp_detector', 'generator', 'pro
 parser.add_argument('--nolite', action='store_true', help="don't build tflite modules")
 parser.add_argument('--predictiononly', action="store_true", help="build the generator so that it only outputs predictions")
 parser.add_argument('--float16', action="store_true", help="quantize lite to float16")
+parser.add_argument('--int8', action="store_true", help="quantize lite to int8")
 parser.add_argument('--tfjs', action='store_true', help="build tf.js models, requires tensorflowjs_converter")
 parser.add_argument('--staticbatchsize', action='store', type=int, default=None, help="optional static batch size to use")
 parser.add_argument('--hardcode', default=None, choices=['00', '01', '10', '11'],
@@ -114,13 +127,22 @@ if not parser.a:
     checkpoint_path = f"checkpoint/{parser.model}-cpk.pth.tar"
     config_path = f"config/{parser.model}-256.yaml"
     output_name = config_path.split("/")[-1].split("256")[0][:-1]
-    build(checkpoint_path, config_path, output_name, parser.module, parser.predictiononly, parser.hardcode, parser.tfjs, parser.staticbatchsize, parser.nolite, parser.float16, parser.prescale)
+    if parser.float16:
+        output_name += "_float16"
+    elif parser.int8:
+        output_name += "_int8"
+
+    build(checkpoint_path, config_path, output_name, parser.module, parser.predictiononly, parser.hardcode, parser.tfjs, parser.staticbatchsize, parser.nolite, parser.float16, parser.int8, parser.prescale)
 else:
     configs = os.listdir("config/")
     checkpoints = ["checkpoint/" + x.split("256")[0] + "cpk.pth.tar" for x in configs]
     output_names = [x.split("/")[-1].split("256")[0][:-1] for x in configs]
+    if parser.float16:
+        output_names = [x + "_float16" for x in output_names]
+    elif parser.int8:
+        output_name = [x + "_int8" for x in output_names]
     configs = ["config/" + x for x in configs]
     for i, config in enumerate(tqdm(configs)):
-        build(checkpoints[i], config, output_names[i], parser.module, parser.predictiononly, parser.hardcode, parser.tfjs, parser.staticbatchsize, parser.nolite, parser.float16, parser.prescale)
+        build(checkpoints[i], config, output_names[i], parser.module, parser.predictiononly, parser.hardcode, parser.tfjs, parser.staticbatchsize, parser.nolite, parser.float16, parser.int8, parser.prescale)
 
 print("Done.")
