@@ -58,7 +58,7 @@ train_params:
     sigma_tps: 0.005
     points_tps: 5
   loss_weights:
-    generator_gan: 0
+    generator_gan: 1
     discriminator_gan: 1
     feature_matching: [10, 10, 10, 10]
     perceptual: [10, 10, 10, 10, 10]
