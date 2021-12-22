@@ -17,3 +17,11 @@ source_bilayer/**
 ./SPADE/segmentation/
 scripts/*.png
 scripts/*.csv
+first_order_model_tf/saved_models
+first_order_model_tf/js
+first_order_model_tf/log
+first_order_model_tf/tflite
+first_order_model_tf/checkpoints
+first_order_model_tf/config
+first_order_model_tf/data
+
