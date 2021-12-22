@@ -171,7 +171,7 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
             image_name = x['name'][0] + config['reconstruction_params']['format']
 
             psnr, ssim, lpips_val = get_avg_visual_metrics(visual_metrics)
-            metrics_file.write("%s PSNR: %s, SSIM: %s, LPIPS:%s\n" % (x['name'][0], 
+            metrics_file.write("%s PSNR: %s, SSIM: %s, LPIPS: %s\n" % (x['name'][0], 
                     psnr, ssim, lpips_val))
             metrics_file.flush()
 
