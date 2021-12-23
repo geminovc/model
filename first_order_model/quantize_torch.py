@@ -5,6 +5,7 @@ from fom_wrapper import FirstOrderModel
 import numpy as np
 import time
 import torch
+import os
 
 model = FirstOrderModel("config/api_sample.yaml")
 
@@ -24,12 +25,20 @@ if convert_generator:
     res = model_fp32(x0, {'value':x1, 'jacobian':x2}, {'value':x3, 'jacobian':x4})    
     print("Inference on float32:", time.time()-start_time)
     model_fp32.eval()
-    model_fp32.qconfig = torch.quantization.get_default_qconfig('fbgemm')
-    # model_fp32_fused = torch.quantization.fuse_modules(model_fp32, ['conv'])
-    model_fp32_prepared = model_fp32 #torch.quantization.prepare(model_fp32_fused)
-    model_fp32_prepared(x0, {'value':x1, 'jacobian':x2}, {'value':x3, 'jacobian':x4})
-    # model_int8 = torch.quantization.convert(model_fp32_prepared)
-    model_int8 = torch.quantization.quantize_dynamic(model_fp32, {torch.nn.Linear}, dtype=torch.qint8)
+    model_int8 = torch.quantization.quantize_dynamic(model_fp32, dtype=torch.qint8)
+
+# get model size
+def print_size_of_model(model, label=""):
+    torch.save(model.state_dict(), "temp.p")
+    size=os.path.getsize("temp.p")
+    print("model: ",label,' \t','Size (KB):', size/1e3)
+    os.remove('temp.p')
+    return size
+
+# compare the sizes
+f = print_size_of_model(model_fp32,"fp32")
+q = print_size_of_model(model_int8,"int8")
+print("{0:.2f} times smaller".format(f/q))
 
 # run the model
 for i in range(0, 100):
