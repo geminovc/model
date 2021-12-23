@@ -18,6 +18,7 @@ x4 = torch.randn(1, 10, 2, 2, requires_grad=False)
 
 convert_kp_extractor = False
 convert_generator = True
+dynamic = False
 
 if convert_generator:
     model_fp32 = model.generator
@@ -25,7 +26,14 @@ if convert_generator:
     res = model_fp32(x0, {'value':x1, 'jacobian':x2}, {'value':x3, 'jacobian':x4})    
     print("Inference on float32:", time.time()-start_time)
     model_fp32.eval()
-    model_int8 = torch.quantization.quantize_dynamic(model_fp32, dtype=torch.qint8)
+    if dynamic:
+        model_int8 = torch.quantization.quantize_dynamic(model_fp32, dtype=torch.qint8)
+    else:
+        model_fp32.qconfig = torch.quantization.get_default_qconfig('fbgemm')
+        torch.backends.quantized.engine = 'fbgemm'
+        # model_fp32_fused = torch.quantization.fuse_modules(model_fp32, [])
+        model_fp32_prepared = model_fp32 #torch.quantization.prepare(model_fp32_fused)
+        model_int8 = torch.quantization.convert(model_fp32_prepared)
 
 # get model size
 def print_size_of_model(model, label=""):
@@ -38,7 +46,7 @@ def print_size_of_model(model, label=""):
 # compare the sizes
 f = print_size_of_model(model_fp32,"fp32")
 q = print_size_of_model(model_int8,"int8")
-print("{0:.2f} times smaller".format(f/q))
+print("int8 is {0:.2f} times smaller than fp32".format(f/q))
 
 # run the model
 for i in range(0, 100):
