@@ -34,8 +34,8 @@ class DenseMotionNetwork(nn.Module):
         Eq 6. in the paper H_k(z)
         """
         spatial_size = source_image.shape[2:]
-        gaussian_driving = kp2gaussian(kp_driving, spatial_size=spatial_size, kp_variance=self.kp_variance)
-        gaussian_source = kp2gaussian(kp_source, spatial_size=spatial_size, kp_variance=self.kp_variance)
+        gaussian_driving = kp2gaussian(kp_driving['value'], spatial_size=spatial_size, kp_variance=self.kp_variance)
+        gaussian_source = kp2gaussian(kp_source['value'], spatial_size=spatial_size, kp_variance=self.kp_variance)
         heatmap = gaussian_driving - gaussian_source
 
         #adding background feature

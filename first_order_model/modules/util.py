@@ -6,11 +6,11 @@ import torch
 from first_order_model.sync_batchnorm import SynchronizedBatchNorm2d as BatchNorm2d
 
 
-def kp2gaussian(kp, spatial_size, kp_variance):
+def kp2gaussian(kp_value, spatial_size, kp_variance):
     """
     Transform a keypoint into gaussian like representation
     """
-    mean = kp['value']
+    mean = kp_value
 
     coordinate_grid = make_coordinate_grid(spatial_size, mean.type())
     number_of_leading_dimensions = len(mean.shape) - 1

@@ -11,7 +11,7 @@ class KPDetector(nn.Module):
 
     def __init__(self, block_expansion, num_kp, num_channels, max_features,
                  num_blocks, temperature, estimate_jacobian=False, scale_factor=1,
-                 single_jacobian_map=False, pad=0):
+                 single_jacobian_map=False, pad=0, for_onnx=False):
         super(KPDetector, self).__init__()
 
         self.predictor = Hourglass(block_expansion, in_features=num_channels,
@@ -30,6 +30,7 @@ class KPDetector(nn.Module):
             self.jacobian = None
 
         self.temperature = temperature
+        self.for_onnx = for_onnx
         self.scale_factor = scale_factor
         if self.scale_factor != 1:
             self.down = AntiAliasInterpolation2d(num_channels, self.scale_factor)
@@ -42,7 +43,11 @@ class KPDetector(nn.Module):
         heatmap = heatmap.unsqueeze(-1)
         grid = make_coordinate_grid(shape[2:], heatmap.type()).unsqueeze_(0).unsqueeze_(0)
         value = (heatmap * grid).sum(dim=(2, 3))
-        kp = {'value': value}
+
+        if self.for_onnx:
+            kp = value
+        else:
+            kp = {'value': value}
 
         return kp
 
@@ -70,6 +75,11 @@ class KPDetector(nn.Module):
             jacobian = jacobian.view(final_shape[0], final_shape[1], 4, -1)
             jacobian = jacobian.sum(dim=-1)
             jacobian = jacobian.view(jacobian.shape[0], jacobian.shape[1], 2, 2)
-            out['jacobian'] = jacobian
 
-        return out
+            if not self.for_onnx:
+                out['jacobian'] = jacobian
+
+        if self.for_onnx:
+            return out, jacobian
+        else:
+            return out
