@@ -4,6 +4,7 @@ import numpy as np
 from skimage import img_as_float32
 from first_order_model.logger import Logger
 from first_order_model.modules.generator import OcclusionAwareGenerator
+from first_order_model.onnx.modules.generator import OcclusionAwareGenerator as OcclusionAwareGenerator_ONNX
 from first_order_model.modules.keypoint_detector import KPDetector
 
 import sys
@@ -30,25 +31,35 @@ from keypoint_based_face_models import KeypointBasedFaceModels
     prediction = model.predict(target_kp))
 """
 class FirstOrderModel(KeypointBasedFaceModels):
-    def __init__(self, config_path):
+    def __init__(self, config_path, for_onnx=False):
         super(FirstOrderModel, self).__init__()
         
         with open(config_path) as f:
             config = yaml.safe_load(f)
 
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-       
-        # generator
-        self.generator = OcclusionAwareGenerator(
-                **config['model_params']['generator_params'],
-                **config['model_params']['common_params'])
-        if torch.cuda.is_available():
-            self.generator.to(device)
+        self.for_onnx = for_onnx
+
+        if self.for_onnx:
+            # onnx generator
+            self.generator = OcclusionAwareGenerator_ONNX(
+                    **config['model_params']['generator_params'],
+                    **config['model_params']['common_params'])
+            if torch.cuda.is_available():
+                self.generator.to(device)
+        else:
+            # generator
+            self.generator = OcclusionAwareGenerator(
+                    **config['model_params']['generator_params'],
+                    **config['model_params']['common_params'])
+            if torch.cuda.is_available():
+                self.generator.to(device)
 
         # keypoint detector
         self.kp_detector = KPDetector(
                 **config['model_params']['kp_detector_params'],
-                **config['model_params']['common_params'])
+                **config['model_params']['common_params'],
+                for_onnx=for_onnx)
         if torch.cuda.is_available():
             self.kp_detector.to(device)
 
@@ -87,6 +98,9 @@ class FirstOrderModel(KeypointBasedFaceModels):
         if torch.cuda.is_available():
             frame = frame.cuda() 
         keypoint_struct = self.kp_detector(frame)
+        if self.for_onnx:
+            with torch.no_grad():
+                keypoint_struct = {'value': keypoint_struct[0], 'jacobian': keypoint_struct[1]}
 
         # change to arrays and standardize
         # Note: keypoints are stored at key 'value' in FOM
@@ -130,10 +144,16 @@ class FirstOrderModel(KeypointBasedFaceModels):
 
         source_kp_tensors = self.convert_kp_dict_to_tensors(self.source_keypoints)
         target_kp_tensors = self.convert_kp_dict_to_tensors(target_keypoints)
-
-        out = self.generator(self.source, \
-                kp_source=source_kp_tensors, kp_driving=target_kp_tensors)
-        prediction_cpu = out['prediction'].data.cpu().numpy()
+        if self.for_onnx:
+            with torch.no_grad():
+                out = self.generator(self.source, \
+                        kp_source_v=source_kp_tensors['value'], kp_driving_v=target_kp_tensors['value'],
+                        kp_source_j=source_kp_tensors['jacobian'], kp_driving_j=target_kp_tensors['jacobian'],)
+            prediction_cpu = out.data.cpu().numpy()
+        else:
+            out = self.generator(self.source, \
+                    kp_source=source_kp_tensors, kp_driving=target_kp_tensors)
+            prediction_cpu = out['prediction'].data.cpu().numpy()
         prediction = np.transpose(prediction_cpu, [0, 2, 3, 1])[0]
         return (255 * prediction).astype(np.uint8)
 
