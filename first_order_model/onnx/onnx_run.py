@@ -1,5 +1,8 @@
 from first_order_model.fom_wrapper import FirstOrderModel
 import original_bilayer.examples.utils as metrics_utils
+import platform
+if platform.system() == 'Linux':
+    from deepsparse import compile_model
 import numpy as np
 import onnxruntime
 import torch
@@ -56,6 +59,12 @@ def run_generator(net_type, torch_inputs=None, ort_inputs=None, model=None, ort_
 
     return gen_time, frame_next
 
+def run_deepsparse(inputs, engine):
+    start = time.time()
+    outputs = engine.run(inputs)
+    gen_time = time.time() - start
+    frame_next = np.transpose(outputs[0].squeeze(), (1, 2, 0))
+    return gen_time, frame_next
 
 def run_inference(video_name, model_type='onnx', csv_file_name='timings.csv',
                   config_path='../config/api_sample.yaml', onnx_path="./"):
@@ -79,12 +88,16 @@ def run_inference(video_name, model_type='onnx', csv_file_name='timings.csv',
         ort_session_generator = onnxruntime.InferenceSession(onnx_path + "fom_gen.onnx")
         source_kp = model.extract_keypoints(source)
         model.update_source(source, source_kp)
-    elif model_type == 'onnx':
+    elif model_type == 'onnx' or model_type == 'deepsparse':
         ort_session_generator = onnxruntime.InferenceSession(onnx_path + "fom_gen.onnx")
         ort_session_kp_extractor = onnxruntime.InferenceSession(onnx_path + "fom_kp.onnx")
         ort_session_kp_input = {'source': np.array(np.transpose(source[None, :], (0, 3, 1, 2)),
-                                 dtype=np.float32)/255}
+                                dtype=np.float32)/255}
         source_kp, source_jacobian = ort_session_kp_extractor.run(None, ort_session_kp_input)
+        if model_type == 'deepsparse':
+            batch_size = 1
+            # kp_engine = compile_model(onnx_path + "fom_kp.onnx", batch_size)
+            gen_engine = compile_model(onnx_path + "fom_gen.onnx", batch_size)
 
     predictions, psnr_values, ssim_values, lpips_values, kp_times, gen_times = [], [], [], [], [], []
 
@@ -104,12 +117,17 @@ def run_inference(video_name, model_type='onnx', csv_file_name='timings.csv',
                           'kp_driving_v': target_kp['keypoints'][None, :],
                           'kp_source_v': source_kp['keypoints'][None, :]}
             gen_time, frame_next = run_generator('onnx', ort_inputs=ort_inputs, ort_session=ort_session_generator)
-        elif model_type == 'onnx':
+        elif model_type == 'onnx' or model_type == 'deepsparse':
             kp_time, target_kp, _ = run_kp_detector('onnx', driving, ort_session=ort_session_kp_extractor)
-            ort_inputs = {'source_image': np.array(np.transpose(source[None, :], (0, 3, 1, 2)), dtype=np.float32)/255,
-                          'kp_driving_v': target_kp,
-                          'kp_source_v': source_kp}
-            gen_time, frame_next = run_generator('onnx', ort_inputs=ort_inputs, ort_session=ort_session_generator)
+            if model_type == 'onnx':
+                ort_inputs = {'source_image': np.array(np.transpose(source[None, :], (0, 3, 1, 2)), dtype=np.float32)/255,
+                            'kp_driving_v': target_kp,
+                            'kp_source_v': source_kp}
+                gen_time, frame_next = run_generator('onnx', ort_inputs=ort_inputs, ort_session=ort_session_generator)
+            else:
+                inputs = [np.ascontiguousarray(np.array(np.transpose(source[None, :], (0, 3, 1, 2)), dtype=np.float32)/255),
+                         target_kp, source_kp]
+                gen_time, frame_next = run_deepsparse(inputs, gen_engine)
 
         gen_times.append(gen_time)
         kp_times.append(kp_time)
@@ -138,5 +156,8 @@ def run_inference(video_name, model_type='onnx', csv_file_name='timings.csv',
 
 if __name__ == '__main__':
     args = parser.parse_args()
-    for model_type in ['pytorch + generator_onnx', 'onnx', 'pytorch', 'pytorch + kp_onnx']:
+    model_types = ['pytorch + generator_onnx', 'onnx', 'pytorch', 'pytorch + kp_onnx']
+    if platform.system() == 'Linux':
+        model_types.append('deepsparse')
+    for model_type in model_types:
         run_inference(args.video_path, model_type, args.csv_file_name, args.config_path, args.onnx_path)

@@ -2,7 +2,7 @@ from deepsparse import compile_model
 from deepsparse.utils import generate_random_inputs
 import time
 
-onnx_filepath = "fom.onnx"
+onnx_filepath = "fom_gen.onnx"
 batch_size = 1
 
 # Generate random sample input
