@@ -14,7 +14,10 @@ parser.add_argument('--video_path',
                         type = str,
                         default = '../short_test_video.mp4',
                         help = 'path to the video')
-
+parser.add_argument('--config_path',
+                        type = str,
+                        default = '../config/api_sample.yaml',
+                        help = 'path to the config file')
 parser.add_argument('--csv_file_name',
                        type = str,
                        required = True,
@@ -50,24 +53,24 @@ def run_generator(net_type, torch_inputs=None, ort_inputs=None, model=None, ort_
     return gen_time, frame_next
 
 
-def run_inference(video_name, model_type='onnx', csv_file_name='timings.csv'):
+def run_inference(video_name, model_type='onnx', csv_file_name='timings.csv', config_path='../config/api_sample.yaml'):
     video_array = np.array(imageio.mimread(video_name))
     source = video_array[0, :, :, :]
 
     if model_type == 'pytorch':
         # set up model
-        model = FirstOrderModel("../config/api_sample.yaml")
+        model = FirstOrderModel(config_path)
         source_kp = model.extract_keypoints(source)
         model.update_source(source, source_kp)
     elif model_type == 'pytorch + kp_onnx':
-        model = FirstOrderModel("../config/api_sample.yaml")
+        model = FirstOrderModel(config_path)
         ort_session_kp_extractor = onnxruntime.InferenceSession("fom_kp.onnx")
         ort_session_kp_input = {'source': np.array(np.transpose(source[None, :], (0, 3, 1, 2)),
                                  dtype=np.float32)/255}
         source_kp, source_jacobian = ort_session_kp_extractor.run(None, ort_session_kp_input)
         model.update_source(source, {'keypoints': np.squeeze(source_kp), 'jacobians': source_jacobian})
     elif model_type == 'pytorch + generator_onnx':
-        model = FirstOrderModel("../config/api_sample.yaml")
+        model = FirstOrderModel(config_path)
         ort_session_generator = onnxruntime.InferenceSession("fom_gen.onnx")
         source_kp = model.extract_keypoints(source)
         model.update_source(source, source_kp)
@@ -131,4 +134,4 @@ def run_inference(video_name, model_type='onnx', csv_file_name='timings.csv'):
 if __name__ == '__main__':
     args = parser.parse_args()
     for model_type in ['pytorch + generator_onnx', 'onnx', 'pytorch', 'pytorch + kp_onnx']:
-        run_inference(args.video_path, model_type, args.csv_file_name)
+        run_inference(args.video_path, model_type, args.csv_file_name, args.config_path)
