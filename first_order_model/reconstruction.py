@@ -111,6 +111,7 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
         with torch.no_grad():
             predictions = []
             visualizations = []
+            last_prediction = x['video'][:, :, 0].numpy()
             if torch.cuda.is_available():
                 x['video'] = x['video'].cuda()
             
@@ -150,6 +151,7 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
                 out['kp_driving'] = kp_driving
                 del out['sparse_deformed']
 
+                last_prediction = np.transpose(out['prediction'].data.cpu().numpy(), [0, 2, 3, 1])[0]
                 predictions.append(np.transpose(out['prediction'].data.cpu().numpy(), [0, 2, 3, 1])[0])
 
                 start.record()
