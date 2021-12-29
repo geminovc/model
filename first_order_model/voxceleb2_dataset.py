@@ -77,6 +77,9 @@ class Voxceleb2Dataset(Dataset):
             num_train_videos = round(train_percentage * len(video_names))
             train_videos = session_videos[:num_train_videos]
             test_videos = session_videos[num_train_videos:]
+        
+        print("Test list", test_videos)
+        print("Train list", train_videos)
 
 
         if is_train:
