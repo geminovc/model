@@ -1,5 +1,5 @@
 import torch
-from torch.nn import Conv2d as base_conv
+from torch.nn import Conv2d as torch_conv2
 from torch import Tensor
 from torch.nn.modules.utils import _pair
 from torch.nn.common_types import _size_2_t
