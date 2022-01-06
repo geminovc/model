@@ -3,6 +3,8 @@ from torch import nn
 import torch.nn.functional as F
 from first_order_model.modules.util import ResBlock2d, SameBlock2d, UpBlock2d, DownBlock2d
 from first_order_model.modules.dense_motion import DenseMotionNetwork
+from first_order_model.onnx.modules.dense_motion import DenseMotionNetwork_ONNX
+
 
 
 class OcclusionAwareGenerator(nn.Module):
@@ -12,13 +14,18 @@ class OcclusionAwareGenerator(nn.Module):
     """
 
     def __init__(self, num_channels, num_kp, block_expansion, max_features, num_down_blocks,
-                 num_bottleneck_blocks, estimate_occlusion_map=False, dense_motion_params=None, estimate_jacobian=False):
+                 num_bottleneck_blocks, estimate_occlusion_map=False, dense_motion_params=None, estimate_jacobian=False, for_onnx=False):
         super(OcclusionAwareGenerator, self).__init__()
 
         if dense_motion_params is not None:
-            self.dense_motion_network = DenseMotionNetwork(num_kp=num_kp, num_channels=num_channels,
-                                                           estimate_occlusion_map=estimate_occlusion_map,
-                                                           **dense_motion_params)
+            if for_onnx:
+                self.dense_motion_network = DenseMotionNetwork_ONNX(num_kp=num_kp, num_channels=num_channels,
+                                                            estimate_occlusion_map=estimate_occlusion_map,
+                                                            **dense_motion_params)
+            else:
+                self.dense_motion_network = DenseMotionNetwork(num_kp=num_kp, num_channels=num_channels,
+                                                            estimate_occlusion_map=estimate_occlusion_map,
+                                                            **dense_motion_params)
         else:
             self.dense_motion_network = None
 

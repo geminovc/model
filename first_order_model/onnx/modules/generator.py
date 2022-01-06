@@ -2,51 +2,15 @@ import torch
 from torch import nn
 import torch.nn.functional as F
 from first_order_model.modules.util import ResBlock2d, SameBlock2d, UpBlock2d, DownBlock2d
-from first_order_model.onnx.modules.dense_motion import DenseMotionNetwork_ONNX
+from first_order_model.modules.generator import OcclusionAwareGenerator
 from mmcv.ops.point_sample import bilinear_grid_sample
 
 
-class OcclusionAwareGenerator(nn.Module):
+class OcclusionAwareGenerator_ONNX(OcclusionAwareGenerator):
     """
     Generator that given source image and and keypoints try to transform image according to movement trajectories
     induced by keypoints. Generator follows Johnson architecture.
     """
-
-    def __init__(self, num_channels, num_kp, block_expansion, max_features, num_down_blocks,
-                 num_bottleneck_blocks, estimate_occlusion_map=False, dense_motion_params=None, estimate_jacobian=False):
-        super(OcclusionAwareGenerator, self).__init__()
-
-        if dense_motion_params is not None:
-            self.dense_motion_network = DenseMotionNetwork_ONNX(num_kp=num_kp, num_channels=num_channels,
-                                                           estimate_occlusion_map=estimate_occlusion_map,
-                                                           **dense_motion_params)
-        else:
-            self.dense_motion_network = None
-
-        self.first = SameBlock2d(num_channels, block_expansion, kernel_size=(7, 7), padding=(3, 3))
-
-        down_blocks = []
-        for i in range(num_down_blocks):
-            in_features = min(max_features, block_expansion * (2 ** i))
-            out_features = min(max_features, block_expansion * (2 ** (i + 1)))
-            down_blocks.append(DownBlock2d(in_features, out_features, kernel_size=(3, 3), padding=(1, 1)))
-        self.down_blocks = nn.ModuleList(down_blocks)
-
-        up_blocks = []
-        for i in range(num_down_blocks):
-            in_features = min(max_features, block_expansion * (2 ** (num_down_blocks - i)))
-            out_features = min(max_features, block_expansion * (2 ** (num_down_blocks - i - 1)))
-            up_blocks.append(UpBlock2d(in_features, out_features, kernel_size=(3, 3), padding=(1, 1)))
-        self.up_blocks = nn.ModuleList(up_blocks)
-
-        self.bottleneck = torch.nn.Sequential()
-        in_features = min(max_features, block_expansion * (2 ** num_down_blocks))
-        for i in range(num_bottleneck_blocks):
-            self.bottleneck.add_module('r' + str(i), ResBlock2d(in_features, kernel_size=(3, 3), padding=(1, 1)))
-
-        self.final = nn.Conv2d(block_expansion, num_channels, kernel_size=(7, 7), padding=(3, 3))
-        self.estimate_occlusion_map = estimate_occlusion_map
-        self.num_channels = num_channels
 
     def deform_input(self, inp, deformation):
         _, h_old, w_old, _ = deformation.shape

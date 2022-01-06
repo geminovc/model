@@ -4,7 +4,7 @@ import numpy as np
 from skimage import img_as_float32
 from first_order_model.logger import Logger
 from first_order_model.modules.generator import OcclusionAwareGenerator
-from first_order_model.onnx.modules.generator import OcclusionAwareGenerator as OcclusionAwareGenerator_ONNX
+from first_order_model.onnx.modules.generator import OcclusionAwareGenerator_ONNX
 from first_order_model.modules.keypoint_detector import KPDetector
 
 import sys
@@ -44,12 +44,12 @@ class FirstOrderModel(KeypointBasedFaceModels):
             # onnx generator
             self.generator = OcclusionAwareGenerator_ONNX(
                     **config['model_params']['generator_params'],
-                    **config['model_params']['common_params'])
+                    **config['model_params']['common_params'], for_onnx=True)
         else:
             # generator
             self.generator = OcclusionAwareGenerator(
                     **config['model_params']['generator_params'],
-                    **config['model_params']['common_params'])
+                    **config['model_params']['common_params'], for_onnx=False)
 
         if torch.cuda.is_available():
             self.generator.to(device)
