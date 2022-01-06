@@ -16,7 +16,7 @@ dir_name = f'/video-conf/scratch/vibhaa_chunky_directory/leo_logs_ref_every_{fra
 video_array = np.array(imageio.mimread(video_name))
 
 original_model = FirstOrderModel("config/api_sample.yaml")
-compressed_h264_model = FirstOrderModel("config/api_sample.yaml")
+model_with_compressed_vpx_source = FirstOrderModel("config/api_sample.yaml")
 psnrs = {'compressed': [], 'original': []}
 ssims = {'compressed': [], 'original': []}
 
@@ -31,8 +31,8 @@ for i in range(max_frames):
         
         compressed_name = f'{dir_name}/reference_frame_{i:05d}.npy'
         compressed_source = np.load(compressed_name)
-        compressed_source_kp = compressed_h264_model.extract_keypoints(compressed_source)
-        compressed_h264_model.update_source(compressed_source, compressed_source_kp)
+        compressed_source_kp = model_with_compressed_vpx_source.extract_keypoints(compressed_source)
+        model_with_compressed_vpx_source.update_source(compressed_source, compressed_source_kp)
     
     driving = video_array[i, :, :, :] 
     target_kp = original_model.extract_keypoints(driving)
@@ -43,7 +43,7 @@ for i in range(max_frames):
     psnrs['original'].append(psnr)
     ssims['original'].append(ssim)
     
-    compressed_prediction = compressed_h264_model.predict(target_kp)
+    compressed_prediction = model_with_compressed_vpx_source.predict(target_kp)
     psnr = peak_signal_noise_ratio(driving, compressed_prediction)
     ssim = structural_similarity(driving, compressed_prediction, multichannel=True)
     psnrs['compressed'].append(psnr)
