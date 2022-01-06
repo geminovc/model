@@ -49,7 +49,6 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
         for epoch in trange(start_epoch, train_params['num_epochs']):
             for x in dataloader:
                 losses_generator, generated = generator_full(x)
-                del generated['deformation']
 
                 loss_values = [val.mean() for val in losses_generator.values()]
                 loss = sum(loss_values)
