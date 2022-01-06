@@ -2,7 +2,7 @@ import torch
 from torch import nn
 import torch.nn.functional as F
 from first_order_model.modules.util import ResBlock2d, SameBlock2d, UpBlock2d, DownBlock2d
-from first_order_model.onnx.modules.dense_motion import DenseMotionNetwork
+from first_order_model.onnx.modules.dense_motion import DenseMotionNetwork_ONNX
 from mmcv.ops.point_sample import bilinear_grid_sample
 
 
@@ -17,7 +17,7 @@ class OcclusionAwareGenerator(nn.Module):
         super(OcclusionAwareGenerator, self).__init__()
 
         if dense_motion_params is not None:
-            self.dense_motion_network = DenseMotionNetwork(num_kp=num_kp, num_channels=num_channels,
+            self.dense_motion_network = DenseMotionNetwork_ONNX(num_kp=num_kp, num_channels=num_channels,
                                                            estimate_occlusion_map=estimate_occlusion_map,
                                                            **dense_motion_params)
         else:

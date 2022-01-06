@@ -3,32 +3,13 @@ import torch.nn.functional as F
 import torch
 from first_order_model.modules.util import Hourglass, AntiAliasInterpolation2d, make_coordinate_grid, kp2gaussian
 from mmcv.ops.point_sample import bilinear_grid_sample
+from first_order_model.modules.dense_motion import DenseMotionNetwork
 
 
-class DenseMotionNetwork(nn.Module):
+class DenseMotionNetwork_ONNX(DenseMotionNetwork):
     """
     Module that predicting a dense motion from sparse motion representation given by kp_source and kp_driving
     """
-
-    def __init__(self, block_expansion, num_blocks, max_features, num_kp, num_channels, estimate_occlusion_map=False,
-                 scale_factor=1, kp_variance=0.01):
-        super(DenseMotionNetwork, self).__init__()
-        self.hourglass = Hourglass(block_expansion=block_expansion, in_features=(num_kp + 1) * (num_channels + 1),
-                                   max_features=max_features, num_blocks=num_blocks)
-
-        self.mask = nn.Conv2d(self.hourglass.out_filters, num_kp + 1, kernel_size=(7, 7), padding=(3, 3))
-
-        if estimate_occlusion_map:
-            self.occlusion = nn.Conv2d(self.hourglass.out_filters, 1, kernel_size=(7, 7), padding=(3, 3))
-        else:
-            self.occlusion = None
-
-        self.num_kp = num_kp
-        self.scale_factor = scale_factor
-        self.kp_variance = kp_variance
-
-        if self.scale_factor != 1:
-            self.down = AntiAliasInterpolation2d(num_channels, self.scale_factor)
 
     def create_heatmap_representations(self, source_image, kp_driving_v, kp_driving_j, kp_source_v, kp_source_j):
         """
