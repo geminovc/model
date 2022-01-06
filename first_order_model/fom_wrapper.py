@@ -45,15 +45,14 @@ class FirstOrderModel(KeypointBasedFaceModels):
             self.generator = OcclusionAwareGenerator_ONNX(
                     **config['model_params']['generator_params'],
                     **config['model_params']['common_params'])
-            if torch.cuda.is_available():
-                self.generator.to(device)
         else:
             # generator
             self.generator = OcclusionAwareGenerator(
                     **config['model_params']['generator_params'],
                     **config['model_params']['common_params'])
-            if torch.cuda.is_available():
-                self.generator.to(device)
+
+        if torch.cuda.is_available():
+            self.generator.to(device)
 
         # keypoint detector
         self.kp_detector = KPDetector(
