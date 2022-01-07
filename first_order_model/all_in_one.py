@@ -1,3 +1,6 @@
+import sys
+sys.path.append("..")
+from keypoint_based_face_models import KeypointBasedFaceModels
 import torch
 from torch import nn
 import torch.nn.functional as F
@@ -5,32 +8,15 @@ from mmcv.ops.point_sample import bilinear_grid_sample
 import yaml
 import numpy as np
 from skimage import img_as_float32
-
-import sys
-sys.path.append("..")
-from keypoint_based_face_models import KeypointBasedFaceModels
-
 import imageio 
 import time
-
-
 import os
 from skimage.draw import circle
-
 import matplotlib.pyplot as plt
 import collections
-
-import collections
-
-import torch
-import torch.nn.functional as F
-
 from torch.nn.modules.batchnorm import _BatchNorm
 from torch.nn.parallel._functions import ReduceAddCoalesced, Broadcast
-
-
 import queue
-import collections
 import threading
 
 
@@ -504,18 +490,23 @@ class ResBlock2d(nn.Module):
                                padding=padding)
         self.conv2 = nn.Conv2d(in_channels=in_features, out_channels=in_features, kernel_size=kernel_size,
                                padding=padding)
-        self.norm1 = SynchronizedBatchNorm2d(in_features, affine=True)
-        self.norm2 = SynchronizedBatchNorm2d(in_features, affine=True)
+        self.norm1 = nn.BatchNorm2d(in_features, affine=True)
+        self.norm2 = nn.BatchNorm2d(in_features, affine=True)
         self.relu = torch.nn.ReLU()
+        self.quant = torch.quantization.QuantStub()
+        self.dequant = torch.quantization.DeQuantStub()
+
 
     def forward(self, x):
+        x = self.quant(x)
         out = self.norm1(x)
-        out = F.relu(out)
+        out = self.relu(out)
         out = self.conv1(out)
         out = self.norm2(out)
-        out = F.relu(out)
+        out = self.relu(out)
         out = self.conv2(out)
-        out += x
+        # out += x
+        out = self.dequant(out)
         return out
 
 
@@ -1406,10 +1397,10 @@ def main2():
 
     # model_fp32_prepared(input_fp32)
 
-    ss = time.time()
-    for i in range(0, 100):
-        res = model_fp32(input_fp32)
-    print(time.time() - ss)
+    # ss = time.time()
+    # for i in range(0, 100):
+    #     res = model_fp32(input_fp32)
+    # print(time.time() - ss)
 
     model_int8 = torch.quantization.convert(model_fp32_prepared)
 
