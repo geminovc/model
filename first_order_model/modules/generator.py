@@ -21,7 +21,7 @@ class OcclusionAwareGenerator(nn.Module):
             if for_onnx:
                 self.dense_motion_network = DenseMotionNetwork_ONNX(num_kp=num_kp, num_channels=num_channels,
                                                             estimate_occlusion_map=estimate_occlusion_map,
-                                                            **dense_motion_params)
+                                                            **dense_motion_params, for_onnx=True)
             else:
                 self.dense_motion_network = DenseMotionNetwork(num_kp=num_kp, num_channels=num_channels,
                                                             estimate_occlusion_map=estimate_occlusion_map,

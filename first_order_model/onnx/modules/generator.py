@@ -31,11 +31,9 @@ class OcclusionAwareGenerator_ONNX(OcclusionAwareGenerator):
         # Transforming feature representation according to deformation and occlusion
         output_dict = {}
         if self.dense_motion_network is not None:
-            dense_motion_m, dense_motion_sparse_deformed, dense_motion_occ_map, dense_motion_deformation = self.dense_motion_network(source_image=source_image,
+            dense_motion_occ_map, dense_motion_deformation = self.dense_motion_network(source_image=source_image,
                                                      kp_driving_v=kp_driving_v, kp_driving_j=kp_driving_j,
                                                      kp_source_v=kp_source_v, kp_source_j=kp_source_j)
-            output_dict_m = dense_motion_m
-            output_dict_sparse_deformed = dense_motion_sparse_deformed
             output_dict_occ_m = dense_motion_occ_map
             deformation = dense_motion_deformation
             occlusion_map = dense_motion_occ_map
@@ -47,9 +45,6 @@ class OcclusionAwareGenerator_ONNX(OcclusionAwareGenerator):
                     occlusion_map = F.interpolate(output_dict_occ_m, size=out.shape[2:], mode='bilinear')
                 out = out * occlusion_map
 
-            output_dict_deformed, deformation = self.deform_input(source_image, deformation)
-            output_dict_deformation = deformation
-
         # Decoding part
         out = self.bottleneck(out)
         for i in range(len(self.up_blocks)):
@@ -59,5 +54,4 @@ class OcclusionAwareGenerator_ONNX(OcclusionAwareGenerator):
 
         output_dict_prediction = out
 
-        # return (output_dict_prediction, output_dict_m, output_dict_deformation, output_dict_deformed, output_dict_occ_m, output_dict_sparse_deformed)
         return output_dict_prediction

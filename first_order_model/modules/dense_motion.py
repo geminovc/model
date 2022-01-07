@@ -2,6 +2,7 @@ from torch import nn
 import torch.nn.functional as F
 import torch
 from first_order_model.modules.util import Hourglass, AntiAliasInterpolation2d, make_coordinate_grid, kp2gaussian
+from mmcv.ops.point_sample import bilinear_grid_sample
 
 
 class DenseMotionNetwork(nn.Module):
@@ -10,7 +11,7 @@ class DenseMotionNetwork(nn.Module):
     """
 
     def __init__(self, block_expansion, num_blocks, max_features, num_kp, num_channels, estimate_occlusion_map=False,
-                 scale_factor=1, kp_variance=0.01):
+                 scale_factor=1, kp_variance=0.01, for_onnx=False):
         super(DenseMotionNetwork, self).__init__()
         self.hourglass = Hourglass(block_expansion=block_expansion, in_features=(num_kp + 1) * (num_channels + 1),
                                    max_features=max_features, num_blocks=num_blocks)
@@ -28,6 +29,8 @@ class DenseMotionNetwork(nn.Module):
 
         if self.scale_factor != 1:
             self.down = AntiAliasInterpolation2d(num_channels, self.scale_factor)
+        
+        self.for_onnx = for_onnx
 
     def create_heatmap_representations(self, source_image, kp_driving, kp_source):
         """
@@ -52,7 +55,7 @@ class DenseMotionNetwork(nn.Module):
         identity_grid = make_coordinate_grid((h, w), type=kp_source['value'].type())
         identity_grid = identity_grid.view(1, 1, h, w, 2)
         coordinate_grid = identity_grid - kp_driving['value'].view(bs, self.num_kp, 1, 1, 2)
-        if 'jacobian' in kp_driving:
+        if 'jacobian' in kp_driving and not self.for_onnx:
             jacobian = torch.matmul(kp_source['jacobian'], torch.inverse(kp_driving['jacobian']))
             jacobian = jacobian.unsqueeze(-3).unsqueeze(-3)
             jacobian = jacobian.repeat(1, 1, h, w, 1, 1)
@@ -74,7 +77,10 @@ class DenseMotionNetwork(nn.Module):
         source_repeat = source_image.unsqueeze(1).unsqueeze(1).repeat(1, self.num_kp + 1, 1, 1, 1, 1)
         source_repeat = source_repeat.view(bs * (self.num_kp + 1), -1, h, w)
         sparse_motions = sparse_motions.view((bs * (self.num_kp + 1), h, w, -1))
-        sparse_deformed = F.grid_sample(source_repeat, sparse_motions)
+        if self.for_onnx:
+            sparse_deformed = bilinear_grid_sample(source_repeat, sparse_motions)
+        else:
+            sparse_deformed = F.grid_sample(source_repeat, sparse_motions)
         sparse_deformed = sparse_deformed.view((bs, self.num_kp + 1, -1, h, w))
         return sparse_deformed
 
