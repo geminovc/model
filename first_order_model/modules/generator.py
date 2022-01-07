@@ -15,7 +15,8 @@ class OcclusionAwareGenerator(nn.Module):
     """
 
     def __init__(self, num_channels, num_kp, block_expansion, max_features, num_down_blocks,
-                 num_bottleneck_blocks, estimate_occlusion_map=False, dense_motion_params=None, estimate_jacobian=False, for_onnx=False):
+                 num_bottleneck_blocks, estimate_occlusion_map=False, dense_motion_params=None,
+                 estimate_jacobian=False, for_onnx=False):
         super(OcclusionAwareGenerator, self).__init__()
 
         if dense_motion_params is not None:

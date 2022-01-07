@@ -20,7 +20,8 @@ class OcclusionAwareGenerator_ONNX(OcclusionAwareGenerator):
         # Transforming feature representation according to deformation and occlusion
         output_dict = {}
         if self.dense_motion_network is not None:
-            dense_motion_occ_map, dense_motion_deformation = self.dense_motion_network(source_image=source_image,
+            dense_motion_occ_map, dense_motion_deformation = self.dense_motion_network(
+                                                     source_image=source_image,
                                                      kp_driving_v=kp_driving_v, kp_driving_j=kp_driving_j,
                                                      kp_source_v=kp_source_v, kp_source_j=kp_source_j)
             output_dict_occ_m = dense_motion_occ_map
