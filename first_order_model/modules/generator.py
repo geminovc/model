@@ -4,6 +4,7 @@ import torch.nn.functional as F
 from first_order_model.modules.util import ResBlock2d, SameBlock2d, UpBlock2d, DownBlock2d
 from first_order_model.modules.dense_motion import DenseMotionNetwork
 from first_order_model.onnx.modules.dense_motion import DenseMotionNetwork_ONNX
+from mmcv.ops.point_sample import bilinear_grid_sample
 
 
 
@@ -53,6 +54,7 @@ class OcclusionAwareGenerator(nn.Module):
         self.final = nn.Conv2d(block_expansion, num_channels, kernel_size=(7, 7), padding=(3, 3))
         self.estimate_occlusion_map = estimate_occlusion_map
         self.num_channels = num_channels
+        self.for_onnx = for_onnx
 
     def deform_input(self, inp, deformation):
         _, h_old, w_old, _ = deformation.shape
@@ -61,7 +63,10 @@ class OcclusionAwareGenerator(nn.Module):
             deformation = deformation.permute(0, 3, 1, 2)
             deformation = F.interpolate(deformation, size=(h, w), mode='bilinear')
             deformation = deformation.permute(0, 2, 3, 1)
-        return F.grid_sample(inp, deformation), deformation
+        if self.for_onnx:
+            return bilinear_grid_sample(inp, deformation), deformation
+        else:
+            return F.grid_sample(inp, deformation), deformation
 
     def forward(self, source_image, kp_driving, kp_source):
         # Encoding (downsampling) part

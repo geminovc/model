@@ -3,7 +3,6 @@ from torch import nn
 import torch.nn.functional as F
 from first_order_model.modules.util import ResBlock2d, SameBlock2d, UpBlock2d, DownBlock2d
 from first_order_model.modules.generator import OcclusionAwareGenerator
-from mmcv.ops.point_sample import bilinear_grid_sample
 
 
 class OcclusionAwareGenerator_ONNX(OcclusionAwareGenerator):
@@ -11,16 +10,6 @@ class OcclusionAwareGenerator_ONNX(OcclusionAwareGenerator):
     Generator that given source image and and keypoints try to transform image according to movement trajectories
     induced by keypoints. Generator follows Johnson architecture.
     """
-
-    def deform_input(self, inp, deformation):
-        _, h_old, w_old, _ = deformation.shape
-        _, _, h, w = inp.shape
-        if h_old != h or w_old != w:
-            deformation = deformation.permute(0, 3, 1, 2)
-            deformation = F.interpolate(deformation, size=(h, w), mode='bilinear')
-            deformation = deformation.permute(0, 2, 3, 1)
-        # return F.grid_sample(inp, deformation), deformation
-        return bilinear_grid_sample(inp, deformation), deformation
 
     def forward(self, source_image, kp_driving_v, kp_driving_j, kp_source_v, kp_source_j):
         # Encoding (downsampling) part
