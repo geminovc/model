@@ -42,7 +42,8 @@ def run_kp_detector(net_type, driving, pytorch_model=None, onnx_session=None):
         kp_time = time.time() - start
         target_jacobian = None
     else:
-        onnx_session_kp_input = {'source': np.array(np.transpose(driving[None, :], (0, 3, 1, 2)), dtype=np.float32)/255}
+        source_reshaped = np.array(np.transpose(driving[None, :], (0, 3, 1, 2)), dtype=np.float32) / 255
+        onnx_session_kp_input = {'source': source_reshaped}
         start = time.time()
         target_kp, target_jacobian = onnx_session.run(None, onnx_session_kp_input)
         kp_time = time.time() - start
@@ -50,7 +51,8 @@ def run_kp_detector(net_type, driving, pytorch_model=None, onnx_session=None):
     return kp_time, target_kp, target_jacobian
 
 
-def run_generator(net_type, pytorch_inputs=None, onnx_inputs=None, pytorch_model=None, onnx_session=None):
+def run_generator(net_type, pytorch_inputs=None, onnx_inputs=None,
+                  pytorch_model=None, onnx_session=None):
     if net_type == 'pytorch':
         start = time.time()
         frame_next = pytorch_model.predict(pytorch_inputs)
@@ -64,9 +66,12 @@ def run_generator(net_type, pytorch_inputs=None, onnx_inputs=None, pytorch_model
     return gen_time, frame_next
 
 
-def run_deepsparse(inputs, engine):
+def run_deepsparse(inputs, deepsparse_engine):
+    """This function receives the converted model to deepsparse (deepsparse_engine) 
+       and the input for that model. 
+    """
     start = time.time()
-    outputs = engine.run(inputs)
+    outputs = deepsparse_engine.run(inputs)
     gen_time = time.time() - start
     frame_next = np.transpose(outputs[0].squeeze(), (1, 2, 0))
     return gen_time, frame_next
@@ -76,72 +81,84 @@ def run_inference(video_name, model_type='onnx', csv_file_name='timings.csv',
                   config_path='../config/api_sample.yaml', onnx_path="./"):
     video_array = np.array(imageio.mimread(video_name))
     source = video_array[0, :, :, :]
-
+    
+    # Initializing the model based on model_type
     if model_type == 'pytorch':
-        # set up model
         model = FirstOrderModel(config_path)
         source_kp = model.extract_keypoints(source)
         model.update_source(source, source_kp)
+
     elif model_type == 'pytorch + kp_onnx':
         model = FirstOrderModel(config_path)
         onnx_session_kp_extractor = onnxruntime.InferenceSession(onnx_path + "fom_kp.onnx")
-        source_reshaped = np.array(np.transpose(source[None, :], (0, 3, 1, 2)), dtype=np.float32)/255
+        source_reshaped = np.array(np.transpose(source[None, :], (0, 3, 1, 2)), dtype=np.float32) / 255
         onnx_session_kp_input = {'source': source_reshaped}
         source_kp, source_jacobian = onnx_session_kp_extractor.run(None, onnx_session_kp_input)
         model.update_source(source, {'keypoints': np.squeeze(source_kp), 'jacobians': source_jacobian})
+
     elif model_type == 'pytorch + generator_onnx':
         model = FirstOrderModel(config_path)
         onnx_session_generator = onnxruntime.InferenceSession(onnx_path + "fom_gen.onnx")
         source_kp = model.extract_keypoints(source)
         model.update_source(source, source_kp)
+
     elif model_type == 'onnx' or model_type == 'deepsparse':
         onnx_session_generator = onnxruntime.InferenceSession(onnx_path + "fom_gen.onnx")
         onnx_session_kp_extractor = onnxruntime.InferenceSession(onnx_path + "fom_kp.onnx")
-        source_reshaped = np.array(np.transpose(source[None, :], (0, 3, 1, 2)), dtype=np.float32)/255
+        source_reshaped = np.array(np.transpose(source[None, :], (0, 3, 1, 2)), dtype=np.float32) / 255
         onnx_session_kp_input = {'source': source_reshaped}
         source_kp, source_jacobian = onnx_session_kp_extractor.run(None, onnx_session_kp_input)
         if model_type == 'deepsparse':
             batch_size = 1
-            # kp_engine = compile_model(onnx_path + "fom_kp.onnx", batch_size)
             gen_engine = compile_model(onnx_path + "fom_gen.onnx", batch_size)
 
     predictions, psnr_values, ssim_values, lpips_values, kp_times, gen_times = [], [], [], [], [], []
 
+    # Actual generation of the frames
     for i in range(1, len(video_array) - 1):
         driving = video_array[i, :, :, :]
 
         if model_type == 'pytorch':
             kp_time, target_kp, _ = run_kp_detector('pytorch', driving, model)
             gen_time, frame_next = run_generator('pytorch', pytorch_inputs=target_kp, pytorch_model=model)
+
         elif model_type == 'pytorch + kp_onnx':
-            kp_time, target_kp, target_jacobian = run_kp_detector('onnx', driving, onnx_session=onnx_session_kp_extractor)
+            kp_time, target_kp, target_jacobian = run_kp_detector('onnx', driving,
+                                                                  onnx_session=onnx_session_kp_extractor)
             pytorch_inputs = {'keypoints': np.squeeze(target_kp)}
             gen_time, frame_next = run_generator('pytorch', pytorch_inputs=pytorch_inputs, pytorch_model=model)
+
         elif model_type == 'pytorch + generator_onnx':
             kp_time, target_kp, _ = run_kp_detector('pytorch', driving, model)
             target_reshaped = np.array(np.transpose(source[None, :], (0, 3, 1, 2)), dtype=np.float32)/255
             onnx_inputs = {'source_image': target_reshaped,
                           'kp_driving_v': target_kp['keypoints'][None, :],
                           'kp_source_v': source_kp['keypoints'][None, :]}
-            gen_time, frame_next = run_generator('onnx', onnx_inputs=onnx_inputs, onnx_session=onnx_session_generator)
-        elif model_type == 'onnx' or model_type == 'deepsparse':
-            kp_time, target_kp, _ = run_kp_detector('onnx', driving, onnx_session=onnx_session_kp_extractor)
-            if model_type == 'onnx':
-                target_reshaped = np.array(np.transpose(source[None, :], (0, 3, 1, 2)), dtype=np.float32)/255
-                onnx_inputs = {'source_image': target_reshaped,
-                              'kp_driving_v': target_kp,
-                              'kp_source_v': source_kp}
-                gen_time, frame_next = run_generator('onnx', onnx_inputs=onnx_inputs, onnx_session=onnx_session_generator)
-            else:
-                target_reshaped = np.ascontiguousarray(np.array(np.transpose(source[None, :],
-                                                       (0, 3, 1, 2)), dtype=np.float32)/255)
-                inputs = [target_reshaped, target_kp, source_kp]
-                gen_time, frame_next = run_deepsparse(inputs, gen_engine)
+            gen_time, frame_next = run_generator('onnx', onnx_inputs=onnx_inputs,
+                                                  onnx_session=onnx_session_generator)
 
+        elif model_type == 'onnx':
+            kp_time, target_kp, _ = run_kp_detector('onnx', driving, onnx_session=onnx_session_kp_extractor)
+            target_reshaped = np.array(np.transpose(source[None, :], (0, 3, 1, 2)), dtype=np.float32) / 255
+            onnx_inputs = {'source_image': target_reshaped,
+                            'kp_driving_v': target_kp,
+                            'kp_source_v': source_kp}
+            gen_time, frame_next = run_generator('onnx', onnx_inputs=onnx_inputs,
+                                                  onnx_session=onnx_session_generator)
+
+        elif model_type == 'deepsparse':
+            kp_time, target_kp, _ = run_kp_detector('onnx', driving, onnx_session=onnx_session_kp_extractor)
+            target_reshaped = np.ascontiguousarray(np.array(np.transpose(source[None, :],
+                                                    (0, 3, 1, 2)), dtype=np.float32) / 255)
+            inputs = [target_reshaped, target_kp, source_kp]
+            gen_time, frame_next = run_deepsparse(inputs, gen_engine)
+        
+        # Gathering per-frame information
         gen_times.append(gen_time)
         kp_times.append(kp_time)
         predictions.append(frame_next)
-        psnr_value, ssim_value, lpips_value = metrics_utils.compute_metric_for_files((255 * frame_next).astype(np.uint8), driving)
+        psnr_value, ssim_value, lpips_value = metrics_utils.compute_metric_for_files(
+                                              (255 * frame_next).astype(np.uint8), driving)
         psnr_values.append(psnr_value)
         ssim_values.append(ssim_value)
         lpips_values.append(lpips_value)
