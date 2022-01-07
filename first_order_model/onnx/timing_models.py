@@ -1,8 +1,5 @@
 from first_order_model.fom_wrapper import FirstOrderModel
 import original_bilayer.examples.utils as metrics_utils
-import platform
-if platform.system() == 'Linux':
-    from deepsparse import compile_model
 import numpy as np
 import onnxruntime
 import torch
@@ -10,9 +7,12 @@ import time
 import imageio
 import argparse
 import csv
+import platform
+if platform.system() == 'Linux':
+    from deepsparse import compile_model
 
 
-parser = argparse.ArgumentParser(description='Get video information')
+parser = argparse.ArgumentParser(description='Get timing information of models, and visual metrics of the results')
 parser.add_argument('--video_path',
                         type = str,
                         default = '../short_test_video.mp4',
@@ -31,29 +31,29 @@ parser.add_argument('--csv_file_name',
                        help = 'name of csv file to write results out to')
 
 
-def run_kp_detector(net_type, driving, model=None, ort_session=None):
+def run_kp_detector(net_type, driving, model=None, onnx_session=None):
     if net_type == 'pytorch':
         start = time.time()
         target_kp = model.extract_keypoints(driving)
         kp_time = time.time() - start
         target_jacobian = None
     else:
-        ort_session_kp_input = {'source': np.array(np.transpose(driving[None, :], (0, 3, 1, 2)), dtype=np.float32)/255}
+        onnx_session_kp_input = {'source': np.array(np.transpose(driving[None, :], (0, 3, 1, 2)), dtype=np.float32)/255}
         start = time.time()
-        target_kp, target_jacobian = ort_session.run(None, ort_session_kp_input)
+        target_kp, target_jacobian = onnx_session.run(None, onnx_session_kp_input)
         kp_time = time.time() - start
 
     return kp_time, target_kp, target_jacobian
 
 
-def run_generator(net_type, torch_inputs=None, ort_inputs=None, model=None, ort_session=None):
+def run_generator(net_type, torch_inputs=None, ort_inputs=None, model=None, onnx_session=None):
     if net_type == 'pytorch':
         start = time.time()
         frame_next = model.predict(torch_inputs)
         gen_time = time.time() - start
     else:
         start = time.time()
-        ort_outs = ort_session.run(None, ort_inputs)
+        ort_outs = onnx_session.run(None, ort_inputs)
         gen_time = time.time() - start
         frame_next = np.transpose(ort_outs[0].squeeze(), (1, 2, 0))
 
@@ -78,22 +78,22 @@ def run_inference(video_name, model_type='onnx', csv_file_name='timings.csv',
         model.update_source(source, source_kp)
     elif model_type == 'pytorch + kp_onnx':
         model = FirstOrderModel(config_path)
-        ort_session_kp_extractor = onnxruntime.InferenceSession(onnx_path + "fom_kp.onnx")
-        ort_session_kp_input = {'source': np.array(np.transpose(source[None, :], (0, 3, 1, 2)),
+        onnx_session_kp_extractor = onnxruntime.InferenceSession(onnx_path + "fom_kp.onnx")
+        onnx_session_kp_input = {'source': np.array(np.transpose(source[None, :], (0, 3, 1, 2)),
                                  dtype=np.float32)/255}
-        source_kp, source_jacobian = ort_session_kp_extractor.run(None, ort_session_kp_input)
+        source_kp, source_jacobian = onnx_session_kp_extractor.run(None, onnx_session_kp_input)
         model.update_source(source, {'keypoints': np.squeeze(source_kp), 'jacobians': source_jacobian})
     elif model_type == 'pytorch + generator_onnx':
         model = FirstOrderModel(config_path)
-        ort_session_generator = onnxruntime.InferenceSession(onnx_path + "fom_gen.onnx")
+        onnx_session_generator = onnxruntime.InferenceSession(onnx_path + "fom_gen.onnx")
         source_kp = model.extract_keypoints(source)
         model.update_source(source, source_kp)
     elif model_type == 'onnx' or model_type == 'deepsparse':
-        ort_session_generator = onnxruntime.InferenceSession(onnx_path + "fom_gen.onnx")
-        ort_session_kp_extractor = onnxruntime.InferenceSession(onnx_path + "fom_kp.onnx")
-        ort_session_kp_input = {'source': np.array(np.transpose(source[None, :], (0, 3, 1, 2)),
+        onnx_session_generator = onnxruntime.InferenceSession(onnx_path + "fom_gen.onnx")
+        onnx_session_kp_extractor = onnxruntime.InferenceSession(onnx_path + "fom_kp.onnx")
+        onnx_session_kp_input = {'source': np.array(np.transpose(source[None, :], (0, 3, 1, 2)),
                                 dtype=np.float32)/255}
-        source_kp, source_jacobian = ort_session_kp_extractor.run(None, ort_session_kp_input)
+        source_kp, source_jacobian = onnx_session_kp_extractor.run(None, onnx_session_kp_input)
         if model_type == 'deepsparse':
             batch_size = 1
             # kp_engine = compile_model(onnx_path + "fom_kp.onnx", batch_size)
@@ -108,7 +108,7 @@ def run_inference(video_name, model_type='onnx', csv_file_name='timings.csv',
             kp_time, target_kp, _ = run_kp_detector('pytorch', driving, model)
             gen_time, frame_next = run_generator('pytorch', torch_inputs=target_kp, model=model)
         elif model_type == 'pytorch + kp_onnx':
-            kp_time, target_kp, target_jacobian = run_kp_detector('onnx', driving, ort_session=ort_session_kp_extractor)
+            kp_time, target_kp, target_jacobian = run_kp_detector('onnx', driving, onnx_session=onnx_session_kp_extractor)
             torch_inputs = {'keypoints': np.squeeze(target_kp)}
             gen_time, frame_next = run_generator('pytorch', torch_inputs=torch_inputs, model=model)
         elif model_type == 'pytorch + generator_onnx':
@@ -116,14 +116,14 @@ def run_inference(video_name, model_type='onnx', csv_file_name='timings.csv',
             ort_inputs = {'source_image': np.array(np.transpose(source[None, :], (0, 3, 1, 2)), dtype=np.float32)/255,
                           'kp_driving_v': target_kp['keypoints'][None, :],
                           'kp_source_v': source_kp['keypoints'][None, :]}
-            gen_time, frame_next = run_generator('onnx', ort_inputs=ort_inputs, ort_session=ort_session_generator)
+            gen_time, frame_next = run_generator('onnx', ort_inputs=ort_inputs, onnx_session=onnx_session_generator)
         elif model_type == 'onnx' or model_type == 'deepsparse':
-            kp_time, target_kp, _ = run_kp_detector('onnx', driving, ort_session=ort_session_kp_extractor)
+            kp_time, target_kp, _ = run_kp_detector('onnx', driving, onnx_session=onnx_session_kp_extractor)
             if model_type == 'onnx':
                 ort_inputs = {'source_image': np.array(np.transpose(source[None, :], (0, 3, 1, 2)), dtype=np.float32)/255,
                             'kp_driving_v': target_kp,
                             'kp_source_v': source_kp}
-                gen_time, frame_next = run_generator('onnx', ort_inputs=ort_inputs, ort_session=ort_session_generator)
+                gen_time, frame_next = run_generator('onnx', ort_inputs=ort_inputs, onnx_session=onnx_session_generator)
             else:
                 inputs = [np.ascontiguousarray(np.array(np.transpose(source[None, :], (0, 3, 1, 2)), dtype=np.float32)/255),
                          target_kp, source_kp]
