@@ -9,6 +9,9 @@ import copy
 
 
 def measure_module_sparsity(module, weight=True, bias=False, use_mask=False):
+    """ Measures the sparsity of a module based on number of weights and biases
+        which are less than 0.1.
+    """
     num_zeros = 0
     num_elements = 0
     if use_mask == True:
@@ -37,6 +40,8 @@ def measure_module_sparsity(module, weight=True, bias=False, use_mask=False):
 
 
 def measure_global_sparsity(model, weight=True, bias=False, conv2d_use_mask=False, linear_use_mask=False):
+    """ Measures the sparsity of a model based on the sparsity of its modules.
+    """
     num_zeros = 0
     num_elements = 0
     for module_name, module in model.named_modules():
@@ -60,7 +65,11 @@ def measure_global_sparsity(model, weight=True, bias=False, conv2d_use_mask=Fals
 
 
 def model_pruning(model, conv2d_prune_amount=0.4, linear_prune_amount=0.2, grouped_pruning=True):
-    num_zeros, num_elements, sparsity = measure_global_sparsity(model, weight=True, bias=True, conv2d_use_mask=False, linear_use_mask=False)
+    """ if grouped_pruning == True, the weights and biases of Conv2 modules are passed to global_unstructured
+        pruining, if Flase Conv2 modules are passed to l1_unstructured pruning. 
+    """
+    num_zeros, num_elements, sparsity = measure_global_sparsity(model, weight=True, bias=True,
+                                                   conv2d_use_mask=False, linear_use_mask=False)
 
     print("Global Sparsity before pruning:")
     print("{:.2f}".format(sparsity))
@@ -72,29 +81,19 @@ def model_pruning(model, conv2d_prune_amount=0.4, linear_prune_amount=0.2, group
             if isinstance(module, torch.nn.Conv2d):
                 parameters_to_prune.append((module, "weight"))
                 parameters_to_prune.append((module, "bias"))
-        prune.global_unstructured(
-            parameters_to_prune,
-            pruning_method=prune.L1Unstructured,
-            amount=conv2d_prune_amount,
-        )
+        prune.global_unstructured(parameters_to_prune, pruning_method=prune.L1Unstructured,
+                                  amount=conv2d_prune_amount)
     else:
         for module_name, module in model.named_modules():
             if isinstance(module, torch.nn.Conv2d):
-                prune.l1_unstructured(module,
-                                        name="weight",
-                                        amount=conv2d_prune_amount)
-                prune.l1_unstructured(module,
-                                        name="bias",
-                                        amount=conv2d_prune_amount)
+                prune.l1_unstructured(module, name="weight", amount=conv2d_prune_amount)
+                prune.l1_unstructured(module, name="bias", amount=conv2d_prune_amount)
             elif isinstance(module, torch.nn.Linear):
-                prune.l1_unstructured(module,
-                                        name="weight",
-                                        amount=linear_prune_amount)
-                prune.l1_unstructured(module,
-                                        name="bias",
-                                        amount=linear_prune_amount)                
+                prune.l1_unstructured(module, name="weight", amount=linear_prune_amount)
+                prune.l1_unstructured(module, name="bias", amount=linear_prune_amount)                
 
-    num_zeros, num_elements, sparsity = measure_global_sparsity(model, weight=True, bias=False, conv2d_use_mask=False, linear_use_mask=False)
+    num_zeros, num_elements, sparsity = measure_global_sparsity(model, weight=True, bias=False, 
+                                                   conv2d_use_mask=False, linear_use_mask=False)
 
     print("Global Sparsity after pruning")
     print("{:.2f}".format(sparsity))
