@@ -10,7 +10,6 @@ parser.add_argument('--config_path',
                         default = '../first_order_model/config/api_sample.yaml',
                         help = 'path to the config file')
 
-
 def get_n_params(model):
     pp=0
     for p in list(model.parameters()):
@@ -20,28 +19,25 @@ def get_n_params(model):
         pp += nn
     return pp
 
-
 def get_model_info(model):
     modules = [module for module in model.modules()]
     modules_params = []
-    moduels_children = []
+    modules_children = []
     for module in modules:
         children_param = []
         children = get_children(module)
-        moduels_children.append(children)
+        modules_children.append(children)
         try:
             for child in children:
                 children_param.append(get_n_params(child))
         except:
             children_param.append(get_n_params(children))
         modules_params.append(children_param)
-    return modules_params, modules, moduels_children
-
+    return modules_params, modules, modules_children
 
 def get_model_names(model):
     for name, layer in model.named_modules():
         print(name, layer)
-
 
 def get_children(model):
     # get children form model!
@@ -59,7 +55,6 @@ def get_children(model):
                 flatt_children.append(get_children(child))
     return flatt_children
 
-
 def plot_model_info(model_info, title):
     colors = list(mcolors.CSS4_COLORS.keys())
     model_info_flatten = [item for sublist in model_info for item in sublist]
@@ -74,13 +69,12 @@ def plot_model_info(model_info, title):
     plt.title(title)
     plt.savefig(f'{title}.jpg')
 
-
-def process_model_info(model_info, modules, moduels_children, model_name):
+def process_model_info(model_info, modules, modules_children, model_name):
     def show_child(i, j):
         try:
-            print(moduels_children[i][j])
+            print(modules_children[i][j])
         except:
-            print(moduels_children[i])
+            print(modules_children[i])
 
     def get_layers(min_th, max_th):
         for i in range(0, len(model_info)):
@@ -100,20 +94,18 @@ def process_model_info(model_info, modules, moduels_children, model_name):
     print(f"# of params greater than 8M in {model_name}")
     get_layers(8000000, 11000000)
 
-
 if __name__ == '__main__':
     args = parser.parse_args()
     model = FirstOrderModel(args.config_path)
 
-    model_info, modules, moduels_children = get_model_info(model.generator)
-    process_model_info(model_info, modules, moduels_children, "Generator")
+    model_info, modules, modules_children = get_model_info(model.generator)
+    process_model_info(model_info, modules, modules_children, "Generator")
     print("Number of parameters in the generator", get_n_params(model.generator))
     plot_model_info(model_info, "Generator")
 
-    model_info, modules, moduels_children = get_model_info(model.kp_detector)
-    process_model_info(model_info, modules, moduels_children, "KP Detector")
+    model_info, modules, modules_children = get_model_info(model.kp_detector)
+    process_model_info(model_info, modules, modules_children, "KP Detector")
     print("Number of parameters in the kp detctor", get_n_params(model.kp_detector))
     plot_model_info(model_info, "KP Detector")
-
 
 
