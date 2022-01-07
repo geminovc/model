@@ -15,16 +15,16 @@ x4 = torch.randn(1, 10, 2, 2, requires_grad=False)
 convert_kp_extractor = True
 convert_generator = True
 if convert_generator:
-
     torch.onnx.export(model.generator,           # model being run 
                       (x0, x1, x2, x3, x4),      # model input (or a tuple for multiple inputs)
                       "fom_gen.onnx",            # where to save the model 
                       export_params=True,        # store the trained parameter weights inside the model file
                       opset_version=11,          # the ONNX version to export the model to
                       do_constant_folding=True,  # whether to execute constant folding for optimization
-                      input_names = ['source_image', 'kp_driving_v', 'kp_driving_j',
+                      input_names=['source_image', 'kp_driving_v', 'kp_driving_j',
                                      'kp_source_v', 'kp_source_j'],
-                      output_names = ['output']) # the model's output names
+                      output_names=['output'])   # the model's output names
+
 if convert_kp_extractor:
     torch.onnx.export(model.kp_detector,         # model being run
                       x0,                        # model input (or a tuple for multiple inputs)
@@ -32,5 +32,5 @@ if convert_kp_extractor:
                       export_params=True,        # store the trained parameter weights inside the model file
                       opset_version=11,          # the ONNX version to export the model to
                       do_constant_folding=True,  # whether to execute constant folding for optimization
-                      input_names = ['source'],  # the model's input names
-                      output_names = ['output']) # the model's output names
+                      input_names=['source'],    # the model's input names
+                      output_names=['output'])   # the model's output names
