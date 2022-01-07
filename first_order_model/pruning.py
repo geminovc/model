@@ -1,7 +1,4 @@
-import sys
-sys.path.append("..")
-from keypoint_based_face_models import KeypointBasedFaceModels
-from fom_wrapper import FirstOrderModel
+from first_order_model.fom_wrapper import FirstOrderModel
 import numpy as np
 import time
 import torch
@@ -9,17 +6,6 @@ from torch import nn
 import torch.nn.utils.prune as prune
 import torch.nn.functional as F
 import copy
-
-
-def prune_model_l1_unstructured(model, layer_type, proportion):
-    for module in model.modules():
-        try:
-            if isinstance(module, layer_type):
-                prune.random_unstructured(module, 'weight', proportion)
-                prune.remove(module, 'weight')
-        except:
-            pass
-    return model
 
 
 def measure_module_sparsity(module, weight=True, bias=False, use_mask=False):
@@ -110,13 +96,13 @@ def model_pruning(model, conv2d_prune_amount=0.4, linear_prune_amount=0.2, group
 
     num_zeros, num_elements, sparsity = measure_global_sparsity(model, weight=True, bias=False, conv2d_use_mask=False, linear_use_mask=False)
 
-    print("Global Sparsity after pruning:")
+    print("Global Sparsity after pruning")
     print("{:.2f}".format(sparsity))
 
     return model
 
 
-def time_the_model(model):
+def time_model(model):
     x0 = torch.randn(1, 3, 256, 256, requires_grad=False)
     x1 = torch.randn(1, 10, 2,requires_grad=False)
     x2 = torch.randn(1, 10, 2, 2, requires_grad=False)
@@ -126,6 +112,7 @@ def time_the_model(model):
         start_time = time.time()
         res = model(x0, {'value':x1, 'jacobian':x2}, {'value':x3, 'jacobian':x4})
         print("Inference on model:", time.time() - start_time)
+
 
 def remove_parameters(model):
     for module_name, module in model.named_modules():
@@ -150,6 +137,7 @@ def remove_parameters(model):
 
     return model
 
+
 def main():
     model_fom = FirstOrderModel("config/api_sample.yaml")
     convert_kp_extractor = False
@@ -158,15 +146,15 @@ def main():
     if convert_generator:
         model = model_fom.generator
         model.eval()
-        # print("Timing the original:")
-        # time_the_model(model)
+        print("Timing the original model:")
+        time_model(model)
 
         pruned_model = copy.deepcopy(model)
         pruned_model.eval()
         pruned_model = model_pruning(model=pruned_model, conv2d_prune_amount=0.001, linear_prune_amount=0.002, grouped_pruning=False)
         pruned_model = remove_parameters(model=pruned_model)
-        print("Timing the pruned:")
-        time_the_model(pruned_model)
+        print("Timing the pruned model:")
+        time_model(pruned_model)
 
 
 if __name__ == "__main__":
