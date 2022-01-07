@@ -35,10 +35,10 @@ parser.add_argument('--csv_file_name',
                        help = 'name of csv file to write results out to')
 
 
-def run_kp_detector(net_type, driving, model=None, onnx_session=None):
+def run_kp_detector(net_type, driving, pytorch_model=None, onnx_session=None):
     if net_type == 'pytorch':
         start = time.time()
-        target_kp = model.extract_keypoints(driving)
+        target_kp = pytorch_model.extract_keypoints(driving)
         kp_time = time.time() - start
         target_jacobian = None
     else:
@@ -50,14 +50,14 @@ def run_kp_detector(net_type, driving, model=None, onnx_session=None):
     return kp_time, target_kp, target_jacobian
 
 
-def run_generator(net_type, torch_inputs=None, ort_inputs=None, model=None, onnx_session=None):
+def run_generator(net_type, pytorch_inputs=None, onnx_inputs=None, pytorch_model=None, onnx_session=None):
     if net_type == 'pytorch':
         start = time.time()
-        frame_next = model.predict(torch_inputs)
+        frame_next = pytorch_model.predict(pytorch_inputs)
         gen_time = time.time() - start
     else:
         start = time.time()
-        ort_outs = onnx_session.run(None, ort_inputs)
+        ort_outs = onnx_session.run(None, onnx_inputs)
         gen_time = time.time() - start
         frame_next = np.transpose(ort_outs[0].squeeze(), (1, 2, 0))
 
@@ -112,26 +112,26 @@ def run_inference(video_name, model_type='onnx', csv_file_name='timings.csv',
 
         if model_type == 'pytorch':
             kp_time, target_kp, _ = run_kp_detector('pytorch', driving, model)
-            gen_time, frame_next = run_generator('pytorch', torch_inputs=target_kp, model=model)
+            gen_time, frame_next = run_generator('pytorch', pytorch_inputs=target_kp, pytorch_model=model)
         elif model_type == 'pytorch + kp_onnx':
             kp_time, target_kp, target_jacobian = run_kp_detector('onnx', driving, onnx_session=onnx_session_kp_extractor)
-            torch_inputs = {'keypoints': np.squeeze(target_kp)}
-            gen_time, frame_next = run_generator('pytorch', torch_inputs=torch_inputs, model=model)
+            pytorch_inputs = {'keypoints': np.squeeze(target_kp)}
+            gen_time, frame_next = run_generator('pytorch', pytorch_inputs=pytorch_inputs, pytorch_model=model)
         elif model_type == 'pytorch + generator_onnx':
             kp_time, target_kp, _ = run_kp_detector('pytorch', driving, model)
             target_reshaped = np.array(np.transpose(source[None, :], (0, 3, 1, 2)), dtype=np.float32)/255
-            ort_inputs = {'source_image': target_reshaped,
+            onnx_inputs = {'source_image': target_reshaped,
                           'kp_driving_v': target_kp['keypoints'][None, :],
                           'kp_source_v': source_kp['keypoints'][None, :]}
-            gen_time, frame_next = run_generator('onnx', ort_inputs=ort_inputs, onnx_session=onnx_session_generator)
+            gen_time, frame_next = run_generator('onnx', onnx_inputs=onnx_inputs, onnx_session=onnx_session_generator)
         elif model_type == 'onnx' or model_type == 'deepsparse':
             kp_time, target_kp, _ = run_kp_detector('onnx', driving, onnx_session=onnx_session_kp_extractor)
             if model_type == 'onnx':
                 target_reshaped = np.array(np.transpose(source[None, :], (0, 3, 1, 2)), dtype=np.float32)/255
-                ort_inputs = {'source_image': target_reshaped,
+                onnx_inputs = {'source_image': target_reshaped,
                               'kp_driving_v': target_kp,
                               'kp_source_v': source_kp}
-                gen_time, frame_next = run_generator('onnx', ort_inputs=ort_inputs, onnx_session=onnx_session_generator)
+                gen_time, frame_next = run_generator('onnx', onnx_inputs=onnx_inputs, onnx_session=onnx_session_generator)
             else:
                 target_reshaped = np.ascontiguousarray(np.array(np.transpose(source[None, :],
                                                        (0, 3, 1, 2)), dtype=np.float32)/255)
