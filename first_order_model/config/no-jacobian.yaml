@@ -18,7 +18,7 @@ model_params:
   common_params:
     num_kp: 10
     num_channels: 3
-    estimate_jacobian: True
+    estimate_jacobian: False
   kp_detector_params:
      temperature: 0.1
      block_expansion: 32
@@ -44,13 +44,13 @@ model_params:
     sn: True
 
 train_params:
-  num_epochs: 500
+  num_epochs: 100
   num_repeats: 15
   epoch_milestones: [300, 450]
   lr_generator: 2.0e-4
   lr_discriminator: 2.0e-4
   lr_kp_detector: 2.0e-4
-  batch_size: 2
+  batch_size: 5
   scales: [1, 0.5, 0.25, 0.125]
   checkpoint_freq: 50
   transform_params:
@@ -63,7 +63,7 @@ train_params:
     feature_matching: [10, 10, 10, 10]
     perceptual: [10, 10, 10, 10, 10]
     equivariance_value: 10
-    equivariance_jacobian: 10
+    equivariance_jacobian: 0
 
 reconstruction_params:
   num_videos: 1000
