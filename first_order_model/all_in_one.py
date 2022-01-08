@@ -783,10 +783,12 @@ class OcclusionAwareGenerator(nn.Module):
             if occlusion_map is not None:
                 if out.shape[2] != occlusion_map.shape[2] or out.shape[3] != occlusion_map.shape[3]:
                     occlusion_map = F.interpolate(occlusion_map, size=out.shape[2:], mode='bilinear')
-                # print(occlusion_map)
                 # occlusion_map = self.quant(occlusion_map)
                 # out = self.quant(out)
-                # out = out * occlusion_map
+                # # pdb.set_trace()
+                ## TODO
+                # # out = out * occlusion_map
+                # out =  torch.mul(out, occlusion_map)
                 # occlusion_map = self.dequant(occlusion_map)
                 # out = self.dequant(out)
 
@@ -1060,7 +1062,9 @@ class KPDetector(nn.Module):
                  num_blocks, temperature, estimate_jacobian=False, scale_factor=1,
                  single_jacobian_map=False, pad=0, for_onnx=False):
         super(KPDetector, self).__init__()
-
+        print(block_expansion, num_kp, num_channels, max_features,
+                 num_blocks, temperature, estimate_jacobian, scale_factor,
+                 single_jacobian_map, pad, for_onnx)
         self.predictor = Hourglass(block_expansion, in_features=num_channels,
                                    max_features=max_features, num_blocks=num_blocks)
 
@@ -1081,6 +1085,9 @@ class KPDetector(nn.Module):
         self.scale_factor = scale_factor
         if self.scale_factor != 1:
             self.down = AntiAliasInterpolation2d(num_channels, self.scale_factor)
+        
+        self.quant = torch.quantization.QuantStub()
+        self.dequant = torch.quantization.DeQuantStub()
 
     def gaussian2kp(self, heatmap):
         """
@@ -1103,7 +1110,9 @@ class KPDetector(nn.Module):
             x = self.down(x)
 
         feature_map = self.predictor(x)
+        feature_map = self.quant(feature_map)
         prediction = self.kp(feature_map)
+        prediction = self.dequant(prediction)
 
         final_shape = prediction.shape
         heatmap = prediction.view(final_shape[0], final_shape[1], -1)
@@ -1117,7 +1126,7 @@ class KPDetector(nn.Module):
             jacobian_map = jacobian_map.reshape(final_shape[0], self.num_jacobian_maps, 4, final_shape[2],
                                                 final_shape[3])
             heatmap = heatmap.unsqueeze(2)
-
+            # TODO
             jacobian = heatmap * jacobian_map
             jacobian = jacobian.view(final_shape[0], final_shape[1], 4, -1)
             jacobian = jacobian.sum(dim=-1)
@@ -1413,136 +1422,57 @@ def main_generator():
     print_size_of_model(model_int8, label="model_int8")
 
     # run the model
+    tt = []
     for i in range(0, 100):
         start_time = time.time()
         res = model_int8(x0, {'value':x1, 'jacobian':x2}, {'value':x3, 'jacobian':x4})
+        tt.append(time.time() - start_time)
+    print("Average inference on int8:", sum(tt)/len(tt))
+
+
+def main_kp_detector():
+    model_fp32 = KPDetector(32, 10, 3, 1024, 5, 0.1, True, 0.25, False, 0, False)
+
+    model_fp32.eval()
+    modules_to_fuse = [['predictor.encoder.down_blocks.0.conv', 'predictor.encoder.down_blocks.0.norm', 'predictor.encoder.down_blocks.0.relu'],
+                       ['predictor.encoder.down_blocks.1.conv', 'predictor.encoder.down_blocks.1.norm', 'predictor.encoder.down_blocks.1.relu'],
+                       ['predictor.encoder.down_blocks.2.conv', 'predictor.encoder.down_blocks.2.norm', 'predictor.encoder.down_blocks.2.relu'],
+                       ['predictor.encoder.down_blocks.3.conv', 'predictor.encoder.down_blocks.3.norm', 'predictor.encoder.down_blocks.3.relu'],
+                       ['predictor.encoder.down_blocks.4.conv', 'predictor.encoder.down_blocks.4.norm', 'predictor.encoder.down_blocks.4.relu'],
+                       ['predictor.decoder.up_blocks.0.conv', 'predictor.decoder.up_blocks.0.norm', 'predictor.decoder.up_blocks.0.relu'],
+                       ['predictor.decoder.up_blocks.1.conv', 'predictor.decoder.up_blocks.1.norm', 'predictor.decoder.up_blocks.1.relu'],
+                       ['predictor.decoder.up_blocks.2.conv', 'predictor.decoder.up_blocks.2.norm', 'predictor.decoder.up_blocks.2.relu'],
+                       ['predictor.decoder.up_blocks.3.conv', 'predictor.decoder.up_blocks.3.norm', 'predictor.decoder.up_blocks.3.relu'],
+                       ['predictor.decoder.up_blocks.4.conv', 'predictor.decoder.up_blocks.4.norm', 'predictor.decoder.up_blocks.4.relu'],]
+
+
+    for name, module in model_fp32.named_modules():
+        print(name)
+
+    x0 = torch.randn(1, 3, 256, 256, requires_grad=False)
+    x1 = torch.randn(1, 10, 2,requires_grad=False)
+    x2 = torch.randn(1, 10, 2, 2, requires_grad=False)
+    x3 = torch.randn(1, 10, 2, requires_grad=False)
+    x4 = torch.randn(1, 10, 2, 2, requires_grad=False)
+    
+    print_size_of_model(model_fp32, label="model_fp32")
+    start_time = time.time()
+    res = model_fp32(x0)    
+    print("Inference on float32:", time.time() - start_time)
+    
+    model_fp32.qconfig = torch.quantization.get_default_qconfig('fbgemm')
+    model_fp32_fused = torch.quantization.fuse_modules(model_fp32, modules_to_fuse)
+
+    model_fp32_prepared = torch.quantization.prepare(model_fp32_fused)
+
+    model_int8 = torch.quantization.convert(model_fp32_prepared)
+    print_size_of_model(model_int8, label="model_int8")
+
+    # run the model
+    for i in range(0, 100):
+        start_time = time.time()
+        res = model_int8(x0)
         print("Inference on int8:", time.time() - start_time)
-
-
-def main_enc():
-    # create a model instance
-    model_fp32 = Encoder(64, 44, 5, 1024)
-    modules_to_fuse = [['down_blocks.0.conv', 'down_blocks.0.norm', 'down_blocks.0.relu'],
-                       ['down_blocks.1.conv', 'down_blocks.1.norm', 'down_blocks.1.relu'],
-                       ['down_blocks.2.conv', 'down_blocks.2.norm', 'down_blocks.2.relu'],
-                       ['down_blocks.3.conv', 'down_blocks.3.norm', 'down_blocks.3.relu'],
-                       ['down_blocks.4.conv', 'down_blocks.4.norm', 'down_blocks.4.relu']]
-
-    for name, module in model_fp32.named_modules():
-        print(name)
-
-    model_fp32.eval()
-    
-    print_size_of_model(model_fp32, label="model_fp32")
-    
-    model_fp32.qconfig = torch.quantization.get_default_qconfig('fbgemm')
-    model_fp32_fused = torch.quantization.fuse_modules(model_fp32, modules_to_fuse)
-
-    input_fp32 = torch.randn(1, 44, 64, 64)
-    model_fp32_prepared = torch.quantization.prepare(model_fp32_fused)
-
-    ss = time.time()
-    for i in range(0, 1):
-        res = model_fp32(input_fp32)
-    print("Inference time:", time.time() - ss, "s")
-
-    model_int8 = torch.quantization.convert(model_fp32_prepared)
-    print_size_of_model(model_int8, label="model_int8")
-
-    # run the model, relevant calculations will happen in int8
-    ss = time.time()
-    for i in range(0, 1):
-        res = model_int8(input_fp32)
-    print("Inference time:", time.time() - ss, "s")
-
-
-def main_dec():
-    # create a model instance
-    model_fp32 = Decoder(64, 44, 5, 1024)
-    modules_to_fuse = [['up_blocks.0.conv', 'up_blocks.0.norm', 'up_blocks.0.relu'],
-                       ['up_blocks.1.conv', 'up_blocks.1.norm', 'up_blocks.1.relu'],
-                       ['up_blocks.2.conv', 'up_blocks.2.norm', 'up_blocks.2.relu'],
-                       ['up_blocks.3.conv', 'up_blocks.3.norm', 'up_blocks.3.relu'],
-                       ['up_blocks.4.conv', 'up_blocks.4.norm', 'up_blocks.4.relu']]
-
-    for name, module in model_fp32.named_modules():
-        print(name)
-        # if name.split('.')[-1] == 'conv' or name.split('.')[-1] == 'conv1' or name.split('.')[-1] == 'conv2':
-
-
-    model_fp32.eval()
-    
-    print_size_of_model(model_fp32, label="model_fp32")
-    
-    model_fp32.qconfig = torch.quantization.get_default_qconfig('fbgemm')
-    model_fp32_fused = torch.quantization.fuse_modules(model_fp32, modules_to_fuse)
-
-    input_fp32 = [torch.randn(1, 44, 64, 64), torch.randn(1, 128, 32, 32),
-                  torch.randn(1, 256, 16, 16), torch.randn(1, 512, 8, 8),
-                  torch.randn(1, 1024, 4, 4), torch.randn(1, 1024, 2, 2)]
-    model_fp32_prepared = torch.quantization.prepare(model_fp32_fused)
-
-    ss = time.time()
-    for i in range(0, 1):
-        res = model_fp32(input_fp32)
-    print("Inference time:", time.time() - ss, "s")
-
-    model_int8 = torch.quantization.convert(model_fp32_prepared)
-    print_size_of_model(model_int8, label="model_int8")
-    
-    input_fp32 = [torch.randn(1, 44, 64, 64), torch.randn(1, 128, 32, 32),
-                  torch.randn(1, 256, 16, 16), torch.randn(1, 512, 8, 8),
-                  torch.randn(1, 1024, 4, 4), torch.randn(1, 1024, 2, 2)]
-    # run the model, relevant calculations will happen in int8
-    ss = time.time()
-    for i in range(0, 1):
-        res = model_int8(input_fp32)
-    print("Inference time:", time.time() - ss, "s")
-
-
-def main_hrglass():
-    # create a model instance
-    model_fp32 = Hourglass(64, 44, 5, 1024)
-    modules_to_fuse = [['encoder.down_blocks.0.conv', 'encoder.down_blocks.0.norm', 'encoder.down_blocks.0.relu'],
-                       ['encoder.down_blocks.1.conv', 'encoder.down_blocks.1.norm', 'encoder.down_blocks.1.relu'],
-                       ['encoder.down_blocks.2.conv', 'encoder.down_blocks.2.norm', 'encoder.down_blocks.2.relu'],
-                       ['encoder.down_blocks.3.conv', 'encoder.down_blocks.3.norm', 'encoder.down_blocks.3.relu'],
-                       ['encoder.down_blocks.4.conv', 'encoder.down_blocks.4.norm', 'encoder.down_blocks.4.relu'],
-                       ['decoder.up_blocks.0.conv', 'decoder.up_blocks.0.norm', 'decoder.up_blocks.0.relu'],
-                       ['decoder.up_blocks.1.conv', 'decoder.up_blocks.1.norm', 'decoder.up_blocks.1.relu'],
-                       ['decoder.up_blocks.2.conv', 'decoder.up_blocks.2.norm', 'decoder.up_blocks.2.relu'],
-                       ['decoder.up_blocks.3.conv', 'decoder.up_blocks.3.norm', 'decoder.up_blocks.3.relu'],
-                       ['decoder.up_blocks.4.conv', 'decoder.up_blocks.4.norm', 'decoder.up_blocks.4.relu']]
-
-    for name, module in model_fp32.named_modules():
-        print(name)
-
-    model_fp32.eval()
-    
-    print_size_of_model(model_fp32, label="model_fp32")
-    
-    model_fp32.qconfig = torch.quantization.get_default_qconfig('fbgemm')
-    model_fp32_fused = torch.quantization.fuse_modules(model_fp32, modules_to_fuse)
-
-    input_fp32 = torch.randn(1, 44, 64, 64)
-    model_fp32_prepared = torch.quantization.prepare(model_fp32_fused)
-
-    ss = time.time()
-    for i in range(0, 1):
-        res = model_fp32(input_fp32)
-    print("Inference time:", time.time() - ss, "s")
-
-    model_int8 = torch.quantization.convert(model_fp32_prepared)
-    print_size_of_model(model_int8, label="model_int8")
-
-    # run the model, relevant calculations will happen in int8
-    ss = time.time()
-    for i in range(0, 1):
-        res = model_int8(input_fp32)
-    print("Inference time:", time.time() - ss, "s")
-
-    os.remove('temp.p')
-    return size
 
 
 def main():
