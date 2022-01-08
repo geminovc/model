@@ -18,6 +18,7 @@ from torch.nn.modules.batchnorm import _BatchNorm
 from torch.nn.parallel._functions import ReduceAddCoalesced, Broadcast
 import queue
 import threading
+from torch.nn import Conv2d
 
 
 class FutureResult(object):
@@ -486,9 +487,9 @@ class ResBlock2d(nn.Module):
 
     def __init__(self, in_features, kernel_size, padding):
         super(ResBlock2d, self).__init__()
-        self.conv1 = nn.Conv2d(in_channels=in_features, out_channels=in_features, kernel_size=kernel_size,
+        self.conv1 = Conv2d(in_channels=in_features, out_channels=in_features, kernel_size=kernel_size,
                                padding=padding)
-        self.conv2 = nn.Conv2d(in_channels=in_features, out_channels=in_features, kernel_size=kernel_size,
+        self.conv2 = Conv2d(in_channels=in_features, out_channels=in_features, kernel_size=kernel_size,
                                padding=padding)
         self.norm1 = nn.BatchNorm2d(in_features, affine=True)
         self.norm2 = nn.BatchNorm2d(in_features, affine=True)
@@ -518,7 +519,7 @@ class UpBlock2d(nn.Module):
     def __init__(self, in_features, out_features, kernel_size=3, padding=1, groups=1):
         super(UpBlock2d, self).__init__()
 
-        self.conv = nn.Conv2d(in_channels=in_features, out_channels=out_features, kernel_size=kernel_size,
+        self.conv = Conv2d(in_channels=in_features, out_channels=out_features, kernel_size=kernel_size,
                               padding=padding, groups=groups)
         self.norm = nn.BatchNorm2d(out_features, affine=True)
         self.relu = torch.nn.ReLU()
@@ -542,7 +543,7 @@ class DownBlock2d(nn.Module):
 
     def __init__(self, in_features, out_features, kernel_size=3, padding=1, groups=1):
         super(DownBlock2d, self).__init__()
-        self.conv = nn.Conv2d(in_channels=in_features, out_channels=out_features, kernel_size=kernel_size,
+        self.conv = Conv2d(in_channels=in_features, out_channels=out_features, kernel_size=kernel_size,
                               padding=padding, groups=groups)
         self.norm = nn.BatchNorm2d(out_features, affine=True)
         self.pool = nn.AvgPool2d(kernel_size=(2, 2))
@@ -567,7 +568,7 @@ class SameBlock2d(nn.Module):
 
     def __init__(self, in_features, out_features, groups=1, kernel_size=3, padding=1):
         super(SameBlock2d, self).__init__()
-        self.conv = nn.Conv2d(in_channels=in_features, out_channels=out_features,
+        self.conv = Conv2d(in_channels=in_features, out_channels=out_features,
                               kernel_size=kernel_size, padding=padding, groups=groups)
         self.norm = nn.BatchNorm2d(out_features, affine=True)
         self.relu = torch.nn.ReLU()
@@ -739,7 +740,7 @@ class OcclusionAwareGenerator(nn.Module):
         for i in range(num_bottleneck_blocks):
             self.bottleneck.add_module('r' + str(i), ResBlock2d(in_features, kernel_size=(3, 3), padding=(1, 1)))
 
-        self.final = nn.Conv2d(block_expansion, num_channels, kernel_size=(7, 7), padding=(3, 3))
+        self.final = Conv2d(block_expansion, num_channels, kernel_size=(7, 7), padding=(3, 3))
         self.estimate_occlusion_map = estimate_occlusion_map
         self.num_channels = num_channels
         self.for_onnx = for_onnx
@@ -783,14 +784,10 @@ class OcclusionAwareGenerator(nn.Module):
             if occlusion_map is not None:
                 if out.shape[2] != occlusion_map.shape[2] or out.shape[3] != occlusion_map.shape[3]:
                     occlusion_map = F.interpolate(occlusion_map, size=out.shape[2:], mode='bilinear')
-                # occlusion_map = self.quant(occlusion_map)
-                # out = self.quant(out)
-                # # pdb.set_trace()
-                ## TODO
-                # # out = out * occlusion_map
-                # out =  torch.mul(out, occlusion_map)
-                # occlusion_map = self.dequant(occlusion_map)
-                # out = self.dequant(out)
+                out = self.dequant(out)
+                occlusion_map = self.dequant(occlusion_map)
+                out = out * occlusion_map
+
 
             output_dict["deformed"], deformation = self.deform_input(source_image, deformation)
             output_dict["deformation"] = deformation
@@ -820,10 +817,10 @@ class DenseMotionNetwork(nn.Module):
         self.hourglass = Hourglass(block_expansion=block_expansion, in_features=(num_kp + 1) * (num_channels + 1),
                                    max_features=max_features, num_blocks=num_blocks)
 
-        self.mask = nn.Conv2d(self.hourglass.out_filters, num_kp + 1, kernel_size=(7, 7), padding=(3, 3))
+        self.mask = Conv2d(self.hourglass.out_filters, num_kp + 1, kernel_size=(7, 7), padding=(3, 3))
 
         if estimate_occlusion_map:
-            self.occlusion = nn.Conv2d(self.hourglass.out_filters, 1, kernel_size=(7, 7), padding=(3, 3))
+            self.occlusion = Conv2d(self.hourglass.out_filters, 1, kernel_size=(7, 7), padding=(3, 3))
         else:
             self.occlusion = None
 
@@ -1068,12 +1065,12 @@ class KPDetector(nn.Module):
         self.predictor = Hourglass(block_expansion, in_features=num_channels,
                                    max_features=max_features, num_blocks=num_blocks)
 
-        self.kp = nn.Conv2d(in_channels=self.predictor.out_filters, out_channels=num_kp, kernel_size=(7, 7),
+        self.kp = Conv2d(in_channels=self.predictor.out_filters, out_channels=num_kp, kernel_size=(7, 7),
                             padding=pad)
 
         if estimate_jacobian:
             self.num_jacobian_maps = 1 if single_jacobian_map else num_kp
-            self.jacobian = nn.Conv2d(in_channels=self.predictor.out_filters,
+            self.jacobian = Conv2d(in_channels=self.predictor.out_filters,
                                       out_channels=4 * self.num_jacobian_maps, kernel_size=(7, 7), padding=pad)
             self.jacobian.weight.data.zero_()
             self.jacobian.bias.data.copy_(torch.tensor([1, 0, 0, 1] * self.num_jacobian_maps, dtype=torch.float))
@@ -1126,12 +1123,13 @@ class KPDetector(nn.Module):
             jacobian_map = jacobian_map.reshape(final_shape[0], self.num_jacobian_maps, 4, final_shape[2],
                                                 final_shape[3])
             heatmap = heatmap.unsqueeze(2)
-            # TODO
+            heatmap = self.dequant(heatmap)
+            jacobian_map = self.dequant(jacobian_map)
             jacobian = heatmap * jacobian_map
             jacobian = jacobian.view(final_shape[0], final_shape[1], 4, -1)
             jacobian = jacobian.sum(dim=-1)
             jacobian = jacobian.view(jacobian.shape[0], jacobian.shape[1], 2, 2)
-
+            jacobian = self.quant(jacobian)
             if not self.for_onnx:
                 out['jacobian'] = jacobian
 
@@ -1372,6 +1370,7 @@ def print_size_of_model(model, label=""):
 
 
 def main_generator():
+    num_block_expansion = 64
     model_fp32 = OcclusionAwareGenerator(3, 10, 64, 512, 2, 6, True,
      {'block_expansion': 64, 'max_features': 1024, 'num_blocks': 5, 'scale_factor': 0.25}, True, False)
 
@@ -1397,10 +1396,6 @@ def main_generator():
                        ['bottleneck.r3.conv1', 'bottleneck.r3.norm1'], ['bottleneck.r3.conv2', 'bottleneck.r3.norm2', 'bottleneck.r3.relu'],
                        ['bottleneck.r4.conv1', 'bottleneck.r4.norm1'], ['bottleneck.r4.conv2', 'bottleneck.r4.norm2', 'bottleneck.r4.relu'],
                        ['bottleneck.r5.conv1', 'bottleneck.r5.norm1'], ['bottleneck.r5.conv2', 'bottleneck.r5.norm2', 'bottleneck.r5.relu']]
-
-
-    for name, module in model_fp32.named_modules():
-        print(name)
 
     x0 = torch.randn(1, 3, 256, 256, requires_grad=False)
     x1 = torch.randn(1, 10, 2,requires_grad=False)
@@ -1469,10 +1464,12 @@ def main_kp_detector():
     print_size_of_model(model_int8, label="model_int8")
 
     # run the model
+    tt = []
     for i in range(0, 100):
         start_time = time.time()
         res = model_int8(x0)
-        print("Inference on int8:", time.time() - start_time)
+        tt.append(time.time() - start_time)
+    print("Average inference on int8:", sum(tt)/len(tt))
 
 
 def main():
