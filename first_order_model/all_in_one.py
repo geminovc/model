@@ -706,7 +706,6 @@ class OcclusionAwareGenerator(nn.Module):
                  num_bottleneck_blocks, estimate_occlusion_map=False, dense_motion_params=None,
                  estimate_jacobian=False, for_onnx=False):
         super(OcclusionAwareGenerator, self).__init__()
-
         if dense_motion_params is not None:
             if for_onnx:
                 self.dense_motion_network = DenseMotionNetwork_ONNX(num_kp=num_kp, num_channels=num_channels,
@@ -744,6 +743,8 @@ class OcclusionAwareGenerator(nn.Module):
         self.estimate_occlusion_map = estimate_occlusion_map
         self.num_channels = num_channels
         self.for_onnx = for_onnx
+        self.quant = torch.quantization.QuantStub()
+        self.dequant = torch.quantization.DeQuantStub()
 
     def deform_input(self, inp, deformation):
         _, h_old, w_old, _ = deformation.shape
@@ -782,7 +783,12 @@ class OcclusionAwareGenerator(nn.Module):
             if occlusion_map is not None:
                 if out.shape[2] != occlusion_map.shape[2] or out.shape[3] != occlusion_map.shape[3]:
                     occlusion_map = F.interpolate(occlusion_map, size=out.shape[2:], mode='bilinear')
-                out = out * occlusion_map
+                # print(occlusion_map)
+                # occlusion_map = self.quant(occlusion_map)
+                # out = self.quant(out)
+                # out = out * occlusion_map
+                # occlusion_map = self.dequant(occlusion_map)
+                # out = self.dequant(out)
 
             output_dict["deformed"], deformation = self.deform_input(source_image, deformation)
             output_dict["deformation"] = deformation
@@ -791,7 +797,9 @@ class OcclusionAwareGenerator(nn.Module):
         out = self.bottleneck(out)
         for i in range(len(self.up_blocks)):
             out = self.up_blocks[i](out)
+        out = self.quant(out)
         out = self.final(out)
+        out = self.dequant(out)
         out = F.sigmoid(out)
 
         output_dict["prediction"] = out
@@ -1354,35 +1362,42 @@ def print_size_of_model(model, label=""):
     return size
 
 
-def main_dense():
+def main_generator():
+    model_fp32 = OcclusionAwareGenerator(3, 10, 64, 512, 2, 6, True,
+     {'block_expansion': 64, 'max_features': 1024, 'num_blocks': 5, 'scale_factor': 0.25}, True, False)
 
-    model = FirstOrderModel("config/api_sample.yaml")
+    model_fp32.eval()
+    modules_to_fuse = [['dense_motion_network.hourglass.encoder.down_blocks.0.conv', 'dense_motion_network.hourglass.encoder.down_blocks.0.norm', 'dense_motion_network.hourglass.encoder.down_blocks.0.relu'],
+                       ['dense_motion_network.hourglass.encoder.down_blocks.1.conv', 'dense_motion_network.hourglass.encoder.down_blocks.1.norm', 'dense_motion_network.hourglass.encoder.down_blocks.1.relu'],
+                       ['dense_motion_network.hourglass.encoder.down_blocks.2.conv', 'dense_motion_network.hourglass.encoder.down_blocks.2.norm', 'dense_motion_network.hourglass.encoder.down_blocks.2.relu'],
+                       ['dense_motion_network.hourglass.encoder.down_blocks.3.conv', 'dense_motion_network.hourglass.encoder.down_blocks.3.norm', 'dense_motion_network.hourglass.encoder.down_blocks.3.relu'],
+                       ['dense_motion_network.hourglass.encoder.down_blocks.4.conv', 'dense_motion_network.hourglass.encoder.down_blocks.4.norm', 'dense_motion_network.hourglass.encoder.down_blocks.4.relu'],
+                       ['dense_motion_network.hourglass.decoder.up_blocks.0.conv', 'dense_motion_network.hourglass.decoder.up_blocks.0.norm', 'dense_motion_network.hourglass.decoder.up_blocks.0.relu'],
+                       ['dense_motion_network.hourglass.decoder.up_blocks.1.conv', 'dense_motion_network.hourglass.decoder.up_blocks.1.norm', 'dense_motion_network.hourglass.decoder.up_blocks.1.relu'],
+                       ['dense_motion_network.hourglass.decoder.up_blocks.2.conv', 'dense_motion_network.hourglass.decoder.up_blocks.2.norm', 'dense_motion_network.hourglass.decoder.up_blocks.2.relu'],
+                       ['dense_motion_network.hourglass.decoder.up_blocks.3.conv', 'dense_motion_network.hourglass.decoder.up_blocks.3.norm', 'dense_motion_network.hourglass.decoder.up_blocks.3.relu'],
+                       ['dense_motion_network.hourglass.decoder.up_blocks.4.conv', 'dense_motion_network.hourglass.decoder.up_blocks.4.norm', 'dense_motion_network.hourglass.decoder.up_blocks.4.relu'],
+                       ['first.conv', 'first.norm', 'first.relu'],
+                       ['down_blocks.0.conv', 'down_blocks.0.norm', 'down_blocks.0.relu'],
+                       ['down_blocks.1.conv', 'down_blocks.1.norm', 'down_blocks.1.relu'],
+                       ['up_blocks.0.conv', 'up_blocks.0.norm', 'up_blocks.0.relu'],
+                       ['up_blocks.1.conv', 'up_blocks.1.norm', 'up_blocks.1.relu'],
+                       ['bottleneck.r0.conv1', 'bottleneck.r0.norm1'], ['bottleneck.r0.conv2', 'bottleneck.r0.norm2', 'bottleneck.r0.relu'],
+                       ['bottleneck.r1.conv1', 'bottleneck.r1.norm1'], ['bottleneck.r1.conv2', 'bottleneck.r1.norm2', 'bottleneck.r1.relu'],
+                       ['bottleneck.r2.conv1', 'bottleneck.r2.norm1'], ['bottleneck.r2.conv2', 'bottleneck.r2.norm2', 'bottleneck.r2.relu'],
+                       ['bottleneck.r3.conv1', 'bottleneck.r3.norm1'], ['bottleneck.r3.conv2', 'bottleneck.r3.norm2', 'bottleneck.r3.relu'],
+                       ['bottleneck.r4.conv1', 'bottleneck.r4.norm1'], ['bottleneck.r4.conv2', 'bottleneck.r4.norm2', 'bottleneck.r4.relu'],
+                       ['bottleneck.r5.conv1', 'bottleneck.r5.norm1'], ['bottleneck.r5.conv2', 'bottleneck.r5.norm2', 'bottleneck.r5.relu']]
+
+
+    for name, module in model_fp32.named_modules():
+        print(name)
 
     x0 = torch.randn(1, 3, 256, 256, requires_grad=False)
     x1 = torch.randn(1, 10, 2,requires_grad=False)
     x2 = torch.randn(1, 10, 2, 2, requires_grad=False)
     x3 = torch.randn(1, 10, 2, requires_grad=False)
     x4 = torch.randn(1, 10, 2, 2, requires_grad=False)
-
-
-    model_fp32 = DenseMotionNetwork(64, 5, 1024, 10, 3, True, 0.25, 0.01, False)
-
-    model_fp32.eval()
-    modules_to_fuse = [['hourglass.encoder.down_blocks.0.conv', 'hourglass.encoder.down_blocks.0.norm', 'hourglass.encoder.down_blocks.0.relu'],
-                       ['hourglass.encoder.down_blocks.1.conv', 'hourglass.encoder.down_blocks.1.norm', 'hourglass.encoder.down_blocks.1.relu'],
-                       ['hourglass.encoder.down_blocks.2.conv', 'hourglass.encoder.down_blocks.2.norm', 'hourglass.encoder.down_blocks.2.relu'],
-                       ['hourglass.encoder.down_blocks.3.conv', 'hourglass.encoder.down_blocks.3.norm', 'hourglass.encoder.down_blocks.3.relu'],
-                       ['hourglass.encoder.down_blocks.4.conv', 'hourglass.encoder.down_blocks.4.norm', 'hourglass.encoder.down_blocks.4.relu'],
-                       ['hourglass.decoder.up_blocks.0.conv', 'hourglass.decoder.up_blocks.0.norm', 'hourglass.decoder.up_blocks.0.relu'],
-                       ['hourglass.decoder.up_blocks.1.conv', 'hourglass.decoder.up_blocks.1.norm', 'hourglass.decoder.up_blocks.1.relu'],
-                       ['hourglass.decoder.up_blocks.2.conv', 'hourglass.decoder.up_blocks.2.norm', 'hourglass.decoder.up_blocks.2.relu'],
-                       ['hourglass.decoder.up_blocks.3.conv', 'hourglass.decoder.up_blocks.3.norm', 'hourglass.decoder.up_blocks.3.relu'],
-                       ['hourglass.decoder.up_blocks.4.conv', 'hourglass.decoder.up_blocks.4.norm', 'hourglass.decoder.up_blocks.4.relu']]
-
-
-    for name, module in model_fp32.named_modules():
-        print(name)
-
     
     print_size_of_model(model_fp32, label="model_fp32")
     start_time = time.time()
@@ -1531,14 +1546,6 @@ def main_hrglass():
 
 
 def main():
-    # get model size
-    def print_size_of_model(model, label=""):
-        torch.save(model.state_dict(), "temp.p")
-        size = os.path.getsize("temp.p")
-        print("model: ",label,' \t','Size (MB):', size/1e6)
-        os.remove('temp.p')
-        return size
-
     model = FirstOrderModel("config/api_sample.yaml")
 
     x0 = torch.randn(1, 3, 256, 256, requires_grad=False)
@@ -1587,4 +1594,4 @@ def main():
         print("Inference on int8:", time.time() - start_time)
 
 if __name__ == "__main__":
-    main_dense()
+    main_generator()
