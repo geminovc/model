@@ -520,13 +520,18 @@ class UpBlock2d(nn.Module):
 
         self.conv = nn.Conv2d(in_channels=in_features, out_channels=out_features, kernel_size=kernel_size,
                               padding=padding, groups=groups)
-        self.norm = SynchronizedBatchNorm2d(out_features, affine=True)
+        self.norm = nn.BatchNorm2d(out_features, affine=True)
+        self.relu = torch.nn.ReLU()
+        self.quant = torch.quantization.QuantStub()
+        self.dequant = torch.quantization.DeQuantStub()
 
     def forward(self, x):
+        x = self.quant(x)
         out = F.interpolate(x, scale_factor=2)
         out = self.conv(out)
         out = self.norm(out)
-        out = F.relu(out)
+        out = self.relu(out)
+        out = self.dequant(out)
         return out
 
 
@@ -587,8 +592,6 @@ class Encoder(nn.Module):
                                            min(max_features, block_expansion * (2 ** (i + 1))),
                                            kernel_size=3, padding=1))
         self.down_blocks = nn.ModuleList(down_blocks)
-        self.quant = torch.quantization.QuantStub()
-        self.dequant = torch.quantization.DeQuantStub()
 
     def forward(self, x):
         # x = self.quant(x)
@@ -606,7 +609,7 @@ class Decoder(nn.Module):
 
     def __init__(self, block_expansion, in_features, num_blocks=3, max_features=256):
         super(Decoder, self).__init__()
-
+        print(block_expansion, in_features, num_blocks, max_features)
         up_blocks = []
 
         for i in range(num_blocks)[::-1]:
@@ -1439,5 +1442,48 @@ def main_enc():
     print("Inference time:", time.time() - ss, "s")
 
 
+def main_dec():
+    # create a model instance
+    model_fp32 = Decoder(64, 44, 5, 1024)
+    modules_to_fuse = [['up_blocks.0.conv', 'up_blocks.0.norm', 'up_blocks.0.relu'],
+                       ['up_blocks.1.conv', 'up_blocks.1.norm', 'up_blocks.1.relu'],
+                       ['up_blocks.2.conv', 'up_blocks.2.norm', 'up_blocks.2.relu'],
+                       ['up_blocks.3.conv', 'up_blocks.3.norm', 'up_blocks.3.relu'],
+                       ['up_blocks.4.conv', 'up_blocks.4.norm', 'up_blocks.4.relu']]
+
+    for name, module in model_fp32.named_modules():
+        print(name)
+        # if name.split('.')[-1] == 'conv' or name.split('.')[-1] == 'conv1' or name.split('.')[-1] == 'conv2':
+
+
+    model_fp32.eval()
+    
+    print_size_of_model(model_fp32, label="model_fp32")
+    
+    model_fp32.qconfig = torch.quantization.get_default_qconfig('fbgemm')
+    model_fp32_fused = torch.quantization.fuse_modules(model_fp32, modules_to_fuse)
+
+    input_fp32 = [torch.randn(1, 44, 64, 64), torch.randn(1, 128, 32, 32),
+                  torch.randn(1, 256, 16, 16), torch.randn(1, 512, 8, 8),
+                  torch.randn(1, 1024, 4, 4), torch.randn(1, 1024, 2, 2)]
+    model_fp32_prepared = torch.quantization.prepare(model_fp32_fused)
+
+    ss = time.time()
+    for i in range(0, 1):
+        res = model_fp32(input_fp32)
+    print("Inference time:", time.time() - ss, "s")
+
+    model_int8 = torch.quantization.convert(model_fp32_prepared)
+    print_size_of_model(model_int8, label="model_int8")
+    
+    input_fp32 = [torch.randn(1, 44, 64, 64), torch.randn(1, 128, 32, 32),
+                  torch.randn(1, 256, 16, 16), torch.randn(1, 512, 8, 8),
+                  torch.randn(1, 1024, 4, 4), torch.randn(1, 1024, 2, 2)]
+    # run the model, relevant calculations will happen in int8
+    ss = time.time()
+    for i in range(0, 1):
+        res = model_int8(input_fp32)
+    print("Inference time:", time.time() - ss, "s")
+
 if __name__ == "__main__":
-    main_enc()
+    main_dec()
