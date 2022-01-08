@@ -20,6 +20,7 @@ import queue
 import threading
 from torch.nn import Conv2d
 
+QUANT_ENGINE = 'fbgemm'
 
 class FutureResult(object):
     """A thread-safe future implementation. Used only as one-to-one pipe."""
@@ -1409,7 +1410,7 @@ def main_generator(input_model=OcclusionAwareGenerator(3, 10, 64, 512, 2, 6, Tru
     res = model_fp32(x0, {'value':x1, 'jacobian':x2}, {'value':x3, 'jacobian':x4})    
     print("Inference on float32:", time.time() - start_time)
     
-    model_fp32.qconfig = torch.quantization.get_default_qconfig('fbgemm')
+    model_fp32.qconfig = torch.quantization.get_default_qconfig(QUANT_ENGINE)
     model_fp32_fused = torch.quantization.fuse_modules(model_fp32, modules_to_fuse)
 
     model_fp32_prepared = torch.quantization.prepare(model_fp32_fused)
@@ -1458,7 +1459,7 @@ def main_kp_detector(input_model=KPDetector(32, 10, 3, 1024, 5, 0.1, True, 0.25,
     res = model_fp32(x0)    
     print("Inference on float32:", time.time() - start_time)
     
-    model_fp32.qconfig = torch.quantization.get_default_qconfig('fbgemm')
+    model_fp32.qconfig = torch.quantization.get_default_qconfig(QUANT_ENGINE)
     model_fp32_fused = torch.quantization.fuse_modules(model_fp32, modules_to_fuse)
 
     model_fp32_prepared = torch.quantization.prepare(model_fp32_fused)
