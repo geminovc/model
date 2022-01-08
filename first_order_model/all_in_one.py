@@ -858,12 +858,13 @@ class DenseMotionNetwork(nn.Module):
         identity_grid = make_coordinate_grid((h, w), type=kp_source['value'].type())
         identity_grid = identity_grid.view(1, 1, h, w, 2)
         coordinate_grid = identity_grid - kp_driving['value'].view(bs, self.num_kp, 1, 1, 2)
-        if 'jacobian' in kp_driving and not self.for_onnx:
-            jacobian = torch.matmul(kp_source['jacobian'], torch.inverse(kp_driving['jacobian']))
-            jacobian = jacobian.unsqueeze(-3).unsqueeze(-3)
-            jacobian = jacobian.repeat(1, 1, h, w, 1, 1)
-            coordinate_grid = torch.matmul(jacobian, coordinate_grid.unsqueeze(-1))
-            coordinate_grid = coordinate_grid.squeeze(-1)
+        # TODO
+        # if 'jacobian' in kp_driving and not self.for_onnx:
+        #     jacobian = torch.matmul(kp_source['jacobian'], torch.inverse(kp_driving['jacobian']))
+        #     jacobian = jacobian.unsqueeze(-3).unsqueeze(-3)
+        #     jacobian = jacobian.repeat(1, 1, h, w, 1, 1)
+        #     coordinate_grid = torch.matmul(jacobian, coordinate_grid.unsqueeze(-1))
+        #     coordinate_grid = coordinate_grid.squeeze(-1)
 
         driving_to_source = coordinate_grid + kp_source['value'].view(bs, self.num_kp, 1, 1, 2)
 
@@ -999,7 +1000,10 @@ class FirstOrderModel(KeypointBasedFaceModels):
         keypoint_struct['value'] = keypoint_struct['value'].data.cpu().numpy()[0]
         keypoint_struct['keypoints'] = keypoint_struct.pop('value')
         if 'jacobian' in keypoint_struct:
-            keypoint_struct['jacobian'] = keypoint_struct['jacobian'].data.cpu().numpy()[0]
+            try:
+                keypoint_struct['jacobian'] = torch.int_repr(keypoint_struct['jacobian']).data.cpu().numpy()[0]
+            except:
+                keypoint_struct['jacobian'] = keypoint_struct['jacobian'].data.cpu().numpy()[0]
             keypoint_struct['jacobians'] = keypoint_struct.pop('jacobian')
         
         return keypoint_struct
@@ -1059,9 +1063,6 @@ class KPDetector(nn.Module):
                  num_blocks, temperature, estimate_jacobian=False, scale_factor=1,
                  single_jacobian_map=False, pad=0, for_onnx=False):
         super(KPDetector, self).__init__()
-        print(block_expansion, num_kp, num_channels, max_features,
-                 num_blocks, temperature, estimate_jacobian, scale_factor,
-                 single_jacobian_map, pad, for_onnx)
         self.predictor = Hourglass(block_expansion, in_features=num_channels,
                                    max_features=max_features, num_blocks=num_blocks)
 
@@ -1369,10 +1370,10 @@ def print_size_of_model(model, label=""):
     return size
 
 
-def main_generator():
-    num_block_expansion = 64
-    model_fp32 = OcclusionAwareGenerator(3, 10, 64, 512, 2, 6, True,
-     {'block_expansion': 64, 'max_features': 1024, 'num_blocks': 5, 'scale_factor': 0.25}, True, False)
+def main_generator(input_model=OcclusionAwareGenerator(3, 10, 64, 512, 2, 6, True,
+     {'block_expansion': 64, 'max_features': 1024, 'num_blocks': 5, 'scale_factor': 0.25}, True, False)):
+
+    model_fp32 = input_model
 
     model_fp32.eval()
     modules_to_fuse = [['dense_motion_network.hourglass.encoder.down_blocks.0.conv', 'dense_motion_network.hourglass.encoder.down_blocks.0.norm', 'dense_motion_network.hourglass.encoder.down_blocks.0.relu'],
@@ -1416,17 +1417,19 @@ def main_generator():
     model_int8 = torch.quantization.convert(model_fp32_prepared)
     print_size_of_model(model_int8, label="model_int8")
 
-    # run the model
-    tt = []
-    for i in range(0, 100):
-        start_time = time.time()
-        res = model_int8(x0, {'value':x1, 'jacobian':x2}, {'value':x3, 'jacobian':x4})
-        tt.append(time.time() - start_time)
-    print("Average inference on int8:", sum(tt)/len(tt))
+    # # run the model
+    # tt = []
+    # for i in range(0, 100):
+    #     start_time = time.time()
+    #     res = model_int8(x0, {'value':x1, 'jacobian':x2}, {'value':x3, 'jacobian':x4})
+    #     tt.append(time.time() - start_time)
+    # print("Average inference on int8:", sum(tt)/len(tt))
+
+    return model_int8
 
 
-def main_kp_detector():
-    model_fp32 = KPDetector(32, 10, 3, 1024, 5, 0.1, True, 0.25, False, 0, False)
+def main_kp_detector(input_model=KPDetector(32, 10, 3, 1024, 5, 0.1, True, 0.25, False, 0, False)):
+    model_fp32 = input_model
 
     model_fp32.eval()
     modules_to_fuse = [['predictor.encoder.down_blocks.0.conv', 'predictor.encoder.down_blocks.0.norm', 'predictor.encoder.down_blocks.0.relu'],
@@ -1463,62 +1466,40 @@ def main_kp_detector():
     model_int8 = torch.quantization.convert(model_fp32_prepared)
     print_size_of_model(model_int8, label="model_int8")
 
-    # run the model
-    tt = []
-    for i in range(0, 100):
-        start_time = time.time()
-        res = model_int8(x0)
-        tt.append(time.time() - start_time)
-    print("Average inference on int8:", sum(tt)/len(tt))
+    # # run the model
+    # tt = []
+    # for i in range(0, 100):
+    #     start_time = time.time()
+    #     res = model_int8(x0)
+    #     tt.append(time.time() - start_time)
+    # print("Average inference on int8:", sum(tt)/len(tt))
+
+    return model_int8
 
 
 def main():
     model = FirstOrderModel("config/api_sample.yaml")
-
-    x0 = torch.randn(1, 3, 256, 256, requires_grad=False)
-    x1 = torch.randn(1, 10, 2,requires_grad=False)
-    x2 = torch.randn(1, 10, 2, 2, requires_grad=False)
-    x3 = torch.randn(1, 10, 2, requires_grad=False)
-    x4 = torch.randn(1, 10, 2, 2, requires_grad=False)
-
-    convert_kp_extractor = False
-    convert_generator = True
-    dynamic = False
-
-    if convert_generator:
-        model_fp32 = model.generator
-        # for name, param in model_fp32.named_modules():
-        #     print(name)
+    model.generator = main_generator(model.generator)
+    model.kp_detector =  main_kp_detector(model.kp_detector)
+    
+    video_name = "short_test_video.mp4"
+    video_array = np.array(imageio.mimread(video_name))
+    source = video_array[0, :, :, :]
+    source_kp = model.extract_keypoints(source)
+    model.update_source(source, source_kp)
+    predictions = []
+    tt = []
+    for i in range(1, len(video_array) - 1):
+        print(i)
+        driving = video_array[i, :, :, :] 
+        target_kp = model.extract_keypoints(driving)
         start_time = time.time()
-        res = model_fp32(x0, {'value':x1, 'jacobian':x2}, {'value':x3, 'jacobian':x4})    
-        print("Inference on float32:", time.time() - start_time)
-        model_fp32.eval()
-        if dynamic:
-            model_int8 = torch.quantization.quantize_dynamic(model_fp32, dtype=torch.qint8)
-        else:
-            model_fp32.qconfig = torch.quantization.get_default_qconfig('fbgemm')
-            torch.backends.quantized.engine = 'fbgemm'
+        predictions.append(model.predict(target_kp))
+        tt.append(time.time() - start_time)
 
-            for name, module in model_fp32.named_modules():
-                # print(name, type(module), module)
-                if name == 'dense_motion_network.hourglass.encoder.down_blocks.0':
-                    module.eval()
-                    model_fp32_fused = torch.quantization.fuse_modules(module, [['conv']])
+    print(sum(tt)/len(tt))
+    imageio.mimsave('quantized_prediction.mp4', predictions)
 
-            # model_fp32_fused = torch.quantization.fuse_modules(model_fp32, [])
-            model_fp32_prepared = model_fp32 #torch.quantization.prepare(model_fp32_fused)
-            model_int8 = torch.quantization.convert(model_fp32_prepared)
-
-    # compare the sizes
-    f = print_size_of_model(model_fp32,"fp32")
-    q = print_size_of_model(model_int8,"int8")
-    print("int8 is {0:.2f} times smaller than fp32".format(f/q))
-
-    # run the model
-    for i in range(0, 100):
-        start_time = time.time()
-        res = model_int8(x0, {'value':x1, 'jacobian':x2}, {'value':x3, 'jacobian':x4})
-        print("Inference on int8:", time.time() - start_time)
 
 if __name__ == "__main__":
-    main_generator()
+    main()
