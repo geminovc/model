@@ -569,12 +569,17 @@ class SameBlock2d(nn.Module):
         super(SameBlock2d, self).__init__()
         self.conv = nn.Conv2d(in_channels=in_features, out_channels=out_features,
                               kernel_size=kernel_size, padding=padding, groups=groups)
-        self.norm = SynchronizedBatchNorm2d(out_features, affine=True)
+        self.norm = nn.BatchNorm2d(out_features, affine=True)
+        self.relu = torch.nn.ReLU()
+        self.quant = torch.quantization.QuantStub()
+        self.dequant = torch.quantization.DeQuantStub()
 
     def forward(self, x):
+        x = self.quant(x)
         out = self.conv(x)
         out = self.norm(out)
-        out = F.relu(out)
+        out = self.relu(out)
+        out = self.dequant(out)
         return out
 
 
@@ -585,7 +590,6 @@ class Encoder(nn.Module):
 
     def __init__(self, block_expansion, in_features, num_blocks=3, max_features=256):
         super(Encoder, self).__init__()
-        print(block_expansion, in_features, num_blocks, max_features)
         down_blocks = []
         for i in range(num_blocks):
             down_blocks.append(DownBlock2d(in_features if i == 0 else min(max_features, block_expansion * (2 ** i)),
@@ -609,7 +613,6 @@ class Decoder(nn.Module):
 
     def __init__(self, block_expansion, in_features, num_blocks=3, max_features=256):
         super(Decoder, self).__init__()
-        print(block_expansion, in_features, num_blocks, max_features)
         up_blocks = []
 
         for i in range(num_blocks)[::-1]:
@@ -822,6 +825,8 @@ class DenseMotionNetwork(nn.Module):
             self.down = AntiAliasInterpolation2d(num_channels, self.scale_factor)
         
         self.for_onnx = for_onnx
+        self.quant = torch.quantization.QuantStub()
+        self.dequant = torch.quantization.DeQuantStub()
 
     def create_heatmap_representations(self, source_image, kp_driving, kp_source):
         """
@@ -891,8 +896,9 @@ class DenseMotionNetwork(nn.Module):
         input = input.view(bs, -1, h, w)
 
         prediction = self.hourglass(input)
-
+        prediction = self.quant(prediction)
         mask = self.mask(prediction)
+        mask = self.dequant(mask)
         mask = F.softmax(mask, dim=1)
         out_dict['mask'] = mask
         mask = mask.unsqueeze(2)
@@ -1348,14 +1354,7 @@ def print_size_of_model(model, label=""):
     return size
 
 
-def main():
-    # get model size
-    def print_size_of_model(model, label=""):
-        torch.save(model.state_dict(), "temp.p")
-        size = os.path.getsize("temp.p")
-        print("model: ",label,' \t','Size (MB):', size/1e6)
-        os.remove('temp.p')
-        return size
+def main_dense():
 
     model = FirstOrderModel("config/api_sample.yaml")
 
@@ -1365,38 +1364,38 @@ def main():
     x3 = torch.randn(1, 10, 2, requires_grad=False)
     x4 = torch.randn(1, 10, 2, 2, requires_grad=False)
 
-    convert_kp_extractor = False
-    convert_generator = True
-    dynamic = False
 
-    if convert_generator:
-        model_fp32 = model.generator
-        # for name, param in model_fp32.named_modules():
-        #     print(name)
-        start_time = time.time()
-        res = model_fp32(x0, {'value':x1, 'jacobian':x2}, {'value':x3, 'jacobian':x4})    
-        print("Inference on float32:", time.time() - start_time)
-        model_fp32.eval()
-        if dynamic:
-            model_int8 = torch.quantization.quantize_dynamic(model_fp32, dtype=torch.qint8)
-        else:
-            model_fp32.qconfig = torch.quantization.get_default_qconfig('fbgemm')
-            torch.backends.quantized.engine = 'fbgemm'
+    model_fp32 = DenseMotionNetwork(64, 5, 1024, 10, 3, True, 0.25, 0.01, False)
 
-            for name, module in model_fp32.named_modules():
-                # print(name, type(module), module)
-                if name == 'dense_motion_network.hourglass.encoder.down_blocks.0':
-                    module.eval()
-                    model_fp32_fused = torch.quantization.fuse_modules(module, [['conv']])
+    model_fp32.eval()
+    modules_to_fuse = [['hourglass.encoder.down_blocks.0.conv', 'hourglass.encoder.down_blocks.0.norm', 'hourglass.encoder.down_blocks.0.relu'],
+                       ['hourglass.encoder.down_blocks.1.conv', 'hourglass.encoder.down_blocks.1.norm', 'hourglass.encoder.down_blocks.1.relu'],
+                       ['hourglass.encoder.down_blocks.2.conv', 'hourglass.encoder.down_blocks.2.norm', 'hourglass.encoder.down_blocks.2.relu'],
+                       ['hourglass.encoder.down_blocks.3.conv', 'hourglass.encoder.down_blocks.3.norm', 'hourglass.encoder.down_blocks.3.relu'],
+                       ['hourglass.encoder.down_blocks.4.conv', 'hourglass.encoder.down_blocks.4.norm', 'hourglass.encoder.down_blocks.4.relu'],
+                       ['hourglass.decoder.up_blocks.0.conv', 'hourglass.decoder.up_blocks.0.norm', 'hourglass.decoder.up_blocks.0.relu'],
+                       ['hourglass.decoder.up_blocks.1.conv', 'hourglass.decoder.up_blocks.1.norm', 'hourglass.decoder.up_blocks.1.relu'],
+                       ['hourglass.decoder.up_blocks.2.conv', 'hourglass.decoder.up_blocks.2.norm', 'hourglass.decoder.up_blocks.2.relu'],
+                       ['hourglass.decoder.up_blocks.3.conv', 'hourglass.decoder.up_blocks.3.norm', 'hourglass.decoder.up_blocks.3.relu'],
+                       ['hourglass.decoder.up_blocks.4.conv', 'hourglass.decoder.up_blocks.4.norm', 'hourglass.decoder.up_blocks.4.relu']]
 
-            # model_fp32_fused = torch.quantization.fuse_modules(model_fp32, [])
-            model_fp32_prepared = model_fp32 #torch.quantization.prepare(model_fp32_fused)
-            model_int8 = torch.quantization.convert(model_fp32_prepared)
 
-    # compare the sizes
-    f = print_size_of_model(model_fp32,"fp32")
-    q = print_size_of_model(model_int8,"int8")
-    print("int8 is {0:.2f} times smaller than fp32".format(f/q))
+    for name, module in model_fp32.named_modules():
+        print(name)
+
+    
+    print_size_of_model(model_fp32, label="model_fp32")
+    start_time = time.time()
+    res = model_fp32(x0, {'value':x1, 'jacobian':x2}, {'value':x3, 'jacobian':x4})    
+    print("Inference on float32:", time.time() - start_time)
+    
+    model_fp32.qconfig = torch.quantization.get_default_qconfig('fbgemm')
+    model_fp32_fused = torch.quantization.fuse_modules(model_fp32, modules_to_fuse)
+
+    model_fp32_prepared = torch.quantization.prepare(model_fp32_fused)
+
+    model_int8 = torch.quantization.convert(model_fp32_prepared)
+    print_size_of_model(model_int8, label="model_int8")
 
     # run the model
     for i in range(0, 100):
@@ -1485,5 +1484,107 @@ def main_dec():
         res = model_int8(input_fp32)
     print("Inference time:", time.time() - ss, "s")
 
+
+def main_hrglass():
+    # create a model instance
+    model_fp32 = Hourglass(64, 44, 5, 1024)
+    modules_to_fuse = [['encoder.down_blocks.0.conv', 'encoder.down_blocks.0.norm', 'encoder.down_blocks.0.relu'],
+                       ['encoder.down_blocks.1.conv', 'encoder.down_blocks.1.norm', 'encoder.down_blocks.1.relu'],
+                       ['encoder.down_blocks.2.conv', 'encoder.down_blocks.2.norm', 'encoder.down_blocks.2.relu'],
+                       ['encoder.down_blocks.3.conv', 'encoder.down_blocks.3.norm', 'encoder.down_blocks.3.relu'],
+                       ['encoder.down_blocks.4.conv', 'encoder.down_blocks.4.norm', 'encoder.down_blocks.4.relu'],
+                       ['decoder.up_blocks.0.conv', 'decoder.up_blocks.0.norm', 'decoder.up_blocks.0.relu'],
+                       ['decoder.up_blocks.1.conv', 'decoder.up_blocks.1.norm', 'decoder.up_blocks.1.relu'],
+                       ['decoder.up_blocks.2.conv', 'decoder.up_blocks.2.norm', 'decoder.up_blocks.2.relu'],
+                       ['decoder.up_blocks.3.conv', 'decoder.up_blocks.3.norm', 'decoder.up_blocks.3.relu'],
+                       ['decoder.up_blocks.4.conv', 'decoder.up_blocks.4.norm', 'decoder.up_blocks.4.relu']]
+
+    for name, module in model_fp32.named_modules():
+        print(name)
+
+    model_fp32.eval()
+    
+    print_size_of_model(model_fp32, label="model_fp32")
+    
+    model_fp32.qconfig = torch.quantization.get_default_qconfig('fbgemm')
+    model_fp32_fused = torch.quantization.fuse_modules(model_fp32, modules_to_fuse)
+
+    input_fp32 = torch.randn(1, 44, 64, 64)
+    model_fp32_prepared = torch.quantization.prepare(model_fp32_fused)
+
+    ss = time.time()
+    for i in range(0, 1):
+        res = model_fp32(input_fp32)
+    print("Inference time:", time.time() - ss, "s")
+
+    model_int8 = torch.quantization.convert(model_fp32_prepared)
+    print_size_of_model(model_int8, label="model_int8")
+
+    # run the model, relevant calculations will happen in int8
+    ss = time.time()
+    for i in range(0, 1):
+        res = model_int8(input_fp32)
+    print("Inference time:", time.time() - ss, "s")
+
+    os.remove('temp.p')
+    return size
+
+
+def main():
+    # get model size
+    def print_size_of_model(model, label=""):
+        torch.save(model.state_dict(), "temp.p")
+        size = os.path.getsize("temp.p")
+        print("model: ",label,' \t','Size (MB):', size/1e6)
+        os.remove('temp.p')
+        return size
+
+    model = FirstOrderModel("config/api_sample.yaml")
+
+    x0 = torch.randn(1, 3, 256, 256, requires_grad=False)
+    x1 = torch.randn(1, 10, 2,requires_grad=False)
+    x2 = torch.randn(1, 10, 2, 2, requires_grad=False)
+    x3 = torch.randn(1, 10, 2, requires_grad=False)
+    x4 = torch.randn(1, 10, 2, 2, requires_grad=False)
+
+    convert_kp_extractor = False
+    convert_generator = True
+    dynamic = False
+
+    if convert_generator:
+        model_fp32 = model.generator
+        # for name, param in model_fp32.named_modules():
+        #     print(name)
+        start_time = time.time()
+        res = model_fp32(x0, {'value':x1, 'jacobian':x2}, {'value':x3, 'jacobian':x4})    
+        print("Inference on float32:", time.time() - start_time)
+        model_fp32.eval()
+        if dynamic:
+            model_int8 = torch.quantization.quantize_dynamic(model_fp32, dtype=torch.qint8)
+        else:
+            model_fp32.qconfig = torch.quantization.get_default_qconfig('fbgemm')
+            torch.backends.quantized.engine = 'fbgemm'
+
+            for name, module in model_fp32.named_modules():
+                # print(name, type(module), module)
+                if name == 'dense_motion_network.hourglass.encoder.down_blocks.0':
+                    module.eval()
+                    model_fp32_fused = torch.quantization.fuse_modules(module, [['conv']])
+
+            # model_fp32_fused = torch.quantization.fuse_modules(model_fp32, [])
+            model_fp32_prepared = model_fp32 #torch.quantization.prepare(model_fp32_fused)
+            model_int8 = torch.quantization.convert(model_fp32_prepared)
+
+    # compare the sizes
+    f = print_size_of_model(model_fp32,"fp32")
+    q = print_size_of_model(model_int8,"int8")
+    print("int8 is {0:.2f} times smaller than fp32".format(f/q))
+
+    # run the model
+    for i in range(0, 100):
+        start_time = time.time()
+        res = model_int8(x0, {'value':x1, 'jacobian':x2}, {'value':x3, 'jacobian':x4})
+        print("Inference on int8:", time.time() - start_time)
+
 if __name__ == "__main__":
-    main_dec()
+    main_dense()
