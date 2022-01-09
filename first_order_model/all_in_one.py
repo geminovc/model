@@ -20,6 +20,19 @@ import queue
 import threading
 from torch.nn import Conv2d
 
+import matplotlib
+
+matplotlib.use('Agg')
+
+import os, sys
+import yaml
+from argparse import ArgumentParser
+from time import gmtime, strftime
+from shutil import copy
+from modules.discriminator import MultiScaleDiscriminator
+
+from frames_dataset import FramesDataset
+
 QUANT_ENGINE = 'fbgemm'
 
 class FutureResult(object):
@@ -900,6 +913,7 @@ class DenseMotionNetwork(nn.Module):
         sparse_motion = self.create_sparse_motions(source_image, kp_driving, kp_source)
         deformed_source = self.create_deformed_source_image(source_image, sparse_motion)
         out_dict['sparse_deformed'] = deformed_source
+        print("here")
 
         input = torch.cat([heatmap_representation, deformed_source], dim=2)
         input = input.view(bs, -1, h, w)
@@ -1371,7 +1385,7 @@ def print_size_of_model(model, label=""):
     return size
 
 
-def main_generator(input_model=OcclusionAwareGenerator(3, 10, 64, 512, 2, 6, True,
+def quantize_generator(input_model=OcclusionAwareGenerator(3, 10, 64, 512, 2, 6, True,
      {'block_expansion': 64, 'max_features': 1024, 'num_blocks': 5, 'scale_factor': 0.25}, True, False)):
 
     model_fp32 = input_model
@@ -1405,10 +1419,10 @@ def main_generator(input_model=OcclusionAwareGenerator(3, 10, 64, 512, 2, 6, Tru
     x3 = torch.randn(1, 10, 2, requires_grad=False)
     x4 = torch.randn(1, 10, 2, 2, requires_grad=False)
     
-    print_size_of_model(model_fp32, label="model_fp32")
-    start_time = time.time()
-    res = model_fp32(x0, {'value':x1, 'jacobian':x2}, {'value':x3, 'jacobian':x4})    
-    print("Inference on float32:", time.time() - start_time)
+    # print_size_of_model(model_fp32, label="model_fp32")
+    # start_time = time.time()
+    # res = model_fp32(x0, {'value':x1, 'jacobian':x2}, {'value':x3, 'jacobian':x4})    
+    # print("Inference on float32:", time.time() - start_time)
     
     model_fp32.qconfig = torch.quantization.get_default_qconfig(QUANT_ENGINE)
     model_fp32_fused = torch.quantization.fuse_modules(model_fp32, modules_to_fuse)
@@ -1416,7 +1430,7 @@ def main_generator(input_model=OcclusionAwareGenerator(3, 10, 64, 512, 2, 6, Tru
     model_fp32_prepared = torch.quantization.prepare(model_fp32_fused)
 
     model_int8 = torch.quantization.convert(model_fp32_prepared)
-    print_size_of_model(model_int8, label="model_int8")
+    # print_size_of_model(model_int8, label="model_int8")
 
     # # run the model
     # tt = []
@@ -1429,7 +1443,7 @@ def main_generator(input_model=OcclusionAwareGenerator(3, 10, 64, 512, 2, 6, Tru
     return model_int8
 
 
-def main_kp_detector(input_model=KPDetector(32, 10, 3, 1024, 5, 0.1, True, 0.25, False, 0, False)):
+def quantize_kp_detector(input_model=KPDetector(32, 10, 3, 1024, 5, 0.1, True, 0.25, False, 0, False)):
     model_fp32 = input_model
 
     model_fp32.eval()
@@ -1445,8 +1459,8 @@ def main_kp_detector(input_model=KPDetector(32, 10, 3, 1024, 5, 0.1, True, 0.25,
                        ['predictor.decoder.up_blocks.4.conv', 'predictor.decoder.up_blocks.4.norm', 'predictor.decoder.up_blocks.4.relu'],]
 
 
-    for name, module in model_fp32.named_modules():
-        print(name)
+    # for name, module in model_fp32.named_modules():
+    #     print(name)
 
     x0 = torch.randn(1, 3, 256, 256, requires_grad=False)
     x1 = torch.randn(1, 10, 2,requires_grad=False)
@@ -1454,10 +1468,10 @@ def main_kp_detector(input_model=KPDetector(32, 10, 3, 1024, 5, 0.1, True, 0.25,
     x3 = torch.randn(1, 10, 2, requires_grad=False)
     x4 = torch.randn(1, 10, 2, 2, requires_grad=False)
     
-    print_size_of_model(model_fp32, label="model_fp32")
-    start_time = time.time()
-    res = model_fp32(x0)    
-    print("Inference on float32:", time.time() - start_time)
+    # print_size_of_model(model_fp32, label="model_fp32")
+    # start_time = time.time()
+    # res = model_fp32(x0)    
+    # print("Inference on float32:", time.time() - start_time)
     
     model_fp32.qconfig = torch.quantization.get_default_qconfig(QUANT_ENGINE)
     model_fp32_fused = torch.quantization.fuse_modules(model_fp32, modules_to_fuse)
@@ -1465,7 +1479,7 @@ def main_kp_detector(input_model=KPDetector(32, 10, 3, 1024, 5, 0.1, True, 0.25,
     model_fp32_prepared = torch.quantization.prepare(model_fp32_fused)
 
     model_int8 = torch.quantization.convert(model_fp32_prepared)
-    print_size_of_model(model_int8, label="model_int8")
+    # print_size_of_model(model_int8, label="model_int8")
 
     # # run the model
     # tt = []
@@ -1478,10 +1492,10 @@ def main_kp_detector(input_model=KPDetector(32, 10, 3, 1024, 5, 0.1, True, 0.25,
     return model_int8
 
 
-def main():
+def quantize_pipeline():
     model = FirstOrderModel("config/api_sample.yaml")
-    model.generator = main_generator(model.generator)
-    model.kp_detector =  main_kp_detector(model.kp_detector)
+    model.generator = quantize_generator(model.generator)
+    model.kp_detector =  quantize_kp_detector(model.kp_detector)
     
     video_name = "short_test_video.mp4"
     video_array = np.array(imageio.mimread(video_name))
@@ -1502,5 +1516,147 @@ def main():
     imageio.mimsave('quantized_prediction.mp4', predictions)
 
 
+
+def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, dataset, device_ids):
+    train_params = config['train_params']
+
+    optimizer_generator = torch.optim.Adam(generator.parameters(), lr=train_params['lr_generator'], betas=(0.5, 0.999))
+    optimizer_discriminator = torch.optim.Adam(discriminator.parameters(), lr=train_params['lr_discriminator'], betas=(0.5, 0.999))
+    optimizer_kp_detector = torch.optim.Adam(kp_detector.parameters(), lr=train_params['lr_kp_detector'], betas=(0.5, 0.999))
+
+    if checkpoint is not None:
+        start_epoch = Logger.load_cpk(checkpoint, generator, discriminator, kp_detector,
+                                      optimizer_generator, optimizer_discriminator,
+                                      None if train_params['lr_kp_detector'] == 0 else optimizer_kp_detector)
+    else:
+        start_epoch = 0
+
+    scheduler_generator = MultiStepLR(optimizer_generator, train_params['epoch_milestones'], gamma=0.1,
+                                      last_epoch=start_epoch - 1)
+    scheduler_discriminator = MultiStepLR(optimizer_discriminator, train_params['epoch_milestones'], gamma=0.1,
+                                          last_epoch=start_epoch - 1)
+    scheduler_kp_detector = MultiStepLR(optimizer_kp_detector, train_params['epoch_milestones'], gamma=0.1,
+                                        last_epoch=-1 + start_epoch * (train_params['lr_kp_detector'] != 0))
+
+    if 'num_repeats' in train_params or train_params['num_repeats'] != 1:
+        dataset = DatasetRepeater(dataset, train_params['num_repeats'])
+    dataloader = DataLoader(dataset, batch_size=train_params['batch_size'], shuffle=True, num_workers=6, drop_last=True)
+
+    generator_full = GeneratorFullModel(kp_detector, generator, discriminator, train_params)
+    discriminator_full = DiscriminatorFullModel(kp_detector, generator, discriminator, train_params)
+
+    if torch.cuda.is_available():
+        generator_full = DataParallelWithCallback(generator_full, device_ids=device_ids)
+        discriminator_full = DataParallelWithCallback(discriminator_full, device_ids=device_ids)
+
+    with Logger(log_dir=log_dir, visualizer_params=config['visualizer_params'], checkpoint_freq=train_params['checkpoint_freq']) as logger:
+        for epoch in trange(start_epoch, train_params['num_epochs']):
+            for x in dataloader:
+                losses_generator, generated = generator_full(x)
+
+                loss_values = [val.mean() for val in losses_generator.values()]
+                loss = sum(loss_values)
+
+                loss.backward()
+                optimizer_generator.step()
+                optimizer_generator.zero_grad()
+                optimizer_kp_detector.step()
+                optimizer_kp_detector.zero_grad()
+
+                if train_params['loss_weights']['generator_gan'] != 0:
+                    optimizer_discriminator.zero_grad()
+                    losses_discriminator = discriminator_full(x, generated)
+                    loss_values = [val.mean() for val in losses_discriminator.values()]
+                    loss = sum(loss_values)
+
+                    loss.backward()
+                    optimizer_discriminator.step()
+                    optimizer_discriminator.zero_grad()
+                else:
+                    losses_discriminator = {}
+
+                losses_generator.update(losses_discriminator)
+                losses = {key: value.mean().detach().data.cpu().numpy() for key, value in losses_generator.items()}
+                logger.log_iter(losses=losses)
+
+            scheduler_generator.step()
+            scheduler_discriminator.step()
+            scheduler_kp_detector.step()
+            
+            logger.log_epoch(epoch, {'generator': generator,
+                                     'discriminator': discriminator,
+                                     'kp_detector': kp_detector,
+                                     'optimizer_generator': optimizer_generator,
+                                     'optimizer_discriminator': optimizer_discriminator,
+                                     'optimizer_kp_detector': optimizer_kp_detector}, inp=x, out=generated)
+
+
 if __name__ == "__main__":
-    main()
+    if sys.version_info[0] < 3:
+        raise Exception("You must use Python 3 or higher. Recommended version is Python 3.7")
+
+    parser = ArgumentParser()
+    parser.add_argument("--config", required=True, help="path to config")
+    parser.add_argument("--mode", default="train", choices=["train", "reconstruction", "animate"])
+    parser.add_argument("--log_dir", default='log', help="path to log into")
+    parser.add_argument("--checkpoint", default=None, help="path to checkpoint to restore")
+    parser.add_argument("--device_ids", default="0", type=lambda x: list(map(int, x.split(','))),
+                        help="Names of the devices comma separated.")
+    parser.add_argument("--verbose", dest="verbose", action="store_true", help="Print model architecture")
+    parser.add_argument("--enable_timing", dest="enable_timing", action="store_true", help="Time the model")
+    parser.set_defaults(verbose=False)
+
+    opt = parser.parse_args()
+    with open(opt.config) as f:
+        config = yaml.load(f)
+
+    if opt.checkpoint is not None:
+        log_dir = os.path.join(*os.path.split(opt.checkpoint)[:-1])
+    else:
+        log_dir = os.path.join(opt.log_dir, os.path.basename(opt.config).split('.')[0])
+        log_dir += ' ' + strftime("%d_%m_%y_%H.%M.%S", gmtime())
+
+    generator = OcclusionAwareGenerator(**config['model_params']['generator_params'],
+                                        **config['model_params']['common_params'])
+
+    generator = quantize_generator(generator)
+    
+    if torch.cuda.is_available():
+        generator.to(opt.device_ids[0])
+    if opt.verbose:
+        print(generator)
+
+    discriminator = MultiScaleDiscriminator(**config['model_params']['discriminator_params'],
+                                            **config['model_params']['common_params'])
+    if torch.cuda.is_available():
+        discriminator.to(opt.device_ids[0])
+    if opt.verbose:
+        print(discriminator)
+
+    kp_detector = KPDetector(**config['model_params']['kp_detector_params'],
+                             **config['model_params']['common_params'])
+    
+    kp_detector = quantize_kp_detector(kp_detector)
+    if torch.cuda.is_available():
+        kp_detector.to(opt.device_ids[0])
+
+    if opt.verbose:
+        print(kp_detector)
+
+    dataset = FramesDataset(is_train=(opt.mode == 'train'), **config['dataset_params'])
+
+    if not os.path.exists(log_dir):
+        os.makedirs(log_dir)
+    if not os.path.exists(os.path.join(log_dir, os.path.basename(opt.config))):
+        copy(opt.config, log_dir)
+
+    if opt.mode == 'train':
+        print("Training...")
+        train(config, generator, discriminator, kp_detector, opt.checkpoint, log_dir, dataset, opt.device_ids)
+    elif opt.mode == 'reconstruction':
+        print("Reconstruction...")
+        reconstruction(config, generator, kp_detector, opt.checkpoint, log_dir, dataset, opt.enable_timing)
+    elif opt.mode == 'animate':
+        print("Animate...")
+        animate(config, generator, kp_detector, opt.checkpoint, log_dir, dataset)
+
