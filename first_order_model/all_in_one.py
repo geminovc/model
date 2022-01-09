@@ -4,7 +4,7 @@ from keypoint_based_face_models import KeypointBasedFaceModels
 import torch
 from torch import nn
 import torch.nn.functional as F
-from mmcv.ops.point_sample import bilinear_grid_sample
+# from mmcv.ops.point_sample import bilinear_grid_sample
 import yaml
 import numpy as np
 from skimage import img_as_float32
@@ -21,6 +21,7 @@ import threading
 from torch.nn import Conv2d
 
 import matplotlib
+torch.manual_seed(100)
 
 matplotlib.use('Agg')
 
@@ -873,12 +874,12 @@ class DenseMotionNetwork(nn.Module):
         identity_grid = identity_grid.view(1, 1, h, w, 2)
         coordinate_grid = identity_grid - kp_driving['value'].view(bs, self.num_kp, 1, 1, 2)
         # TODO
-        # if 'jacobian' in kp_driving and not self.for_onnx:
-        #     jacobian = torch.matmul(kp_source['jacobian'], torch.inverse(kp_driving['jacobian']))
-        #     jacobian = jacobian.unsqueeze(-3).unsqueeze(-3)
-        #     jacobian = jacobian.repeat(1, 1, h, w, 1, 1)
-        #     coordinate_grid = torch.matmul(jacobian, coordinate_grid.unsqueeze(-1))
-        #     coordinate_grid = coordinate_grid.squeeze(-1)
+        if 'jacobian' in kp_driving and not self.for_onnx:
+            jacobian = torch.matmul(kp_source['jacobian'], torch.inverse(kp_driving['jacobian']))
+            jacobian = jacobian.unsqueeze(-3).unsqueeze(-3)
+            jacobian = jacobian.repeat(1, 1, h, w, 1, 1)
+            coordinate_grid = torch.matmul(jacobian, coordinate_grid.unsqueeze(-1))
+            coordinate_grid = coordinate_grid.squeeze(-1)
 
         driving_to_source = coordinate_grid + kp_source['value'].view(bs, self.num_kp, 1, 1, 2)
 
@@ -913,7 +914,6 @@ class DenseMotionNetwork(nn.Module):
         sparse_motion = self.create_sparse_motions(source_image, kp_driving, kp_source)
         deformed_source = self.create_deformed_source_image(source_image, sparse_motion)
         out_dict['sparse_deformed'] = deformed_source
-        print("here")
 
         input = torch.cat([heatmap_representation, deformed_source], dim=2)
         input = input.view(bs, -1, h, w)
@@ -1387,7 +1387,7 @@ def print_size_of_model(model, label=""):
 
 def quantize_generator(input_model=OcclusionAwareGenerator(3, 10, 64, 512, 2, 6, True,
      {'block_expansion': 64, 'max_features': 1024, 'num_blocks': 5, 'scale_factor': 0.25}, True, False)):
-
+    print("quantize_generator")
     model_fp32 = input_model
 
     model_fp32.eval()
@@ -1419,10 +1419,13 @@ def quantize_generator(input_model=OcclusionAwareGenerator(3, 10, 64, 512, 2, 6,
     x3 = torch.randn(1, 10, 2, requires_grad=False)
     x4 = torch.randn(1, 10, 2, 2, requires_grad=False)
     
-    # print_size_of_model(model_fp32, label="model_fp32")
-    # start_time = time.time()
-    # res = model_fp32(x0, {'value':x1, 'jacobian':x2}, {'value':x3, 'jacobian':x4})    
-    # print("Inference on float32:", time.time() - start_time)
+    print_size_of_model(model_fp32, label="model_fp32")
+    tt = []
+    for i in range(0, 100):
+        start_time = time.time()
+        res = model_fp32(x0, {'value':x1, 'jacobian':x2}, {'value':x3, 'jacobian':x4})
+        tt.append(time.time() - start_time)
+    print("Average inference on float32:", sum(tt)/len(tt))    
     
     model_fp32.qconfig = torch.quantization.get_default_qconfig(QUANT_ENGINE)
     model_fp32_fused = torch.quantization.fuse_modules(model_fp32, modules_to_fuse)
@@ -1430,20 +1433,21 @@ def quantize_generator(input_model=OcclusionAwareGenerator(3, 10, 64, 512, 2, 6,
     model_fp32_prepared = torch.quantization.prepare(model_fp32_fused)
 
     model_int8 = torch.quantization.convert(model_fp32_prepared)
-    # print_size_of_model(model_int8, label="model_int8")
 
-    # # run the model
-    # tt = []
-    # for i in range(0, 100):
-    #     start_time = time.time()
-    #     res = model_int8(x0, {'value':x1, 'jacobian':x2}, {'value':x3, 'jacobian':x4})
-    #     tt.append(time.time() - start_time)
-    # print("Average inference on int8:", sum(tt)/len(tt))
+    # run the model
+    print_size_of_model(model_int8, label="model_int8")
+    tt = []
+    for i in range(0, 100):
+        start_time = time.time()
+        res = model_int8(x0, {'value':x1, 'jacobian':x2}, {'value':x3, 'jacobian':x4})
+        tt.append(time.time() - start_time)
+    print("Average inference on int8:", sum(tt)/len(tt))
 
     return model_int8
 
 
 def quantize_kp_detector(input_model=KPDetector(32, 10, 3, 1024, 5, 0.1, True, 0.25, False, 0, False)):
+    print("quantize_kp_detector")
     model_fp32 = input_model
 
     model_fp32.eval()
@@ -1459,19 +1463,19 @@ def quantize_kp_detector(input_model=KPDetector(32, 10, 3, 1024, 5, 0.1, True, 0
                        ['predictor.decoder.up_blocks.4.conv', 'predictor.decoder.up_blocks.4.norm', 'predictor.decoder.up_blocks.4.relu'],]
 
 
-    # for name, module in model_fp32.named_modules():
-    #     print(name)
-
     x0 = torch.randn(1, 3, 256, 256, requires_grad=False)
     x1 = torch.randn(1, 10, 2,requires_grad=False)
     x2 = torch.randn(1, 10, 2, 2, requires_grad=False)
     x3 = torch.randn(1, 10, 2, requires_grad=False)
     x4 = torch.randn(1, 10, 2, 2, requires_grad=False)
     
-    # print_size_of_model(model_fp32, label="model_fp32")
-    # start_time = time.time()
-    # res = model_fp32(x0)    
-    # print("Inference on float32:", time.time() - start_time)
+    print_size_of_model(model_fp32, label="model_fp32")
+    tt = []
+    for i in range(0, 100):
+        start_time = time.time()
+        res = model_fp32(x0)
+        tt.append(time.time() - start_time)
+    print("Average inference on float32:", sum(tt)/len(tt)) 
     
     model_fp32.qconfig = torch.quantization.get_default_qconfig(QUANT_ENGINE)
     model_fp32_fused = torch.quantization.fuse_modules(model_fp32, modules_to_fuse)
@@ -1479,15 +1483,15 @@ def quantize_kp_detector(input_model=KPDetector(32, 10, 3, 1024, 5, 0.1, True, 0
     model_fp32_prepared = torch.quantization.prepare(model_fp32_fused)
 
     model_int8 = torch.quantization.convert(model_fp32_prepared)
-    # print_size_of_model(model_int8, label="model_int8")
+    print_size_of_model(model_int8, label="model_int8")
 
-    # # run the model
-    # tt = []
-    # for i in range(0, 100):
-    #     start_time = time.time()
-    #     res = model_int8(x0)
-    #     tt.append(time.time() - start_time)
-    # print("Average inference on int8:", sum(tt)/len(tt))
+    # run the model
+    tt = []
+    for i in range(0, 100):
+        start_time = time.time()
+        res = model_int8(x0)
+        tt.append(time.time() - start_time)
+    print("Average inference on int8:", sum(tt)/len(tt))
 
     return model_int8
 
@@ -1516,10 +1520,193 @@ def quantize_pipeline():
     imageio.mimsave('quantized_prediction.mp4', predictions)
 
 
+def quantize_enc():
+    print("quantize_enc")
+    model_fp32 = Encoder(64, 44, 5, 1024)
+    model_fp32.eval()
+    modules_to_fuse = [['down_blocks.0.conv', 'down_blocks.0.norm', 'down_blocks.0.relu'],
+                       ['down_blocks.1.conv', 'down_blocks.1.norm', 'down_blocks.1.relu'],
+                       ['down_blocks.2.conv', 'down_blocks.2.norm', 'down_blocks.2.relu'],
+                       ['down_blocks.3.conv', 'down_blocks.3.norm', 'down_blocks.3.relu'],
+                       ['down_blocks.4.conv', 'down_blocks.4.norm', 'down_blocks.4.relu']]
+
+
+    print_size_of_model(model_fp32, label="model_fp32")
+
+    model_fp32.qconfig = torch.quantization.get_default_qconfig('fbgemm')
+
+    model_fp32_fused = torch.quantization.fuse_modules(model_fp32, modules_to_fuse)
+
+
+    input_fp32 = torch.randn(1, 44, 64, 64)
+    model_fp32_prepared = torch.quantization.prepare(model_fp32_fused)
+
+
+    tt = []
+    for i in range(0, 100):
+        start_time = time.time()
+        res = model_fp32(input_fp32)
+        tt.append(time.time() - start_time)
+    print("Average inference on float32:", sum(tt)/len(tt)) 
+
+
+    model_int8 = torch.quantization.convert(model_fp32_prepared)
+    print_size_of_model(model_int8, label="model_int8")
+    tt = []
+    for i in range(0, 100):
+        start_time = time.time()
+        res = model_int8(input_fp32)
+        tt.append(time.time() - start_time)
+    print("Average inference on int8:", sum(tt)/len(tt)) 
+
+
+def quantize_dec():
+    # create a model instance
+    print("quantize_dec")
+    model_fp32 = Decoder(64, 44, 5, 1024)
+    modules_to_fuse = [['up_blocks.0.conv', 'up_blocks.0.norm', 'up_blocks.0.relu'],
+                       ['up_blocks.1.conv', 'up_blocks.1.norm', 'up_blocks.1.relu'],
+                       ['up_blocks.2.conv', 'up_blocks.2.norm', 'up_blocks.2.relu'],
+                       ['up_blocks.3.conv', 'up_blocks.3.norm', 'up_blocks.3.relu'],
+                       ['up_blocks.4.conv', 'up_blocks.4.norm', 'up_blocks.4.relu']]
+
+
+    model_fp32.eval()
+
+    print_size_of_model(model_fp32, label="model_fp32")
+
+    model_fp32.qconfig = torch.quantization.get_default_qconfig('fbgemm')
+    model_fp32_fused = torch.quantization.fuse_modules(model_fp32, modules_to_fuse)
+
+    input_fp32 = [torch.randn(1, 44, 64, 64), torch.randn(1, 128, 32, 32),
+                  torch.randn(1, 256, 16, 16), torch.randn(1, 512, 8, 8),
+                  torch.randn(1, 1024, 4, 4), torch.randn(1, 1024, 2, 2)]
+    model_fp32_prepared = torch.quantization.prepare(model_fp32_fused)
+
+    tt = []
+    for i in range(0, 100):
+        input_fp32 = [torch.randn(1, 44, 64, 64), torch.randn(1, 128, 32, 32),
+                torch.randn(1, 256, 16, 16), torch.randn(1, 512, 8, 8),
+                torch.randn(1, 1024, 4, 4), torch.randn(1, 1024, 2, 2)]
+        start_time = time.time()
+        res = model_fp32(input_fp32)
+        tt.append(time.time() - start_time)
+    print("Average inference on float32:", sum(tt)/len(tt)) 
+
+    model_int8 = torch.quantization.convert(model_fp32_prepared)
+    print_size_of_model(model_int8, label="model_int8")
+
+    input_fp32 = [torch.randn(1, 44, 64, 64), torch.randn(1, 128, 32, 32),
+                  torch.randn(1, 256, 16, 16), torch.randn(1, 512, 8, 8),
+                  torch.randn(1, 1024, 4, 4), torch.randn(1, 1024, 2, 2)]
+    # run the model, relevant calculations will happen in int8
+    tt = []
+    for i in range(0, 100):
+        input_fp32 = [torch.randn(1, 44, 64, 64), torch.randn(1, 128, 32, 32),
+                torch.randn(1, 256, 16, 16), torch.randn(1, 512, 8, 8),
+                torch.randn(1, 1024, 4, 4), torch.randn(1, 1024, 2, 2)]
+        start_time = time.time()
+        res = model_int8(input_fp32)
+        tt.append(time.time() - start_time)
+    print("Average inference on int8:", sum(tt)/len(tt)) 
+
+
+def quantize_hrglass():
+    print("quantize_hrglass")
+    # create a model instance
+    model_fp32 = Hourglass(64, 44, 5, 1024)
+    modules_to_fuse = [['encoder.down_blocks.0.conv', 'encoder.down_blocks.0.norm', 'encoder.down_blocks.0.relu'],
+                       ['encoder.down_blocks.1.conv', 'encoder.down_blocks.1.norm', 'encoder.down_blocks.1.relu'],
+                       ['encoder.down_blocks.2.conv', 'encoder.down_blocks.2.norm', 'encoder.down_blocks.2.relu'],
+                       ['encoder.down_blocks.3.conv', 'encoder.down_blocks.3.norm', 'encoder.down_blocks.3.relu'],
+                       ['encoder.down_blocks.4.conv', 'encoder.down_blocks.4.norm', 'encoder.down_blocks.4.relu'],
+                       ['decoder.up_blocks.0.conv', 'decoder.up_blocks.0.norm', 'decoder.up_blocks.0.relu'],
+                       ['decoder.up_blocks.1.conv', 'decoder.up_blocks.1.norm', 'decoder.up_blocks.1.relu'],
+                       ['decoder.up_blocks.2.conv', 'decoder.up_blocks.2.norm', 'decoder.up_blocks.2.relu'],
+                       ['decoder.up_blocks.3.conv', 'decoder.up_blocks.3.norm', 'decoder.up_blocks.3.relu'],
+                       ['decoder.up_blocks.4.conv', 'decoder.up_blocks.4.norm', 'decoder.up_blocks.4.relu']]
+
+    model_fp32.eval()
+
+    print_size_of_model(model_fp32, label="model_fp32")
+
+    model_fp32.qconfig = torch.quantization.get_default_qconfig('fbgemm')
+    model_fp32_fused = torch.quantization.fuse_modules(model_fp32, modules_to_fuse)
+
+    input_fp32 = torch.randn(1, 44, 64, 64)
+    model_fp32_prepared = torch.quantization.prepare(model_fp32_fused)
+
+    tt = []
+    for i in range(0, 100):
+        start_time = time.time()
+        res = model_fp32(input_fp32)
+        tt.append(time.time() - start_time)
+    print("Average inference on float32:", sum(tt)/len(tt)) 
+
+    model_int8 = torch.quantization.convert(model_fp32_prepared)
+    print_size_of_model(model_int8, label="model_int8")
+
+    tt = []
+    for i in range(0, 100):
+        start_time = time.time()
+        res = model_int8(input_fp32)
+        tt.append(time.time() - start_time)
+    print("Average inference on INT8:", sum(tt)/len(tt)) 
+
+
+def quantize_dense():
+    print("quantize_dense")
+    model_fp32 = DenseMotionNetwork(64, 5, 1024, 10, 3, True, 0.25, 0.01, False)
+
+    model_fp32.eval()
+    modules_to_fuse = [['hourglass.encoder.down_blocks.0.conv', 'hourglass.encoder.down_blocks.0.norm', 'hourglass.encoder.down_blocks.0.relu'],
+                       ['hourglass.encoder.down_blocks.1.conv', 'hourglass.encoder.down_blocks.1.norm', 'hourglass.encoder.down_blocks.1.relu'],
+                       ['hourglass.encoder.down_blocks.2.conv', 'hourglass.encoder.down_blocks.2.norm', 'hourglass.encoder.down_blocks.2.relu'],
+                       ['hourglass.encoder.down_blocks.3.conv', 'hourglass.encoder.down_blocks.3.norm', 'hourglass.encoder.down_blocks.3.relu'],
+                       ['hourglass.encoder.down_blocks.4.conv', 'hourglass.encoder.down_blocks.4.norm', 'hourglass.encoder.down_blocks.4.relu'],
+                       ['hourglass.decoder.up_blocks.0.conv', 'hourglass.decoder.up_blocks.0.norm', 'hourglass.decoder.up_blocks.0.relu'],
+                       ['hourglass.decoder.up_blocks.1.conv', 'hourglass.decoder.up_blocks.1.norm', 'hourglass.decoder.up_blocks.1.relu'],
+                       ['hourglass.decoder.up_blocks.2.conv', 'hourglass.decoder.up_blocks.2.norm', 'hourglass.decoder.up_blocks.2.relu'],
+                       ['hourglass.decoder.up_blocks.3.conv', 'hourglass.decoder.up_blocks.3.norm', 'hourglass.decoder.up_blocks.3.relu'],
+                       ['hourglass.decoder.up_blocks.4.conv', 'hourglass.decoder.up_blocks.4.norm', 'hourglass.decoder.up_blocks.4.relu']]
+
+    print_size_of_model(model_fp32, label="model_fp32")
+    
+    x0 = torch.randn(1, 3, 256, 256, requires_grad=False)
+    x1 = torch.randn(1, 10, 2, requires_grad=False)
+    x2 = torch.randn(1, 10, 2, 2, requires_grad=False)
+    x3 = torch.randn(1, 10, 2, requires_grad=False)
+    x4 = torch.randn(1, 10, 2, 2, requires_grad=False)
+
+    tt = []
+    for i in range(0, 100):
+        start_time = time.time()
+        res = model_fp32(x0, {'value':x1, 'jacobian':x2}, {'value':x3, 'jacobian':x4})
+        tt.append(time.time() - start_time)
+    print("Average inference on float32:", sum(tt)/len(tt)) 
+
+
+    model_fp32.qconfig = torch.quantization.get_default_qconfig('fbgemm')
+    model_fp32_fused = torch.quantization.fuse_modules(model_fp32, modules_to_fuse)
+
+    model_fp32_prepared = torch.quantization.prepare(model_fp32_fused)
+
+    model_int8 = torch.quantization.convert(model_fp32_prepared)
+    print_size_of_model(model_int8, label="model_int8")
+
+
+    tt = []
+    for i in range(0, 100):
+        start_time = time.time()
+        res = model_int8(x0, {'value':x1, 'jacobian':x2}, {'value':x3, 'jacobian':x4})
+        tt.append(time.time() - start_time)
+    print("Average inference on int8:", sum(tt)/len(tt)) 
+
 
 def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, dataset, device_ids):
     train_params = config['train_params']
-
+    # import pdb
+    # pdb.set_trace()
     optimizer_generator = torch.optim.Adam(generator.parameters(), lr=train_params['lr_generator'], betas=(0.5, 0.999))
     optimizer_discriminator = torch.optim.Adam(discriminator.parameters(), lr=train_params['lr_discriminator'], betas=(0.5, 0.999))
     optimizer_kp_detector = torch.optim.Adam(kp_detector.parameters(), lr=train_params['lr_kp_detector'], betas=(0.5, 0.999))
@@ -1592,71 +1779,85 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
 
 
 if __name__ == "__main__":
-    if sys.version_info[0] < 3:
-        raise Exception("You must use Python 3 or higher. Recommended version is Python 3.7")
-
-    parser = ArgumentParser()
-    parser.add_argument("--config", required=True, help="path to config")
-    parser.add_argument("--mode", default="train", choices=["train", "reconstruction", "animate"])
-    parser.add_argument("--log_dir", default='log', help="path to log into")
-    parser.add_argument("--checkpoint", default=None, help="path to checkpoint to restore")
-    parser.add_argument("--device_ids", default="0", type=lambda x: list(map(int, x.split(','))),
-                        help="Names of the devices comma separated.")
-    parser.add_argument("--verbose", dest="verbose", action="store_true", help="Print model architecture")
-    parser.add_argument("--enable_timing", dest="enable_timing", action="store_true", help="Time the model")
-    parser.set_defaults(verbose=False)
-
-    opt = parser.parse_args()
-    with open(opt.config) as f:
-        config = yaml.load(f)
-
-    if opt.checkpoint is not None:
-        log_dir = os.path.join(*os.path.split(opt.checkpoint)[:-1])
+    measure_timings = False
+    if measure_timings:
+        quantize_enc()
+        quantize_dec()
+        quantize_hrglass()
+        quantize_dense()
+        quantize_kp_detector()
+        quantize_generator()
     else:
-        log_dir = os.path.join(opt.log_dir, os.path.basename(opt.config).split('.')[0])
-        log_dir += ' ' + strftime("%d_%m_%y_%H.%M.%S", gmtime())
+        if sys.version_info[0] < 3:
+            raise Exception("You must use Python 3 or higher. Recommended version is Python 3.7")
 
-    generator = OcclusionAwareGenerator(**config['model_params']['generator_params'],
-                                        **config['model_params']['common_params'])
+        parser = ArgumentParser()
+        parser.add_argument("--config", required=True, help="path to config")
+        parser.add_argument("--mode", default="train", choices=["train", "reconstruction", "animate"])
+        parser.add_argument("--log_dir", default='log', help="path to log into")
+        parser.add_argument("--checkpoint", default=None, help="path to checkpoint to restore")
+        parser.add_argument("--device_ids", default="0", type=lambda x: list(map(int, x.split(','))),
+                            help="Names of the devices comma separated.")
+        parser.add_argument("--verbose", dest="verbose", action="store_true", help="Print model architecture")
+        parser.add_argument("--enable_timing", dest="enable_timing", action="store_true", help="Time the model")
+        parser.set_defaults(verbose=False)
 
-    generator = quantize_generator(generator)
-    
-    if torch.cuda.is_available():
-        generator.to(opt.device_ids[0])
-    if opt.verbose:
-        print(generator)
+        opt = parser.parse_args()
+        with open(opt.config) as f:
+            config = yaml.load(f)
 
-    discriminator = MultiScaleDiscriminator(**config['model_params']['discriminator_params'],
+        if opt.checkpoint is not None:
+            log_dir = os.path.join(*os.path.split(opt.checkpoint)[:-1])
+        else:
+            log_dir = os.path.join(opt.log_dir, os.path.basename(opt.config).split('.')[0])
+            log_dir += ' ' + strftime("%d_%m_%y_%H.%M.%S", gmtime())
+
+        generator = OcclusionAwareGenerator(**config['model_params']['generator_params'],
                                             **config['model_params']['common_params'])
-    if torch.cuda.is_available():
-        discriminator.to(opt.device_ids[0])
-    if opt.verbose:
-        print(discriminator)
 
-    kp_detector = KPDetector(**config['model_params']['kp_detector_params'],
-                             **config['model_params']['common_params'])
-    
-    kp_detector = quantize_kp_detector(kp_detector)
-    if torch.cuda.is_available():
-        kp_detector.to(opt.device_ids[0])
+        generator = quantize_generator(generator)
+        quantization_config = torch.quantization.get_default_qconfig(QUANT_ENGINE)
+        generator.qconfig = quantization_config
+        torch.quantization.prepare_qat(generator, inplace=True)
+        generator.train()
+        if torch.cuda.is_available():
+            generator.to(opt.device_ids[0])
+        if opt.verbose:
+            print(generator)
 
-    if opt.verbose:
-        print(kp_detector)
+        discriminator = MultiScaleDiscriminator(**config['model_params']['discriminator_params'],
+                                                **config['model_params']['common_params'])
+        if torch.cuda.is_available():
+            discriminator.to(opt.device_ids[0])
+        if opt.verbose:
+            print(discriminator)
 
-    dataset = FramesDataset(is_train=(opt.mode == 'train'), **config['dataset_params'])
+        kp_detector = KPDetector(**config['model_params']['kp_detector_params'],
+                                **config['model_params']['common_params'])
+        kp_detector = quantize_kp_detector(kp_detector)
+        # kp_detector.qconfig = quantization_config
+        # torch.quantization.prepare_qat(kp_detector, inplace=True)
+        # kp_detector.train()
+        if torch.cuda.is_available():
+            kp_detector.to(opt.device_ids[0])
 
-    if not os.path.exists(log_dir):
-        os.makedirs(log_dir)
-    if not os.path.exists(os.path.join(log_dir, os.path.basename(opt.config))):
-        copy(opt.config, log_dir)
+        if opt.verbose:
+            print(kp_detector)
 
-    if opt.mode == 'train':
-        print("Training...")
-        train(config, generator, discriminator, kp_detector, opt.checkpoint, log_dir, dataset, opt.device_ids)
-    elif opt.mode == 'reconstruction':
-        print("Reconstruction...")
-        reconstruction(config, generator, kp_detector, opt.checkpoint, log_dir, dataset, opt.enable_timing)
-    elif opt.mode == 'animate':
-        print("Animate...")
-        animate(config, generator, kp_detector, opt.checkpoint, log_dir, dataset)
+        dataset = FramesDataset(is_train=(opt.mode == 'train'), **config['dataset_params'])
+
+        if not os.path.exists(log_dir):
+            os.makedirs(log_dir)
+        if not os.path.exists(os.path.join(log_dir, os.path.basename(opt.config))):
+            copy(opt.config, log_dir)
+
+        if opt.mode == 'train':
+            print("Training...")
+            train(config, generator, discriminator, kp_detector, opt.checkpoint, log_dir, dataset, opt.device_ids)
+        elif opt.mode == 'reconstruction':
+            print("Reconstruction...")
+            reconstruction(config, generator, kp_detector, opt.checkpoint, log_dir, dataset, opt.enable_timing)
+        elif opt.mode == 'animate':
+            print("Animate...")
+            animate(config, generator, kp_detector, opt.checkpoint, log_dir, dataset)
 
