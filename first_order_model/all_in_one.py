@@ -19,7 +19,11 @@ from torch.nn.parallel._functions import ReduceAddCoalesced, Broadcast
 import queue
 import threading
 from torch.nn import Conv2d
-
+from torch.optim.lr_scheduler import MultiStepLR
+from torch.utils.data import DataLoader
+from frames_dataset import DatasetRepeater
+from modules.model import GeneratorFullModel, DiscriminatorFullModel
+from tqdm import trange
 import matplotlib
 torch.manual_seed(100)
 
@@ -1419,13 +1423,13 @@ def quantize_generator(input_model=OcclusionAwareGenerator(3, 10, 64, 512, 2, 6,
     x3 = torch.randn(1, 10, 2, requires_grad=False)
     x4 = torch.randn(1, 10, 2, 2, requires_grad=False)
     
-    print_size_of_model(model_fp32, label="model_fp32")
-    tt = []
-    for i in range(0, 100):
-        start_time = time.time()
-        res = model_fp32(x0, {'value':x1, 'jacobian':x2}, {'value':x3, 'jacobian':x4})
-        tt.append(time.time() - start_time)
-    print("Average inference on float32:", sum(tt)/len(tt))    
+    # print_size_of_model(model_fp32, label="model_fp32")
+    # tt = []
+    # for i in range(0, 100):
+    #     start_time = time.time()
+    #     res = model_fp32(x0, {'value':x1, 'jacobian':x2}, {'value':x3, 'jacobian':x4})
+    #     tt.append(time.time() - start_time)
+    # print("Average inference on float32:", sum(tt)/len(tt))    
     
     model_fp32.qconfig = torch.quantization.get_default_qconfig(QUANT_ENGINE)
     model_fp32_fused = torch.quantization.fuse_modules(model_fp32, modules_to_fuse)
@@ -1434,14 +1438,14 @@ def quantize_generator(input_model=OcclusionAwareGenerator(3, 10, 64, 512, 2, 6,
 
     model_int8 = torch.quantization.convert(model_fp32_prepared)
 
-    # run the model
-    print_size_of_model(model_int8, label="model_int8")
-    tt = []
-    for i in range(0, 100):
-        start_time = time.time()
-        res = model_int8(x0, {'value':x1, 'jacobian':x2}, {'value':x3, 'jacobian':x4})
-        tt.append(time.time() - start_time)
-    print("Average inference on int8:", sum(tt)/len(tt))
+    # # run the model
+    # print_size_of_model(model_int8, label="model_int8")
+    # tt = []
+    # for i in range(0, 100):
+    #     start_time = time.time()
+    #     res = model_int8(x0, {'value':x1, 'jacobian':x2}, {'value':x3, 'jacobian':x4})
+    #     tt.append(time.time() - start_time)
+    # print("Average inference on int8:", sum(tt)/len(tt))
 
     return model_int8
 
@@ -1469,13 +1473,13 @@ def quantize_kp_detector(input_model=KPDetector(32, 10, 3, 1024, 5, 0.1, True, 0
     x3 = torch.randn(1, 10, 2, requires_grad=False)
     x4 = torch.randn(1, 10, 2, 2, requires_grad=False)
     
-    print_size_of_model(model_fp32, label="model_fp32")
-    tt = []
-    for i in range(0, 100):
-        start_time = time.time()
-        res = model_fp32(x0)
-        tt.append(time.time() - start_time)
-    print("Average inference on float32:", sum(tt)/len(tt)) 
+    # print_size_of_model(model_fp32, label="model_fp32")
+    # tt = []
+    # for i in range(0, 100):
+    #     start_time = time.time()
+    #     res = model_fp32(x0)
+    #     tt.append(time.time() - start_time)
+    # print("Average inference on float32:", sum(tt)/len(tt)) 
     
     model_fp32.qconfig = torch.quantization.get_default_qconfig(QUANT_ENGINE)
     model_fp32_fused = torch.quantization.fuse_modules(model_fp32, modules_to_fuse)
@@ -1483,15 +1487,15 @@ def quantize_kp_detector(input_model=KPDetector(32, 10, 3, 1024, 5, 0.1, True, 0
     model_fp32_prepared = torch.quantization.prepare(model_fp32_fused)
 
     model_int8 = torch.quantization.convert(model_fp32_prepared)
-    print_size_of_model(model_int8, label="model_int8")
+    # print_size_of_model(model_int8, label="model_int8")
 
-    # run the model
-    tt = []
-    for i in range(0, 100):
-        start_time = time.time()
-        res = model_int8(x0)
-        tt.append(time.time() - start_time)
-    print("Average inference on int8:", sum(tt)/len(tt))
+    # # run the model
+    # tt = []
+    # for i in range(0, 100):
+    #     start_time = time.time()
+    #     res = model_int8(x0)
+    #     tt.append(time.time() - start_time)
+    # print("Average inference on int8:", sum(tt)/len(tt))
 
     return model_int8
 
@@ -1812,14 +1816,15 @@ if __name__ == "__main__":
             log_dir = os.path.join(opt.log_dir, os.path.basename(opt.config).split('.')[0])
             log_dir += ' ' + strftime("%d_%m_%y_%H.%M.%S", gmtime())
 
-        generator = OcclusionAwareGenerator(**config['model_params']['generator_params'],
-                                            **config['model_params']['common_params'])
+        generator = OcclusionAwareGenerator(**config['model_params']['generator_params'],**config['model_params']['common_params'])
 
-        generator = quantize_generator(generator)
-        quantization_config = torch.quantization.get_default_qconfig(QUANT_ENGINE)
-        generator.qconfig = quantization_config
-        torch.quantization.prepare_qat(generator, inplace=True)
-        generator.train()
+        # generator = quantize_generator(generator)
+        # quantization_config = torch.quantization.get_default_qconfig(QUANT_ENGINE)
+        # generator.qconfig = quantization_config
+        # torch.quantization.prepare_qat(generator, inplace=True)
+        # generator.train()
+        # import pdb
+        # pdb.set_trace()
         if torch.cuda.is_available():
             generator.to(opt.device_ids[0])
         if opt.verbose:
@@ -1834,7 +1839,7 @@ if __name__ == "__main__":
 
         kp_detector = KPDetector(**config['model_params']['kp_detector_params'],
                                 **config['model_params']['common_params'])
-        kp_detector = quantize_kp_detector(kp_detector)
+        # kp_detector = quantize_kp_detector(kp_detector)
         # kp_detector.qconfig = quantization_config
         # torch.quantization.prepare_qat(kp_detector, inplace=True)
         # kp_detector.train()
