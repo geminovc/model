@@ -473,7 +473,7 @@ def kp2gaussian(kp_value, spatial_size, kp_variance):
     # Preprocess kp shape
     shape = mean.shape[:number_of_leading_dimensions] + (1, 1, 2)
     mean = mean.view(*shape)
-    coordinate_grid = coordinate_grid.to(f'cuda:{mean.get_device()}')
+    # coordinate_grid = coordinate_grid.to(f'cuda:{mean.get_device()}')
     mean_sub = (coordinate_grid - mean)
 
     out = torch.exp(-0.5 * (mean_sub ** 2).sum(-1) / kp_variance)
@@ -526,8 +526,9 @@ class ResBlock2d(nn.Module):
         out = self.norm2(out)
         out = self.relu(out)
         out = self.conv2(out)
-        # out += x
         out = self.dequant(out)
+        x = self.dequant(x)
+        out += x
         return out
 
 
@@ -866,7 +867,7 @@ class DenseMotionNetwork(nn.Module):
 
         #adding background feature
         zeros = torch.zeros(heatmap.shape[0], 1, spatial_size[0], spatial_size[1]).type(heatmap.type())
-        zeros = zeros.to(f'cuda:{heatmap.get_device()}')
+        # zeros = zeros.to(f'cuda:{heatmap.get_device()}')
         heatmap = torch.cat([zeros, heatmap], dim=1)
         heatmap = heatmap.unsqueeze(2)
         return heatmap
@@ -878,7 +879,7 @@ class DenseMotionNetwork(nn.Module):
         bs, _, h, w = source_image.shape
         identity_grid = make_coordinate_grid((h, w), type=kp_source['value'].type())
         identity_grid = identity_grid.view(1, 1, h, w, 2)
-        identity_grid = identity_grid.to(f'cuda:{source_image.get_device()}')
+        # identity_grid = identity_grid.to(f'cuda:{source_image.get_device()}')
         coordinate_grid = identity_grid - kp_driving['value'].view(bs, self.num_kp, 1, 1, 2)
         # TODO
         if 'jacobian' in kp_driving and not self.for_onnx:
@@ -1117,7 +1118,7 @@ class KPDetector(nn.Module):
         shape = heatmap.shape
         heatmap = heatmap.unsqueeze(-1)
         grid = make_coordinate_grid(shape[2:], heatmap.type()).unsqueeze_(0).unsqueeze_(0)
-        grid = grid.to(f'cuda:{heatmap.get_device()}')
+        # grid = grid.to(f'cuda:{heatmap.get_device()}')
         value = (heatmap * grid).sum(dim=(2, 3))
 
         if self.for_onnx:
@@ -1711,6 +1712,31 @@ def quantize_dense():
         tt.append(time.time() - start_time)
     print("Average inference on int8:", sum(tt)/len(tt)) 
 
+def quantize_resblock():
+    model_fp32 = ResBlock2d(256, 3, 1)
+    input_fp32 = torch.randn(1, 256, 64, 64)
+    model_fp32.eval()    
+    model_fp32.qconfig = torch.quantization.get_default_qconfig('fbgemm')
+    model_fp32_fused = torch.quantization.fuse_modules(model_fp32, [['conv1','relu']])
+    model_fp32_prepared = torch.quantization.prepare(model_fp32_fused)
+
+    tt = []
+    for i in range(0, 100):
+        start_time = time.time()
+        res = model_fp32(input_fp32)
+        tt.append(time.time() - start_time)
+    print("Average inference on float32:", sum(tt)/len(tt)) 
+
+
+    model_int8 = torch.quantization.convert(model_fp32_prepared)
+    print_size_of_model(model_int8, label="model_int8")
+    tt = []
+    for i in range(0, 100):
+        start_time = time.time()
+        res = model_int8(input_fp32)
+        tt.append(time.time() - start_time)
+    print("Average inference on int8:", sum(tt)/len(tt)) 
+
 
 def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, dataset, device_ids):
     train_params = config['train_params']
@@ -1747,6 +1773,7 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
 
     with Logger(log_dir=log_dir, visualizer_params=config['visualizer_params'], checkpoint_freq=train_params['checkpoint_freq']) as logger:
         for epoch in trange(start_epoch, train_params['num_epochs']):
+            print("epoch", epoch)
             for x in dataloader:
                 losses_generator, generated = generator_full(x)
 
@@ -1788,14 +1815,15 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
 
 
 if __name__ == "__main__":
-    measure_timings = False
+    measure_timings = True
     if measure_timings:
-        quantize_enc()
-        quantize_dec()
-        quantize_hrglass()
-        quantize_dense()
-        quantize_kp_detector()
-        quantize_generator()
+        quantize_resblock()
+        # quantize_enc()
+        # quantize_dec()
+        # quantize_hrglass()
+        # quantize_dense()
+        # quantize_kp_detector()
+        # quantize_generator()
     else:
         if sys.version_info[0] < 3:
             raise Exception("You must use Python 3 or higher. Recommended version is Python 3.7")
@@ -1826,7 +1854,7 @@ if __name__ == "__main__":
         # quantization_config = torch.quantization.get_default_qat_qconfig(QUANT_ENGINE)
         # generator.qconfig = quantization_config
         # torch.quantization.prepare_qat(generator, inplace=True)
-        # generator.train()
+        generator.train()
         # import pdb
         # pdb.set_trace()
         if torch.cuda.is_available():
@@ -1846,7 +1874,7 @@ if __name__ == "__main__":
         # kp_detector = quantize_kp_detector(kp_detector)
         # kp_detector.qconfig = quantization_config
         # torch.quantization.prepare_qat(kp_detector, inplace=True)
-        # kp_detector.train()
+        kp_detector.train()
         if torch.cuda.is_available():
             kp_detector.to(opt.device_ids[0])
 
