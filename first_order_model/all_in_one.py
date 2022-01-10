@@ -507,10 +507,14 @@ class ResBlock2d(nn.Module):
 
     def __init__(self, in_features, kernel_size, padding):
         super(ResBlock2d, self).__init__()
-        self.conv1 = Conv2d(in_channels=in_features, out_channels=in_features, kernel_size=kernel_size,
-                               padding=padding)
-        self.conv2 = Conv2d(in_channels=in_features, out_channels=in_features, kernel_size=kernel_size,
-                               padding=padding)
+        # self.conv1 = Conv2d(in_channels=in_features, out_channels=in_features, kernel_size=kernel_size,
+        #                        padding=padding)
+        self.depth_conv1 = Conv2d(in_channels=in_features, out_channels=in_features, kernel_size=kernel_size, stride=(1, 1), padding= padding, groups=in_features)
+        self.point_conv1 = Conv2d(in_channels=in_features, out_channels=in_features, kernel_size=1, stride=(1, 1))
+        # self.conv2 = Conv2d(in_channels=in_features, out_channels=in_features, kernel_size=kernel_size,
+        #                        padding=padding)
+        self.depth_conv2 = Conv2d(in_channels=in_features, out_channels=in_features, kernel_size=kernel_size, stride=(1, 1), padding= padding, groups=in_features)
+        self.point_conv2 = Conv2d(in_channels=in_features, out_channels=in_features, kernel_size=1, stride=(1, 1))
         self.norm1 = nn.BatchNorm2d(in_features, affine=True)
         self.norm2 = nn.BatchNorm2d(in_features, affine=True)
         self.relu = torch.nn.ReLU()
@@ -522,10 +526,14 @@ class ResBlock2d(nn.Module):
         x = self.quant(x)
         out = self.norm1(x)
         out = self.relu(out)
-        out = self.conv1(out)
+        # out = self.conv1(out)
+        out = self.depth_conv1(out)
+        out = self.point_conv1(out)
         out = self.norm2(out)
         out = self.relu(out)
-        out = self.conv2(out)
+        # out = self.conv2(out)
+        out = self.depth_conv2(out)
+        out = self.point_conv2(out)
         out = self.dequant(out)
         x = self.dequant(x)
         out += x
@@ -1712,14 +1720,16 @@ def quantize_dense():
         tt.append(time.time() - start_time)
     print("Average inference on int8:", sum(tt)/len(tt)) 
 
+
 def quantize_resblock():
     model_fp32 = ResBlock2d(256, 3, 1)
     input_fp32 = torch.randn(1, 256, 64, 64)
     model_fp32.eval()    
     model_fp32.qconfig = torch.quantization.get_default_qconfig('fbgemm')
-    model_fp32_fused = torch.quantization.fuse_modules(model_fp32, [['conv1','relu']])
+    model_fp32_fused = torch.quantization.fuse_modules(model_fp32, [['depth_conv1', 'norm1', 'relu'], ['depth_conv2', 'norm2']])
     model_fp32_prepared = torch.quantization.prepare(model_fp32_fused)
 
+    print_size_of_model(model_fp32, label="float32")
     tt = []
     for i in range(0, 100):
         start_time = time.time()
@@ -1824,6 +1834,7 @@ if __name__ == "__main__":
         # quantize_dense()
         # quantize_kp_detector()
         # quantize_generator()
+        # quantize_pipeline()
     else:
         if sys.version_info[0] < 3:
             raise Exception("You must use Python 3 or higher. Recommended version is Python 3.7")
