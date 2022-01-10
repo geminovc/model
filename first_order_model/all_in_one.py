@@ -1751,6 +1751,8 @@ def quantize_resblock():
 
 
     model_int8 = torch.quantization.convert(model_fp32_prepared)
+    # torch.jit.save(torch.jit.script(model_int8), "resblock_quantized.pth")
+    # model_int8 = torch.jit.load('resblock_quantized.pth')
     print_size_of_model(model_int8, label="model_int8")
     tt = []
     for i in range(0, 100):
@@ -1837,7 +1839,7 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
 
 
 if __name__ == "__main__":
-    measure_timings = True
+    measure_timings = False
     if measure_timings:
         quantize_resblock()
         quantize_enc()
