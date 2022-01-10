@@ -24,6 +24,7 @@ from torch.utils.data import DataLoader
 from frames_dataset import DatasetRepeater
 from modules.model import GeneratorFullModel, DiscriminatorFullModel
 from tqdm import trange
+from sync_batchnorm import DataParallelWithCallback
 import matplotlib
 torch.manual_seed(100)
 
@@ -472,7 +473,7 @@ def kp2gaussian(kp_value, spatial_size, kp_variance):
     # Preprocess kp shape
     shape = mean.shape[:number_of_leading_dimensions] + (1, 1, 2)
     mean = mean.view(*shape)
-
+    coordinate_grid = coordinate_grid.to(f'cuda:{mean.get_device()}')
     mean_sub = (coordinate_grid - mean)
 
     out = torch.exp(-0.5 * (mean_sub ** 2).sum(-1) / kp_variance)
@@ -865,6 +866,7 @@ class DenseMotionNetwork(nn.Module):
 
         #adding background feature
         zeros = torch.zeros(heatmap.shape[0], 1, spatial_size[0], spatial_size[1]).type(heatmap.type())
+        zeros = zeros.to(f'cuda:{heatmap.get_device()}')
         heatmap = torch.cat([zeros, heatmap], dim=1)
         heatmap = heatmap.unsqueeze(2)
         return heatmap
@@ -876,6 +878,7 @@ class DenseMotionNetwork(nn.Module):
         bs, _, h, w = source_image.shape
         identity_grid = make_coordinate_grid((h, w), type=kp_source['value'].type())
         identity_grid = identity_grid.view(1, 1, h, w, 2)
+        identity_grid = identity_grid.to(f'cuda:{source_image.get_device()}')
         coordinate_grid = identity_grid - kp_driving['value'].view(bs, self.num_kp, 1, 1, 2)
         # TODO
         if 'jacobian' in kp_driving and not self.for_onnx:
@@ -1110,9 +1113,11 @@ class KPDetector(nn.Module):
         """
         Extract the mean and from a heatmap
         """
+
         shape = heatmap.shape
         heatmap = heatmap.unsqueeze(-1)
         grid = make_coordinate_grid(shape[2:], heatmap.type()).unsqueeze_(0).unsqueeze_(0)
+        grid = grid.to(f'cuda:{heatmap.get_device()}')
         value = (heatmap * grid).sum(dim=(2, 3))
 
         if self.for_onnx:
@@ -1817,9 +1822,8 @@ if __name__ == "__main__":
             log_dir += ' ' + strftime("%d_%m_%y_%H.%M.%S", gmtime())
 
         generator = OcclusionAwareGenerator(**config['model_params']['generator_params'],**config['model_params']['common_params'])
-
         # generator = quantize_generator(generator)
-        # quantization_config = torch.quantization.get_default_qconfig(QUANT_ENGINE)
+        # quantization_config = torch.quantization.get_default_qat_qconfig(QUANT_ENGINE)
         # generator.qconfig = quantization_config
         # torch.quantization.prepare_qat(generator, inplace=True)
         # generator.train()
