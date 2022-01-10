@@ -509,11 +509,11 @@ class ResBlock2d(nn.Module):
         super(ResBlock2d, self).__init__()
         # self.conv1 = Conv2d(in_channels=in_features, out_channels=in_features, kernel_size=kernel_size,
         #                        padding=padding)
-        self.depth_conv1 = Conv2d(in_channels=in_features, out_channels=in_features, kernel_size=kernel_size, stride=(1, 1), padding= padding, groups=in_features)
+        self.conv1 = Conv2d(in_channels=in_features, out_channels=in_features, kernel_size=kernel_size, stride=(1, 1), padding= padding, groups=in_features)
         self.point_conv1 = Conv2d(in_channels=in_features, out_channels=in_features, kernel_size=1, stride=(1, 1))
         # self.conv2 = Conv2d(in_channels=in_features, out_channels=in_features, kernel_size=kernel_size,
         #                        padding=padding)
-        self.depth_conv2 = Conv2d(in_channels=in_features, out_channels=in_features, kernel_size=kernel_size, stride=(1, 1), padding= padding, groups=in_features)
+        self.conv2 = Conv2d(in_channels=in_features, out_channels=in_features, kernel_size=kernel_size, stride=(1, 1), padding= padding, groups=in_features)
         self.point_conv2 = Conv2d(in_channels=in_features, out_channels=in_features, kernel_size=1, stride=(1, 1))
         self.norm1 = nn.BatchNorm2d(in_features, affine=True)
         self.norm2 = nn.BatchNorm2d(in_features, affine=True)
@@ -527,12 +527,12 @@ class ResBlock2d(nn.Module):
         out = self.norm1(x)
         out = self.relu(out)
         # out = self.conv1(out)
-        out = self.depth_conv1(out)
+        out = self.conv1(out)
         out = self.point_conv1(out)
         out = self.norm2(out)
         out = self.relu(out)
         # out = self.conv2(out)
-        out = self.depth_conv2(out)
+        out = self.conv2(out)
         out = self.point_conv2(out)
         out = self.dequant(out)
         x = self.dequant(x)
@@ -548,8 +548,10 @@ class UpBlock2d(nn.Module):
     def __init__(self, in_features, out_features, kernel_size=3, padding=1, groups=1):
         super(UpBlock2d, self).__init__()
 
-        self.conv = Conv2d(in_channels=in_features, out_channels=out_features, kernel_size=kernel_size,
-                              padding=padding, groups=groups)
+        # self.conv = Conv2d(in_channels=in_features, out_channels=out_features, kernel_size=kernel_size,
+        #                       padding=padding, groups=groups)
+        self.depth_conv = Conv2d(in_channels=in_features, out_channels=in_features, kernel_size=kernel_size, stride=(1, 1), padding= padding, groups=in_features)
+        self.conv = Conv2d(in_channels=in_features, out_channels=out_features, kernel_size=1, stride=(1, 1))
         self.norm = nn.BatchNorm2d(out_features, affine=True)
         self.relu = torch.nn.ReLU()
         self.quant = torch.quantization.QuantStub()
@@ -558,6 +560,8 @@ class UpBlock2d(nn.Module):
     def forward(self, x):
         x = self.quant(x)
         out = F.interpolate(x, scale_factor=2)
+        # out = self.conv(out)
+        out = self.depth_conv(out)
         out = self.conv(out)
         out = self.norm(out)
         out = self.relu(out)
@@ -572,8 +576,10 @@ class DownBlock2d(nn.Module):
 
     def __init__(self, in_features, out_features, kernel_size=3, padding=1, groups=1):
         super(DownBlock2d, self).__init__()
-        self.conv = Conv2d(in_channels=in_features, out_channels=out_features, kernel_size=kernel_size,
-                              padding=padding, groups=groups)
+        # self.conv = Conv2d(in_channels=in_features, out_channels=out_features, kernel_size=kernel_size,
+        #                       padding=padding, groups=groups)
+        self.depth_conv = Conv2d(in_channels=in_features, out_channels=in_features, kernel_size=kernel_size, stride=(1, 1), padding= padding, groups=in_features)
+        self.conv = Conv2d(in_channels=in_features, out_channels=out_features, kernel_size=1, stride=(1, 1))
         self.norm = nn.BatchNorm2d(out_features, affine=True)
         self.pool = nn.AvgPool2d(kernel_size=(2, 2))
         self.relu = torch.nn.ReLU()
@@ -582,6 +588,8 @@ class DownBlock2d(nn.Module):
 
     def forward(self, x):
         x = self.quant(x)
+        # out = self.conv(x)
+        out = self.depth_conv(x)
         out = self.conv(x)
         out = self.norm(out)
         out = self.relu(out)
@@ -597,8 +605,10 @@ class SameBlock2d(nn.Module):
 
     def __init__(self, in_features, out_features, groups=1, kernel_size=3, padding=1):
         super(SameBlock2d, self).__init__()
-        self.conv = Conv2d(in_channels=in_features, out_channels=out_features,
-                              kernel_size=kernel_size, padding=padding, groups=groups)
+        # self.conv = Conv2d(in_channels=in_features, out_channels=out_features,
+        #                       kernel_size=kernel_size, padding=padding, groups=groups)
+        self.depth_conv = Conv2d(in_channels=in_features, out_channels=in_features, kernel_size=kernel_size, stride=(1, 1), padding= padding, groups=in_features)
+        self.conv = Conv2d(in_channels=in_features, out_channels=out_features, kernel_size=1, stride=(1, 1))
         self.norm = nn.BatchNorm2d(out_features, affine=True)
         self.relu = torch.nn.ReLU()
         self.quant = torch.quantization.QuantStub()
@@ -606,7 +616,9 @@ class SameBlock2d(nn.Module):
 
     def forward(self, x):
         x = self.quant(x)
-        out = self.conv(x)
+        # out = self.conv(x)
+        out = self.depth_conv(x)
+        out = self.conv(out)
         out = self.norm(out)
         out = self.relu(out)
         out = self.dequant(out)
@@ -1437,13 +1449,13 @@ def quantize_generator(input_model=OcclusionAwareGenerator(3, 10, 64, 512, 2, 6,
     x3 = torch.randn(1, 10, 2, requires_grad=False)
     x4 = torch.randn(1, 10, 2, 2, requires_grad=False)
     
-    # print_size_of_model(model_fp32, label="model_fp32")
-    # tt = []
-    # for i in range(0, 100):
-    #     start_time = time.time()
-    #     res = model_fp32(x0, {'value':x1, 'jacobian':x2}, {'value':x3, 'jacobian':x4})
-    #     tt.append(time.time() - start_time)
-    # print("Average inference on float32:", sum(tt)/len(tt))    
+    print_size_of_model(model_fp32, label="model_fp32")
+    tt = []
+    for i in range(0, 100):
+        start_time = time.time()
+        res = model_fp32(x0, {'value':x1, 'jacobian':x2}, {'value':x3, 'jacobian':x4})
+        tt.append(time.time() - start_time)
+    print("Average inference on float32:", sum(tt)/len(tt))    
     
     model_fp32.qconfig = torch.quantization.get_default_qconfig(QUANT_ENGINE)
     model_fp32_fused = torch.quantization.fuse_modules(model_fp32, modules_to_fuse)
@@ -1452,14 +1464,14 @@ def quantize_generator(input_model=OcclusionAwareGenerator(3, 10, 64, 512, 2, 6,
 
     model_int8 = torch.quantization.convert(model_fp32_prepared)
 
-    # # run the model
-    # print_size_of_model(model_int8, label="model_int8")
-    # tt = []
-    # for i in range(0, 100):
-    #     start_time = time.time()
-    #     res = model_int8(x0, {'value':x1, 'jacobian':x2}, {'value':x3, 'jacobian':x4})
-    #     tt.append(time.time() - start_time)
-    # print("Average inference on int8:", sum(tt)/len(tt))
+    # run the model
+    print_size_of_model(model_int8, label="model_int8")
+    tt = []
+    for i in range(0, 100):
+        start_time = time.time()
+        res = model_int8(x0, {'value':x1, 'jacobian':x2}, {'value':x3, 'jacobian':x4})
+        tt.append(time.time() - start_time)
+    print("Average inference on int8:", sum(tt)/len(tt))
 
     return model_int8
 
@@ -1487,13 +1499,13 @@ def quantize_kp_detector(input_model=KPDetector(32, 10, 3, 1024, 5, 0.1, True, 0
     x3 = torch.randn(1, 10, 2, requires_grad=False)
     x4 = torch.randn(1, 10, 2, 2, requires_grad=False)
     
-    # print_size_of_model(model_fp32, label="model_fp32")
-    # tt = []
-    # for i in range(0, 100):
-    #     start_time = time.time()
-    #     res = model_fp32(x0)
-    #     tt.append(time.time() - start_time)
-    # print("Average inference on float32:", sum(tt)/len(tt)) 
+    print_size_of_model(model_fp32, label="model_fp32")
+    tt = []
+    for i in range(0, 100):
+        start_time = time.time()
+        res = model_fp32(x0)
+        tt.append(time.time() - start_time)
+    print("Average inference on float32:", sum(tt)/len(tt)) 
     
     model_fp32.qconfig = torch.quantization.get_default_qconfig(QUANT_ENGINE)
     model_fp32_fused = torch.quantization.fuse_modules(model_fp32, modules_to_fuse)
@@ -1501,15 +1513,15 @@ def quantize_kp_detector(input_model=KPDetector(32, 10, 3, 1024, 5, 0.1, True, 0
     model_fp32_prepared = torch.quantization.prepare(model_fp32_fused)
 
     model_int8 = torch.quantization.convert(model_fp32_prepared)
-    # print_size_of_model(model_int8, label="model_int8")
+    print_size_of_model(model_int8, label="model_int8")
 
-    # # run the model
-    # tt = []
-    # for i in range(0, 100):
-    #     start_time = time.time()
-    #     res = model_int8(x0)
-    #     tt.append(time.time() - start_time)
-    # print("Average inference on int8:", sum(tt)/len(tt))
+    # run the model
+    tt = []
+    for i in range(0, 100):
+        start_time = time.time()
+        res = model_int8(x0)
+        tt.append(time.time() - start_time)
+    print("Average inference on int8:", sum(tt)/len(tt))
 
     return model_int8
 
@@ -1726,7 +1738,7 @@ def quantize_resblock():
     input_fp32 = torch.randn(1, 256, 64, 64)
     model_fp32.eval()    
     model_fp32.qconfig = torch.quantization.get_default_qconfig('fbgemm')
-    model_fp32_fused = torch.quantization.fuse_modules(model_fp32, [['depth_conv1', 'norm1', 'relu'], ['depth_conv2', 'norm2']])
+    model_fp32_fused = torch.quantization.fuse_modules(model_fp32, [['conv1', 'norm1', 'relu'], ['conv2', 'norm2']])
     model_fp32_prepared = torch.quantization.prepare(model_fp32_fused)
 
     print_size_of_model(model_fp32, label="float32")
@@ -1828,12 +1840,12 @@ if __name__ == "__main__":
     measure_timings = True
     if measure_timings:
         quantize_resblock()
-        # quantize_enc()
-        # quantize_dec()
-        # quantize_hrglass()
-        # quantize_dense()
-        # quantize_kp_detector()
-        # quantize_generator()
+        quantize_enc()
+        quantize_dec()
+        quantize_hrglass()
+        quantize_dense()
+        quantize_kp_detector()
+        quantize_generator()
         # quantize_pipeline()
     else:
         if sys.version_info[0] < 3:
