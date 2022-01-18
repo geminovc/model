@@ -7,6 +7,7 @@ generator_interpreter = tf.lite.Interpreter(model_path="tflite/vox_float16/gener
 generator_interpreter.allocate_tensors()
 input_details = generator_interpreter.get_input_details()
 output_details = generator_interpreter.get_output_details()
+tt = []
 
 for i in range(0, 100):
     for j in range(0, len(input_details)):
@@ -19,6 +20,8 @@ for i in range(0, 100):
     generator_interpreter.invoke()
     # The function `get_tensor()` returns a copy of the tensor data.
     output_data = generator_interpreter.get_tensor(output_details[0]['index'])
-    print("Inference time is:", time.time() - start_time)
+    tt.append(time.time() - start_time)
+
+print("Average Inference time is:", sum(tt)/len(tt))
 
 
