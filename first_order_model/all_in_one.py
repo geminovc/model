@@ -40,6 +40,7 @@ from modules.discriminator import MultiScaleDiscriminator
 from frames_dataset import FramesDataset
 
 QUANT_ENGINE = 'fbgemm'
+USE_FAST_CONV2 = False
 
 class FutureResult(object):
     """A thread-safe future implementation. Used only as one-to-one pipe."""
@@ -507,14 +508,16 @@ class ResBlock2d(nn.Module):
 
     def __init__(self, in_features, kernel_size, padding):
         super(ResBlock2d, self).__init__()
-        # self.conv1 = Conv2d(in_channels=in_features, out_channels=in_features, kernel_size=kernel_size,
-        #                        padding=padding)
-        self.conv1 = Conv2d(in_channels=in_features, out_channels=in_features, kernel_size=kernel_size, stride=(1, 1), padding= padding, groups=in_features)
-        self.point_conv1 = Conv2d(in_channels=in_features, out_channels=in_features, kernel_size=1, stride=(1, 1))
-        # self.conv2 = Conv2d(in_channels=in_features, out_channels=in_features, kernel_size=kernel_size,
-        #                        padding=padding)
-        self.conv2 = Conv2d(in_channels=in_features, out_channels=in_features, kernel_size=kernel_size, stride=(1, 1), padding= padding, groups=in_features)
-        self.point_conv2 = Conv2d(in_channels=in_features, out_channels=in_features, kernel_size=1, stride=(1, 1))
+        if not USE_FAST_CONV2:
+            self.conv1 = Conv2d(in_channels=in_features, out_channels=in_features, kernel_size=kernel_size,
+                                padding=padding)
+            self.conv2 = Conv2d(in_channels=in_features, out_channels=in_features, kernel_size=kernel_size,
+                            padding=padding)
+        else:
+            self.conv1 = Conv2d(in_channels=in_features, out_channels=in_features, kernel_size=kernel_size, stride=(1, 1), padding= padding, groups=in_features)
+            self.point_conv1 = Conv2d(in_channels=in_features, out_channels=in_features, kernel_size=1, stride=(1, 1))
+            self.conv2 = Conv2d(in_channels=in_features, out_channels=in_features, kernel_size=kernel_size, stride=(1, 1), padding= padding, groups=in_features)
+            self.point_conv2 = Conv2d(in_channels=in_features, out_channels=in_features, kernel_size=1, stride=(1, 1))
         self.norm1 = nn.BatchNorm2d(in_features, affine=True)
         self.norm2 = nn.BatchNorm2d(in_features, affine=True)
         self.relu = torch.nn.ReLU()
@@ -526,14 +529,18 @@ class ResBlock2d(nn.Module):
         x = self.quant(x)
         out = self.norm1(x)
         out = self.relu(out)
-        # out = self.conv1(out)
-        out = self.conv1(out)
-        out = self.point_conv1(out)
+        if not USE_FAST_CONV2:
+            out = self.conv1(out)
+        else:
+            out = self.conv1(out)
+            out = self.point_conv1(out)
         out = self.norm2(out)
         out = self.relu(out)
-        # out = self.conv2(out)
-        out = self.conv2(out)
-        out = self.point_conv2(out)
+        if not USE_FAST_CONV2:
+            out = self.conv2(out)
+        else:
+            out = self.conv2(out)
+            out = self.point_conv2(out)
         out = self.dequant(out)
         x = self.dequant(x)
         out += x
@@ -547,11 +554,12 @@ class UpBlock2d(nn.Module):
 
     def __init__(self, in_features, out_features, kernel_size=3, padding=1, groups=1):
         super(UpBlock2d, self).__init__()
-
-        # self.conv = Conv2d(in_channels=in_features, out_channels=out_features, kernel_size=kernel_size,
-        #                       padding=padding, groups=groups)
-        self.depth_conv = Conv2d(in_channels=in_features, out_channels=in_features, kernel_size=kernel_size, stride=(1, 1), padding= padding, groups=in_features)
-        self.conv = Conv2d(in_channels=in_features, out_channels=out_features, kernel_size=1, stride=(1, 1))
+        if not USE_FAST_CONV2:
+            self.conv = Conv2d(in_channels=in_features, out_channels=out_features, kernel_size=kernel_size,
+                                padding=padding, groups=groups)
+        else:
+            self.depth_conv = Conv2d(in_channels=in_features, out_channels=in_features, kernel_size=kernel_size, stride=(1, 1), padding= padding, groups=in_features)
+            self.conv = Conv2d(in_channels=in_features, out_channels=out_features, kernel_size=1, stride=(1, 1))
         self.norm = nn.BatchNorm2d(out_features, affine=True)
         self.relu = torch.nn.ReLU()
         self.quant = torch.quantization.QuantStub()
@@ -560,9 +568,11 @@ class UpBlock2d(nn.Module):
     def forward(self, x):
         x = self.quant(x)
         out = F.interpolate(x, scale_factor=2)
-        # out = self.conv(out)
-        out = self.depth_conv(out)
-        out = self.conv(out)
+        if not USE_FAST_CONV2:
+            out = self.conv(out)
+        else:
+            out = self.depth_conv(out)
+            out = self.conv(out)
         out = self.norm(out)
         out = self.relu(out)
         out = self.dequant(out)
@@ -576,10 +586,12 @@ class DownBlock2d(nn.Module):
 
     def __init__(self, in_features, out_features, kernel_size=3, padding=1, groups=1):
         super(DownBlock2d, self).__init__()
-        # self.conv = Conv2d(in_channels=in_features, out_channels=out_features, kernel_size=kernel_size,
-        #                       padding=padding, groups=groups)
-        self.depth_conv = Conv2d(in_channels=in_features, out_channels=in_features, kernel_size=kernel_size, stride=(1, 1), padding= padding, groups=in_features)
-        self.conv = Conv2d(in_channels=in_features, out_channels=out_features, kernel_size=1, stride=(1, 1))
+        if not USE_FAST_CONV2:
+            self.conv = Conv2d(in_channels=in_features, out_channels=out_features, kernel_size=kernel_size,
+                                padding=padding, groups=groups)
+        else:
+            self.depth_conv = Conv2d(in_channels=in_features, out_channels=in_features, kernel_size=kernel_size, stride=(1, 1), padding= padding, groups=in_features)
+            self.conv = Conv2d(in_channels=in_features, out_channels=out_features, kernel_size=1, stride=(1, 1))
         self.norm = nn.BatchNorm2d(out_features, affine=True)
         self.pool = nn.AvgPool2d(kernel_size=(2, 2))
         self.relu = torch.nn.ReLU()
@@ -588,9 +600,11 @@ class DownBlock2d(nn.Module):
 
     def forward(self, x):
         x = self.quant(x)
-        # out = self.conv(x)
-        out = self.depth_conv(x)
-        out = self.conv(x)
+        if not USE_FAST_CONV2:
+            out = self.conv(x)
+        else:
+            out = self.depth_conv(x)
+            out = self.conv(x)
         out = self.norm(out)
         out = self.relu(out)
         out = self.pool(out)
@@ -605,10 +619,12 @@ class SameBlock2d(nn.Module):
 
     def __init__(self, in_features, out_features, groups=1, kernel_size=3, padding=1):
         super(SameBlock2d, self).__init__()
-        # self.conv = Conv2d(in_channels=in_features, out_channels=out_features,
-        #                       kernel_size=kernel_size, padding=padding, groups=groups)
-        self.depth_conv = Conv2d(in_channels=in_features, out_channels=in_features, kernel_size=kernel_size, stride=(1, 1), padding= padding, groups=in_features)
-        self.conv = Conv2d(in_channels=in_features, out_channels=out_features, kernel_size=1, stride=(1, 1))
+        if not USE_FAST_CONV2:
+            self.conv = Conv2d(in_channels=in_features, out_channels=out_features,
+                                kernel_size=kernel_size, padding=padding, groups=groups)
+        else:
+            self.depth_conv = Conv2d(in_channels=in_features, out_channels=in_features, kernel_size=kernel_size, stride=(1, 1), padding= padding, groups=in_features)
+            self.conv = Conv2d(in_channels=in_features, out_channels=out_features, kernel_size=1, stride=(1, 1))
         self.norm = nn.BatchNorm2d(out_features, affine=True)
         self.relu = torch.nn.ReLU()
         self.quant = torch.quantization.QuantStub()
@@ -616,9 +632,11 @@ class SameBlock2d(nn.Module):
 
     def forward(self, x):
         x = self.quant(x)
-        # out = self.conv(x)
-        out = self.depth_conv(x)
-        out = self.conv(out)
+        if not USE_FAST_CONV2:
+            out = self.conv(x)
+        else:
+            out = self.depth_conv(x)
+            out = self.conv(out)
         out = self.norm(out)
         out = self.relu(out)
         out = self.dequant(out)
@@ -1550,9 +1568,9 @@ def quantize_pipeline():
     imageio.mimsave('quantized_prediction.mp4', predictions)
 
 
-def quantize_enc():
+def quantize_enc(input_model=Encoder(64, 44, 5, 1024)):
     print("quantize_enc")
-    model_fp32 = Encoder(64, 44, 5, 1024)
+    model_fp32 = input_model
     model_fp32.eval()
     modules_to_fuse = [['down_blocks.0.conv', 'down_blocks.0.norm', 'down_blocks.0.relu'],
                        ['down_blocks.1.conv', 'down_blocks.1.norm', 'down_blocks.1.relu'],
@@ -1590,10 +1608,10 @@ def quantize_enc():
     print("Average inference on int8:", sum(tt)/len(tt)) 
 
 
-def quantize_dec():
+def quantize_dec(input_model=Decoder(64, 44, 5, 1024)):
     # create a model instance
     print("quantize_dec")
-    model_fp32 = Decoder(64, 44, 5, 1024)
+    model_fp32 = input_model
     modules_to_fuse = [['up_blocks.0.conv', 'up_blocks.0.norm', 'up_blocks.0.relu'],
                        ['up_blocks.1.conv', 'up_blocks.1.norm', 'up_blocks.1.relu'],
                        ['up_blocks.2.conv', 'up_blocks.2.norm', 'up_blocks.2.relu'],
@@ -1641,10 +1659,10 @@ def quantize_dec():
     print("Average inference on int8:", sum(tt)/len(tt)) 
 
 
-def quantize_hrglass():
+def quantize_hrglass(input_model=Hourglass(64, 44, 5, 1024)):
     print("quantize_hrglass")
     # create a model instance
-    model_fp32 = Hourglass(64, 44, 5, 1024)
+    model_fp32 = input_model
     modules_to_fuse = [['encoder.down_blocks.0.conv', 'encoder.down_blocks.0.norm', 'encoder.down_blocks.0.relu'],
                        ['encoder.down_blocks.1.conv', 'encoder.down_blocks.1.norm', 'encoder.down_blocks.1.relu'],
                        ['encoder.down_blocks.2.conv', 'encoder.down_blocks.2.norm', 'encoder.down_blocks.2.relu'],
@@ -1684,9 +1702,9 @@ def quantize_hrglass():
     print("Average inference on INT8:", sum(tt)/len(tt)) 
 
 
-def quantize_dense():
+def quantize_dense(input_model=DenseMotionNetwork(64, 5, 1024, 10, 3, True, 0.25, 0.01, False)):
     print("quantize_dense")
-    model_fp32 = DenseMotionNetwork(64, 5, 1024, 10, 3, True, 0.25, 0.01, False)
+    model_fp32 = input_model
 
     model_fp32.eval()
     modules_to_fuse = [['hourglass.encoder.down_blocks.0.conv', 'hourglass.encoder.down_blocks.0.norm', 'hourglass.encoder.down_blocks.0.relu'],
@@ -1733,8 +1751,8 @@ def quantize_dense():
     print("Average inference on int8:", sum(tt)/len(tt)) 
 
 
-def quantize_resblock():
-    model_fp32 = ResBlock2d(256, 3, 1)
+def quantize_resblock(input_model=ResBlock2d(256, 3, 1)):
+    model_fp32 = input_model
     input_fp32 = torch.randn(1, 256, 64, 64)
     model_fp32.eval()    
     model_fp32.qconfig = torch.quantization.get_default_qconfig('fbgemm')
