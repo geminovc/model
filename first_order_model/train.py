@@ -21,9 +21,15 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
     optimizer_kp_detector = torch.optim.Adam(kp_detector.parameters(), lr=train_params['lr_kp_detector'], betas=(0.5, 0.999))
 
     if checkpoint is not None:
-        start_epoch = Logger.load_cpk(checkpoint, generator, discriminator, kp_detector,
+        if train_params.get('skip_generator_loading', False):
+            # set optimizers and discriminator to None to avoid bogus values and to start training from scratch
+            start_epoch = Logger.load_cpk(checkpoint, generator, None, kp_detector,
+                                      None, None, None, dense_motion_network=generator.dense_motion_network)
+            start_epoch = 0
+        else:
+            start_epoch = Logger.load_cpk(checkpoint, generator, discriminator, kp_detector,
                                       optimizer_generator, optimizer_discriminator,
-                                      None if train_params['lr_kp_detector'] == 0 else optimizer_kp_detector)
+                                      None if train_params['lr_kp_detector'] == 0 else optimizer_kp_detector, None)
     else:
         start_epoch = 0
 
@@ -33,6 +39,12 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
                                           last_epoch=start_epoch - 1)
     scheduler_kp_detector = MultiStepLR(optimizer_kp_detector, train_params['epoch_milestones'], gamma=0.1,
                                         last_epoch=-1 + start_epoch * (train_params['lr_kp_detector'] != 0))
+
+    if train_params.get('train_only_generator', False) and checkpoint is not None:
+        for param in kp_detector.parameters():
+            param.requires_grad = False
+        for param in generator.dense_motion_network.parameters():
+            param.requires_grad = False
 
     if 'num_repeats' in train_params or train_params['num_repeats'] != 1:
         dataset = DatasetRepeater(dataset, train_params['num_repeats'])

@@ -85,7 +85,7 @@ class OcclusionAwareGenerator(nn.Module):
                 if out.shape[2] != occlusion_map.shape[2] or out.shape[3] != occlusion_map.shape[3]:
                     occlusion_map = F.interpolate(occlusion_map, size=out.shape[2:], mode='bilinear')
                 out = out * occlusion_map
-            
+
             if 'residual' in dense_motion:
                 out += dense_motion['residual']
 

@@ -58,23 +58,31 @@ class Logger:
     @staticmethod
     def load_cpk(checkpoint_path, generator=None, discriminator=None, kp_detector=None,
                  optimizer_generator=None, optimizer_discriminator=None, optimizer_kp_detector=None, 
-                 device='gpu'):
+                 device='gpu', dense_motion_network=None):
         if device == torch.device('cpu'):
             checkpoint = torch.load(checkpoint_path, map_location=torch.device('cpu'))
         else:
             checkpoint = torch.load(checkpoint_path)
 
-        if generator is not None:
+        if generator is not None and dense_motion_network is not None:
+            gen_params = checkpoint['generator']
+            dense_motion_params = {k: gen_params[k] for k in gen_params.keys() if k.startswith('dense_motion_network')}
+            generator.load_state_dict(dense_motion_params, strict=False)
+        elif generator is not None:
             generator.load_state_dict(checkpoint['generator'])
+
         if kp_detector is not None:
             kp_detector.load_state_dict(checkpoint['kp_detector'])
-        if discriminator is not None:
+
+        if discriminator is not None: 
             try:
                discriminator.load_state_dict(checkpoint['discriminator'])
             except:
                print ('No discriminator in the state-dict. Dicriminator will be randomly initialized')
+
         if optimizer_generator is not None:
             optimizer_generator.load_state_dict(checkpoint['optimizer_generator'])
+
         if optimizer_discriminator is not None:
             try:
                 optimizer_discriminator.load_state_dict(checkpoint['optimizer_discriminator'])
