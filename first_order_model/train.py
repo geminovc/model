@@ -43,6 +43,10 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
     if train_params.get('train_only_generator', False) and checkpoint is not None:
         for param in kp_detector.parameters():
             param.requires_grad = False
+        ev_loss = train_params['loss_weights']['equivariance_value']
+        ev_jacobian = train_params['loss_weights']['equivariance_jacobian']
+        assert ev_loss == 0 and ev_jacobian == 0, "Equivariance losses must be 0 to freeze keypoint detector"
+
         for param in generator.dense_motion_network.parameters():
             param.requires_grad = False
 
