@@ -6,11 +6,10 @@ from torch import nn
 import torch.nn.functional as F
 # from mmcv.ops.point_sample import bilinear_grid_sample
 import yaml
-import numpy as np
 from skimage import img_as_float32
 import imageio 
 import time
-import os
+import os, sys
 from skimage.draw import circle
 import matplotlib.pyplot as plt
 import collections
@@ -22,25 +21,285 @@ from torch.nn import Conv2d
 from torch.optim.lr_scheduler import MultiStepLR
 from torch.utils.data import DataLoader
 from frames_dataset import DatasetRepeater
-from modules.model import GeneratorFullModel, DiscriminatorFullModel
 from tqdm import trange
 from sync_batchnorm import DataParallelWithCallback
-import matplotlib
-torch.manual_seed(100)
-
-matplotlib.use('Agg')
-
-import os, sys
-import yaml
 from argparse import ArgumentParser
 from time import gmtime, strftime
 from shutil import copy
 from modules.discriminator import MultiScaleDiscriminator
-
 from frames_dataset import FramesDataset
+from torchvision import models
+import numpy as np
+from torch.autograd import grad
+
 
 QUANT_ENGINE = 'fbgemm'
 USE_FAST_CONV2 = False
+USE_FLOAT_16 = False
+USE_QUANTIZATION = False
+IMAGE_RESOLUTION = 256
+USE_CUDA = False
+NUM_RUNS = 1000
+
+_MasterRegistry = collections.namedtuple('MasterRegistry', ['result'])
+_SlavePipeBase = collections.namedtuple('_SlavePipeBase', ['identifier', 'queue', 'result'])
+_ChildMessage = collections.namedtuple('_ChildMessage', ['sum', 'ssum', 'sum_size'])
+_MasterMessage = collections.namedtuple('_MasterMessage', ['sum', 'inv_std'])
+
+
+class Vgg19(torch.nn.Module):
+    """
+    Vgg19 network for perceptual loss. See Sec 3.3.
+    """
+    def __init__(self, requires_grad=False):
+        super(Vgg19, self).__init__()
+        vgg_pretrained_features = models.vgg19(pretrained=True).features
+        self.slice1 = torch.nn.Sequential()
+        self.slice2 = torch.nn.Sequential()
+        self.slice3 = torch.nn.Sequential()
+        self.slice4 = torch.nn.Sequential()
+        self.slice5 = torch.nn.Sequential()
+        for x in range(2):
+            self.slice1.add_module(str(x), vgg_pretrained_features[x])
+        for x in range(2, 7):
+            self.slice2.add_module(str(x), vgg_pretrained_features[x])
+        for x in range(7, 12):
+            self.slice3.add_module(str(x), vgg_pretrained_features[x])
+        for x in range(12, 21):
+            self.slice4.add_module(str(x), vgg_pretrained_features[x])
+        for x in range(21, 30):
+            self.slice5.add_module(str(x), vgg_pretrained_features[x])
+
+        self.mean = torch.nn.Parameter(data=torch.Tensor(np.array([0.485, 0.456, 0.406]).reshape((1, 3, 1, 1))),
+                                       requires_grad=False)
+        self.std = torch.nn.Parameter(data=torch.Tensor(np.array([0.229, 0.224, 0.225]).reshape((1, 3, 1, 1))),
+                                      requires_grad=False)
+
+        if not requires_grad:
+            for param in self.parameters():
+                param.requires_grad = False
+
+    def forward(self, X):
+        X = (X - self.mean) / self.std
+        h_relu1 = self.slice1(X)
+        h_relu2 = self.slice2(h_relu1)
+        h_relu3 = self.slice3(h_relu2)
+        h_relu4 = self.slice4(h_relu3)
+        h_relu5 = self.slice5(h_relu4)
+        out = [h_relu1, h_relu2, h_relu3, h_relu4, h_relu5]
+        return out
+
+
+class ImagePyramide(torch.nn.Module):
+    """
+    Create image pyramide for computing pyramide perceptual loss. See Sec 3.3
+    """
+    def __init__(self, scales, num_channels):
+        super(ImagePyramide, self).__init__()
+        downs = {}
+        for scale in scales:
+            downs[str(scale).replace('.', '-')] = AntiAliasInterpolation2d(num_channels, scale)
+        self.downs = nn.ModuleDict(downs)
+
+    def forward(self, x):
+        out_dict = {}
+        for scale, down_module in self.downs.items():
+            out_dict['prediction_' + str(scale).replace('-', '.')] = down_module(x)
+        return out_dict
+
+
+class Transform:
+    """
+    Random tps transformation for equivariance constraints. See Sec 3.3
+    """
+    def __init__(self, bs, **kwargs):
+        noise = torch.normal(mean=0, std=kwargs['sigma_affine'] * torch.ones([bs, 2, 3]))
+        self.theta = noise + torch.eye(2, 3).view(1, 2, 3)
+        self.bs = bs
+
+        if ('sigma_tps' in kwargs) and ('points_tps' in kwargs):
+            self.tps = True
+            self.control_points = make_coordinate_grid((kwargs['points_tps'], kwargs['points_tps']), type=noise.type())
+            self.control_points = self.control_points.unsqueeze(0)
+            self.control_params = torch.normal(mean=0,
+                                               std=kwargs['sigma_tps'] * torch.ones([bs, 1, kwargs['points_tps'] ** 2]))
+        else:
+            self.tps = False
+
+    def transform_frame(self, frame):
+        grid = make_coordinate_grid(frame.shape[2:], type=frame.type()).unsqueeze(0)
+        grid = grid.view(1, frame.shape[2] * frame.shape[3], 2)
+        grid = self.warp_coordinates(grid).view(self.bs, frame.shape[2], frame.shape[3], 2)
+        return F.grid_sample(frame, grid, padding_mode="reflection")
+
+    def warp_coordinates(self, coordinates):
+        theta = self.theta.type(coordinates.type())
+        theta = theta.unsqueeze(1)
+        transformed = torch.matmul(theta[:, :, :, :2], coordinates.unsqueeze(-1)) + theta[:, :, :, 2:]
+        transformed = transformed.squeeze(-1)
+
+        if self.tps:
+            control_points = self.control_points.type(coordinates.type())
+            control_params = self.control_params.type(coordinates.type())
+            distances = coordinates.view(coordinates.shape[0], -1, 1, 2) - control_points.view(1, 1, -1, 2)
+            distances = torch.abs(distances).sum(-1)
+
+            result = distances ** 2
+            result = result * torch.log(distances + 1e-6)
+            result = result * control_params
+            result = result.sum(dim=2).view(self.bs, coordinates.shape[1], 1)
+            transformed = transformed + result
+
+        return transformed
+
+    def jacobian(self, coordinates):
+        new_coordinates = self.warp_coordinates(coordinates)
+        grad_x = grad(new_coordinates[..., 0].sum(), coordinates, create_graph=True)
+        grad_y = grad(new_coordinates[..., 1].sum(), coordinates, create_graph=True)
+        jacobian = torch.cat([grad_x[0].unsqueeze(-2), grad_y[0].unsqueeze(-2)], dim=-2)
+        return jacobian
+
+
+class GeneratorFullModel(torch.nn.Module):
+    """
+    Merge all generator related updates into single model for better multi-gpu usage
+    """
+
+    def __init__(self, kp_extractor, generator, discriminator, train_params):
+        super(GeneratorFullModel, self).__init__()
+        self.kp_extractor = kp_extractor
+        self.generator = generator
+        self.discriminator = discriminator
+        self.train_params = train_params
+        self.scales = train_params['scales']
+        self.disc_scales = self.discriminator.scales
+        self.pyramid = ImagePyramide(self.scales, generator.num_channels)
+        if torch.cuda.is_available():
+            self.pyramid = self.pyramid.cuda()
+
+        self.loss_weights = train_params['loss_weights']
+        self.quant = torch.quantization.QuantStub()
+        self.dequant = torch.quantization.DeQuantStub()
+
+        if sum(self.loss_weights['perceptual']) != 0:
+            self.vgg = Vgg19()
+            if torch.cuda.is_available():
+                self.vgg = self.vgg.cuda()
+
+    def forward(self, x):
+        kp_source = self.kp_extractor(x['source'])
+        kp_driving = self.kp_extractor(x['driving'])
+
+        generated = self.generator(x['source'], kp_source=kp_source, kp_driving=kp_driving)
+        generated.update({'kp_source': kp_source, 'kp_driving': kp_driving})
+
+        loss_values = {}
+
+        pyramide_real = self.pyramid(x['driving'])
+        pyramide_generated = self.pyramid(generated['prediction'])
+
+        if sum(self.loss_weights['perceptual']) != 0:
+            value_total = 0
+            for scale in self.scales:
+                x_vgg = self.vgg(pyramide_generated['prediction_' + str(scale)])
+                y_vgg = self.vgg(pyramide_real['prediction_' + str(scale)])
+
+                for i, weight in enumerate(self.loss_weights['perceptual']):
+                    value = torch.abs(x_vgg[i] - y_vgg[i].detach()).mean()
+                    value_total += self.loss_weights['perceptual'][i] * value
+                loss_values['perceptual'] = value_total
+
+        if self.loss_weights['generator_gan'] != 0:
+            discriminator_maps_generated = self.discriminator(pyramide_generated, kp=detach_kp(kp_driving))
+            discriminator_maps_real = self.discriminator(pyramide_real, kp=detach_kp(kp_driving))
+            value_total = 0
+            for scale in self.disc_scales:
+                key = 'prediction_map_%s' % scale
+                value = ((1 - discriminator_maps_generated[key]) ** 2).mean()
+                value_total += self.loss_weights['generator_gan'] * value
+            loss_values['gen_gan'] = value_total
+
+            if sum(self.loss_weights['feature_matching']) != 0:
+                value_total = 0
+                for scale in self.disc_scales:
+                    key = 'feature_maps_%s' % scale
+                    for i, (a, b) in enumerate(zip(discriminator_maps_real[key], discriminator_maps_generated[key])):
+                        if self.loss_weights['feature_matching'][i] == 0:
+                            continue
+                        value = torch.abs(a - b).mean()
+                        value_total += self.loss_weights['feature_matching'][i] * value
+                    loss_values['feature_matching'] = value_total
+
+        if (self.loss_weights['equivariance_value'] + self.loss_weights['equivariance_jacobian']) != 0:
+            transform = Transform(x['driving'].shape[0], **self.train_params['transform_params'])
+            transformed_frame = transform.transform_frame(x['driving'])
+            transformed_kp = self.kp_extractor(transformed_frame)
+
+            generated['transformed_frame'] = transformed_frame
+            generated['transformed_kp'] = transformed_kp
+
+            ## Value loss part
+            if self.loss_weights['equivariance_value'] != 0:
+                value = torch.abs(kp_driving['value'] - transform.warp_coordinates(transformed_kp['value'])).mean()
+                loss_values['equivariance_value'] = self.loss_weights['equivariance_value'] * value
+
+            ## jacobian loss part
+            # TODO
+            # if self.loss_weights['equivariance_jacobian'] != 0:
+            #     import pdb
+            #     pdb.set_trace()
+            #     transformed_kp_v_with_grad = torch.autograd.Variable(transformed_kp['value'], requires_grad=True)
+            #     jacobian_transformed = torch.matmul(transform.jacobian(transformed_kp['value']), transformed_kp['jacobian'])
+            #     torch.matmul(transform.jacobian(transformed_kp_v_with_grad), transformed_kp['jacobian'])
+
+            #     normed_driving = torch.inverse(kp_driving['jacobian'])
+            #     normed_transformed = jacobian_transformed
+            #     value = torch.matmul(normed_driving, normed_transformed)
+
+            #     eye = torch.eye(2).view(1, 1, 2, 2).type(value.type())
+
+            #     value = torch.abs(eye - value).mean()
+            #     loss_values['equivariance_jacobian'] = self.loss_weights['equivariance_jacobian'] * value
+
+        return loss_values, generated
+
+
+class DiscriminatorFullModel(torch.nn.Module):
+    """
+    Merge all discriminator related updates into single model for better multi-gpu usage
+    """
+
+    def __init__(self, kp_extractor, generator, discriminator, train_params):
+        super(DiscriminatorFullModel, self).__init__()
+        self.kp_extractor = kp_extractor
+        self.generator = generator
+        self.discriminator = discriminator
+        self.train_params = train_params
+        self.scales = self.discriminator.scales
+        self.pyramid = ImagePyramide(self.scales, generator.num_channels)
+        if torch.cuda.is_available():
+            self.pyramid = self.pyramid.cuda()
+
+        self.loss_weights = train_params['loss_weights']
+
+    def forward(self, x, generated):
+        pyramide_real = self.pyramid(x['driving'])
+        pyramide_generated = self.pyramid(generated['prediction'].detach())
+
+        kp_driving = generated['kp_driving']
+        discriminator_maps_generated = self.discriminator(pyramide_generated, kp=detach_kp(kp_driving))
+        discriminator_maps_real = self.discriminator(pyramide_real, kp=detach_kp(kp_driving))
+
+        loss_values = {}
+        value_total = 0
+        for scale in self.scales:
+            key = 'prediction_map_%s' % scale
+            value = (1 - discriminator_maps_real[key]) ** 2 + discriminator_maps_generated[key] ** 2
+            value_total += self.loss_weights['discriminator_gan'] * value.mean()
+        loss_values['disc_gan'] = value_total
+
+        return loss_values
+
 
 class FutureResult(object):
     """A thread-safe future implementation. Used only as one-to-one pipe."""
@@ -64,10 +323,6 @@ class FutureResult(object):
             res = self._result
             self._result = None
             return res
-
-
-_MasterRegistry = collections.namedtuple('MasterRegistry', ['result'])
-_SlavePipeBase = collections.namedtuple('_SlavePipeBase', ['identifier', 'queue', 'result'])
 
 
 class SlavePipe(_SlavePipeBase):
@@ -162,20 +417,6 @@ class SyncMaster(object):
     @property
     def nr_slaves(self):
         return len(self._registry)
-
-
-def _sum_ft(tensor):
-    """sum over the first and last dimention"""
-    return tensor.sum(dim=0).sum(dim=-1)
-
-
-def _unsqueeze_ft(tensor):
-    """add new dementions at the front and the tail"""
-    return tensor.unsqueeze(0).unsqueeze(-1)
-
-
-_ChildMessage = collections.namedtuple('_ChildMessage', ['sum', 'ssum', 'sum_size'])
-_MasterMessage = collections.namedtuple('_MasterMessage', ['sum', 'inv_std'])
 
 
 class _SynchronizedBatchNorm(_BatchNorm):
@@ -456,49 +697,6 @@ class SynchronizedBatchNorm3d(_SynchronizedBatchNorm):
             raise ValueError('expected 5D input (got {}D input)'
                              .format(input.dim()))
         super(SynchronizedBatchNorm3d, self)._check_input_dim(input)
-
-
-def kp2gaussian(kp_value, spatial_size, kp_variance):
-    """
-    Transform a keypoint into gaussian like representation
-    """
-    mean = kp_value
-
-    coordinate_grid = make_coordinate_grid(spatial_size, mean.type())
-    number_of_leading_dimensions = len(mean.shape) - 1
-    shape = (1,) * number_of_leading_dimensions + coordinate_grid.shape
-    coordinate_grid = coordinate_grid.view(*shape)
-    repeats = mean.shape[:number_of_leading_dimensions] + (1, 1, 1)
-    coordinate_grid = coordinate_grid.repeat(*repeats)
-
-    # Preprocess kp shape
-    shape = mean.shape[:number_of_leading_dimensions] + (1, 1, 2)
-    mean = mean.view(*shape)
-    # coordinate_grid = coordinate_grid.to(f'cuda:{mean.get_device()}')
-    mean_sub = (coordinate_grid - mean)
-
-    out = torch.exp(-0.5 * (mean_sub ** 2).sum(-1) / kp_variance)
-
-    return out
-
-
-def make_coordinate_grid(spatial_size, type):
-    """
-    Create a meshgrid [-1,1] x [-1,1] of given spatial_size.
-    """
-    h, w = spatial_size
-    x = torch.arange(w).type(type)
-    y = torch.arange(h).type(type)
-
-    x = (2 * (x / (w - 1)) - 1)
-    y = (2 * (y / (h - 1)) - 1)
-
-    yy = y.view(-1, 1).repeat(1, w)
-    xx = x.view(1, -1).repeat(h, 1)
-
-    meshed = torch.cat([xx.unsqueeze_(2), yy.unsqueeze_(2)], 2)
-
-    return meshed
 
 
 class ResBlock2d(nn.Module):
@@ -865,6 +1063,134 @@ class OcclusionAwareGenerator(nn.Module):
         return output_dict
 
 
+class OcclusionAwareGenerator_with_time(nn.Module):
+    """
+    Generator that given source image and and keypoints try to transform image according to movement trajectories
+    induced by keypoints. Generator follows Johnson architecture.
+    """
+
+    def __init__(self, num_channels, num_kp, block_expansion, max_features, num_down_blocks,
+                 num_bottleneck_blocks, estimate_occlusion_map=False, dense_motion_params=None,
+                 estimate_jacobian=False, for_onnx=False):
+        super(OcclusionAwareGenerator_with_time, self).__init__()
+        if dense_motion_params is not None:
+            if for_onnx:
+                self.dense_motion_network = DenseMotionNetwork_ONNX(num_kp=num_kp, num_channels=num_channels,
+                                                            estimate_occlusion_map=estimate_occlusion_map,
+                                                            **dense_motion_params, for_onnx=True)
+            else:
+                self.dense_motion_network = DenseMotionNetwork(num_kp=num_kp, num_channels=num_channels,
+                                                            estimate_occlusion_map=estimate_occlusion_map,
+                                                            **dense_motion_params)
+        else:
+            self.dense_motion_network = None
+
+        self.first = SameBlock2d(num_channels, block_expansion, kernel_size=(7, 7), padding=(3, 3))
+
+        down_blocks = []
+        for i in range(num_down_blocks):
+            in_features = min(max_features, block_expansion * (2 ** i))
+            out_features = min(max_features, block_expansion * (2 ** (i + 1)))
+            down_blocks.append(DownBlock2d(in_features, out_features, kernel_size=(3, 3), padding=(1, 1)))
+        self.down_blocks = nn.ModuleList(down_blocks)
+
+        up_blocks = []
+        for i in range(num_down_blocks):
+            in_features = min(max_features, block_expansion * (2 ** (num_down_blocks - i)))
+            out_features = min(max_features, block_expansion * (2 ** (num_down_blocks - i - 1)))
+            up_blocks.append(UpBlock2d(in_features, out_features, kernel_size=(3, 3), padding=(1, 1)))
+        self.up_blocks = nn.ModuleList(up_blocks)
+
+        self.bottleneck = torch.nn.Sequential()
+        in_features = min(max_features, block_expansion * (2 ** num_down_blocks))
+        for i in range(num_bottleneck_blocks):
+            self.bottleneck.add_module('r' + str(i), ResBlock2d(in_features, kernel_size=(3, 3), padding=(1, 1)))
+
+        self.final = Conv2d(block_expansion, num_channels, kernel_size=(7, 7), padding=(3, 3))
+        self.estimate_occlusion_map = estimate_occlusion_map
+        self.num_channels = num_channels
+        self.for_onnx = for_onnx
+        self.quant = torch.quantization.QuantStub()
+        self.dequant = torch.quantization.DeQuantStub()
+
+    def deform_input(self, inp, deformation):
+        _, h_old, w_old, _ = deformation.shape
+        _, _, h, w = inp.shape
+        if h_old != h or w_old != w:
+            deformation = deformation.permute(0, 3, 1, 2)
+            deformation = F.interpolate(deformation, size=(h, w), mode='bilinear')
+            deformation = deformation.permute(0, 2, 3, 1)
+        if self.for_onnx:
+            return bilinear_grid_sample(inp, deformation), deformation
+        else:
+            return F.grid_sample(inp, deformation), deformation
+
+    def forward(self, source_image, kp_driving, kp_source):
+        # Encoding (downsampling) part
+        start_time = time.time()
+        out = self.first(source_image)
+        first_time = time.time() - start_time
+        down_blocks_time = []
+        for i in range(len(self.down_blocks)):
+            start_time = time.time()
+            out = self.down_blocks[i](out)
+            down_blocks_time.append(time.time() - start_time)
+
+        # Transforming feature representation according to deformation and occlusion
+        output_dict = {}
+        dense_morion_time = 0
+        deform_time = 0
+        if self.dense_motion_network is not None:
+            start_time = time.time()
+            dense_motion = self.dense_motion_network(source_image=source_image, kp_driving=kp_driving,
+                                                     kp_source=kp_source)
+            dense_morion_time = time.time() - start_time
+            output_dict['mask'] = dense_motion['mask']
+            output_dict['sparse_deformed'] = dense_motion['sparse_deformed']
+
+            if 'occlusion_map' in dense_motion:
+                occlusion_map = dense_motion['occlusion_map']
+                output_dict['occlusion_map'] = occlusion_map
+            else:
+                occlusion_map = None
+            deformation = dense_motion['deformation']
+            start_time = time.time()
+            out, _ = self.deform_input(out, deformation)
+            deform_time = time.time() - start_time
+
+            if occlusion_map is not None:
+                if out.shape[2] != occlusion_map.shape[2] or out.shape[3] != occlusion_map.shape[3]:
+                    occlusion_map = F.interpolate(occlusion_map, size=out.shape[2:], mode='bilinear')
+                out = self.dequant(out)
+                occlusion_map = self.dequant(occlusion_map)
+                out = out * occlusion_map
+
+            output_dict["deformed"], deformation = self.deform_input(source_image, deformation)
+            output_dict["deformation"] = deformation
+
+        # Decoding part
+        start_time = time.time()
+        out = self.bottleneck(out)
+        bottleneck_time = time.time() - start_time
+        up_blocks_time = []
+        for i in range(len(self.up_blocks)):
+            start_time = time.time()
+            out = self.up_blocks[i](out)
+            up_blocks_time.append(time.time() - start_time)
+        out = self.quant(out)
+        start_time = time.time()
+        out = self.final(out)
+        final_time = time.time() - start_time
+        out = self.dequant(out)
+        start_time = time.time()
+        out = F.sigmoid(out)
+        sigmoid_time = time.time() - start_time
+
+        output_dict["prediction"] = out
+
+        return output_dict, first_time, down_blocks_time, dense_morion_time, deform_time, bottleneck_time, up_blocks_time, final_time, sigmoid_time
+
+
 class DenseMotionNetwork(nn.Module):
     """
     Module that predicting a dense motion from sparse motion representation given by kp_source and kp_driving
@@ -921,7 +1247,8 @@ class DenseMotionNetwork(nn.Module):
         coordinate_grid = identity_grid - kp_driving['value'].view(bs, self.num_kp, 1, 1, 2)
         # TODO
         if 'jacobian' in kp_driving and not self.for_onnx:
-            jacobian = torch.matmul(kp_source['jacobian'], torch.inverse(kp_driving['jacobian']))
+            inversed = torch.inverse(self.dequant(kp_driving['jacobian']))
+            jacobian = torch.matmul(self.dequant(kp_source['jacobian']), inversed)
             jacobian = jacobian.unsqueeze(-3).unsqueeze(-3)
             jacobian = jacobian.repeat(1, 1, h, w, 1, 1)
             coordinate_grid = torch.matmul(jacobian, coordinate_grid.unsqueeze(-1))
@@ -983,6 +1310,61 @@ class DenseMotionNetwork(nn.Module):
             out_dict['occlusion_map'] = occlusion_map
 
         return out_dict
+
+
+class DenseMotionNetwork_with_time(DenseMotionNetwork):
+    def forward(self, source_image, kp_driving, kp_source):
+        if self.scale_factor != 1:
+            source_image = self.down(source_image)
+
+        bs, _, h, w = source_image.shape
+
+        out_dict = dict()
+        start_time = time.time()
+        heatmap_representation = self.create_heatmap_representations(source_image, kp_driving, kp_source)
+        heatmap_representation_time = time.time() - start_time
+        start_time = time.time()
+        sparse_motion = self.create_sparse_motions(source_image, kp_driving, kp_source)
+        sparse_motion_time = time.time() - start_time
+        start_time = time.time()
+        deformed_source = self.create_deformed_source_image(source_image, sparse_motion)
+        create_deformed_source_time = time.time() - start_time
+        out_dict['sparse_deformed'] = deformed_source
+
+        input = torch.cat([heatmap_representation, deformed_source], dim=2)
+        input = input.view(bs, -1, h, w)
+        
+        start_time = time.time()
+        prediction = self.hourglass(input)
+        hourglass_time = time.time() - start_time
+        prediction = self.quant(prediction)
+        start_time = time.time()
+        mask = self.mask(prediction)
+        mask_time = time.time() - start_time
+        mask = self.dequant(mask)
+        start_time = time.time()
+        mask = F.softmax(mask, dim=1)
+        softmax_time = time.time() - start_time
+        out_dict['mask'] = mask
+        mask = mask.unsqueeze(2)
+        sparse_motion = sparse_motion.permute(0, 1, 4, 2, 3)
+        start_time = time.time()
+        deformation = (sparse_motion * mask).sum(dim=1)
+        deformation = deformation.permute(0, 2, 3, 1)
+        deformation_time = time.time() - start_time
+
+        out_dict['deformation'] = deformation
+
+        # Sec. 3.2 in the paper
+        occlusion_time = 0
+        if self.occlusion:
+            start_time = time.time()
+            occlusion_map = torch.sigmoid(self.occlusion(prediction))
+            out_dict['occlusion_map'] = occlusion_map
+            occlusion_time = time.time() - start_time
+
+        return out_dict, heatmap_representation_time, sparse_motion_time, create_deformed_source_time, \
+        hourglass_time, mask_time, softmax_time, deformation_time, occlusion_time
 
 
 class FirstOrderModel(KeypointBasedFaceModels):
@@ -1424,7 +1806,63 @@ class Visualizer:
         return image
 
 
-# get model size
+def _sum_ft(tensor):
+    """sum over the first and last dimention"""
+    return tensor.sum(dim=0).sum(dim=-1)
+
+
+def _unsqueeze_ft(tensor):
+    """add new dementions at the front and the tail"""
+    return tensor.unsqueeze(0).unsqueeze(-1)
+
+
+def detach_kp(kp):
+    return {key: value.detach() for key, value in kp.items()}
+
+
+def kp2gaussian(kp_value, spatial_size, kp_variance):
+    """
+    Transform a keypoint into gaussian like representation
+    """
+    mean = kp_value
+
+    coordinate_grid = make_coordinate_grid(spatial_size, mean.type())
+    number_of_leading_dimensions = len(mean.shape) - 1
+    shape = (1,) * number_of_leading_dimensions + coordinate_grid.shape
+    coordinate_grid = coordinate_grid.view(*shape)
+    repeats = mean.shape[:number_of_leading_dimensions] + (1, 1, 1)
+    coordinate_grid = coordinate_grid.repeat(*repeats)
+
+    # Preprocess kp shape
+    shape = mean.shape[:number_of_leading_dimensions] + (1, 1, 2)
+    mean = mean.view(*shape)
+    # coordinate_grid = coordinate_grid.to(f'cuda:{mean.get_device()}')
+    mean_sub = (coordinate_grid - mean)
+
+    out = torch.exp(-0.5 * (mean_sub ** 2).sum(-1) / kp_variance)
+
+    return out
+
+
+def make_coordinate_grid(spatial_size, type):
+    """
+    Create a meshgrid [-1,1] x [-1,1] of given spatial_size.
+    """
+    h, w = spatial_size
+    x = torch.arange(w).type(type)
+    y = torch.arange(h).type(type)
+
+    x = (2 * (x / (w - 1)) - 1)
+    y = (2 * (y / (h - 1)) - 1)
+
+    yy = y.view(-1, 1).repeat(1, w)
+    xx = x.view(1, -1).repeat(h, 1)
+
+    meshed = torch.cat([xx.unsqueeze_(2), yy.unsqueeze_(2)], 2)
+
+    return meshed
+
+
 def print_size_of_model(model, label=""):
     torch.save(model.state_dict(), "temp.p")
     size = os.path.getsize("temp.p")
@@ -1433,360 +1871,25 @@ def print_size_of_model(model, label=""):
     return size
 
 
-def quantize_generator(input_model=OcclusionAwareGenerator(3, 10, 64, 512, 2, 6, True,
-     {'block_expansion': 64, 'max_features': 1024, 'num_blocks': 5, 'scale_factor': 0.25}, True, False)):
-    print("quantize_generator")
-    model_fp32 = input_model
-
-    model_fp32.eval()
-    modules_to_fuse = [['dense_motion_network.hourglass.encoder.down_blocks.0.conv', 'dense_motion_network.hourglass.encoder.down_blocks.0.norm', 'dense_motion_network.hourglass.encoder.down_blocks.0.relu'],
-                       ['dense_motion_network.hourglass.encoder.down_blocks.1.conv', 'dense_motion_network.hourglass.encoder.down_blocks.1.norm', 'dense_motion_network.hourglass.encoder.down_blocks.1.relu'],
-                       ['dense_motion_network.hourglass.encoder.down_blocks.2.conv', 'dense_motion_network.hourglass.encoder.down_blocks.2.norm', 'dense_motion_network.hourglass.encoder.down_blocks.2.relu'],
-                       ['dense_motion_network.hourglass.encoder.down_blocks.3.conv', 'dense_motion_network.hourglass.encoder.down_blocks.3.norm', 'dense_motion_network.hourglass.encoder.down_blocks.3.relu'],
-                       ['dense_motion_network.hourglass.encoder.down_blocks.4.conv', 'dense_motion_network.hourglass.encoder.down_blocks.4.norm', 'dense_motion_network.hourglass.encoder.down_blocks.4.relu'],
-                       ['dense_motion_network.hourglass.decoder.up_blocks.0.conv', 'dense_motion_network.hourglass.decoder.up_blocks.0.norm', 'dense_motion_network.hourglass.decoder.up_blocks.0.relu'],
-                       ['dense_motion_network.hourglass.decoder.up_blocks.1.conv', 'dense_motion_network.hourglass.decoder.up_blocks.1.norm', 'dense_motion_network.hourglass.decoder.up_blocks.1.relu'],
-                       ['dense_motion_network.hourglass.decoder.up_blocks.2.conv', 'dense_motion_network.hourglass.decoder.up_blocks.2.norm', 'dense_motion_network.hourglass.decoder.up_blocks.2.relu'],
-                       ['dense_motion_network.hourglass.decoder.up_blocks.3.conv', 'dense_motion_network.hourglass.decoder.up_blocks.3.norm', 'dense_motion_network.hourglass.decoder.up_blocks.3.relu'],
-                       ['dense_motion_network.hourglass.decoder.up_blocks.4.conv', 'dense_motion_network.hourglass.decoder.up_blocks.4.norm', 'dense_motion_network.hourglass.decoder.up_blocks.4.relu'],
-                       ['first.conv', 'first.norm', 'first.relu'],
-                       ['down_blocks.0.conv', 'down_blocks.0.norm', 'down_blocks.0.relu'],
-                       ['down_blocks.1.conv', 'down_blocks.1.norm', 'down_blocks.1.relu'],
-                       ['up_blocks.0.conv', 'up_blocks.0.norm', 'up_blocks.0.relu'],
-                       ['up_blocks.1.conv', 'up_blocks.1.norm', 'up_blocks.1.relu'],
-                       ['bottleneck.r0.conv1', 'bottleneck.r0.norm1'], ['bottleneck.r0.conv2', 'bottleneck.r0.norm2', 'bottleneck.r0.relu'],
-                       ['bottleneck.r1.conv1', 'bottleneck.r1.norm1'], ['bottleneck.r1.conv2', 'bottleneck.r1.norm2', 'bottleneck.r1.relu'],
-                       ['bottleneck.r2.conv1', 'bottleneck.r2.norm1'], ['bottleneck.r2.conv2', 'bottleneck.r2.norm2', 'bottleneck.r2.relu'],
-                       ['bottleneck.r3.conv1', 'bottleneck.r3.norm1'], ['bottleneck.r3.conv2', 'bottleneck.r3.norm2', 'bottleneck.r3.relu'],
-                       ['bottleneck.r4.conv1', 'bottleneck.r4.norm1'], ['bottleneck.r4.conv2', 'bottleneck.r4.norm2', 'bottleneck.r4.relu'],
-                       ['bottleneck.r5.conv1', 'bottleneck.r5.norm1'], ['bottleneck.r5.conv2', 'bottleneck.r5.norm2', 'bottleneck.r5.relu']]
-
-    x0 = torch.randn(1, 3, 256, 256, requires_grad=False)
-    x1 = torch.randn(1, 10, 2,requires_grad=False)
-    x2 = torch.randn(1, 10, 2, 2, requires_grad=False)
-    x3 = torch.randn(1, 10, 2, requires_grad=False)
-    x4 = torch.randn(1, 10, 2, 2, requires_grad=False)
-    
-    print_size_of_model(model_fp32, label="model_fp32")
-    tt = []
-    for i in range(0, 100):
-        start_time = time.time()
-        res = model_fp32(x0, {'value':x1, 'jacobian':x2}, {'value':x3, 'jacobian':x4})
-        tt.append(time.time() - start_time)
-    print("Average inference on float32:", sum(tt)/len(tt))    
-    
-    model_fp32.qconfig = torch.quantization.get_default_qconfig(QUANT_ENGINE)
-    model_fp32_fused = torch.quantization.fuse_modules(model_fp32, modules_to_fuse)
-
-    model_fp32_prepared = torch.quantization.prepare(model_fp32_fused)
-
-    model_int8 = torch.quantization.convert(model_fp32_prepared)
-
-    # run the model
-    print_size_of_model(model_int8, label="model_int8")
-    tt = []
-    for i in range(0, 100):
-        start_time = time.time()
-        res = model_int8(x0, {'value':x1, 'jacobian':x2}, {'value':x3, 'jacobian':x4})
-        tt.append(time.time() - start_time)
-    print("Average inference on int8:", sum(tt)/len(tt))
-
-    return model_int8
-
-
-def quantize_kp_detector(input_model=KPDetector(32, 10, 3, 1024, 5, 0.1, True, 0.25, False, 0, False)):
-    print("quantize_kp_detector")
-    model_fp32 = input_model
-
-    model_fp32.eval()
-    modules_to_fuse = [['predictor.encoder.down_blocks.0.conv', 'predictor.encoder.down_blocks.0.norm', 'predictor.encoder.down_blocks.0.relu'],
-                       ['predictor.encoder.down_blocks.1.conv', 'predictor.encoder.down_blocks.1.norm', 'predictor.encoder.down_blocks.1.relu'],
-                       ['predictor.encoder.down_blocks.2.conv', 'predictor.encoder.down_blocks.2.norm', 'predictor.encoder.down_blocks.2.relu'],
-                       ['predictor.encoder.down_blocks.3.conv', 'predictor.encoder.down_blocks.3.norm', 'predictor.encoder.down_blocks.3.relu'],
-                       ['predictor.encoder.down_blocks.4.conv', 'predictor.encoder.down_blocks.4.norm', 'predictor.encoder.down_blocks.4.relu'],
-                       ['predictor.decoder.up_blocks.0.conv', 'predictor.decoder.up_blocks.0.norm', 'predictor.decoder.up_blocks.0.relu'],
-                       ['predictor.decoder.up_blocks.1.conv', 'predictor.decoder.up_blocks.1.norm', 'predictor.decoder.up_blocks.1.relu'],
-                       ['predictor.decoder.up_blocks.2.conv', 'predictor.decoder.up_blocks.2.norm', 'predictor.decoder.up_blocks.2.relu'],
-                       ['predictor.decoder.up_blocks.3.conv', 'predictor.decoder.up_blocks.3.norm', 'predictor.decoder.up_blocks.3.relu'],
-                       ['predictor.decoder.up_blocks.4.conv', 'predictor.decoder.up_blocks.4.norm', 'predictor.decoder.up_blocks.4.relu'],]
-
-
-    x0 = torch.randn(1, 3, 256, 256, requires_grad=False)
-    x1 = torch.randn(1, 10, 2,requires_grad=False)
-    x2 = torch.randn(1, 10, 2, 2, requires_grad=False)
-    x3 = torch.randn(1, 10, 2, requires_grad=False)
-    x4 = torch.randn(1, 10, 2, 2, requires_grad=False)
-    
-    print_size_of_model(model_fp32, label="model_fp32")
-    tt = []
-    for i in range(0, 100):
-        start_time = time.time()
-        res = model_fp32(x0)
-        tt.append(time.time() - start_time)
-    print("Average inference on float32:", sum(tt)/len(tt)) 
-    
-    model_fp32.qconfig = torch.quantization.get_default_qconfig(QUANT_ENGINE)
-    model_fp32_fused = torch.quantization.fuse_modules(model_fp32, modules_to_fuse)
-
-    model_fp32_prepared = torch.quantization.prepare(model_fp32_fused)
-
-    model_int8 = torch.quantization.convert(model_fp32_prepared)
-    print_size_of_model(model_int8, label="model_int8")
-
-    # run the model
-    tt = []
-    for i in range(0, 100):
-        start_time = time.time()
-        res = model_int8(x0)
-        tt.append(time.time() - start_time)
-    print("Average inference on int8:", sum(tt)/len(tt))
-
-    return model_int8
-
-
-def quantize_pipeline():
-    model = FirstOrderModel("config/api_sample.yaml")
-    model.generator = quantize_generator(model.generator)
-    model.kp_detector =  quantize_kp_detector(model.kp_detector)
-    
-    video_name = "short_test_video.mp4"
-    video_array = np.array(imageio.mimread(video_name))
-    source = video_array[0, :, :, :]
-    source_kp = model.extract_keypoints(source)
-    model.update_source(source, source_kp)
-    predictions = []
-    tt = []
-    for i in range(1, len(video_array) - 1):
-        print(i)
-        driving = video_array[i, :, :, :] 
-        target_kp = model.extract_keypoints(driving)
-        start_time = time.time()
-        predictions.append(model.predict(target_kp))
-        tt.append(time.time() - start_time)
-
-    print(sum(tt)/len(tt))
-    imageio.mimsave('quantized_prediction.mp4', predictions)
-
-
-def quantize_enc(input_model=Encoder(64, 44, 5, 1024)):
-    print("quantize_enc")
-    model_fp32 = input_model
-    model_fp32.eval()
-    modules_to_fuse = [['down_blocks.0.conv', 'down_blocks.0.norm', 'down_blocks.0.relu'],
-                       ['down_blocks.1.conv', 'down_blocks.1.norm', 'down_blocks.1.relu'],
-                       ['down_blocks.2.conv', 'down_blocks.2.norm', 'down_blocks.2.relu'],
-                       ['down_blocks.3.conv', 'down_blocks.3.norm', 'down_blocks.3.relu'],
-                       ['down_blocks.4.conv', 'down_blocks.4.norm', 'down_blocks.4.relu']]
-
-
-    print_size_of_model(model_fp32, label="model_fp32")
-
-    model_fp32.qconfig = torch.quantization.get_default_qconfig('fbgemm')
-
-    model_fp32_fused = torch.quantization.fuse_modules(model_fp32, modules_to_fuse)
-
-
-    input_fp32 = torch.randn(1, 44, 64, 64)
-    model_fp32_prepared = torch.quantization.prepare(model_fp32_fused)
-
-
-    tt = []
-    for i in range(0, 100):
-        start_time = time.time()
-        res = model_fp32(input_fp32)
-        tt.append(time.time() - start_time)
-    print("Average inference on float32:", sum(tt)/len(tt)) 
-
-
-    model_int8 = torch.quantization.convert(model_fp32_prepared)
-    print_size_of_model(model_int8, label="model_int8")
-    tt = []
-    for i in range(0, 100):
-        start_time = time.time()
-        res = model_int8(input_fp32)
-        tt.append(time.time() - start_time)
-    print("Average inference on int8:", sum(tt)/len(tt)) 
-
-
-def quantize_dec(input_model=Decoder(64, 44, 5, 1024)):
-    # create a model instance
-    print("quantize_dec")
-    model_fp32 = input_model
-    modules_to_fuse = [['up_blocks.0.conv', 'up_blocks.0.norm', 'up_blocks.0.relu'],
-                       ['up_blocks.1.conv', 'up_blocks.1.norm', 'up_blocks.1.relu'],
-                       ['up_blocks.2.conv', 'up_blocks.2.norm', 'up_blocks.2.relu'],
-                       ['up_blocks.3.conv', 'up_blocks.3.norm', 'up_blocks.3.relu'],
-                       ['up_blocks.4.conv', 'up_blocks.4.norm', 'up_blocks.4.relu']]
-
-
-    model_fp32.eval()
-
-    print_size_of_model(model_fp32, label="model_fp32")
-
-    model_fp32.qconfig = torch.quantization.get_default_qconfig('fbgemm')
-    model_fp32_fused = torch.quantization.fuse_modules(model_fp32, modules_to_fuse)
-
-    input_fp32 = [torch.randn(1, 44, 64, 64), torch.randn(1, 128, 32, 32),
-                  torch.randn(1, 256, 16, 16), torch.randn(1, 512, 8, 8),
-                  torch.randn(1, 1024, 4, 4), torch.randn(1, 1024, 2, 2)]
-    model_fp32_prepared = torch.quantization.prepare(model_fp32_fused)
-
-    tt = []
-    for i in range(0, 100):
-        input_fp32 = [torch.randn(1, 44, 64, 64), torch.randn(1, 128, 32, 32),
-                torch.randn(1, 256, 16, 16), torch.randn(1, 512, 8, 8),
-                torch.randn(1, 1024, 4, 4), torch.randn(1, 1024, 2, 2)]
-        start_time = time.time()
-        res = model_fp32(input_fp32)
-        tt.append(time.time() - start_time)
-    print("Average inference on float32:", sum(tt)/len(tt)) 
-
-    model_int8 = torch.quantization.convert(model_fp32_prepared)
-    print_size_of_model(model_int8, label="model_int8")
-
-    input_fp32 = [torch.randn(1, 44, 64, 64), torch.randn(1, 128, 32, 32),
-                  torch.randn(1, 256, 16, 16), torch.randn(1, 512, 8, 8),
-                  torch.randn(1, 1024, 4, 4), torch.randn(1, 1024, 2, 2)]
-    # run the model, relevant calculations will happen in int8
-    tt = []
-    for i in range(0, 100):
-        input_fp32 = [torch.randn(1, 44, 64, 64), torch.randn(1, 128, 32, 32),
-                torch.randn(1, 256, 16, 16), torch.randn(1, 512, 8, 8),
-                torch.randn(1, 1024, 4, 4), torch.randn(1, 1024, 2, 2)]
-        start_time = time.time()
-        res = model_int8(input_fp32)
-        tt.append(time.time() - start_time)
-    print("Average inference on int8:", sum(tt)/len(tt)) 
-
-
-def quantize_hrglass(input_model=Hourglass(64, 44, 5, 1024)):
-    print("quantize_hrglass")
-    # create a model instance
-    model_fp32 = input_model
-    modules_to_fuse = [['encoder.down_blocks.0.conv', 'encoder.down_blocks.0.norm', 'encoder.down_blocks.0.relu'],
-                       ['encoder.down_blocks.1.conv', 'encoder.down_blocks.1.norm', 'encoder.down_blocks.1.relu'],
-                       ['encoder.down_blocks.2.conv', 'encoder.down_blocks.2.norm', 'encoder.down_blocks.2.relu'],
-                       ['encoder.down_blocks.3.conv', 'encoder.down_blocks.3.norm', 'encoder.down_blocks.3.relu'],
-                       ['encoder.down_blocks.4.conv', 'encoder.down_blocks.4.norm', 'encoder.down_blocks.4.relu'],
-                       ['decoder.up_blocks.0.conv', 'decoder.up_blocks.0.norm', 'decoder.up_blocks.0.relu'],
-                       ['decoder.up_blocks.1.conv', 'decoder.up_blocks.1.norm', 'decoder.up_blocks.1.relu'],
-                       ['decoder.up_blocks.2.conv', 'decoder.up_blocks.2.norm', 'decoder.up_blocks.2.relu'],
-                       ['decoder.up_blocks.3.conv', 'decoder.up_blocks.3.norm', 'decoder.up_blocks.3.relu'],
-                       ['decoder.up_blocks.4.conv', 'decoder.up_blocks.4.norm', 'decoder.up_blocks.4.relu']]
-
-    model_fp32.eval()
-
-    print_size_of_model(model_fp32, label="model_fp32")
-
-    model_fp32.qconfig = torch.quantization.get_default_qconfig('fbgemm')
-    model_fp32_fused = torch.quantization.fuse_modules(model_fp32, modules_to_fuse)
-
-    input_fp32 = torch.randn(1, 44, 64, 64)
-    model_fp32_prepared = torch.quantization.prepare(model_fp32_fused)
-
-    tt = []
-    for i in range(0, 100):
-        start_time = time.time()
-        res = model_fp32(input_fp32)
-        tt.append(time.time() - start_time)
-    print("Average inference on float32:", sum(tt)/len(tt)) 
-
-    model_int8 = torch.quantization.convert(model_fp32_prepared)
-    print_size_of_model(model_int8, label="model_int8")
-
-    tt = []
-    for i in range(0, 100):
-        start_time = time.time()
-        res = model_int8(input_fp32)
-        tt.append(time.time() - start_time)
-    print("Average inference on INT8:", sum(tt)/len(tt)) 
-
-
-def quantize_dense(input_model=DenseMotionNetwork(64, 5, 1024, 10, 3, True, 0.25, 0.01, False)):
-    print("quantize_dense")
-    model_fp32 = input_model
-
-    model_fp32.eval()
-    modules_to_fuse = [['hourglass.encoder.down_blocks.0.conv', 'hourglass.encoder.down_blocks.0.norm', 'hourglass.encoder.down_blocks.0.relu'],
-                       ['hourglass.encoder.down_blocks.1.conv', 'hourglass.encoder.down_blocks.1.norm', 'hourglass.encoder.down_blocks.1.relu'],
-                       ['hourglass.encoder.down_blocks.2.conv', 'hourglass.encoder.down_blocks.2.norm', 'hourglass.encoder.down_blocks.2.relu'],
-                       ['hourglass.encoder.down_blocks.3.conv', 'hourglass.encoder.down_blocks.3.norm', 'hourglass.encoder.down_blocks.3.relu'],
-                       ['hourglass.encoder.down_blocks.4.conv', 'hourglass.encoder.down_blocks.4.norm', 'hourglass.encoder.down_blocks.4.relu'],
-                       ['hourglass.decoder.up_blocks.0.conv', 'hourglass.decoder.up_blocks.0.norm', 'hourglass.decoder.up_blocks.0.relu'],
-                       ['hourglass.decoder.up_blocks.1.conv', 'hourglass.decoder.up_blocks.1.norm', 'hourglass.decoder.up_blocks.1.relu'],
-                       ['hourglass.decoder.up_blocks.2.conv', 'hourglass.decoder.up_blocks.2.norm', 'hourglass.decoder.up_blocks.2.relu'],
-                       ['hourglass.decoder.up_blocks.3.conv', 'hourglass.decoder.up_blocks.3.norm', 'hourglass.decoder.up_blocks.3.relu'],
-                       ['hourglass.decoder.up_blocks.4.conv', 'hourglass.decoder.up_blocks.4.norm', 'hourglass.decoder.up_blocks.4.relu']]
-
-    print_size_of_model(model_fp32, label="model_fp32")
-    
-    x0 = torch.randn(1, 3, 256, 256, requires_grad=False)
-    x1 = torch.randn(1, 10, 2, requires_grad=False)
-    x2 = torch.randn(1, 10, 2, 2, requires_grad=False)
-    x3 = torch.randn(1, 10, 2, requires_grad=False)
-    x4 = torch.randn(1, 10, 2, 2, requires_grad=False)
-
-    tt = []
-    for i in range(0, 100):
-        start_time = time.time()
-        res = model_fp32(x0, {'value':x1, 'jacobian':x2}, {'value':x3, 'jacobian':x4})
-        tt.append(time.time() - start_time)
-    print("Average inference on float32:", sum(tt)/len(tt)) 
-
-
-    model_fp32.qconfig = torch.quantization.get_default_qconfig('fbgemm')
-    model_fp32_fused = torch.quantization.fuse_modules(model_fp32, modules_to_fuse)
-
-    model_fp32_prepared = torch.quantization.prepare(model_fp32_fused)
-
-    model_int8 = torch.quantization.convert(model_fp32_prepared)
-    print_size_of_model(model_int8, label="model_int8")
-
-
-    tt = []
-    for i in range(0, 100):
-        start_time = time.time()
-        res = model_int8(x0, {'value':x1, 'jacobian':x2}, {'value':x3, 'jacobian':x4})
-        tt.append(time.time() - start_time)
-    print("Average inference on int8:", sum(tt)/len(tt)) 
-
-
-def quantize_resblock(input_model=ResBlock2d(256, 3, 1)):
-    model_fp32 = input_model
-    input_fp32 = torch.randn(1, 256, 64, 64)
-    model_fp32.eval()    
-    model_fp32.qconfig = torch.quantization.get_default_qconfig('fbgemm')
-    model_fp32_fused = torch.quantization.fuse_modules(model_fp32, [['conv1', 'norm1', 'relu'], ['conv2', 'norm2']])
-    model_fp32_prepared = torch.quantization.prepare(model_fp32_fused)
-
-    print_size_of_model(model_fp32, label="float32")
-    tt = []
-    for i in range(0, 100):
-        start_time = time.time()
-        res = model_fp32(input_fp32)
-        tt.append(time.time() - start_time)
-    print("Average inference on float32:", sum(tt)/len(tt)) 
-
-
-    model_int8 = torch.quantization.convert(model_fp32_prepared)
-    # torch.jit.save(torch.jit.script(model_int8), "resblock_quantized.pth")
-    # model_int8 = torch.jit.load('resblock_quantized.pth')
-    print_size_of_model(model_int8, label="model_int8")
-    tt = []
-    for i in range(0, 100):
-        start_time = time.time()
-        res = model_int8(input_fp32)
-        tt.append(time.time() - start_time)
-    print("Average inference on int8:", sum(tt)/len(tt)) 
+def get_params(model):
+    params = []
+    for name, mod in model.named_modules():                             
+        if isinstance(mod, torch.nn.quantized.Conv2d):                              
+            weight, bias = mod._weight_bias()
+            params.append(weight)
+            params.append(bias)
+    return params  
 
 
 def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, dataset, device_ids):
     train_params = config['train_params']
-    # import pdb
-    # pdb.set_trace()
-    optimizer_generator = torch.optim.Adam(generator.parameters(), lr=train_params['lr_generator'], betas=(0.5, 0.999))
+    if USE_QUANTIZATION:
+        optimizer_generator = torch.optim.Adam(get_params(generator), lr=train_params['lr_generator'], betas=(0.5, 0.999))
+        optimizer_kp_detector = torch.optim.Adam(get_params(kp_detector), lr=train_params['lr_kp_detector'], betas=(0.5, 0.999))
+    else:
+        optimizer_generator = torch.optim.Adam(generator.parameters(), lr=train_params['lr_generator'], betas=(0.5, 0.999))
+        optimizer_kp_detector = torch.optim.Adam(kp_detector.parameters(), lr=train_params['lr_kp_detector'], betas=(0.5, 0.999))
     optimizer_discriminator = torch.optim.Adam(discriminator.parameters(), lr=train_params['lr_discriminator'], betas=(0.5, 0.999))
-    optimizer_kp_detector = torch.optim.Adam(kp_detector.parameters(), lr=train_params['lr_kp_detector'], betas=(0.5, 0.999))
 
     if checkpoint is not None:
         start_epoch = Logger.load_cpk(checkpoint, generator, discriminator, kp_detector,
@@ -1821,7 +1924,8 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
 
                 loss_values = [val.mean() for val in losses_generator.values()]
                 loss = sum(loss_values)
-
+                if USE_QUANTIZATION:
+                    loss = torch.autograd.Variable(loss, requires_grad=True)
                 loss.backward()
                 optimizer_generator.step()
                 optimizer_generator.zero_grad()
@@ -1856,33 +1960,357 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
                                      'optimizer_kp_detector': optimizer_kp_detector}, inp=x, out=generated)
 
 
-if __name__ == "__main__":
-    measure_timings = False
-    if measure_timings:
-        quantize_resblock()
-        quantize_enc()
-        quantize_dec()
-        quantize_hrglass()
-        quantize_dense()
-        quantize_kp_detector()
-        quantize_generator()
-        # quantize_pipeline()
+def quantize_model(model_fp32, modules_to_fuse, x0, x1=None, x2=None, x3=None, x4=None, enable_meausre=False):
+    model_fp32.eval()
+    model_fp32.qconfig = torch.quantization.get_default_qconfig(QUANT_ENGINE)
+    model_fp32_fused = torch.quantization.fuse_modules(model_fp32, modules_to_fuse)
+    model_fp32_prepared = torch.quantization.prepare(model_fp32_fused)
+    model_int8 = torch.quantization.convert(model_fp32_prepared)
+
+    if enable_meausre:
+        print_model_info(model_fp32, "model_fp32", x0, x1, x2, x3, x4)
+        print_model_info(model_int8, "model_int8", x0, x1, x2, x3, x4)
+
+    return model_int8
+
+
+def print_average_and_std(test_list, name):
+    mean = sum(test_list) / len(test_list)
+    variance = sum([((x - mean) ** 2) for x in test_list]) / len(test_list)
+    res = variance ** 0.5
+    print(f"{name}:: mean={round(mean, 6)}, std={round(res / mean * 100, 6)}%")
+
+
+def get_random_inputs(model_name):
+    x0 = torch.randn(1, 3, IMAGE_RESOLUTION, IMAGE_RESOLUTION, requires_grad=False)
+    x1 = torch.randn(1, 10, 2, requires_grad=False)
+    x2 = torch.randn(1, 10, 2, 2, requires_grad=False)
+    x3 = torch.randn(1, 10, 2, requires_grad=False)
+    x4 = torch.randn(1, 10, 2, 2, requires_grad=False)
+    
+    if USE_FLOAT_16:
+        x0 = torch.randn(1, 3, IMAGE_RESOLUTION, IMAGE_RESOLUTION, requires_grad=False, dtype=torch.float16)
+        x1 = torch.randn(1, 10, 2, requires_grad=False, dtype=torch.float16)
+        x2 = torch.randn(1, 10, 2, 2, requires_grad=False, dtype=torch.float16)
+        x3 = torch.randn(1, 10, 2, requires_grad=False, dtype=torch.float16)
+        x4 = torch.randn(1, 10, 2, 2, requires_grad=False, dtype=torch.float16)
+    
+    if USE_CUDA:
+        x0 = x0.to("cuda")
+        x1 = x1.to("cuda")
+        x2 = x2.to("cuda")
+        x3 = x3.to("cuda")
+        x4 = x4.to("cuda")
+
+    if model_name != "kp_detector":
+        return x0, x1, x2, x3, x4
     else:
-        if sys.version_info[0] < 3:
-            raise Exception("You must use Python 3 or higher. Recommended version is Python 3.7")
+        return x0, None, None, None, None
 
-        parser = ArgumentParser()
-        parser.add_argument("--config", required=True, help="path to config")
-        parser.add_argument("--mode", default="train", choices=["train", "reconstruction", "animate"])
-        parser.add_argument("--log_dir", default='log', help="path to log into")
-        parser.add_argument("--checkpoint", default=None, help="path to checkpoint to restore")
-        parser.add_argument("--device_ids", default="0", type=lambda x: list(map(int, x.split(','))),
-                            help="Names of the devices comma separated.")
-        parser.add_argument("--verbose", dest="verbose", action="store_true", help="Print model architecture")
-        parser.add_argument("--enable_timing", dest="enable_timing", action="store_true", help="Time the model")
-        parser.set_defaults(verbose=False)
 
-        opt = parser.parse_args()
+def print_model_info(model, model_name, x0, x1=None, x2=None, x3=None, x4=None):
+        print_size_of_model(model, label=model_name)
+        tt = []
+        for i in range(0, NUM_RUNS):
+            print(f"run #{i}")
+            if x1 != None:
+                start_time = time.time()
+                res = model(x0, {'value':x1, 'jacobian':x2}, {'value':x3, 'jacobian':x4})
+                tt.append(time.time() - start_time)
+            else:
+                start_time = time.time()
+                res = model(x0)
+                tt.append(time.time() - start_time)
+        print_average_and_std(tt, f"Average inference time on {model_name}")
+
+
+def quantize_generator(model_fp32=OcclusionAwareGenerator(3, 10, 64, 512, 2, 6, True,
+     {'block_expansion': 64, 'max_features': 1024, 'num_blocks': 5, 'scale_factor': 0.25}, True, False), enable_meausre=True):
+
+    modules_to_fuse = [['dense_motion_network.hourglass.encoder.down_blocks.0.conv', 'dense_motion_network.hourglass.encoder.down_blocks.0.norm', 'dense_motion_network.hourglass.encoder.down_blocks.0.relu'],
+                       ['dense_motion_network.hourglass.encoder.down_blocks.1.conv', 'dense_motion_network.hourglass.encoder.down_blocks.1.norm', 'dense_motion_network.hourglass.encoder.down_blocks.1.relu'],
+                       ['dense_motion_network.hourglass.encoder.down_blocks.2.conv', 'dense_motion_network.hourglass.encoder.down_blocks.2.norm', 'dense_motion_network.hourglass.encoder.down_blocks.2.relu'],
+                       ['dense_motion_network.hourglass.encoder.down_blocks.3.conv', 'dense_motion_network.hourglass.encoder.down_blocks.3.norm', 'dense_motion_network.hourglass.encoder.down_blocks.3.relu'],
+                       ['dense_motion_network.hourglass.encoder.down_blocks.4.conv', 'dense_motion_network.hourglass.encoder.down_blocks.4.norm', 'dense_motion_network.hourglass.encoder.down_blocks.4.relu'],
+                       ['dense_motion_network.hourglass.decoder.up_blocks.0.conv', 'dense_motion_network.hourglass.decoder.up_blocks.0.norm', 'dense_motion_network.hourglass.decoder.up_blocks.0.relu'],
+                       ['dense_motion_network.hourglass.decoder.up_blocks.1.conv', 'dense_motion_network.hourglass.decoder.up_blocks.1.norm', 'dense_motion_network.hourglass.decoder.up_blocks.1.relu'],
+                       ['dense_motion_network.hourglass.decoder.up_blocks.2.conv', 'dense_motion_network.hourglass.decoder.up_blocks.2.norm', 'dense_motion_network.hourglass.decoder.up_blocks.2.relu'],
+                       ['dense_motion_network.hourglass.decoder.up_blocks.3.conv', 'dense_motion_network.hourglass.decoder.up_blocks.3.norm', 'dense_motion_network.hourglass.decoder.up_blocks.3.relu'],
+                       ['dense_motion_network.hourglass.decoder.up_blocks.4.conv', 'dense_motion_network.hourglass.decoder.up_blocks.4.norm', 'dense_motion_network.hourglass.decoder.up_blocks.4.relu'],
+                       ['first.conv', 'first.norm', 'first.relu'],
+                       ['down_blocks.0.conv', 'down_blocks.0.norm', 'down_blocks.0.relu'],
+                       ['down_blocks.1.conv', 'down_blocks.1.norm', 'down_blocks.1.relu'],
+                       ['up_blocks.0.conv', 'up_blocks.0.norm', 'up_blocks.0.relu'],
+                       ['up_blocks.1.conv', 'up_blocks.1.norm', 'up_blocks.1.relu'],
+                       ['bottleneck.r0.conv1', 'bottleneck.r0.norm1'], ['bottleneck.r0.conv2', 'bottleneck.r0.norm2', 'bottleneck.r0.relu'],
+                       ['bottleneck.r1.conv1', 'bottleneck.r1.norm1'], ['bottleneck.r1.conv2', 'bottleneck.r1.norm2', 'bottleneck.r1.relu'],
+                       ['bottleneck.r2.conv1', 'bottleneck.r2.norm1'], ['bottleneck.r2.conv2', 'bottleneck.r2.norm2', 'bottleneck.r2.relu'],
+                       ['bottleneck.r3.conv1', 'bottleneck.r3.norm1'], ['bottleneck.r3.conv2', 'bottleneck.r3.norm2', 'bottleneck.r3.relu'],
+                       ['bottleneck.r4.conv1', 'bottleneck.r4.norm1'], ['bottleneck.r4.conv2', 'bottleneck.r4.norm2', 'bottleneck.r4.relu'],
+                       ['bottleneck.r5.conv1', 'bottleneck.r5.norm1'], ['bottleneck.r5.conv2', 'bottleneck.r5.norm2', 'bottleneck.r5.relu']]
+    
+    x0, x1, x2, x3, x4 = get_random_inputs("generator")
+    model_int8 = quantize_model(model_fp32, modules_to_fuse, x0, x1, x2, x3, x4, enable_meausre)
+
+    return model_int8
+
+
+def quantize_kp_detector(model_fp32=KPDetector(32, 10, 3, 1024, 5, 0.1, True, 0.25, False, 0, False), enable_meausre=True):
+    modules_to_fuse = [['predictor.encoder.down_blocks.0.conv', 'predictor.encoder.down_blocks.0.norm', 'predictor.encoder.down_blocks.0.relu'],
+                       ['predictor.encoder.down_blocks.1.conv', 'predictor.encoder.down_blocks.1.norm', 'predictor.encoder.down_blocks.1.relu'],
+                       ['predictor.encoder.down_blocks.2.conv', 'predictor.encoder.down_blocks.2.norm', 'predictor.encoder.down_blocks.2.relu'],
+                       ['predictor.encoder.down_blocks.3.conv', 'predictor.encoder.down_blocks.3.norm', 'predictor.encoder.down_blocks.3.relu'],
+                       ['predictor.encoder.down_blocks.4.conv', 'predictor.encoder.down_blocks.4.norm', 'predictor.encoder.down_blocks.4.relu'],
+                       ['predictor.decoder.up_blocks.0.conv', 'predictor.decoder.up_blocks.0.norm', 'predictor.decoder.up_blocks.0.relu'],
+                       ['predictor.decoder.up_blocks.1.conv', 'predictor.decoder.up_blocks.1.norm', 'predictor.decoder.up_blocks.1.relu'],
+                       ['predictor.decoder.up_blocks.2.conv', 'predictor.decoder.up_blocks.2.norm', 'predictor.decoder.up_blocks.2.relu'],
+                       ['predictor.decoder.up_blocks.3.conv', 'predictor.decoder.up_blocks.3.norm', 'predictor.decoder.up_blocks.3.relu'],
+                       ['predictor.decoder.up_blocks.4.conv', 'predictor.decoder.up_blocks.4.norm', 'predictor.decoder.up_blocks.4.relu'],]
+
+    x0, x1, x2, x3, x4 = get_random_inputs("kp_detector")
+    model_int8 = quantize_model(model_fp32, modules_to_fuse, x0, enable_meausre=enable_meausre)
+    return model_int8
+
+
+def quantize_pipeline():
+    model = FirstOrderModel("config/api_sample.yaml")
+    model.generator = quantize_generator(model.generator, enable_meausre=False)
+    model.kp_detector =  quantize_kp_detector(model.kp_detector, enable_meausre=False)
+    
+    video_name = "short_test_video.mp4"
+    video_array = np.array(imageio.mimread(video_name))
+    source = video_array[0, :, :, :]
+    source_kp = model.extract_keypoints(source)
+    model.update_source(source, source_kp)
+    predictions = []
+    tt = []
+    for i in range(1, len(video_array) - 1):
+        print(i)
+        driving = video_array[i, :, :, :] 
+        target_kp = model.extract_keypoints(driving)
+        start_time = time.time()
+        predictions.append(model.predict(target_kp))
+        tt.append(time.time() - start_time)
+
+    print_average_and_std(tt, "Average prediction time per frame")
+    imageio.mimsave('quantized_prediction.mp4', predictions)
+
+
+def quantize_enc(model_fp32=Encoder(64, 44, 5, 1024), enable_meausre=True):
+    modules_to_fuse = [['down_blocks.0.conv', 'down_blocks.0.norm', 'down_blocks.0.relu'],
+                       ['down_blocks.1.conv', 'down_blocks.1.norm', 'down_blocks.1.relu'],
+                       ['down_blocks.2.conv', 'down_blocks.2.norm', 'down_blocks.2.relu'],
+                       ['down_blocks.3.conv', 'down_blocks.3.norm', 'down_blocks.3.relu'],
+                       ['down_blocks.4.conv', 'down_blocks.4.norm', 'down_blocks.4.relu']]
+    
+    model_int8 = quantize_model(model_fp32, modules_to_fuse, torch.randn(1, 44, 64, 64), enable_meausre=enable_meausre)
+    return model_int8
+
+
+def quantize_dec(model_fp32=Decoder(64, 44, 5, 1024), enable_meausre=True):
+    modules_to_fuse = [['up_blocks.0.conv', 'up_blocks.0.norm', 'up_blocks.0.relu'],
+                       ['up_blocks.1.conv', 'up_blocks.1.norm', 'up_blocks.1.relu'],
+                       ['up_blocks.2.conv', 'up_blocks.2.norm', 'up_blocks.2.relu'],
+                       ['up_blocks.3.conv', 'up_blocks.3.norm', 'up_blocks.3.relu'],
+                       ['up_blocks.4.conv', 'up_blocks.4.norm', 'up_blocks.4.relu']]
+
+    x0 = [torch.randn(1, 44, 64, 64), torch.randn(1, 128, 32, 32),
+                  torch.randn(1, 256, 16, 16), torch.randn(1, 512, 8, 8),
+                  torch.randn(1, 1024, 4, 4), torch.randn(1, 1024, 2, 2)]
+    model_int8 = quantize_model(model_fp32, modules_to_fuse, x0, enable_meausre=enable_meausre)
+    return model_int8
+
+
+def quantize_hrglass(model_fp32=Hourglass(64, 44, 5, 1024), enable_meausre=True):
+    modules_to_fuse = [['encoder.down_blocks.0.conv', 'encoder.down_blocks.0.norm', 'encoder.down_blocks.0.relu'],
+                       ['encoder.down_blocks.1.conv', 'encoder.down_blocks.1.norm', 'encoder.down_blocks.1.relu'],
+                       ['encoder.down_blocks.2.conv', 'encoder.down_blocks.2.norm', 'encoder.down_blocks.2.relu'],
+                       ['encoder.down_blocks.3.conv', 'encoder.down_blocks.3.norm', 'encoder.down_blocks.3.relu'],
+                       ['encoder.down_blocks.4.conv', 'encoder.down_blocks.4.norm', 'encoder.down_blocks.4.relu'],
+                       ['decoder.up_blocks.0.conv', 'decoder.up_blocks.0.norm', 'decoder.up_blocks.0.relu'],
+                       ['decoder.up_blocks.1.conv', 'decoder.up_blocks.1.norm', 'decoder.up_blocks.1.relu'],
+                       ['decoder.up_blocks.2.conv', 'decoder.up_blocks.2.norm', 'decoder.up_blocks.2.relu'],
+                       ['decoder.up_blocks.3.conv', 'decoder.up_blocks.3.norm', 'decoder.up_blocks.3.relu'],
+                       ['decoder.up_blocks.4.conv', 'decoder.up_blocks.4.norm', 'decoder.up_blocks.4.relu']]
+
+    model_int8 = quantize_model(model_fp32, modules_to_fuse, torch.randn(1, 44, 64, 64), enable_meausre=enable_meausre)
+    return model_int8
+
+
+def quantize_dense_motion(model_fp32=DenseMotionNetwork(64, 5, 1024, 10, 3, True, 0.25, 0.01, False), enable_meausre=True):
+    modules_to_fuse = [['hourglass.encoder.down_blocks.0.conv', 'hourglass.encoder.down_blocks.0.norm', 'hourglass.encoder.down_blocks.0.relu'],
+                       ['hourglass.encoder.down_blocks.1.conv', 'hourglass.encoder.down_blocks.1.norm', 'hourglass.encoder.down_blocks.1.relu'],
+                       ['hourglass.encoder.down_blocks.2.conv', 'hourglass.encoder.down_blocks.2.norm', 'hourglass.encoder.down_blocks.2.relu'],
+                       ['hourglass.encoder.down_blocks.3.conv', 'hourglass.encoder.down_blocks.3.norm', 'hourglass.encoder.down_blocks.3.relu'],
+                       ['hourglass.encoder.down_blocks.4.conv', 'hourglass.encoder.down_blocks.4.norm', 'hourglass.encoder.down_blocks.4.relu'],
+                       ['hourglass.decoder.up_blocks.0.conv', 'hourglass.decoder.up_blocks.0.norm', 'hourglass.decoder.up_blocks.0.relu'],
+                       ['hourglass.decoder.up_blocks.1.conv', 'hourglass.decoder.up_blocks.1.norm', 'hourglass.decoder.up_blocks.1.relu'],
+                       ['hourglass.decoder.up_blocks.2.conv', 'hourglass.decoder.up_blocks.2.norm', 'hourglass.decoder.up_blocks.2.relu'],
+                       ['hourglass.decoder.up_blocks.3.conv', 'hourglass.decoder.up_blocks.3.norm', 'hourglass.decoder.up_blocks.3.relu'],
+                       ['hourglass.decoder.up_blocks.4.conv', 'hourglass.decoder.up_blocks.4.norm', 'hourglass.decoder.up_blocks.4.relu']]
+
+
+    x0, x1, x2, x3, x4 = get_random_inputs("dense_motion")
+    model_int8 = quantize_model(model_fp32, modules_to_fuse, x0, x1, x2, x3, x4, enable_meausre=enable_meausre)
+    return model_int8
+
+
+def quantize_resblock(model_fp32=ResBlock2d(256, 3, 1), enable_meausre=True):
+    modules_to_fuse = [['conv1', 'norm1', 'relu'], ['conv2', 'norm2']]
+    model_int8 = quantize_model(model_fp32, modules_to_fuse, torch.randn(1, 256, 64, 64), enable_meausre=enable_meausre)
+    return model_int8 
+
+
+def qat_train_resblock(model=ResBlock2d(16, 3, 1)):
+    input_fp32 = torch.randn(1, 16, 4, 4)
+    output_fp32 = torch.randn(1, 16, 4, 4)
+    model.eval()
+    model = quantize_resblock(model, False)
+    model.train()
+    
+    loss_fn = nn.L1Loss()
+    params = []
+    for name, mod in model.named_modules():                             
+        if isinstance(mod, torch.nn.quantized.Conv2d):                              
+            weight, bias = mod._weight_bias()
+            params.append(weight)
+            params.append(bias)                        
+    
+    optimizer = torch.optim.Adam(params, lr=0.001, weight_decay=0.0001)
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    model.to(device)
+
+    for epoch in range(0, NUM_RUNS):
+        print("epoch", epoch)
+        running_loss = 0.0
+        images = input_fp32
+        labels = output_fp32
+        images = torch.autograd.Variable(images.to(device), requires_grad=True)
+        labels = torch.autograd.Variable(labels.to(device), requires_grad=True)
+        optimizer.zero_grad()
+        outputs = model(images)
+        loss = loss_fn(outputs, labels)
+        loss.backward()
+        optimizer.step()
+        running_loss += loss.item()
+
+
+def fine_grained_timing_generator(model=OcclusionAwareGenerator_with_time(3, 10, 64, 512, 2, 6, True,
+     {'block_expansion': 64, 'max_features': 1024, 'num_blocks': 5, 'scale_factor': 0.25}, True, False)):
+
+    model.eval()
+
+    if USE_QUANTIZATION:
+        model = quantize_generator(model, enable_meausre=False)
+    
+    if USE_FLOAT_16:
+        model.half()
+
+    x0, x1, x2, x3, x4 = get_random_inputs("generator")
+    if USE_CUDA:
+        model.to("cuda")
+    
+    first_times, down_blocks_1_times, down_blocks_2_times, dense_morion_times, deform_times,\
+        bottleneck_times, up_blocks_1_times, up_blocks_2_times, final_times, sigmoid_times, tt = [], [], [], [], [], [], [], [], [], [], []
+
+    for i in range(0, NUM_RUNS):
+        print(i)
+        start_time = time.time()
+        res, first_time, down_blocks_time, dense_morion_time, deform_time, \
+        bottleneck_time, up_blocks_time, final_time, sigmoid_time = \
+        model(x0, {'value':x1, 'jacobian':x2}, {'value':x3, 'jacobian':x4})
+        tt.append(time.time() - start_time)
+        first_times.append(first_time)
+        down_blocks_1_times.append(down_blocks_time[0])
+        down_blocks_2_times.append(down_blocks_time[1])
+        dense_morion_times.append(dense_morion_time)
+        deform_times.append(deform_time)
+        bottleneck_times.append(bottleneck_time)
+        up_blocks_1_times.append(up_blocks_time[0])
+        up_blocks_2_times.append(up_blocks_time[1])
+        final_times.append(final_time)
+        sigmoid_times.append(sigmoid_time)
+
+    print(f"using custom conv:{USE_FAST_CONV2}, using quantization:{USE_QUANTIZATION}, using float16:{USE_FLOAT_16}, resolution:{IMAGE_RESOLUTION}")
+    print_average_and_std(first_times, "first_times")
+    print_average_and_std(down_blocks_1_times, "down_blocks_1_times")
+    print_average_and_std(down_blocks_2_times, "down_blocks_2_times")
+    print_average_and_std(dense_morion_times, "dense_morion_times")
+    print_average_and_std(deform_times, "deform_times")
+    print_average_and_std(bottleneck_times, "bottleneck_times")
+    print_average_and_std(up_blocks_1_times, "up_blocks_1_times")
+    print_average_and_std(up_blocks_2_times, "up_blocks_2_times")
+    print_average_and_std(final_times, "final_times")
+    print_average_and_std(sigmoid_times, "sigmoid_times")
+    print_average_and_std(tt, "total with print")
+
+
+def fine_grained_timing_dense_motion(model=DenseMotionNetwork_with_time(64, 5, 1024, 10, 3, True, 0.25, 0.01, False)):
+    model.eval()
+
+    if USE_QUANTIZATION:
+        model = quantize_dense_motion(model, enable_meausre=False)
+    
+    if USE_FLOAT_16:
+        model.half()
+
+    x0, x1, x2, x3, x4 = get_random_inputs("generator")
+    
+    if USE_CUDA:
+        model.to("cuda")
+
+    heatmap_representation_times, sparse_motion_times, create_deformed_source_times,\
+         hourglass_times, mask_times, softmax_times, deformation_times,\
+          occlusion_times, tt = [], [], [], [], [], [], [], [], []
+    for i in range(0, NUM_RUNS):
+        print(i)
+        start_time = time.time()
+        res, heatmap_representation_time, sparse_motion_time, create_deformed_source_time,\
+         hourglass_time, mask_time, softmax_time, deformation_time, occlusion_time\
+          = model(x0, {'value':x1, 'jacobian':x2}, {'value':x3, 'jacobian':x4})
+        heatmap_representation_times.append(heatmap_representation_time)
+        sparse_motion_times.append(sparse_motion_time)
+        create_deformed_source_times.append(create_deformed_source_time)
+        hourglass_times.append(hourglass_time)
+        mask_times.append(mask_time)
+        softmax_times.append(softmax_time)
+        deformation_times.append(deformation_time)
+        occlusion_times.append(occlusion_time)
+        tt.append(time.time() - start_time)
+    
+    print(f"using custom conv:{USE_FAST_CONV2}, using quantization:{USE_QUANTIZATION}, using float16:{USE_FLOAT_16}, resolution:{IMAGE_RESOLUTION}")
+    print_average_and_std(heatmap_representation_times, "heatmap_representation_time")
+    print_average_and_std(sparse_motion_times, "sparse_motion_time")
+    print_average_and_std(create_deformed_source_times, "create_deformed_source_time")
+    print_average_and_std(hourglass_times, "hourglass_time")
+    print_average_and_std(mask_times, "mask_time")
+    print_average_and_std(softmax_times, "softmax_time")
+    print_average_and_std(deformation_times, "deformation_time")
+    print_average_and_std(occlusion_times, "occlusion_time")
+    print_average_and_std(tt, "total with print")
+
+
+if __name__ == "__main__":
+    if sys.version_info[0] < 3:
+        raise Exception("You must use Python 3 or higher. Recommended version is Python 3.7")
+
+    parser = ArgumentParser()
+    parser.add_argument("--config", default="config/vox-256.yaml", help="path to config")
+    parser.add_argument("--mode", default="train", choices=["train", "reconstruction", "animate", "measurement"])
+    parser.add_argument("--log_dir", default='log', help="path to log into")
+    parser.add_argument("--checkpoint", default=None, help="path to checkpoint to restore")
+    parser.add_argument("--device_ids", default="0", type=lambda x: list(map(int, x.split(','))),
+                        help="Names of the devices comma separated.")
+    parser.add_argument("--verbose", dest="verbose", action="store_true", help="Print model architecture")
+    parser.add_argument("--enable_timing", dest="enable_timing", action="store_true", help="Time the model")
+    parser.add_argument("--q_aware", dest="q_aware", action="store_true", help="quantization-aware training enabled")
+    parser.set_defaults(verbose=False)
+
+    opt = parser.parse_args()
+
+    if opt.mode == "measurement":
+        fine_grained_timing_generator()
+    else:
         with open(opt.config) as f:
             config = yaml.load(f)
 
@@ -1893,13 +2321,13 @@ if __name__ == "__main__":
             log_dir += ' ' + strftime("%d_%m_%y_%H.%M.%S", gmtime())
 
         generator = OcclusionAwareGenerator(**config['model_params']['generator_params'],**config['model_params']['common_params'])
-        # generator = quantize_generator(generator)
-        # quantization_config = torch.quantization.get_default_qat_qconfig(QUANT_ENGINE)
-        # generator.qconfig = quantization_config
-        # torch.quantization.prepare_qat(generator, inplace=True)
+        if opt.q_aware:
+            generator = quantize_generator(generator)
+            quantization_config = torch.quantization.get_default_qat_qconfig(QUANT_ENGINE)
+            generator.qconfig = quantization_config
+            torch.quantization.prepare_qat(generator, inplace=True)
+
         generator.train()
-        # import pdb
-        # pdb.set_trace()
         if torch.cuda.is_available():
             generator.to(opt.device_ids[0])
         if opt.verbose:
@@ -1914,9 +2342,11 @@ if __name__ == "__main__":
 
         kp_detector = KPDetector(**config['model_params']['kp_detector_params'],
                                 **config['model_params']['common_params'])
-        # kp_detector = quantize_kp_detector(kp_detector)
-        # kp_detector.qconfig = quantization_config
-        # torch.quantization.prepare_qat(kp_detector, inplace=True)
+        if opt.q_aware:
+            kp_detector = quantize_kp_detector(kp_detector)
+            kp_detector.qconfig = quantization_config
+            torch.quantization.prepare_qat(kp_detector, inplace=True)
+
         kp_detector.train()
         if torch.cuda.is_available():
             kp_detector.to(opt.device_ids[0])
