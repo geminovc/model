@@ -3,6 +3,7 @@ from torch import nn
 import torch.nn.functional as F
 from first_order_model.modules.util import ResBlock2d, SameBlock2d, UpBlock2d, DownBlock2d
 from first_order_model.modules.dense_motion import DenseMotionNetwork
+import math
 
 class OcclusionAwareGenerator(nn.Module):
     """
@@ -12,7 +13,8 @@ class OcclusionAwareGenerator(nn.Module):
 
     def __init__(self, num_channels, num_kp, block_expansion, max_features, num_down_blocks,
                  num_bottleneck_blocks, estimate_occlusion_map=False, 
-                 predict_pixel_features=False, num_pixel_features=0,
+                 predict_pixel_features=False, num_pixel_features=0, 
+                 run_at_256=False, upsample_factor=1,
                  dense_motion_params=None, estimate_jacobian=False):
         super(OcclusionAwareGenerator, self).__init__()
 
@@ -26,6 +28,7 @@ class OcclusionAwareGenerator(nn.Module):
             self.dense_motion_network = None
 
         self.first = SameBlock2d(num_channels, block_expansion, kernel_size=(7, 7), padding=(3, 3))
+        self.run_at_256 = run_at_256
 
         down_blocks = []
         for i in range(num_down_blocks):
@@ -40,6 +43,15 @@ class OcclusionAwareGenerator(nn.Module):
             out_features = min(max_features, block_expansion * (2 ** (num_down_blocks - i - 1)))
             up_blocks.append(UpBlock2d(in_features, out_features, kernel_size=(3, 3), padding=(1, 1)))
         self.up_blocks = nn.ModuleList(up_blocks)
+
+        # add upsampling blocks at the end to increase resolution
+        self.upsample_factor = upsample_factor
+        if upsample_factor > 1:
+            upsample_blocks = []
+            upsample_levels = round(math.log(upsample_factor, 2))
+            for i in range(upsample_levels):
+                upsample_blocks.append(UpBlock2d(block_expansion, block_expansion, kernel_size=(3,3), padding=(1,1)))
+            self.upsample_blocks = nn.ModuleList(upsample_blocks)
 
         self.bottleneck = torch.nn.Sequential()
         in_features = min(max_features, block_expansion * (2 ** num_down_blocks))
@@ -60,8 +72,13 @@ class OcclusionAwareGenerator(nn.Module):
         return F.grid_sample(inp, deformation), deformation
 
     def forward(self, source_image, kp_driving, kp_source):
+        if self.run_at_256:
+            resized_source_image = F.interpolate(source_image, 256)
+        else:
+            resized_source_image = source_image
+        
         # Encoding (downsampling) part
-        out = self.first(source_image)
+        out = self.first(resized_source_image)
         for i in range(len(self.down_blocks)):
             out = self.down_blocks[i](out)
 
@@ -96,6 +113,12 @@ class OcclusionAwareGenerator(nn.Module):
         out = self.bottleneck(out)
         for i in range(len(self.up_blocks)):
             out = self.up_blocks[i](out)
+
+        # upsampling portion to increase resolution
+        if self.upsample_factor > 1:
+            for i in range(len(self.upsample_blocks)):
+                out = self.upsample_blocks[i](out)
+
         out = self.final(out)
         out = F.sigmoid(out)
 

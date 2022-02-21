@@ -26,6 +26,10 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
             start_epoch = Logger.load_cpk(checkpoint, generator, None, kp_detector,
                                       None, None, None, dense_motion_network=generator.dense_motion_network)
             start_epoch = 0
+        elif  config['model_params']['generator_params'].get('upsample_factor', 1) > 1:
+            start_epoch = Logger.load_cpk(checkpoint, generator, discriminator, kp_detector,
+                                      None, None, None, None, upsampling_enabled=True)
+            start_epoch = 0
         else:
             start_epoch = Logger.load_cpk(checkpoint, generator, discriminator, kp_detector,
                                       optimizer_generator, optimizer_discriminator,
