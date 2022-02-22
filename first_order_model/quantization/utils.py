@@ -58,3 +58,8 @@ def quantize_model(model_fp32, modules_to_fuse, x0, x1=None, x2=None, x3=None, x
         print_model_info(model_int8, "model_int8", x0, x1, x2, x3, x4)
 
     return model_int8
+
+
+def get_basic_module_to_fuse():
+    return [['conv', 'norm', 'relu']]
+ 
