@@ -1,5 +1,5 @@
 import sys
-sys.path.append("..")
+sys.path.append("../..")
 from keypoint_based_face_models import KeypointBasedFaceModels
 import torch
 from torch import nn
@@ -20,20 +20,19 @@ import threading
 from torch.nn import Conv2d
 from torch.optim.lr_scheduler import MultiStepLR
 from torch.utils.data import DataLoader
-from frames_dataset import DatasetRepeater
 from tqdm import trange
-from sync_batchnorm import DataParallelWithCallback
+from first_order_model.sync_batchnorm import DataParallelWithCallback
 from argparse import ArgumentParser
 from time import gmtime, strftime
 from shutil import copy
-from modules.discriminator import MultiScaleDiscriminator
-from frames_dataset import FramesDataset
+from first_order_model.modules.discriminator import MultiScaleDiscriminator
+from first_order_model.frames_dataset import FramesDataset, DatasetRepeater
 from torchvision import models
 import numpy as np
 from torch.autograd import grad
-from logger import Logger, Visualizer
-from modules.util import kp2gaussian, make_coordinate_grid, AntiAliasInterpolation2d
-from modules.model import Vgg19, ImagePyramide, Transform, DiscriminatorFullModel, detach_kp
+from first_order_model.logger import Logger, Visualizer
+from first_order_model.modules.util import kp2gaussian, make_coordinate_grid, AntiAliasInterpolation2d
+from first_order_model.modules.model import Vgg19, ImagePyramide, Transform, DiscriminatorFullModel, detach_kp
 
 
 QUANT_ENGINE = 'fbgemm'

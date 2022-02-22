@@ -1,6 +1,6 @@
 from torch import nn
 import torch.nn.functional as F
-from modules.util import kp2gaussian
+from first_order_model.modules.util import kp2gaussian
 import torch
 
 
