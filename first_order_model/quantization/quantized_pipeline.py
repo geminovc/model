@@ -1,34 +1,26 @@
 import torch
 from torch import nn
+from torch.autograd import grad
+from torch.optim.lr_scheduler import MultiStepLR
+from torch.utils.data import DataLoader
 # from mmcv.ops.point_sample import bilinear_grid_sample
 import yaml
-from skimage import img_as_float32
 import imageio 
 import time
 import os, sys
-from skimage.draw import circle
-import matplotlib.pyplot as plt
-import collections
-from torch.nn.modules.batchnorm import _BatchNorm
-from torch.nn.parallel._functions import ReduceAddCoalesced, Broadcast
-import queue
-import threading
-from torch.optim.lr_scheduler import MultiStepLR
-from torch.utils.data import DataLoader
+import numpy as np
 from tqdm import trange
-from first_order_model.sync_batchnorm import DataParallelWithCallback
 from argparse import ArgumentParser
 from time import gmtime, strftime
 from shutil import copy
+import collections
+from first_order_model.sync_batchnorm import DataParallelWithCallback
 from first_order_model.modules.discriminator import MultiScaleDiscriminator
 from first_order_model.frames_dataset import FramesDataset, DatasetRepeater
-from torchvision import models
-import numpy as np
-from torch.autograd import grad
 from first_order_model.logger import Logger, Visualizer
-from first_order_model.modules.model import Vgg19, ImagePyramide, Transform, DiscriminatorFullModel, detach_kp
+from first_order_model.modules.model import DiscriminatorFullModel
 from first_order_model.quantization.utils import quantize_model,  print_average_and_std, get_params, \
-                                                    get_coder_modules_to_fuse, QUANT_ENGINE
+                                                    get_coder_modules_to_fuse, QUANT_ENGINE, display_times
 from first_order_model.quantization.quantized_building_modules import SameBlock2d, DownBlock2d, UpBlock2d, \
                                                     ResBlock2d, USE_FAST_CONV2, Hourglass, Encoder, Decoder
 from first_order_model.quantization.quantized_main_modules import OcclusionAwareGenerator, OcclusionAwareGenerator_with_time, \
@@ -150,7 +142,8 @@ def get_random_inputs(model_name):
 
 
 def quantize_generator(model_fp32=OcclusionAwareGenerator(3, 10, 64, 512, 2, 6, True,
-     {'block_expansion': 64, 'max_features': 1024, 'num_blocks': 5, 'scale_factor': 0.25}, True, False), enable_meausre=True):
+     {'block_expansion': 64, 'max_features': 1024, 'num_blocks': 5, 'scale_factor': 0.25}, True, False),
+     enable_meausre=True):
 
     modules_to_fuse = get_coder_modules_to_fuse(len(model_fp32.dense_motion_network.hourglass.encoder.down_blocks), 
                                                 prefix='dense_motion_network.hourglass.encoder.down_blocks')
@@ -159,12 +152,19 @@ def quantize_generator(model_fp32=OcclusionAwareGenerator(3, 10, 64, 512, 2, 6, 
     modules_to_fuse += [['first.conv', 'first.norm', 'first.relu']]
     modules_to_fuse += get_coder_modules_to_fuse(len(model_fp32.down_blocks), prefix='down_blocks')
     modules_to_fuse += get_coder_modules_to_fuse(len(model_fp32.up_blocks), prefix='up_blocks')
-    modules_to_fuse += [['bottleneck.r0.conv1', 'bottleneck.r0.norm1'], ['bottleneck.r0.conv2', 'bottleneck.r0.norm2', 'bottleneck.r0.relu'],
-                       ['bottleneck.r1.conv1', 'bottleneck.r1.norm1'], ['bottleneck.r1.conv2', 'bottleneck.r1.norm2', 'bottleneck.r1.relu'],
-                       ['bottleneck.r2.conv1', 'bottleneck.r2.norm1'], ['bottleneck.r2.conv2', 'bottleneck.r2.norm2', 'bottleneck.r2.relu'],
-                       ['bottleneck.r3.conv1', 'bottleneck.r3.norm1'], ['bottleneck.r3.conv2', 'bottleneck.r3.norm2', 'bottleneck.r3.relu'],
-                       ['bottleneck.r4.conv1', 'bottleneck.r4.norm1'], ['bottleneck.r4.conv2', 'bottleneck.r4.norm2', 'bottleneck.r4.relu'],
-                       ['bottleneck.r5.conv1', 'bottleneck.r5.norm1'], ['bottleneck.r5.conv2', 'bottleneck.r5.norm2', 'bottleneck.r5.relu']]
+    modules_to_fuse += [['bottleneck.r0.conv1', 'bottleneck.r0.norm1'], 
+                        ['bottleneck.r0.conv2', 'bottleneck.r0.norm2', 'bottleneck.r0.relu'],
+                        ['bottleneck.r1.conv1', 'bottleneck.r1.norm1'],
+                        ['bottleneck.r1.conv2', 'bottleneck.r1.norm2', 'bottleneck.r1.relu'],
+                        ['bottleneck.r2.conv1', 'bottleneck.r2.norm1'],
+                        ['bottleneck.r2.conv2', 'bottleneck.r2.norm2', 'bottleneck.r2.relu'],
+                        ['bottleneck.r3.conv1', 'bottleneck.r3.norm1'],
+                        ['bottleneck.r3.conv2', 'bottleneck.r3.norm2', 'bottleneck.r3.relu'],
+                        ['bottleneck.r4.conv1', 'bottleneck.r4.norm1'],
+                        ['bottleneck.r4.conv2', 'bottleneck.r4.norm2', 'bottleneck.r4.relu'],
+                        ['bottleneck.r5.conv1', 'bottleneck.r5.norm1'],
+                        ['bottleneck.r5.conv2', 'bottleneck.r5.norm2', 'bottleneck.r5.relu']]
+    
     x0, x1, x2, x3, x4 = get_random_inputs("generator")
     model_int8 = quantize_model(model_fp32, modules_to_fuse, x0, x1, x2, x3, x4, enable_meausre)
 
@@ -291,7 +291,8 @@ def fine_grained_timing_generator(model=OcclusionAwareGenerator_with_time(3, 10,
         model.to("cuda")
     
     first_times, down_blocks_1_times, down_blocks_2_times, dense_morion_times, deform_times,\
-        bottleneck_times, up_blocks_1_times, up_blocks_2_times, final_times, sigmoid_times, tt = [], [], [], [], [], [], [], [], [], [], []
+        bottleneck_times, up_blocks_1_times, up_blocks_2_times, final_times, sigmoid_times, \
+        tt = [], [], [], [], [], [], [], [], [], [], []
 
     for i in range(0, NUM_RUNS):
         print(i)
@@ -311,18 +312,19 @@ def fine_grained_timing_generator(model=OcclusionAwareGenerator_with_time(3, 10,
         final_times.append(final_time)
         sigmoid_times.append(sigmoid_time)
 
-    print(f"using custom conv:{USE_FAST_CONV2}, using quantization:{USE_QUANTIZATION}, using float16:{USE_FLOAT_16}, resolution:{IMAGE_RESOLUTION}")
-    print_average_and_std(first_times, "first_times")
-    print_average_and_std(down_blocks_1_times, "down_blocks_1_times")
-    print_average_and_std(down_blocks_2_times, "down_blocks_2_times")
-    print_average_and_std(dense_morion_times, "dense_morion_times")
-    print_average_and_std(deform_times, "deform_times")
-    print_average_and_std(bottleneck_times, "bottleneck_times")
-    print_average_and_std(up_blocks_1_times, "up_blocks_1_times")
-    print_average_and_std(up_blocks_2_times, "up_blocks_2_times")
-    print_average_and_std(final_times, "final_times")
-    print_average_and_std(sigmoid_times, "sigmoid_times")
-    print_average_and_std(tt, "total with print")
+    times = {'first_times': first_times,
+             'down_blocks_1_times': down_blocks_1_times,
+             'down_blocks_2_times': down_blocks_2_times,
+             'dense_morion_times': dense_morion_times,
+             'deform_times': deform_times,
+             'bottleneck_times': bottleneck_times,
+             'up_blocks_1_times': up_blocks_1_times,
+             'up_blocks_2_times': up_blocks_2_times,
+             'final_times': final_times,
+             'sigmoid_times': sigmoid_times,
+             'total_with_print':tt}
+
+    display_times(times, 'generator', USE_FAST_CONV2, USE_QUANTIZATION, USE_FLOAT_16, IMAGE_RESOLUTION)
 
 
 def fine_grained_timing_dense_motion(model=DenseMotionNetwork_with_time(64, 5, 1024, 10, 3, True, 0.25, 0.01, False)):
@@ -358,16 +360,17 @@ def fine_grained_timing_dense_motion(model=DenseMotionNetwork_with_time(64, 5, 1
         occlusion_times.append(occlusion_time)
         tt.append(time.time() - start_time)
     
-    print(f"using custom conv:{USE_FAST_CONV2}, using quantization:{USE_QUANTIZATION}, using float16:{USE_FLOAT_16}, resolution:{IMAGE_RESOLUTION}")
-    print_average_and_std(heatmap_representation_times, "heatmap_representation_time")
-    print_average_and_std(sparse_motion_times, "sparse_motion_time")
-    print_average_and_std(create_deformed_source_times, "create_deformed_source_time")
-    print_average_and_std(hourglass_times, "hourglass_time")
-    print_average_and_std(mask_times, "mask_time")
-    print_average_and_std(softmax_times, "softmax_time")
-    print_average_and_std(deformation_times, "deformation_time")
-    print_average_and_std(occlusion_times, "occlusion_time")
-    print_average_and_std(tt, "total with print")
+    times = {'heatmap_representation_times': heatmap_representation_times,
+             'sparse_motion_times': sparse_motion_times,
+             'create_deformed_source_times': create_deformed_source_times,
+             'hourglass_times': hourglass_times,
+             'mask_times': mask_times,
+             'softmax_times': softmax_times,
+             'deformation_times': deformation_times,
+             'occlusion_times': occlusion_times,
+             'total_with_print':tt}
+
+    display_times(times, 'dense_motion', USE_FAST_CONV2, USE_QUANTIZATION, USE_FLOAT_16, IMAGE_RESOLUTION)
 
 
 if __name__ == "__main__":
@@ -389,7 +392,7 @@ if __name__ == "__main__":
     opt = parser.parse_args()
 
     if opt.mode == "measurement":
-        quantize_generator()
+        fine_grained_timing_dense_motion()
         fine_grained_timing_generator()
     else:
         with open(opt.config) as f:

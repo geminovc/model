@@ -3,11 +3,16 @@ import torch
 from torch import nn
 from torch.nn import Conv2d
 import torch.nn.functional as F
+from skimage import img_as_float32
 import sys
 sys.path.append("../..")
 import time
+import numpy as np
+from skimage import img_as_float32
 from keypoint_based_face_models import KeypointBasedFaceModels
 from first_order_model.modules.util import kp2gaussian, make_coordinate_grid, AntiAliasInterpolation2d
+from first_order_model.modules.model import Vgg19, ImagePyramide, Transform, detach_kp
+from first_order_model.logger import Logger, Visualizer
 from first_order_model.quantization.quantized_building_modules import SameBlock2d, DownBlock2d, UpBlock2d, \
                                                     ResBlock2d, USE_FAST_CONV2, Hourglass, Encoder, Decoder
 

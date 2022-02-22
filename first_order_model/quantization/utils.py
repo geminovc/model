@@ -1,15 +1,20 @@
 import torch
 import time, os, sys
-
+import csv
 
 QUANT_ENGINE = 'fbgemm'
+
+def get_variance(test_list, mean):
+    variance = sum([((x - mean) ** 2) for x in test_list]) / len(test_list)
+    res = variance ** 0.5
+    return res
 
 
 def print_average_and_std(test_list, name):
     mean = sum(test_list) / len(test_list)
-    variance = sum([((x - mean) ** 2) for x in test_list]) / len(test_list)
-    res = variance ** 0.5
+    res = get_variance(test_list, mean)
     print(f"{name}:: mean={round(mean, 6)}, std={round(res / mean * 100, 6)}%")
+    return mean, res
 
 
 def get_params(model):
@@ -74,6 +79,33 @@ def get_coder_modules_to_fuse(num_blocks, prefix='down_blocks'):
         modules.append(new_module)
     
     return modules
+
+def display_times(times, module_name, USE_FAST_CONV2, USE_QUANTIZATION, USE_FLOAT_16, IMAGE_RESOLUTION):
+    print(f"using custom conv:{USE_FAST_CONV2}, using quantization:{USE_QUANTIZATION}")
+    print(f"using float16:{USE_FLOAT_16}, resolution:{IMAGE_RESOLUTION}")
+    for key in times.keys():
+        print_average_and_std(times[key], key)
+
+    if USE_FAST_CONV2:
+        module_name += '_fast_conv'
+    if USE_QUANTIZATION:
+        module_name += '_int8'
+    if USE_FLOAT_16:
+        module_name += '_float16'
+    if IMAGE_RESOLUTION:
+        module_name += f'_res{IMAGE_RESOLUTION}'
+
+    with open(module_name + '.csv', 'w', encoding='UTF8') as f:
+        header = ['measurement']
+        header += [key for key in times.keys()]
+        writer = csv.writer(f)
+        writer.writerow(header)
+        mean_row = ['mean']
+        mean_row += [sum(times[key])/len(times[key]) for key in times.keys()]
+        std_row = ['std%']
+        std_row += [100 * get_variance(times[key], sum(times[key])/len(times[key])) / (sum(times[key])/len(times[key])) for key in times.keys()]
+        writer.writerow(mean_row)
+        writer.writerow(std_row)
 
 
 
