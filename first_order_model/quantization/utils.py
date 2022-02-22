@@ -1,13 +1,16 @@
 import torch
 import time, os, sys
 
+
 QUANT_ENGINE = 'fbgemm'
+
 
 def print_average_and_std(test_list, name):
     mean = sum(test_list) / len(test_list)
     variance = sum([((x - mean) ** 2) for x in test_list]) / len(test_list)
     res = variance ** 0.5
     print(f"{name}:: mean={round(mean, 6)}, std={round(res / mean * 100, 6)}%")
+
 
 def get_params(model):
     params = []
@@ -18,12 +21,14 @@ def get_params(model):
             params.append(bias)
     return params
 
+
 def print_size_of_model(model, label=""):
     torch.save(model.state_dict(), "temp.p")
     size = os.path.getsize("temp.p")
     print("model: ",label,' \t','Size (MB):', size/1e6)
     os.remove('temp.p')
     return size
+
 
 def print_model_info(model, model_name, x0, x1=None, x2=None, x3=None, x4=None, num_runs=10):
         print_size_of_model(model, label=model_name)
@@ -39,6 +44,7 @@ def print_model_info(model, model_name, x0, x1=None, x2=None, x3=None, x4=None, 
                 res = model(x0)
                 tt.append(time.time() - start_time)
         print_average_and_std(tt, f"Average inference time on {model_name}")
+
 
 def quantize_model(model_fp32, modules_to_fuse, x0, x1=None, x2=None, x3=None, x4=None, enable_meausre=False):
     model_fp32.eval()
