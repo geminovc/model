@@ -3,3 +3,4 @@ __pycache__
 /venv
 onnx/*.csv
 onnx/*.mp4
+quantization/*.csv
