@@ -1,5 +1,5 @@
 checkpoint_params:
-    checkpoint_path: /Users/panteababaahmadi/Documents/GitHub/vox-cpk.pth.tar
+    checkpoint_path: /video-conf/scratch/vibhaa_mm_log_directory/vox-cpk.pth.tar
 
 model_params:
   common_params:
