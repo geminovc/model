@@ -30,7 +30,7 @@ def print_size_of_model(model, label=""):
     return size
 
 
-def print_model_info(model, model_name, x0, x1=None, x2=None, x3=None, x4=None, num_runs=10):
+def print_model_info(model, model_name, x0, x1=None, x2=None, x3=None, x4=None, num_runs=100):
         print_size_of_model(model, label=model_name)
         tt = []
         for i in range(0, num_runs):
