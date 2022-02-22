@@ -32,6 +32,7 @@ model_params:
     estimate_occlusion_map: True
     run_at_256: True
     upsample_factor: 2
+    use_hr_skip_connections: True
     dense_motion_params:
       block_expansion: 64
       max_features: 1024

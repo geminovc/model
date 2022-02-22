@@ -15,6 +15,7 @@ from frames_dataset import DatasetRepeater
 
 def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, dataset, device_ids):
     train_params = config['train_params']
+    generator_params = config['model_params']['generator_params']
 
     optimizer_generator = torch.optim.Adam(generator.parameters(), lr=train_params['lr_generator'], betas=(0.5, 0.999))
     optimizer_discriminator = torch.optim.Adam(discriminator.parameters(), lr=train_params['lr_discriminator'], betas=(0.5, 0.999))
@@ -26,9 +27,11 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
             start_epoch = Logger.load_cpk(checkpoint, generator, None, kp_detector,
                                       None, None, None, dense_motion_network=generator.dense_motion_network)
             start_epoch = 0
-        elif  config['model_params']['generator_params'].get('upsample_factor', 1) > 1:
+        elif generator_params.get('upsample_factor', 1) > 1:
+            hr_skip_connections = generator_params.get('use_hr_skip_connections', False)
             start_epoch = Logger.load_cpk(checkpoint, generator, discriminator, kp_detector,
-                                      None, None, None, None, upsampling_enabled=True)
+                                      None, None, None, None, upsampling_enabled=True, 
+                                      hr_skip_connections=hr_skip_connections)
             start_epoch = 0
         else:
             start_epoch = Logger.load_cpk(checkpoint, generator, discriminator, kp_detector,

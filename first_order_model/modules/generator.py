@@ -14,7 +14,7 @@ class OcclusionAwareGenerator(nn.Module):
     def __init__(self, num_channels, num_kp, block_expansion, max_features, num_down_blocks,
                  num_bottleneck_blocks, estimate_occlusion_map=False, 
                  predict_pixel_features=False, num_pixel_features=0, 
-                 run_at_256=False, upsample_factor=1,
+                 run_at_256=False, upsample_factor=1, use_hr_skip_connections=False,
                  dense_motion_params=None, estimate_jacobian=False):
         super(OcclusionAwareGenerator, self).__init__()
 
@@ -29,6 +29,7 @@ class OcclusionAwareGenerator(nn.Module):
 
         self.first = SameBlock2d(num_channels, block_expansion, kernel_size=(7, 7), padding=(3, 3))
         self.run_at_256 = run_at_256
+        starting_depth = block_expansion
 
         down_blocks = []
         for i in range(num_down_blocks):
@@ -38,27 +39,42 @@ class OcclusionAwareGenerator(nn.Module):
         self.down_blocks = nn.ModuleList(down_blocks)
 
         up_blocks = []
+        offset = 2 if use_hr_skip_connections else 1
         for i in range(num_down_blocks):
-            in_features = min(max_features, block_expansion * (2 ** (num_down_blocks - i)))
+            in_features = offset * min(max_features, block_expansion * (2 ** (num_down_blocks - i)))
             out_features = min(max_features, block_expansion * (2 ** (num_down_blocks - i - 1)))
             up_blocks.append(UpBlock2d(in_features, out_features, kernel_size=(3, 3), padding=(1, 1)))
         self.up_blocks = nn.ModuleList(up_blocks)
 
         # add upsampling blocks at the end to increase resolution
         self.upsample_factor = upsample_factor
+        upsample_levels = round(math.log(upsample_factor, 2))
         if upsample_factor > 1:
+            starting_depth = block_expansion // (2 ** upsample_levels)
             upsample_blocks = []
-            upsample_levels = round(math.log(upsample_factor, 2))
             for i in range(upsample_levels):
-                upsample_blocks.append(UpBlock2d(block_expansion, block_expansion, kernel_size=(3,3), padding=(1,1)))
+                in_features = offset * min(max_features, starting_depth * (2 ** (upsample_levels - i)))
+                out_features = min(max_features, starting_depth * (2 ** (upsample_levels - i - 1)))
+                upsample_blocks.append(UpBlock2d(in_features, out_features, kernel_size=(3, 3), padding=(1, 1)))
             self.upsample_blocks = nn.ModuleList(upsample_blocks)
 
+        # enabling a parallel HR pipeline for skip connections
+        self.use_hr_skip_connections = use_hr_skip_connections
+        if self.use_hr_skip_connections:
+            self.hr_first = SameBlock2d(num_channels, starting_depth, kernel_size=(7, 7), padding=(3, 3))
+            hr_down_blocks = []
+            for i in range(num_down_blocks + upsample_levels):
+                in_features = min(max_features, starting_depth * (2 ** i))
+                out_features = min(max_features, starting_depth * (2 ** (i + 1)))
+                hr_down_blocks.append(DownBlock2d(in_features, out_features, kernel_size=(3, 3), padding=(1, 1)))
+            self.hr_down_blocks = nn.ModuleList(hr_down_blocks)
+        
         self.bottleneck = torch.nn.Sequential()
         in_features = min(max_features, block_expansion * (2 ** num_down_blocks))
         for i in range(num_bottleneck_blocks):
             self.bottleneck.add_module('r' + str(i), ResBlock2d(in_features, kernel_size=(3, 3), padding=(1, 1)))
 
-        self.final = nn.Conv2d(block_expansion, num_channels, kernel_size=(7, 7), padding=(3, 3))
+        self.final = nn.Conv2d(starting_depth, num_channels, kernel_size=(7, 7), padding=(3, 3))
         self.estimate_occlusion_map = estimate_occlusion_map
         self.num_channels = num_channels
 
@@ -81,6 +97,12 @@ class OcclusionAwareGenerator(nn.Module):
         out = self.first(resized_source_image)
         for i in range(len(self.down_blocks)):
             out = self.down_blocks[i](out)
+
+        # Parallel HR pipeline
+        if self.use_hr_skip_connections:
+            skip_connections = [self.hr_first(source_image)]
+            for i in range(len(self.hr_down_blocks)):
+                skip_connections.append(self.hr_down_blocks[i](skip_connections[-1]))
 
         # Transforming feature representation according to deformation and occlusion
         output_dict = {}
@@ -112,12 +134,22 @@ class OcclusionAwareGenerator(nn.Module):
         # Decoding part
         out = self.bottleneck(out)
         for i in range(len(self.up_blocks)):
+            if self.use_hr_skip_connections:
+                skip = skip_connections.pop()
+                skip, _ = self.deform_input(skip, deformation)
+                out = torch.cat([out, skip], dim=1)
             out = self.up_blocks[i](out)
+            
 
         # upsampling portion to increase resolution
         if self.upsample_factor > 1:
             for i in range(len(self.upsample_blocks)):
+                if self.use_hr_skip_connections:
+                    skip = skip_connections.pop()
+                    skip, _ = self.deform_input(skip, deformation)
+                    out = torch.cat([out, skip], dim=1)
                 out = self.upsample_blocks[i](out)
+            
 
         out = self.final(out)
         out = F.sigmoid(out)
