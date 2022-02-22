@@ -33,7 +33,7 @@ from torch.autograd import grad
 from first_order_model.logger import Logger, Visualizer
 from first_order_model.modules.util import kp2gaussian, make_coordinate_grid, AntiAliasInterpolation2d
 from first_order_model.modules.model import Vgg19, ImagePyramide, Transform, DiscriminatorFullModel, detach_kp
-from first_order_model.quantization.utils import quantize_model, print_average_and_std, get_params, QUANT_ENGINE
+from first_order_model.quantization.utils import quantize_model, print_average_and_std, get_params, get_coder_modules_to_fuse, QUANT_ENGINE
 
 
 USE_FAST_CONV2 = False
@@ -1094,28 +1094,19 @@ def get_random_inputs(model_name):
 def quantize_generator(model_fp32=OcclusionAwareGenerator(3, 10, 64, 512, 2, 6, True,
      {'block_expansion': 64, 'max_features': 1024, 'num_blocks': 5, 'scale_factor': 0.25}, True, False), enable_meausre=True):
 
-    modules_to_fuse = [['dense_motion_network.hourglass.encoder.down_blocks.0.conv', 'dense_motion_network.hourglass.encoder.down_blocks.0.norm', 'dense_motion_network.hourglass.encoder.down_blocks.0.relu'],
-                       ['dense_motion_network.hourglass.encoder.down_blocks.1.conv', 'dense_motion_network.hourglass.encoder.down_blocks.1.norm', 'dense_motion_network.hourglass.encoder.down_blocks.1.relu'],
-                       ['dense_motion_network.hourglass.encoder.down_blocks.2.conv', 'dense_motion_network.hourglass.encoder.down_blocks.2.norm', 'dense_motion_network.hourglass.encoder.down_blocks.2.relu'],
-                       ['dense_motion_network.hourglass.encoder.down_blocks.3.conv', 'dense_motion_network.hourglass.encoder.down_blocks.3.norm', 'dense_motion_network.hourglass.encoder.down_blocks.3.relu'],
-                       ['dense_motion_network.hourglass.encoder.down_blocks.4.conv', 'dense_motion_network.hourglass.encoder.down_blocks.4.norm', 'dense_motion_network.hourglass.encoder.down_blocks.4.relu'],
-                       ['dense_motion_network.hourglass.decoder.up_blocks.0.conv', 'dense_motion_network.hourglass.decoder.up_blocks.0.norm', 'dense_motion_network.hourglass.decoder.up_blocks.0.relu'],
-                       ['dense_motion_network.hourglass.decoder.up_blocks.1.conv', 'dense_motion_network.hourglass.decoder.up_blocks.1.norm', 'dense_motion_network.hourglass.decoder.up_blocks.1.relu'],
-                       ['dense_motion_network.hourglass.decoder.up_blocks.2.conv', 'dense_motion_network.hourglass.decoder.up_blocks.2.norm', 'dense_motion_network.hourglass.decoder.up_blocks.2.relu'],
-                       ['dense_motion_network.hourglass.decoder.up_blocks.3.conv', 'dense_motion_network.hourglass.decoder.up_blocks.3.norm', 'dense_motion_network.hourglass.decoder.up_blocks.3.relu'],
-                       ['dense_motion_network.hourglass.decoder.up_blocks.4.conv', 'dense_motion_network.hourglass.decoder.up_blocks.4.norm', 'dense_motion_network.hourglass.decoder.up_blocks.4.relu'],
-                       ['first.conv', 'first.norm', 'first.relu'],
-                       ['down_blocks.0.conv', 'down_blocks.0.norm', 'down_blocks.0.relu'],
-                       ['down_blocks.1.conv', 'down_blocks.1.norm', 'down_blocks.1.relu'],
-                       ['up_blocks.0.conv', 'up_blocks.0.norm', 'up_blocks.0.relu'],
-                       ['up_blocks.1.conv', 'up_blocks.1.norm', 'up_blocks.1.relu'],
-                       ['bottleneck.r0.conv1', 'bottleneck.r0.norm1'], ['bottleneck.r0.conv2', 'bottleneck.r0.norm2', 'bottleneck.r0.relu'],
+    modules_to_fuse = get_coder_modules_to_fuse(len(model_fp32.dense_motion_network.hourglass.encoder.down_blocks), 
+                                                prefix='dense_motion_network.hourglass.encoder.down_blocks')
+    modules_to_fuse += get_coder_modules_to_fuse(len(model_fp32.dense_motion_network.hourglass.decoder.up_blocks),
+                                                prefix='dense_motion_network.hourglass.decoder.up_blocks')    
+    modules_to_fuse += [['first.conv', 'first.norm', 'first.relu']]
+    modules_to_fuse += get_coder_modules_to_fuse(len(model_fp32.down_blocks), prefix='down_blocks')
+    modules_to_fuse += get_coder_modules_to_fuse(len(model_fp32.up_blocks), prefix='up_blocks')
+    modules_to_fuse += [['bottleneck.r0.conv1', 'bottleneck.r0.norm1'], ['bottleneck.r0.conv2', 'bottleneck.r0.norm2', 'bottleneck.r0.relu'],
                        ['bottleneck.r1.conv1', 'bottleneck.r1.norm1'], ['bottleneck.r1.conv2', 'bottleneck.r1.norm2', 'bottleneck.r1.relu'],
                        ['bottleneck.r2.conv1', 'bottleneck.r2.norm1'], ['bottleneck.r2.conv2', 'bottleneck.r2.norm2', 'bottleneck.r2.relu'],
                        ['bottleneck.r3.conv1', 'bottleneck.r3.norm1'], ['bottleneck.r3.conv2', 'bottleneck.r3.norm2', 'bottleneck.r3.relu'],
                        ['bottleneck.r4.conv1', 'bottleneck.r4.norm1'], ['bottleneck.r4.conv2', 'bottleneck.r4.norm2', 'bottleneck.r4.relu'],
                        ['bottleneck.r5.conv1', 'bottleneck.r5.norm1'], ['bottleneck.r5.conv2', 'bottleneck.r5.norm2', 'bottleneck.r5.relu']]
-    
     x0, x1, x2, x3, x4 = get_random_inputs("generator")
     model_int8 = quantize_model(model_fp32, modules_to_fuse, x0, x1, x2, x3, x4, enable_meausre)
 
@@ -1123,17 +1114,8 @@ def quantize_generator(model_fp32=OcclusionAwareGenerator(3, 10, 64, 512, 2, 6, 
 
 
 def quantize_kp_detector(model_fp32=KPDetector(32, 10, 3, 1024, 5, 0.1, True, 0.25, False, 0, False), enable_meausre=True):
-    modules_to_fuse = [['predictor.encoder.down_blocks.0.conv', 'predictor.encoder.down_blocks.0.norm', 'predictor.encoder.down_blocks.0.relu'],
-                       ['predictor.encoder.down_blocks.1.conv', 'predictor.encoder.down_blocks.1.norm', 'predictor.encoder.down_blocks.1.relu'],
-                       ['predictor.encoder.down_blocks.2.conv', 'predictor.encoder.down_blocks.2.norm', 'predictor.encoder.down_blocks.2.relu'],
-                       ['predictor.encoder.down_blocks.3.conv', 'predictor.encoder.down_blocks.3.norm', 'predictor.encoder.down_blocks.3.relu'],
-                       ['predictor.encoder.down_blocks.4.conv', 'predictor.encoder.down_blocks.4.norm', 'predictor.encoder.down_blocks.4.relu'],
-                       ['predictor.decoder.up_blocks.0.conv', 'predictor.decoder.up_blocks.0.norm', 'predictor.decoder.up_blocks.0.relu'],
-                       ['predictor.decoder.up_blocks.1.conv', 'predictor.decoder.up_blocks.1.norm', 'predictor.decoder.up_blocks.1.relu'],
-                       ['predictor.decoder.up_blocks.2.conv', 'predictor.decoder.up_blocks.2.norm', 'predictor.decoder.up_blocks.2.relu'],
-                       ['predictor.decoder.up_blocks.3.conv', 'predictor.decoder.up_blocks.3.norm', 'predictor.decoder.up_blocks.3.relu'],
-                       ['predictor.decoder.up_blocks.4.conv', 'predictor.decoder.up_blocks.4.norm', 'predictor.decoder.up_blocks.4.relu'],]
-
+    modules_to_fuse = get_coder_modules_to_fuse(len(model_fp32.predictor.encoder.down_blocks), prefix='predictor.encoder.down_blocks')
+    modules_to_fuse += get_coder_modules_to_fuse(len(model_fp32.predictor.decoder.up_blocks), prefix='predictor.decoder.up_blocks')
     x0, x1, x2, x3, x4 = get_random_inputs("kp_detector")
     model_int8 = quantize_model(model_fp32, modules_to_fuse, x0, enable_meausre=enable_meausre)
     return model_int8
@@ -1164,23 +1146,13 @@ def quantize_pipeline():
 
 
 def quantize_enc(model_fp32=Encoder(64, 44, 5, 1024), enable_meausre=True):
-    modules_to_fuse = [['down_blocks.0.conv', 'down_blocks.0.norm', 'down_blocks.0.relu'],
-                       ['down_blocks.1.conv', 'down_blocks.1.norm', 'down_blocks.1.relu'],
-                       ['down_blocks.2.conv', 'down_blocks.2.norm', 'down_blocks.2.relu'],
-                       ['down_blocks.3.conv', 'down_blocks.3.norm', 'down_blocks.3.relu'],
-                       ['down_blocks.4.conv', 'down_blocks.4.norm', 'down_blocks.4.relu']]
-    
+    modules_to_fuse = get_coder_modules_to_fuse(len(model_fp32.down_blocks), prefix='down_blocks')
     model_int8 = quantize_model(model_fp32, modules_to_fuse, torch.randn(1, 44, 64, 64), enable_meausre=enable_meausre)
     return model_int8
 
 
 def quantize_dec(model_fp32=Decoder(64, 44, 5, 1024), enable_meausre=True):
-    modules_to_fuse = [['up_blocks.0.conv', 'up_blocks.0.norm', 'up_blocks.0.relu'],
-                       ['up_blocks.1.conv', 'up_blocks.1.norm', 'up_blocks.1.relu'],
-                       ['up_blocks.2.conv', 'up_blocks.2.norm', 'up_blocks.2.relu'],
-                       ['up_blocks.3.conv', 'up_blocks.3.norm', 'up_blocks.3.relu'],
-                       ['up_blocks.4.conv', 'up_blocks.4.norm', 'up_blocks.4.relu']]
-
+    modules_to_fuse = get_coder_modules_to_fuse(len(model_fp32.up_blocks), prefix='up_blocks')
     x0 = [torch.randn(1, 44, 64, 64), torch.randn(1, 128, 32, 32),
                   torch.randn(1, 256, 16, 16), torch.randn(1, 512, 8, 8),
                   torch.randn(1, 1024, 4, 4), torch.randn(1, 1024, 2, 2)]
@@ -1189,34 +1161,17 @@ def quantize_dec(model_fp32=Decoder(64, 44, 5, 1024), enable_meausre=True):
 
 
 def quantize_hrglass(model_fp32=Hourglass(64, 44, 5, 1024), enable_meausre=True):
-    modules_to_fuse = [['encoder.down_blocks.0.conv', 'encoder.down_blocks.0.norm', 'encoder.down_blocks.0.relu'],
-                       ['encoder.down_blocks.1.conv', 'encoder.down_blocks.1.norm', 'encoder.down_blocks.1.relu'],
-                       ['encoder.down_blocks.2.conv', 'encoder.down_blocks.2.norm', 'encoder.down_blocks.2.relu'],
-                       ['encoder.down_blocks.3.conv', 'encoder.down_blocks.3.norm', 'encoder.down_blocks.3.relu'],
-                       ['encoder.down_blocks.4.conv', 'encoder.down_blocks.4.norm', 'encoder.down_blocks.4.relu'],
-                       ['decoder.up_blocks.0.conv', 'decoder.up_blocks.0.norm', 'decoder.up_blocks.0.relu'],
-                       ['decoder.up_blocks.1.conv', 'decoder.up_blocks.1.norm', 'decoder.up_blocks.1.relu'],
-                       ['decoder.up_blocks.2.conv', 'decoder.up_blocks.2.norm', 'decoder.up_blocks.2.relu'],
-                       ['decoder.up_blocks.3.conv', 'decoder.up_blocks.3.norm', 'decoder.up_blocks.3.relu'],
-                       ['decoder.up_blocks.4.conv', 'decoder.up_blocks.4.norm', 'decoder.up_blocks.4.relu']]
-
+    modules_to_fuse = get_coder_modules_to_fuse(len(model_fp32.encoder.down_blocks), 
+                                                prefix='encoder.down_blocks')
+    modules_to_fuse += get_coder_modules_to_fuse(len(model_fp32.decoder.up_blocks), 
+                                                prefix='decoder.up_blocks')
     model_int8 = quantize_model(model_fp32, modules_to_fuse, torch.randn(1, 44, 64, 64), enable_meausre=enable_meausre)
     return model_int8
 
 
 def quantize_dense_motion(model_fp32=DenseMotionNetwork(64, 5, 1024, 10, 3, True, 0.25, 0.01, False), enable_meausre=True):
-    modules_to_fuse = [['hourglass.encoder.down_blocks.0.conv', 'hourglass.encoder.down_blocks.0.norm', 'hourglass.encoder.down_blocks.0.relu'],
-                       ['hourglass.encoder.down_blocks.1.conv', 'hourglass.encoder.down_blocks.1.norm', 'hourglass.encoder.down_blocks.1.relu'],
-                       ['hourglass.encoder.down_blocks.2.conv', 'hourglass.encoder.down_blocks.2.norm', 'hourglass.encoder.down_blocks.2.relu'],
-                       ['hourglass.encoder.down_blocks.3.conv', 'hourglass.encoder.down_blocks.3.norm', 'hourglass.encoder.down_blocks.3.relu'],
-                       ['hourglass.encoder.down_blocks.4.conv', 'hourglass.encoder.down_blocks.4.norm', 'hourglass.encoder.down_blocks.4.relu'],
-                       ['hourglass.decoder.up_blocks.0.conv', 'hourglass.decoder.up_blocks.0.norm', 'hourglass.decoder.up_blocks.0.relu'],
-                       ['hourglass.decoder.up_blocks.1.conv', 'hourglass.decoder.up_blocks.1.norm', 'hourglass.decoder.up_blocks.1.relu'],
-                       ['hourglass.decoder.up_blocks.2.conv', 'hourglass.decoder.up_blocks.2.norm', 'hourglass.decoder.up_blocks.2.relu'],
-                       ['hourglass.decoder.up_blocks.3.conv', 'hourglass.decoder.up_blocks.3.norm', 'hourglass.decoder.up_blocks.3.relu'],
-                       ['hourglass.decoder.up_blocks.4.conv', 'hourglass.decoder.up_blocks.4.norm', 'hourglass.decoder.up_blocks.4.relu']]
-
-
+    modules_to_fuse = get_coder_modules_to_fuse(len(model_fp32.hourglass.encoder.down_blocks), prefix='hourglass.encoder.down_blocks')
+    modules_to_fuse += get_coder_modules_to_fuse(len(model_fp32.hourglass.decoder.up_blocks), prefix='hourglass.decoder.up_blocks')
     x0, x1, x2, x3, x4 = get_random_inputs("dense_motion")
     model_int8 = quantize_model(model_fp32, modules_to_fuse, x0, x1, x2, x3, x4, enable_meausre=enable_meausre)
     return model_int8

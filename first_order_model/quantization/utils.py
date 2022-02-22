@@ -61,5 +61,20 @@ def quantize_model(model_fp32, modules_to_fuse, x0, x1=None, x2=None, x3=None, x
 
 
 def get_basic_module_to_fuse():
-    return [['conv', 'norm', 'relu']]
+    return ['conv', 'norm', 'relu']
+
+
+def get_coder_modules_to_fuse(num_blocks, prefix='down_blocks'):
+    modules = []
+    basics = get_basic_module_to_fuse()
+    for i in range(0, num_blocks):
+        new_module = []
+        for sub_module in basics:
+            new_module.append(prefix + '.' + str(i) + '.' + sub_module)
+        modules.append(new_module)
+    
+    return modules
+
+
+
  
