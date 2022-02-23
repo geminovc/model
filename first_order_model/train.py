@@ -47,6 +47,7 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
     scheduler_kp_detector = MultiStepLR(optimizer_kp_detector, train_params['epoch_milestones'], gamma=0.1,
                                         last_epoch=-1 + start_epoch * (train_params['lr_kp_detector'] != 0))
 
+    # train only generator parameters and keep dense motion/keypoint stuff frozen
     if train_params.get('train_only_generator', False) and checkpoint is not None:
         for param in kp_detector.parameters():
             param.requires_grad = False
@@ -56,6 +57,18 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
 
         for param in generator.dense_motion_network.parameters():
             param.requires_grad = False
+
+    # train only new layers added to increase resolution while keeping the rest of the pipeline frozen
+    if train_params.get('train_only_upsample_layers', False) and checkpoint is not None:
+        for param in kp_detector.parameters():
+            param.requires_grad = False
+        ev_loss = train_params['loss_weights']['equivariance_value']
+        ev_jacobian = train_params['loss_weights']['equivariance_jacobian']
+        assert ev_loss == 0 and ev_jacobian == 0, "Equivariance losses must be 0 to freeze keypoint detector"
+
+        for name, param in generator.named_parameters():
+            if not(name.startswith("up") or name.startswith("hr") or name.startswith("final")):
+                param.rquires_grad = False
 
     if 'num_repeats' in train_params or train_params['num_repeats'] != 1:
         dataset = DatasetRepeater(dataset, train_params['num_repeats'])
