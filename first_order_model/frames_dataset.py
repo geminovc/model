@@ -9,7 +9,7 @@ from torch.utils.data import Dataset
 import pandas as pd
 from augmentation import AllAugmentationTransform
 import glob
-
+import time
 
 def read_video(name, frame_shape):
     """
@@ -50,6 +50,22 @@ def read_video(name, frame_shape):
         raise Exception("Unknown file extensions  %s" % name)
 
     return video_array
+
+
+def get_num_frames(filename):
+    cmd = f"ffprobe -v error -select_streams v:0 -count_frames -show_entries stream=nb_read_frames -print_format csv {filename}"
+    num_frames = os.popen(cmd).read()
+    num_frames = int(num_frames.split(',')[1])
+    return num_frames
+
+
+def get_frame(filename, frame_num):
+    temp_name = f'{os.path.basename(filename)}_{frame_num}_out_{time.time()}.png'
+    cmd = f'ffmpeg -y -v error -i {filename} -vf "select=eq(n\,{frame_num})" -vframes 1 {temp_name}'
+    os.system(cmd)
+    image = io.imread(temp_name)
+    os.remove(temp_name)
+    return image
 
 
 class FramesDataset(Dataset):
@@ -113,11 +129,10 @@ class FramesDataset(Dataset):
             frame_idx = np.sort(np.random.choice(num_frames, replace=True, size=2))
             video_array = [img_as_float32(io.imread(os.path.join(path, frames[idx]))) for idx in frame_idx]
         else:
-            video_array = read_video(path, frame_shape=self.frame_shape)
-            num_frames = len(video_array)
+            num_frames = get_num_frames(path)
             frame_idx = np.sort(np.random.choice(num_frames, replace=True, size=2)) if self.is_train else range(
-                num_frames)
-            video_array = video_array[frame_idx]
+            num_frames)
+            video_array = np.array([get_frame(path, frame_idx[0]), get_frame(path, frame_idx[1])])
 
         if self.transform is not None:
             video_array = self.transform(video_array)
