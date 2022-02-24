@@ -17,8 +17,10 @@ class Conv2d(torch.nn.Module):
         kernel_size_ = _pair(kernel_size)
         padding_ = padding if isinstance(padding, str) else _pair(padding)
         super(Conv2d, self).__init__()
-        self.depth_conv = torch_conv2(in_channels=in_channels, out_channels=in_channels, kernel_size=kernel_size_, stride=(1, 1), padding= padding, groups=in_channels)
-        self.point_conv = torch_conv2(in_channels=in_channels, out_channels=out_channels, kernel_size=1, stride=(1, 1))
+        self.depth_conv = torch_conv2(in_channels=in_channels, out_channels=in_channels,
+            kernel_size=kernel_size_, stride=(1, 1), padding= padding, groups=in_channels)
+        self.point_conv = torch_conv2(in_channels=in_channels, out_channels=out_channels,
+            kernel_size=1, stride=(1, 1))
         self.depthwise_separable_conv = torch.nn.Sequential(self.depth_conv, self.point_conv)
 
     def forward(self, input: Tensor) -> Tensor:
