@@ -6,6 +6,10 @@ from torch.nn.common_types import _size_2_t
 from typing import Union
 
 class Conv2d(torch.nn.Module):
+    """
+    This module is used to replce a regular convolutions with depthwise separable convolutions.
+    Depthwise separable convolutions yield the same performance while being faster.
+    """
     def __init__(
         self,
         in_channels: int,
