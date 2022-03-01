@@ -57,6 +57,12 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
 
         for param in generator.dense_motion_network.parameters():
             param.requires_grad = False
+    elif train_params.get('train_everything_but_generator', False) and checkpoint is not None:
+        for param in generator.parameters():
+            param.requires_grad = False
+        
+        for param in generator.dense_motion_network.parameters():
+            param.requires_grad = True
 
     # train only new layers added to increase resolution while keeping the rest of the pipeline frozen
     if train_params.get('train_only_upsample_layers', False) and checkpoint is not None:
