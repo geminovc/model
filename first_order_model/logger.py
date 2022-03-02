@@ -59,7 +59,8 @@ class Logger:
     def load_cpk(checkpoint_path, generator=None, discriminator=None, kp_detector=None,
                  optimizer_generator=None, optimizer_discriminator=None, optimizer_kp_detector=None, 
                  device='gpu', dense_motion_network=None, upsampling_enabled=False, 
-                 hr_skip_connections=False, run_at_256=True):
+                 hr_skip_connections=False, run_at_256=True, train_params=None):
+
         if device == torch.device('cpu'):
             checkpoint = torch.load(checkpoint_path, map_location=torch.device('cpu'))
         else:
@@ -80,10 +81,14 @@ class Logger:
                 modified_generator_params = {k: v for k, v in checkpoint['generator'].items() \
                     if not (k.startswith("final") or k.startswith("sigmoid") or k.startswith('first'))}
             generator.load_state_dict(modified_generator_params, strict=False)
+        elif generator is not None and train_params.get('train_everything_but_generator', False):
+            gen_params = checkpoint['generator']
+            gen_params_but_dense_motion_params = {k: gen_params[k] for k in gen_params.keys() if not k.startswith('dense_motion_network')}
+            generator.load_state_dict(gen_params_but_dense_motion_params, strict=False)
         elif generator is not None:
             generator.load_state_dict(checkpoint['generator'])
 
-        if kp_detector is not None:
+        if kp_detector is not None and not train_params.get('train_everything_but_generator', False):
             kp_detector.load_state_dict(checkpoint['kp_detector'])
 
         if discriminator is not None: 
