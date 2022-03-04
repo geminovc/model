@@ -3,7 +3,7 @@ from skimage import io, img_as_float32
 from skimage.color import gray2rgb
 from sklearn.model_selection import train_test_split
 from imageio import mimread
-
+import imageio
 import numpy as np
 from torch.utils.data import Dataset
 import pandas as pd
@@ -60,12 +60,11 @@ def get_num_frames(filename):
 
 
 def get_frame(filename, frame_num):
-    temp_name = f'{os.path.basename(filename)}_{frame_num}_out_{time.time()}.png'
-    cmd = f'ffmpeg -y -v error -i {filename} -vf "select=eq(n\,{frame_num})" -vframes 1 {temp_name}'
-    os.system(cmd)
-    image = io.imread(temp_name)
-    os.remove(temp_name)
-    return image
+    reader = imageio.get_reader(filename, "ffmpeg")
+    reader.set_image_index(frame_num)
+    frame = np.array(reader.get_next_data()[:, :, ::-1])
+    reader.close()
+    return frame
 
 
 class FramesDataset(Dataset):
