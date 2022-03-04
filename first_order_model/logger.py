@@ -58,7 +58,8 @@ class Logger:
     @staticmethod
     def load_cpk(checkpoint_path, generator=None, discriminator=None, kp_detector=None,
                  optimizer_generator=None, optimizer_discriminator=None, optimizer_kp_detector=None, 
-                 device='gpu', dense_motion_network=None, upsampling_enabled=False, hr_skip_connections=False):
+                 device='gpu', dense_motion_network=None, upsampling_enabled=False, 
+                 hr_skip_connections=False, run_at_256=True):
         if device == torch.device('cpu'):
             checkpoint = torch.load(checkpoint_path, map_location=torch.device('cpu'))
         else:
@@ -68,13 +69,16 @@ class Logger:
             gen_params = checkpoint['generator']
             dense_motion_params = {k: gen_params[k] for k in gen_params.keys() if k.startswith('dense_motion_network')}
             generator.load_state_dict(dense_motion_params, strict=False)
-        elif generator is not None and upsampling_enabled and not hr_skip_connections:
-            modified_generator_params = {k: v for k, v in checkpoint['generator'].items() \
-                    if not (k.startswith("final") or k.startswith("sigmoid"))}
-            generator.load_state_dict(modified_generator_params, strict=False)
-        elif generator is not None and upsampling_enabled and hr_skip_connections:
-            modified_generator_params = {k: v for k, v in checkpoint['generator'].items() \
+        elif generator is not None and upsampling_enabled:
+            if hr_skip_connections:
+                modified_generator_params = {k: v for k, v in checkpoint['generator'].items() \
                     if not (k.startswith("final") or k.startswith("sigmoid") or k.startswith("up"))}
+            elif run_at_256:
+                modified_generator_params = {k: v for k, v in checkpoint['generator'].items() \
+                    if not (k.startswith("final") or k.startswith("sigmoid"))}
+            else:
+                modified_generator_params = {k: v for k, v in checkpoint['generator'].items() \
+                    if not (k.startswith("final") or k.startswith("sigmoid") or k.startswith('first'))}
             generator.load_state_dict(modified_generator_params, strict=False)
         elif generator is not None:
             generator.load_state_dict(checkpoint['generator'])

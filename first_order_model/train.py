@@ -29,9 +29,10 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
             start_epoch = 0
         elif generator_params.get('upsample_factor', 1) > 1:
             hr_skip_connections = generator_params.get('use_hr_skip_connections', False)
+            run_at_256 = generator_params.get('run_at_256', True)
             start_epoch = Logger.load_cpk(checkpoint, generator, discriminator, kp_detector,
                                       None, None, None, None, upsampling_enabled=True, 
-                                      hr_skip_connections=hr_skip_connections)
+                                      hr_skip_connections=hr_skip_connections, run_at_256=run_at_256)
             start_epoch = 0
         else:
             start_epoch = Logger.load_cpk(checkpoint, generator, discriminator, kp_detector,
