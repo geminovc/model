@@ -35,7 +35,9 @@ class OcclusionAwareGenerator(nn.Module):
         self.upsample_factor = upsample_factor
         upsample_levels = round(math.log(upsample_factor, 2))
         starting_depth = block_expansion // (2 ** upsample_levels)
-        self.first = SameBlock2d(num_channels, starting_depth, kernel_size=(7, 7), padding=(3, 3))
+
+        input_features = block_expansion if run_at_256 else starting_depth
+        self.first = SameBlock2d(num_channels, input_features, kernel_size=(7, 7), padding=(3, 3))
 
         # enabling extra blocks for bringing higher resolution down
         hr_down_blocks = []
