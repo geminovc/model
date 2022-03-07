@@ -61,7 +61,7 @@ def get_num_frames(filename):
 def get_frame(filename, frame_num):
     reader = imageio.get_reader(filename, "ffmpeg")
     reader.set_image_index(frame_num)
-    frame = np.array(reader.get_next_data()[:, :, ::-1])
+    frame = np.array(reader.get_next_data())
     reader.close()
     return frame
 
