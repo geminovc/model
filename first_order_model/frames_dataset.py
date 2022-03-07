@@ -9,7 +9,6 @@ from torch.utils.data import Dataset
 import pandas as pd
 from augmentation import AllAugmentationTransform
 import glob
-import time
 
 def read_video(name, frame_shape):
     """
