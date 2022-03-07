@@ -138,9 +138,9 @@ class Visualizer:
         return np.concatenate(out, axis=1)
 
     def draw_deformation_heatmap(self, deformation):
-        h, w = deformation.shape[1:3]
-        deformation_heatmap = np.zeros((deformation.shape[0], h, w, 3))
-        for i in range(deformation.shape[0]):
+        b, h, w = deformation.shape[0:3]
+        deformation_heatmap = np.zeros((b, h, w, 3))
+        for i in range(b):
             for x in range(h):
                 for y in range(w):
                     input_location = deformation[i][x][y] 
