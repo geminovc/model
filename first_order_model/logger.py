@@ -134,7 +134,6 @@ class Visualizer:
                 out.append(self.create_image_column_with_kp(arg[0], arg[1]))
             else:
                 out.append(self.create_image_column(arg))
-        
         return np.concatenate(out, axis=1)
 
     def draw_deformation_heatmap(self, deformation):
@@ -147,7 +146,6 @@ class Visualizer:
                     deformation_heatmap[i][x][y][0] = (input_location[0] + 1.0) / 2.0
                     deformation_heatmap[i][x][y][1] = (input_location[1] + 1.0) / 2.0
         return deformation_heatmap
-
 
 
     def visualize(self, driving, source, out):
@@ -181,10 +179,7 @@ class Visualizer:
         # deformation heatmap
         if 'deformation' in out:
             deformation = out['deformation'].data.cpu().numpy()
-            #deformation = F.interpolate(deformation, size=2048).numpy()
-            #deformation = np.transpose(deformation, [0, 2, 3, 1])
             heatmap = self.draw_deformation_heatmap(deformation)
-            #heatmap = np.transpose(heatmap, [0, 2, 3, 1])
             images.append(heatmap)
 
         # Result with and without keypoints
