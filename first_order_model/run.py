@@ -9,6 +9,7 @@ from time import gmtime, strftime
 from shutil import copy
 
 from frames_dataset import FramesDataset
+from voxceleb2_dataset import Voxceleb2Dataset
 
 from modules.generator import OcclusionAwareGenerator
 from modules.discriminator import MultiScaleDiscriminator
@@ -29,21 +30,24 @@ if __name__ == "__main__":
     parser.add_argument("--config", required=True, help="path to config")
     parser.add_argument("--mode", default="train", choices=["train", "reconstruction", "animate"])
     parser.add_argument("--log_dir", default='log', help="path to log into")
+    parser.add_argument("--experiment_name", default='vox-256-standard', help="experiment name to save logs")
     parser.add_argument("--checkpoint", default=None, help="path to checkpoint to restore")
     parser.add_argument("--device_ids", default="0", type=lambda x: list(map(int, x.split(','))),
                         help="Names of the devices comma separated.")
     parser.add_argument("--verbose", dest="verbose", action="store_true", help="Print model architecture")
     parser.add_argument("--enable_timing", dest="enable_timing", action="store_true", help="Time the model")
+    parser.add_argument("--save_visualizations_as_images", action="store_true", help="Save visuals as raw images for residual")
+    parser.add_argument("--reference_frame_update_freq", type=int, help="how frequently to update reference frame")
     parser.set_defaults(verbose=False)
 
     opt = parser.parse_args()
     with open(opt.config) as f:
         config = yaml.load(f)
 
-    if opt.checkpoint is not None:
-        log_dir = os.path.join(*os.path.split(opt.checkpoint)[:-1])
+    if opt.mode == "reconstruction":
+        log_dir = os.path.dirname(opt.checkpoint)
     else:
-        log_dir = os.path.join(opt.log_dir, os.path.basename(opt.config).split('.')[0])
+        log_dir = os.path.join(opt.log_dir, opt.experiment_name)
         log_dir += ' ' + strftime("%d_%m_%y_%H.%M.%S", gmtime())
 
     generator = OcclusionAwareGenerator(**config['model_params']['generator_params'],
@@ -70,7 +74,10 @@ if __name__ == "__main__":
     if opt.verbose:
         print(kp_detector)
 
-    dataset = FramesDataset(is_train=(opt.mode == 'train'), **config['dataset_params'])
+    if "voxceleb2" in config['dataset_params']['root_dir']:
+        dataset = Voxceleb2Dataset(is_train=(opt.mode == 'train'), **config['dataset_params'])
+    else:
+        dataset = FramesDataset(is_train=(opt.mode == 'train'), **config['dataset_params'])
 
     if not os.path.exists(log_dir):
         os.makedirs(log_dir)
@@ -82,7 +89,8 @@ if __name__ == "__main__":
         train(config, generator, discriminator, kp_detector, opt.checkpoint, log_dir, dataset, opt.device_ids)
     elif opt.mode == 'reconstruction':
         print("Reconstruction...")
-        reconstruction(config, generator, kp_detector, opt.checkpoint, log_dir, dataset, opt.enable_timing)
+        reconstruction(config, generator, kp_detector, opt.checkpoint, log_dir, dataset, opt.enable_timing, 
+                opt.save_visualizations_as_images, opt.experiment_name, opt.reference_frame_update_freq)
     elif opt.mode == 'animate':
         print("Animate...")
         animate(config, generator, kp_detector, opt.checkpoint, log_dir, dataset)

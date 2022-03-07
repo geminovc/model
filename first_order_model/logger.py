@@ -5,9 +5,11 @@ import imageio
 
 import os
 from skimage.draw import circle
+from skimage.metrics import structural_similarity
 
 import matplotlib.pyplot as plt
 import collections
+import tensorboardX
 
 
 class Logger:
@@ -25,6 +27,7 @@ class Logger:
         self.epoch = 0
         self.best_loss = float('inf')
         self.names = None
+        self.writer = tensorboardX.SummaryWriter(os.path.join(log_dir, 'tensorboard')) 
 
     def log_scores(self, loss_names):
         loss_mean = np.array(self.loss_list).mean(axis=0)
@@ -35,10 +38,15 @@ class Logger:
         print(loss_string, file=self.log_file)
         self.loss_list = []
         self.log_file.flush()
+        
+        for name, value in zip(loss_names, loss_mean):
+            self.writer.add_scalar(f'losses/{name}', value, self.epoch)
 
     def visualize_rec(self, inp, out):
         image = self.visualizer.visualize(inp['driving'], inp['source'], out)
-        imageio.imsave(os.path.join(self.visualizations_dir, "%s-rec.png" % str(self.epoch).zfill(self.zfill_num)), image)
+        imageio.imsave(os.path.join(self.visualizations_dir, 
+                "%s-rec.png" % str(self.epoch).zfill(self.zfill_num)), image)
+        self.writer.add_image('reconstruction', image, self.epoch, dataformats='HWC')
 
     def save_cpk(self, emergent=False):
         cpk = {k: v.state_dict() for k, v in self.models.items()}
@@ -169,6 +177,7 @@ class Visualizer:
         driving = driving.data.cpu().numpy()
         driving = np.transpose(driving, [0, 2, 3, 1])
         images.append((driving, kp_driving))
+        images.append(driving)
 
         # Deformed image
         if 'deformed' in out:
@@ -190,8 +199,15 @@ class Visualizer:
             images.append((prediction, kp_norm))
         images.append(prediction)
 
+        # residual/difference
+        residual = np.zeros(driving.shape)
+        for c, (d, p) in enumerate(zip(driving, prediction)):
+            diff = d - p
+            diff = (diff + np.ones_like(d)) / 2.0
+            residual[c] = diff
+        images.append(residual)
 
-        ## Occlusion map
+        # Occlusion map
         if 'occlusion_map' in out:
             occlusion_map = out['occlusion_map'].data.cpu().repeat(1, 3, 1, 1)
             occlusion_map = F.interpolate(occlusion_map, size=source.shape[1:3]).numpy()

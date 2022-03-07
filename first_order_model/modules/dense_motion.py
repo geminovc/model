@@ -9,11 +9,13 @@ class DenseMotionNetwork(nn.Module):
     Module that predicting a dense motion from sparse motion representation given by kp_source and kp_driving
     """
 
-    def __init__(self, block_expansion, num_blocks, max_features, num_kp, num_channels, estimate_occlusion_map=False,
-                 scale_factor=1, kp_variance=0.01):
+    def __init__(self, block_expansion, num_blocks, max_features, num_kp,
+            num_channels, estimate_residual=False, num_pixel_features=0, estimate_occlusion_map=False, 
+            scale_factor=1, kp_variance=0.01):
         super(DenseMotionNetwork, self).__init__()
-        self.hourglass = Hourglass(block_expansion=block_expansion, in_features=(num_kp + 1) * (num_channels + 1),
-                                   max_features=max_features, num_blocks=num_blocks)
+        self.hourglass = Hourglass(block_expansion=block_expansion, 
+                         in_features=(num_kp + 1) * (num_channels + 1 + num_pixel_features),
+                         max_features=max_features, num_blocks=num_blocks)
 
         self.mask = nn.Conv2d(self.hourglass.out_filters, num_kp + 1, kernel_size=(7, 7), padding=(3, 3))
 
@@ -21,6 +23,12 @@ class DenseMotionNetwork(nn.Module):
             self.occlusion = nn.Conv2d(self.hourglass.out_filters, 1, kernel_size=(7, 7), padding=(3, 3))
         else:
             self.occlusion = None
+        
+        if estimate_residual:
+            self.residual = nn.Conv2d(self.hourglass.out_filters, 1, kernel_size=(7, 7), padding=(3, 3))
+            self.num_pixel_features = num_pixel_features
+        else:
+            self.residual = None
 
         self.num_kp = num_kp
         self.scale_factor = scale_factor
@@ -34,6 +42,7 @@ class DenseMotionNetwork(nn.Module):
         Eq 6. in the paper H_k(z)
         """
         spatial_size = source_image.shape[2:]
+        pixel_heatmap = None
         gaussian_driving = kp2gaussian(kp_driving, spatial_size=spatial_size, kp_variance=self.kp_variance)
         gaussian_source = kp2gaussian(kp_source, spatial_size=spatial_size, kp_variance=self.kp_variance)
         heatmap = gaussian_driving - gaussian_source
@@ -42,7 +51,25 @@ class DenseMotionNetwork(nn.Module):
         zeros = torch.zeros(heatmap.shape[0], 1, spatial_size[0], spatial_size[1]).type(heatmap.type())
         heatmap = torch.cat([zeros, heatmap], dim=1)
         heatmap = heatmap.unsqueeze(2)
-        return heatmap
+
+        # computing gaussians for pixel deltas, by multiplying each keypoint gaussian by 
+        # associated pixel delta to smooth it out + background feature 0's
+        if self.residual:
+            pf_driving = kp_driving['pixel_features'].unsqueeze(3).unsqueeze(4)
+            pf_source = kp_source['pixel_features'].unsqueeze(3).unsqueeze(4)
+
+            gaussian_driving = gaussian_driving.unsqueeze(2)
+            gaussian_source = gaussian_source.unsqueeze(2)
+
+            pixel_gaussian_driving = pf_driving * gaussian_driving
+            pixel_gaussian_source = pf_source * gaussian_source
+            pixel_heatmap = pixel_gaussian_driving = pixel_gaussian_source
+            
+            zeros = torch.zeros(pixel_heatmap.shape[0], 1, pixel_heatmap.shape[2], 
+                    spatial_size[0], spatial_size[1]).type(pixel_heatmap.type())
+            pixel_heatmap = torch.cat([zeros, pixel_heatmap], dim=1)
+
+        return heatmap, pixel_heatmap
 
     def create_sparse_motions(self, source_image, kp_driving, kp_source):
         """
@@ -85,12 +112,17 @@ class DenseMotionNetwork(nn.Module):
         bs, _, h, w = source_image.shape
 
         out_dict = dict()
-        heatmap_representation = self.create_heatmap_representations(source_image, kp_driving, kp_source)
+        heatmap_representation, pixel_representations = self.create_heatmap_representations(
+                source_image, kp_driving, kp_source)
         sparse_motion = self.create_sparse_motions(source_image, kp_driving, kp_source)
         deformed_source = self.create_deformed_source_image(source_image, sparse_motion)
         out_dict['sparse_deformed'] = deformed_source
 
-        input = torch.cat([heatmap_representation, deformed_source], dim=2)
+        if self.residual:
+            input = torch.cat([heatmap_representation, deformed_source, pixel_representations], dim=2)
+        else:
+            input = torch.cat([heatmap_representation, deformed_source], dim=2)
+
         input = input.view(bs, -1, h, w)
 
         prediction = self.hourglass(input)
@@ -105,6 +137,9 @@ class DenseMotionNetwork(nn.Module):
 
         out_dict['deformation'] = deformation
 
+        if self.residual:
+            out_dict['residual'] = torch.sigmoid(self.residual(prediction))
+        
         # Sec. 3.2 in the paper
         if self.occlusion:
             occlusion_map = torch.sigmoid(self.occlusion(prediction))

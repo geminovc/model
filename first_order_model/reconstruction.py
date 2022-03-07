@@ -6,6 +6,9 @@ from logger import Logger, Visualizer
 import numpy as np
 import imageio
 from sync_batchnorm import DataParallelWithCallback
+from skimage.metrics import peak_signal_noise_ratio
+from skimage.metrics import structural_similarity
+import lpips
 
 """ helper to get size of nested parameter list """
 def get_size_of_nested_list(list_of_elem):
@@ -35,14 +38,39 @@ def get_model_info(log_dir, kp_detector, generator):
             model_file.write('%s %s: %s\n' % (name, 'number_of_trainable_parameters', \
                     str(number_of_trainable_parameters)))
 
+""" get visual metrics for the model's reconstruction
+"""
+def get_visual_metrics(prediction, original, loss_fn_vgg):
+    if torch.cuda.is_available():
+        original = original.cuda()
+        prediction = prediction.cuda()
+    lpips_val = loss_fn_vgg(original, prediction).data.cpu().numpy().flatten()[0]
+    
+    prediction = np.transpose(prediction.data.cpu().numpy(), [0, 2, 3, 1])[0]
+    original = np.transpose(original.data.cpu().numpy(), [0, 2, 3, 1])[0]
+    psnr = peak_signal_noise_ratio(original, prediction, data_range=1)
+    ssim = structural_similarity(original, prediction, multichannel=True, data_range=1)
+    
+    return {'psnr': psnr, 'ssim': ssim, 'lpips': lpips_val}
+
+""" get average of visual metrics across all frames
+"""
+def get_avg_visual_metrics(visual_metrics):
+    psnrs = [m['psnr'] for m in visual_metrics]
+    ssims = [m['ssim'] for m in visual_metrics]
+    lpips_list = [m['lpips'] for m in visual_metrics]
+    return np.mean(psnrs), np.mean(ssims), np.mean(lpips_list)
+
 
 """ reconstruct driving frames for each video in the dataset using the first frame
     as a source frame. Config specifies configration details, while timing 
     determines whether to time the functions on a gpu or not
 """
-def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset, timing_enabled):
-    png_dir = os.path.join(log_dir, 'reconstruction/png')
-    log_dir = os.path.join(log_dir, 'reconstruction')
+def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset, timing_enabled, 
+        save_visualizations_as_images, experiment_name, reference_frame_update_freq=None):
+    log_dir = os.path.join(log_dir, 'reconstruction' + '_' + experiment_name)
+    png_dir = os.path.join(log_dir, 'png')
+    visualization_dir = os.path.join(log_dir, 'visualization')
 
     if checkpoint is not None:
         Logger.load_cpk(checkpoint, generator=generator, kp_detector=kp_detector)
@@ -56,10 +84,17 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
     if not os.path.exists(png_dir):
         os.makedirs(png_dir)
 
+    if not os.path.exists(visualization_dir):
+        os.makedirs(visualization_dir)
+    
+    metrics_file = open(os.path.join(log_dir, experiment_name + '_metrics_summary.txt'), 'wt')
     loss_list = []
+    visual_metrics = []
+    loss_fn_vgg = lpips.LPIPS(net='vgg')
     if torch.cuda.is_available():
         generator = DataParallelWithCallback(generator)
         kp_detector = DataParallelWithCallback(kp_detector)
+        loss_fn_vgg = loss_fn_vgg.cuda()
 
     generator.eval()
     kp_detector.eval()
@@ -76,6 +111,7 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
         with torch.no_grad():
             predictions = []
             visualizations = []
+            last_prediction = x['video'][:, :, 0].numpy()
             if torch.cuda.is_available():
                 x['video'] = x['video'].cuda()
             
@@ -89,7 +125,12 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
                 driving_times, generator_times, visualization_times = [], [], []
 
             for frame_idx in range(x['video'].shape[2]):
-                source = x['video'][:, :, 0]
+                if reference_frame_update_freq is not None:
+                    if frame_idx % reference_frame_update_freq == 0:
+                        source = x['video'][:, :, frame_idx]
+                        kp_source = kp_detector(source)
+                else:
+                    source = x['video'][:, :, 0]
                 driving = x['video'][:, :, frame_idx]
                 
                 start.record()
@@ -110,6 +151,7 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
                 out['kp_driving'] = kp_driving
                 del out['sparse_deformed']
 
+                last_prediction = np.transpose(out['prediction'].data.cpu().numpy(), [0, 2, 3, 1])[0]
                 predictions.append(np.transpose(out['prediction'].data.cpu().numpy(), [0, 2, 3, 1])[0])
 
                 start.record()
@@ -122,11 +164,24 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
                 visualizations.append(visualization)
 
                 loss_list.append(torch.abs(out['prediction'] - driving).mean().cpu().numpy())
+                visual_metrics.append(get_visual_metrics(out['prediction'], driving, loss_fn_vgg))
 
             predictions = np.concatenate(predictions, axis=1)
-            imageio.imsave(os.path.join(png_dir, x['name'][0] + '.png'), (255 * predictions).astype(np.uint8))
+            imageio.imsave(os.path.join(png_dir, x['name'][0] + '.png'), 
+                    (255 * predictions).astype(np.uint8))
 
             image_name = x['name'][0] + config['reconstruction_params']['format']
+
+            psnr, ssim, lpips_val = get_avg_visual_metrics(visual_metrics)
+            metrics_file.write("%s PSNR: %s, SSIM: %s, LPIPS: %s\n" % (x['name'][0], 
+                    psnr, ssim, lpips_val))
+            metrics_file.flush()
+
+            if save_visualizations_as_images:
+                for i, v in enumerate(visualizations):
+                    frame_name = x['name'][0] + '_frame' + str(i) + '.png'
+                    imageio.imsave(os.path.join(visualization_dir, frame_name), v)
+
             imageio.mimsave(os.path.join(log_dir, image_name), visualizations)
             
             if timing_enabled:
@@ -134,3 +189,6 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
                     "generator:", np.average(generator_times), "visualization:", np.average(visualization_times))
 
     print("Reconstruction loss: %s" % np.mean(loss_list))
+    metrics_file.write("Reconstruction loss: %s\n" % np.mean(loss_list))
+    metrics_file.close()
+

@@ -25,9 +25,7 @@ def kp2gaussian(kp, spatial_size, kp_variance):
     mean = mean.view(*shape)
 
     mean_sub = (coordinate_grid - mean)
-
     out = torch.exp(-0.5 * (mean_sub ** 2).sum(-1) / kp_variance)
-
     return out
 
 
