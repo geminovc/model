@@ -145,16 +145,15 @@ class Visualizer:
         return np.concatenate(out, axis=1)
 
     def draw_deformation_heatmap(self, deformation):
-        h, w = 256, 256
-        deformation_heatmap = np.zeros((deformation.shape[0], h, w, 3))
-        for i in range(deformation.shape[0]):
+        b, h, w = deformation.shape[0:3]
+        deformation_heatmap = np.zeros((b, h, w, 3))
+        for i in range(b):
             for x in range(h):
                 for y in range(w):
                     input_location = deformation[i][x][y] 
-                    deformation_heatmap[i][x][y][0] = (input_location[0] + 1.0) / 2.0 - float(y) / h
-                    deformation_heatmap[i][x][y][1] = (input_location[1] + 1.0) / 2.0  - float(x) / w
+                    deformation_heatmap[i][x][y][0] = (input_location[0] + 1.0) / 2.0
+                    deformation_heatmap[i][x][y][1] = (input_location[1] + 1.0) / 2.0
         return deformation_heatmap
-
 
 
     def visualize(self, driving, source, out):
@@ -185,7 +184,7 @@ class Visualizer:
             deformed = out['deformed'].data.cpu().numpy()
             deformed = np.transpose(deformed, [0, 2, 3, 1])
             images.append(deformed)
-
+        
         # deformation heatmap
         if 'deformation' in out:
             deformation = out['deformation'].data.cpu().numpy()
