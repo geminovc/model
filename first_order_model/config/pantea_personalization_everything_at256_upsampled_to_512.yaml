@@ -46,6 +46,7 @@ model_params:
     max_features: 512
     num_blocks: 4
     sn: True
+    conditional_gan: False
 
 train_params:
   skip_generator_loading: False

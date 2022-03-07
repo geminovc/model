@@ -14,8 +14,11 @@ from frames_dataset import DatasetRepeater
 
 
 def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, dataset, device_ids):
-    train_params = config['train_params']
+    train_params = config['train_params'] 
     generator_params = config['model_params']['generator_params']
+    if config['model_params']['discriminator_params'].get('conditional_gan', False):
+        train_params['conditional_gan'] = True
+        assert(train_params['skip_generator_loading'])
 
     optimizer_generator = torch.optim.Adam(generator.parameters(), lr=train_params['lr_generator'], betas=(0.5, 0.999))
     optimizer_discriminator = torch.optim.Adam(discriminator.parameters(), lr=train_params['lr_discriminator'], betas=(0.5, 0.999))
