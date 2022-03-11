@@ -2,7 +2,10 @@ from torch import nn
 import torch.nn.functional as F
 import torch
 from first_order_model.modules.util import Hourglass, AntiAliasInterpolation2d, make_coordinate_grid, kp2gaussian
+import time
+import numpy as np
 
+global_gaussian_source = None
 
 class DenseMotionNetwork(nn.Module):
     """
@@ -36,7 +39,10 @@ class DenseMotionNetwork(nn.Module):
 
         if self.scale_factor != 1:
             self.down = AntiAliasInterpolation2d(num_channels, self.scale_factor)
-
+        self.source_image = None
+        self.update_source = True
+        self.gaussian_source = None
+    
     def create_heatmap_representations(self, source_image, kp_driving, kp_source):
         """
         Eq 6. in the paper H_k(z)
@@ -44,8 +50,11 @@ class DenseMotionNetwork(nn.Module):
         spatial_size = source_image.shape[2:]
         pixel_heatmap = None
         gaussian_driving = kp2gaussian(kp_driving, spatial_size=spatial_size, kp_variance=self.kp_variance)
-        gaussian_source = kp2gaussian(kp_source, spatial_size=spatial_size, kp_variance=self.kp_variance)
-        heatmap = gaussian_driving - gaussian_source
+        if self.update_source:
+            self.gaussian_source = kp2gaussian(kp_source, spatial_size=spatial_size, kp_variance=self.kp_variance)
+        global global_gaussian_source
+        global_gaussian_source = self.gaussian_source
+        heatmap = gaussian_driving - self.gaussian_source
 
         #adding background feature
         zeros = torch.zeros(heatmap.shape[0], 1, spatial_size[0], spatial_size[1]).type(heatmap.type())
@@ -59,7 +68,7 @@ class DenseMotionNetwork(nn.Module):
             pf_source = kp_source['pixel_features'].unsqueeze(3).unsqueeze(4)
 
             gaussian_driving = gaussian_driving.unsqueeze(2)
-            gaussian_source = gaussian_source.unsqueeze(2)
+            gaussian_source = self.gaussian_source.unsqueeze(2)
 
             pixel_gaussian_driving = pf_driving * gaussian_driving
             pixel_gaussian_source = pf_source * gaussian_source
@@ -108,7 +117,14 @@ class DenseMotionNetwork(nn.Module):
     def forward(self, source_image, kp_driving, kp_source):
         if self.scale_factor != 1:
             source_image = self.down(source_image)
-
+        #import pdb
+        #pdb.set_trace()
+        if self.source_image is None:
+            self.update_source = True
+        else:
+            self.update_source = torch.all(self.source_image == source_image).item()
+        self.source_image = source_image
+        
         bs, _, h, w = source_image.shape
 
         out_dict = dict()
