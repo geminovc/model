@@ -159,6 +159,29 @@ class FramesDataset(Dataset):
 
         return out
 
+class MetricsDataset(Dataset):
+    """
+        Load a select set of frames for computing consistent metrics/visuals on
+    """
+
+    def __init__(self, root_dir, frame_shape):
+        self.root_dir = root_dir
+        self.videos = os.listdir(root_dir)
+        self.frame_shape = tuple(frame_shape)
+
+    def __len__(self):
+        return len(self.videos)
+
+    def __getitem__(self, idx):
+        file_name = self.videos[idx]
+        path = os.path.join(self.root_dir, file_name)
+        assert os.path.isdir(path)
+
+        out = {}
+        out['source'] = img_as_float32(io.imread(os.path.join(path, "source.jpg")))
+        out['driving'] = img_as_float32(io.imread(os.path.join(path, "target.jpg")))
+
+        return out 
 
 class DatasetRepeater(Dataset):
     """

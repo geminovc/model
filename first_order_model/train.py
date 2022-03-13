@@ -11,6 +11,7 @@ from torch.optim.lr_scheduler import MultiStepLR
 from sync_batchnorm import DataParallelWithCallback
 
 from frames_dataset import DatasetRepeater
+from frames_dataset import MetricsDataset
 
 
 def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, dataset, device_ids):
@@ -89,6 +90,12 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
     if 'num_repeats' in train_params or train_params['num_repeats'] != 1:
         dataset = DatasetRepeater(dataset, train_params['num_repeats'])
     dataloader = DataLoader(dataset, batch_size=train_params['batch_size'], shuffle=True, num_workers=6, drop_last=True)
+   
+    metrics_dataloader = None
+    if 'metrics_params' in config:
+        metrics_dataset = MetricsDataset(**config['metrics_params'])
+        metrics_dataloader = DataLoader(metrics_dataset, batch_size=train_params['batch_size'], shuffle=False, 
+                num_workers=6, drop_last=False)
 
     generator_full = GeneratorFullModel(kp_detector, generator, discriminator, train_params)
     discriminator_full = DiscriminatorFullModel(kp_detector, generator, discriminator, train_params)
@@ -130,7 +137,16 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
             scheduler_generator.step()
             scheduler_discriminator.step()
             scheduler_kp_detector.step()
-            
+           
+            # record a standard set of metrics
+            if metrics_dataloader is not None:
+                metrics_input, metrics_output = [], []
+                for y in metrics_dataloader:
+                    _, metrics_generated = generator_full(y)
+                    metrics_input.append(y)
+                    metrics_output.append(metrics_generated)
+                logger.log_metrics_images(torch.concat(metrics_input), torch.concat(metrics_output))
+
             logger.log_epoch(epoch, {'generator': generator,
                                      'discriminator': discriminator,
                                      'kp_detector': kp_detector,

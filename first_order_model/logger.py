@@ -42,6 +42,10 @@ class Logger:
         for name, value in zip(loss_names, loss_mean):
             self.writer.add_scalar(f'losses/{name}', value, self.epoch)
 
+    def log_metrics_images(self, input_data, output):
+        image = self.visualizer.visualize(input_data['driving'], input_data['source'], out)
+        self.writer.add_image('metrics', image, self.epoch, dataformats='HWC')
+
     def visualize_rec(self, inp, out):
         image = self.visualizer.visualize(inp['driving'], inp['source'], out)
         imageio.imsave(os.path.join(self.visualizations_dir, 

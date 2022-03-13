@@ -11,6 +11,9 @@ dataset_params:
       saturation: 0.1
       hue: 0.1
 
+metrics_params:
+  root_dir: /video-conf/scratch/1024_pantea_clips_metrics
+  frame_shape: [1024, 1024, 3]
 
 model_params:
   common_params:
