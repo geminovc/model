@@ -30,8 +30,12 @@ class OcclusionAwareGenerator(nn.Module):
         self.run_at_256 = run_at_256
         self.use_hr_skip_connections = use_hr_skip_connections
         assert (not run_at_256) or (run_at_256 and not use_hr_skip_connections and \
-                not encode_hr_input_with_additional_blocks), "Cannot run generator at 256 and use HR input simultaneously"
+                not encode_hr_input_with_additional_blocks), \
+                "Cannot run generator at 256 and use HR input simultaneously"
 
+        assert (not run_at_256) or (run_at_256 and upsample_factor > 1), \
+                "Need to upsample appropriately if generator runs at 256"
+        
         self.upsample_factor = upsample_factor
         upsample_levels = round(math.log(upsample_factor, 2))
         starting_depth = block_expansion // (2 ** upsample_levels)
