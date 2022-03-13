@@ -144,12 +144,10 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
            
             # record a standard set of metrics
             if metrics_dataloader is not None:
-                metrics_input, metrics_output = [], []
-                for y in metrics_dataloader:
-                    _, metrics_generated = generator_full(y)
-                    metrics_input.append(y)
-                    metrics_output.append(metrics_generated)
-                logger.log_metrics_images(torch.concat(metrics_input), torch.concat(metrics_output))
+                with torch.no_grad():
+                    for i, y in enumerate(metrics_dataloader):
+                        _, metrics_generated = generator_full(y)
+                        logger.log_metrics_images(i, y, metrics_generated)
 
             logger.log_epoch(epoch, {'generator': generator,
                                      'discriminator': discriminator,

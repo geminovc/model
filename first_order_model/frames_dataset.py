@@ -178,9 +178,12 @@ class MetricsDataset(Dataset):
         path = os.path.join(self.root_dir, file_name)
         assert os.path.isdir(path)
 
+        driving = img_as_float32(io.imread(os.path.join(path, "target.jpg")))
+        source = img_as_float32(io.imread(os.path.join(path, "source.jpg")))
+        
         out = {}
-        out['source'] = img_as_float32(io.imread(os.path.join(path, "source.jpg")))
-        out['driving'] = img_as_float32(io.imread(os.path.join(path, "target.jpg")))
+        out['driving'] = driving.transpose((2, 0, 1))
+        out['source'] = source.transpose((2, 0, 1))
 
         return out 
 

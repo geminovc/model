@@ -10,6 +10,7 @@ from skimage.metrics import structural_similarity
 import matplotlib.pyplot as plt
 import collections
 import tensorboardX
+import flow_vis
 
 
 class Logger:
@@ -42,9 +43,9 @@ class Logger:
         for name, value in zip(loss_names, loss_mean):
             self.writer.add_scalar(f'losses/{name}', value, self.epoch)
 
-    def log_metrics_images(self, input_data, output):
-        image = self.visualizer.visualize(input_data['driving'], input_data['source'], out)
-        self.writer.add_image('metrics', image, self.epoch, dataformats='HWC')
+    def log_metrics_images(self, iteration, input_data, output):
+        image = self.visualizer.visualize(input_data['driving'], input_data['source'], output)
+        self.writer.add_image(f'metrics{iteration}', image, self.epoch, dataformats='HWC')
 
     def visualize_rec(self, inp, out):
         image = self.visualizer.visualize(inp['driving'], inp['source'], out)
@@ -133,7 +134,8 @@ class Logger:
         self.models = models
         if (self.epoch + 1) % self.checkpoint_freq == 0:
             self.save_cpk()
-        self.log_scores(self.names)
+        if self.epoch > 0:
+            self.log_scores(self.names)
         self.visualize_rec(inp, out)
 
 
@@ -180,8 +182,8 @@ class Visualizer:
             self.identity_grid = np.zeros((h, w, 2))
             for i, ival in enumerate(np.linspace(-1, 1, h)):
                 for j, jval in enumerate(np.linspace(-1, 1, w)):
-                    self.identity_grid[i][j][0] = ival
-                    self.identity_grid[i][j][1] = jval
+                    self.identity_grid[i][j][0] = jval
+                    self.identity_grid[i][j][1] = ival
 
         deformation_heatmap = np.zeros((b, h, w, 3))
         for i in range(b):
