@@ -142,6 +142,7 @@ class Visualizer:
         self.kp_size = kp_size
         self.draw_border = draw_border
         self.colormap = plt.get_cmap(colormap)
+        self.identity_grid = None
 
     def draw_image_with_kp(self, image, kp_array):
         image = np.copy(image)
@@ -175,13 +176,16 @@ class Visualizer:
 
     def draw_deformation_heatmap(self, deformation):
         b, h, w = deformation.shape[0:3]
+        if self.identity_grid is None:
+            self.identity_grid = np.zeros((h, w, 2))
+            for i, ival in enumerate(np.linspace(-1, 1, h)):
+                for j, jval in enumerate(np.linspace(-1, 1, w)):
+                    self.identity_grid[i][j][0] = ival
+                    self.identity_grid[i][j][1] = jval
+
         deformation_heatmap = np.zeros((b, h, w, 3))
         for i in range(b):
-            for x in range(h):
-                for y in range(w):
-                    input_location = deformation[i][x][y] 
-                    deformation_heatmap[i][x][y][0] = (input_location[0] + 1.0) / 2.0
-                    deformation_heatmap[i][x][y][1] = (input_location[1] + 1.0) / 2.0
+            deformation_heatmap[i] = flow_vis.flow_to_color(deformation[i] - self.identity_grid)
         return deformation_heatmap
 
 
