@@ -109,6 +109,9 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
             for x in dataloader:
                 losses_generator, generated = generator_full(x)
 
+                if epoch == 0:
+                    break
+
                 loss_values = [val.mean() for val in losses_generator.values()]
                 loss = sum(loss_values)
 
@@ -134,9 +137,10 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
                 losses = {key: value.mean().detach().data.cpu().numpy() for key, value in losses_generator.items()}
                 logger.log_iter(losses=losses)
 
-            scheduler_generator.step()
-            scheduler_discriminator.step()
-            scheduler_kp_detector.step()
+            if epoch > 0:
+                scheduler_generator.step()
+                scheduler_discriminator.step()
+                scheduler_kp_detector.step()
            
             # record a standard set of metrics
             if metrics_dataloader is not None:
