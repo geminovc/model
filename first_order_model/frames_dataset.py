@@ -153,9 +153,10 @@ class FramesDataset(Dataset):
             out['driving'] = driving.transpose((2, 0, 1))
             out['source'] = source.transpose((2, 0, 1))
         else:
-            video = np.array(video_array, dtype='float32')
-            out['video'] = video.transpose((3, 0, 1, 2))
-
+            video = video_array
+            out['video'] = video
+            out['video_path'] = str(path)
+        
         out['name'] = video_name
 
         return out
