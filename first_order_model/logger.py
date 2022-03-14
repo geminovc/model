@@ -11,6 +11,8 @@ import matplotlib.pyplot as plt
 import collections
 import tensorboardX
 import flow_vis
+from skimage.metrics import peak_signal_noise_ratio
+from skimage.metrics import structural_similarity
 
 
 class Logger:
@@ -28,7 +30,8 @@ class Logger:
         self.epoch = 0
         self.best_loss = float('inf')
         self.names = None
-        self.writer = tensorboardX.SummaryWriter(os.path.join(log_dir, 'tensorboard')) 
+        self.writer = tensorboardX.SummaryWriter(os.path.join(log_dir, 'tensorboard'))
+        self.metrics_averages = None
 
     def log_scores(self, loss_names):
         loss_mean = np.array(self.loss_list).mean(axis=0)
@@ -43,9 +46,34 @@ class Logger:
         for name, value in zip(loss_names, loss_mean):
             self.writer.add_scalar(f'losses/{name}', value, self.epoch)
 
-    def log_metrics_images(self, iteration, input_data, output):
+
+    """ get visual metrics for the model's reconstruction """
+    def get_visual_metrics(self, prediction, original, loss_fn_vgg):
+        if torch.cuda.is_available():
+            original = original.cuda()
+            prediction = prediction.cuda()
+        lpips_val = loss_fn_vgg(original, prediction).data.cpu().numpy().flatten()[0]
+        
+        prediction = np.transpose(prediction.data.cpu().numpy(), [0, 2, 3, 1])[0]
+        original = np.transpose(original.data.cpu().numpy(), [0, 2, 3, 1])[0]
+        psnr = peak_signal_noise_ratio(original, prediction, data_range=1)
+        ssim = structural_similarity(original, prediction, multichannel=True, data_range=1)
+        
+        return {'psnr': psnr, 'ssim': ssim, 'lpips': lpips_val}
+
+    def log_metrics_images(self, iteration, input_data, output, loss_fn_vgg):
+        if iteration == 0:
+            if self.metrics_averages is not None:
+                for name, values in self.metrics_averages.items():
+                    average = np.mean(values)
+                    self.writer.add_scalar(f'metrics/{name}', average, self.epoch)
+            self.metrics_averages = {'psnr': [], 'ssim': [], 'lpips': []}
+
         image = self.visualizer.visualize(input_data['driving'], input_data['source'], output)
         self.writer.add_image(f'metrics{iteration}', image, self.epoch, dataformats='HWC')
+        metrics = self.get_visual_metrics(output['prediction'], input_data['driving'], loss_fn_vgg)
+        for name, value in metrics.items():
+            self.metrics_averages[name].append(value)
 
     def visualize_rec(self, inp, out):
         image = self.visualizer.visualize(inp['driving'], inp['source'], out)
