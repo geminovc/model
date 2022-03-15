@@ -139,8 +139,7 @@ class FramesDataset(Dataset):
             num_frames = get_num_frames(path)
             frame_idx = np.sort(np.random.choice(num_frames, replace=True, size=2)) if self.is_train else range(
             num_frames)
-            video_array = np.array([get_frame(path, frame_idx[0]), get_frame(path, frame_idx[1])]) if self.is_train \
-                    else read_video(path, frame_shape=self.frame_shape)
+            video_array = np.array([get_frame(path, frame_idx[0]), get_frame(path, frame_idx[1])]) 
 
         if self.transform is not None:
             video_array = self.transform(video_array)
