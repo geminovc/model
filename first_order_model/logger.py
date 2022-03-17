@@ -106,7 +106,7 @@ class Logger:
         elif generator is not None and upsampling_enabled:
             if hr_skip_connections:
                 modified_generator_params = {k: v for k, v in checkpoint['generator'].items() \
-                    if not (k.startswith("final") or k.startswith("sigmoid") or k.startswith("up") or k.startswith('first'))}
+                    if not (k.startswith("final") or k.startswith("sigmoid"))}
             elif run_at_256:
                 modified_generator_params = {k: v for k, v in checkpoint['generator'].items() \
                     if not (k.startswith("final") or k.startswith("sigmoid"))}
