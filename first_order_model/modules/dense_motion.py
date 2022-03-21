@@ -41,6 +41,8 @@ class DenseMotionNetwork(nn.Module):
         self.source_image = None
         self.update_source = True
         self.gaussian_source = None
+        self.source_repeat = None
+        self.identity_grid = None
     
     def create_heatmap_representations(self, source_image, kp_driving, kp_source):
         """
@@ -83,9 +85,10 @@ class DenseMotionNetwork(nn.Module):
         Eq 4. in the paper T_{s<-d}(z)
         """
         bs, _, h, w = source_image.shape
-        identity_grid = make_coordinate_grid((h, w), type=kp_source['value'].type())
-        identity_grid = identity_grid.view(1, 1, h, w, 2)
-        coordinate_grid = identity_grid - kp_driving['value'].view(bs, self.num_kp, 1, 1, 2)
+        if self.identity_grid is None or self.update_source:
+            self.identity_grid = make_coordinate_grid((h, w), type=kp_source['value'].type())
+            self.identity_grid = self.identity_grid.view(1, 1, h, w, 2)
+        coordinate_grid = self.identity_grid - kp_driving['value'].view(bs, self.num_kp, 1, 1, 2)
         if 'jacobian' in kp_driving:
             jacobian = torch.matmul(kp_source['jacobian'], torch.inverse(kp_driving['jacobian']))
             jacobian = jacobian.unsqueeze(-3).unsqueeze(-3)
@@ -96,7 +99,7 @@ class DenseMotionNetwork(nn.Module):
         driving_to_source = coordinate_grid + kp_source['value'].view(bs, self.num_kp, 1, 1, 2)
 
         #adding background feature
-        identity_grid = identity_grid.repeat(bs, 1, 1, 1, 1)
+        identity_grid = self.identity_grid.repeat(bs, 1, 1, 1, 1)
         sparse_motions = torch.cat([identity_grid, driving_to_source], dim=1)
         return sparse_motions
 
@@ -105,10 +108,11 @@ class DenseMotionNetwork(nn.Module):
         Eq 7. in the paper \hat{T}_{s<-d}(z)
         """
         bs, _, h, w = source_image.shape
-        source_repeat = source_image.unsqueeze(1).unsqueeze(1).repeat(1, self.num_kp + 1, 1, 1, 1, 1)
-        source_repeat = source_repeat.view(bs * (self.num_kp + 1), -1, h, w)
+        if self.source_repeat is None or self.update_source:
+            self.source_repeat = source_image.unsqueeze(1).unsqueeze(1).repeat(1, self.num_kp + 1, 1, 1, 1, 1)
+            self.source_repeat = self.source_repeat.view(bs * (self.num_kp + 1), -1, h, w)
         sparse_motions = sparse_motions.view((bs * (self.num_kp + 1), h, w, -1))
-        sparse_deformed = F.grid_sample(source_repeat, sparse_motions)
+        sparse_deformed = F.grid_sample(self.source_repeat, sparse_motions)
         sparse_deformed = sparse_deformed.view((bs, self.num_kp + 1, -1, h, w))
         return sparse_deformed
 
