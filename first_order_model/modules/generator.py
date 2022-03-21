@@ -49,6 +49,9 @@ class OcclusionAwareGenerator(nn.Module):
         self.final = nn.Conv2d(block_expansion, num_channels, kernel_size=(7, 7), padding=(3, 3))
         self.estimate_occlusion_map = estimate_occlusion_map
         self.num_channels = num_channels
+        self.source_image = None
+        self.update_source = True
+        self.out = None
 
     def deform_input(self, inp, deformation):
         _, h_old, w_old, _ = deformation.shape
@@ -61,9 +64,19 @@ class OcclusionAwareGenerator(nn.Module):
 
     def forward(self, source_image, kp_driving, kp_source):
         # Encoding (downsampling) part
-        out = self.first(source_image)
-        for i in range(len(self.down_blocks)):
-            out = self.down_blocks[i](out)
+        if self.source_image is None:
+            self.update_source = True
+        else:
+            self.update_source = not torch.all(self.source_image == source_image).item()
+        
+        if self.update_source:
+            self.source_image = source_image
+        
+        if self.out is None or self.update_source:
+            out = self.first(source_image)
+            for i in range(len(self.down_blocks)):
+                out = self.down_blocks[i](out)
+            self.out = out
 
         # Transforming feature representation according to deformation and occlusion
         output_dict = {}
@@ -79,7 +92,7 @@ class OcclusionAwareGenerator(nn.Module):
             else:
                 occlusion_map = None
             deformation = dense_motion['deformation']
-            out, _ = self.deform_input(out, deformation)
+            out, _ = self.deform_input(self.out, deformation)
 
             if occlusion_map is not None:
                 if out.shape[2] != occlusion_map.shape[2] or out.shape[3] != occlusion_map.shape[3]:
