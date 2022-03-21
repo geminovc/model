@@ -68,10 +68,10 @@ class OcclusionAwareGenerator(nn.Module):
             self.update_source = True
         else:
             self.update_source = not torch.all(self.source_image == source_image).item()
-        
+
         if self.update_source:
             self.source_image = source_image
-        
+
         if self.out is None or self.update_source:
             out = self.first(source_image)
             for i in range(len(self.down_blocks)):

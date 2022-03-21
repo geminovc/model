@@ -124,10 +124,10 @@ class DenseMotionNetwork(nn.Module):
             self.update_source = True
         else:
             self.update_source = not torch.all(self.source_image == source_image).item()
-        
+
         if self.update_source:
             self.source_image = source_image
-        
+
         bs, _, h, w = source_image.shape
 
         out_dict = dict()
