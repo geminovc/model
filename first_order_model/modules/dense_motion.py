@@ -5,7 +5,6 @@ from first_order_model.modules.util import Hourglass, AntiAliasInterpolation2d, 
 import time
 import numpy as np
 
-global_gaussian_source = None
 
 class DenseMotionNetwork(nn.Module):
     """
@@ -50,10 +49,9 @@ class DenseMotionNetwork(nn.Module):
         spatial_size = source_image.shape[2:]
         pixel_heatmap = None
         gaussian_driving = kp2gaussian(kp_driving, spatial_size=spatial_size, kp_variance=self.kp_variance)
-        if self.update_source:
+        if self.update_source or self.gaussian_source == None:
             self.gaussian_source = kp2gaussian(kp_source, spatial_size=spatial_size, kp_variance=self.kp_variance)
-        global global_gaussian_source
-        global_gaussian_source = self.gaussian_source
+
         heatmap = gaussian_driving - self.gaussian_source
 
         #adding background feature
@@ -117,13 +115,14 @@ class DenseMotionNetwork(nn.Module):
     def forward(self, source_image, kp_driving, kp_source):
         if self.scale_factor != 1:
             source_image = self.down(source_image)
-        #import pdb
-        #pdb.set_trace()
+
         if self.source_image is None:
             self.update_source = True
         else:
-            self.update_source = torch.all(self.source_image == source_image).item()
-        self.source_image = source_image
+            self.update_source = not torch.all(self.source_image == source_image).item()
+        
+        if self.update_source:
+            self.source_image = source_image
         
         bs, _, h, w = source_image.shape
 
