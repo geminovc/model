@@ -24,8 +24,8 @@ from keypoint_based_face_models import KeypointBasedFaceModels
     target = video_array[1:2, :, :, :]
     
     model = FirstOrderModel("temp.yaml")
-    source_kp = model.extract_keypoints(source)
-    model.update_source(source, source_kp)
+    source_kp, source_idx = model.extract_keypoints(source)
+    model.update_source(0, source, source_kp)
     target_kp = model.extract_keypoints(target)
     prediction = model.predict(target_kp))
 """
@@ -62,23 +62,24 @@ class FirstOrderModel(KeypointBasedFaceModels):
         self.kp_detector.eval()
         
         # placeholders for source information
-        self.source_keypoints = None
-        self.source = None
+        self.source_keypoints = {}
+        self.source = {}
 
 
-    def update_source(self, source_frame, source_keypoints):
+    def update_source(self, index, source_frame, source_keypoints):
         """ update the source and keypoints the frame is using 
             from the RGB source provided as input
         """
         transformed_source = np.array([img_as_float32(source_frame)])
         transformed_source = transformed_source.transpose((0, 3, 1, 2))
-        self.source = torch.from_numpy(transformed_source)
-        self.source_keypoints = source_keypoints 
+        self.source[index] = torch.from_numpy(transformed_source)
+        self.source_keypoints[index] = source_keypoints
 
 
     def extract_keypoints(self, frame):
         """ extract keypoints into a keypoint dictionary with/without jacobians
-            from the provided RGB image 
+            from the provided RGB image
+            uses keypoints to detect the best source image to use
         """
         transformed_frame = np.array([img_as_float32(frame)])
         transformed_frame = transformed_frame.transpose((0, 3, 1, 2))
@@ -96,7 +97,16 @@ class FirstOrderModel(KeypointBasedFaceModels):
             keypoint_struct['jacobian'] = keypoint_struct['jacobian'].data.cpu().numpy()[0]
             keypoint_struct['jacobians'] = keypoint_struct.pop('jacobian')
         
-        return keypoint_struct
+        return keypoint_struct, self.best_source_frame(frame, keypoint_struct)
+
+    
+    def best_source_frame(self, frame, keypoint_struct):
+        """ return best source frame to use for prediction for these keypoints
+            and update source frame list if need be
+        """
+        if len(self.source) == 0:
+            return 0
+        return list(self.source)[-1]
 
 
     def convert_kp_dict_to_tensors(self, keypoint_dict):
@@ -122,16 +132,17 @@ class FirstOrderModel(KeypointBasedFaceModels):
 
     def predict(self, target_keypoints):
         """ takes target keypoints and returns an RGB image for the prediction """
-        assert(self.source_keypoints is not None)
-        assert(self.source is not None)
+        source_index = target_keypoints['source_index']
+        assert(source_index in self.source_keypoints)
+        assert(source_index in self.source) 
 
         if torch.cuda.is_available():
-            self.source = self.source.cuda()
+            self.source[source_index] = self.source[source_index].cuda()
 
-        source_kp_tensors = self.convert_kp_dict_to_tensors(self.source_keypoints)
+        source_kp_tensors = self.convert_kp_dict_to_tensors(self.source_keypoints[source_index])
         target_kp_tensors = self.convert_kp_dict_to_tensors(target_keypoints)
 
-        out = self.generator(self.source, \
+        out = self.generator(self.source[source_index], \
                 kp_source=source_kp_tensors, kp_driving=target_kp_tensors)
         prediction_cpu = out['prediction'].data.cpu().numpy()
         prediction = np.transpose(prediction_cpu, [0, 2, 3, 1])[0]

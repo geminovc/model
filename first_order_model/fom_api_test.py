@@ -7,13 +7,13 @@ video_array = np.array(imageio.mimread(video_name))
 
 source = video_array[0, :, :, :]
 model = FirstOrderModel("config/api_sample.yaml")
-source_kp = model.extract_keypoints(source)
-model.update_source(source, source_kp)
+source_kp, _= model.extract_keypoints(source)
+model.update_source(0, source, source_kp)
 predictions = []
 
 for i in range(1, len(video_array) - 1):
     driving = video_array[i, :, :, :] 
-    target_kp = model.extract_keypoints(driving)
+    target_kp, _ = model.extract_keypoints(driving)
     predictions.append(model.predict(target_kp))
     
 imageio.mimsave('prediction.mp4', predictions)
