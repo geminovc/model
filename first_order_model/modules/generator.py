@@ -15,7 +15,7 @@ class OcclusionAwareGenerator(nn.Module):
                  num_bottleneck_blocks, estimate_occlusion_map=False, 
                  predict_pixel_features=False, num_pixel_features=0, 
                  run_at_256=False, upsample_factor=1, use_hr_skip_connections=False,
-                 dense_motion_params=None, estimate_jacobian=False, encode_hr_input_with_additional_blocks=True, 
+                 dense_motion_params=None, estimate_jacobian=False, encode_hr_input_with_additional_blocks=False, 
                  hr_features=16):
         super(OcclusionAwareGenerator, self).__init__()
 
@@ -43,21 +43,21 @@ class OcclusionAwareGenerator(nn.Module):
         
         self.upsample_factor = upsample_factor
         upsample_levels = round(math.log(upsample_factor, 2))
-        starting_depth = block_expansion // (2 ** upsample_levels) if encode_hr_input_with_additional_blocks\
+        hr_starting_depth = block_expansion // (2 ** upsample_levels) if encode_hr_input_with_additional_blocks\
                 else hr_features
 
         # first layer either designed for 256x256 input or HR input
         self.first = SameBlock2d(num_channels, block_expansion, kernel_size=(7, 7), padding=(3, 3))
         if self.use_hr_skip_connections or self.encode_hr_input_with_additional_blocks:
-            input_features = hr_features if self.use_hr_skip_connections else starting_depth
+            input_features = hr_features if self.use_hr_skip_connections else hr_starting_depth
             self.hr_first = SameBlock2d(num_channels, input_features, kernel_size=(7, 7), padding=(3, 3))
 
         # enabling extra blocks for bringing higher resolution down
         hr_down_blocks = []
         if self.use_hr_skip_connections or self.encode_hr_input_with_additional_blocks:
             for i in range(upsample_levels):
-                in_features = min(max_features, starting_depth * (2 ** i))
-                out_features = min(max_features, starting_depth * (2 ** (i + 1)))
+                in_features = min(max_features, hr_starting_depth * (2 ** i))
+                out_features = min(max_features, hr_starting_depth * (2 ** (i + 1)))
                 hr_down_blocks.append(DownBlock2d(in_features, out_features, kernel_size=(3, 3), padding=(1, 1)))
         self.hr_down_blocks = nn.ModuleList(hr_down_blocks)
 
@@ -81,8 +81,8 @@ class OcclusionAwareGenerator(nn.Module):
         hr_up_blocks = []
         offset = 2 if use_hr_skip_connections else 1
         for i in range(upsample_levels):
-            in_features = offset * min(max_features, starting_depth * (2 ** (upsample_levels - i)))
-            out_features = min(max_features, starting_depth * (2 ** (upsample_levels - i - 1)))
+            in_features = offset * min(max_features, hr_starting_depth * (2 ** (upsample_levels - i)))
+            out_features = min(max_features, hr_starting_depth * (2 ** (upsample_levels - i - 1)))
             hr_up_blocks.append(UpBlock2d(in_features, out_features, kernel_size=(3, 3), padding=(1, 1)))
         self.hr_up_blocks = nn.ModuleList(hr_up_blocks)
 
@@ -91,7 +91,9 @@ class OcclusionAwareGenerator(nn.Module):
         for i in range(num_bottleneck_blocks):
             self.bottleneck.add_module('r' + str(i), ResBlock2d(in_features, kernel_size=(3, 3), padding=(1, 1)))
 
-        self.final = nn.Conv2d(starting_depth, num_channels, kernel_size=(7, 7), padding=(3, 3))
+        final_input_features = hr_starting_depth if self.use_hr_skip_connections or self.encode_hr_input_with_additional_blocks \
+                else block_expansion
+        self.final = nn.Conv2d(final_input_features, num_channels, kernel_size=(7, 7), padding=(3, 3))
         self.estimate_occlusion_map = estimate_occlusion_map
         self.num_channels = num_channels
 
