@@ -64,7 +64,14 @@ class FirstOrderModel(KeypointBasedFaceModels):
         # placeholders for source information
         self.source_keypoints = {}
         self.source = {}
+   
+        timing_enabled = True
+        self.times = []
+        self.start = torch.cuda.Event(enable_timing=timing_enabled)
+        self.end = torch.cuda.Event(enable_timing=timing_enabled)
 
+    def reset(self):
+        self.times = []
 
     def update_source(self, index, source_frame, source_keypoints):
         """ update the source and keypoints the frame is using 
@@ -142,8 +149,15 @@ class FirstOrderModel(KeypointBasedFaceModels):
         source_kp_tensors = self.convert_kp_dict_to_tensors(self.source_keypoints[source_index])
         target_kp_tensors = self.convert_kp_dict_to_tensors(target_keypoints)
 
+        self.start.record()
         out = self.generator(self.source[source_index], \
                 kp_source=source_kp_tensors, kp_driving=target_kp_tensors)
+        self.end.record()
+        torch.cuda.synchronize()
+        last_val = self.start.elapsed_time(self.end)
+        self.times.append(last_val)
+        print(np.mean(self.times), len(self.times), last_val)
+
         prediction_cpu = out['prediction'].data.cpu().numpy()
         prediction = np.transpose(prediction_cpu, [0, 2, 3, 1])[0]
         return (255 * prediction).astype(np.uint8)
