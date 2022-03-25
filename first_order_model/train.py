@@ -77,7 +77,7 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
             param.requires_grad = True
 
     # train only new layers added to increase resolution while keeping the rest of the pipeline frozen
-    if train_params.get('train_only_new_layers', False) and checkpoint is not None:
+    if train_params.get('train_only_non_fom_layers', False) and checkpoint is not None:
         for param in kp_detector.parameters():
             param.requires_grad = False
         ev_loss = train_params['loss_weights']['equivariance_value']

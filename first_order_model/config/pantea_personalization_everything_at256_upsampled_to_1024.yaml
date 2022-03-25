@@ -55,7 +55,7 @@ model_params:
 train_params:
   skip_generator_loading: False
   train_only_generator: False
-  train_only_new_layers: True
+  train_only_non_fom_layers: True
   num_epochs: 100
   num_repeats: 15
   epoch_milestones: [60, 90]
