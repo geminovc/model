@@ -63,7 +63,7 @@ class FirstOrderModel(KeypointBasedFaceModels):
         
         # placeholders for source information
         self.source_keypoints = {}
-        self.source = {}
+        self.source_frames = {}
    
         timing_enabled = True
         self.times = []
@@ -79,7 +79,7 @@ class FirstOrderModel(KeypointBasedFaceModels):
         """
         transformed_source = np.array([img_as_float32(source_frame)])
         transformed_source = transformed_source.transpose((0, 3, 1, 2))
-        self.source[index] = torch.from_numpy(transformed_source)
+        self.source_frames[index] = torch.from_numpy(transformed_source)
         self.source_keypoints[index] = source_keypoints
 
 
@@ -111,9 +111,9 @@ class FirstOrderModel(KeypointBasedFaceModels):
         """ return best source frame to use for prediction for these keypoints
             and update source frame list if need be
         """
-        if len(self.source) == 0:
+        if len(self.source_frames) == 0:
             return 0
-        return list(self.source)[-1]
+        return list(self.source_frames)[-1]
 
 
     def convert_kp_dict_to_tensors(self, keypoint_dict):
@@ -141,16 +141,16 @@ class FirstOrderModel(KeypointBasedFaceModels):
         """ takes target keypoints and returns an RGB image for the prediction """
         source_index = target_keypoints['source_index']
         assert(source_index in self.source_keypoints)
-        assert(source_index in self.source) 
+        assert(source_index in self.source_frames) 
 
         if torch.cuda.is_available():
-            self.source[source_index] = self.source[source_index].cuda()
+            self.source_frames[source_index] = self.source_frames[source_index].cuda()
 
         source_kp_tensors = self.convert_kp_dict_to_tensors(self.source_keypoints[source_index])
         target_kp_tensors = self.convert_kp_dict_to_tensors(target_keypoints)
 
         self.start.record()
-        out = self.generator(self.source[source_index], \
+        out = self.generator(self.source_frames[source_index], \
                 kp_source=source_kp_tensors, kp_driving=target_kp_tensors)
         self.end.record()
         torch.cuda.synchronize()
