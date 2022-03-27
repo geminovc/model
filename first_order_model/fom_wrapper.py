@@ -161,7 +161,7 @@ class FirstOrderModel(KeypointBasedFaceModels):
         target_kp_tensors = self.convert_kp_dict_to_tensors(target_keypoints)
 
         self.start.record()
-        out = self.generator(self.source_frames[source_index], \
+        out, _ = self.generator(self.source_frames[source_index], \
                 kp_source=source_kp_tensors, kp_driving=target_kp_tensors)
         self.end.record()
         torch.cuda.synchronize()
