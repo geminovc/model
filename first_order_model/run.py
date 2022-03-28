@@ -38,6 +38,7 @@ if __name__ == "__main__":
     parser.add_argument("--enable_timing", dest="enable_timing", action="store_true", help="Time the model")
     parser.add_argument("--save_visualizations_as_images", action="store_true", help="Save visuals as raw images for residual")
     parser.add_argument("--reference_frame_update_freq", type=int, help="how frequently to update reference frame")
+    parser.add_argument("--person_id", dest="person_id", type=str, default=None, help="train on specific person")
     parser.set_defaults(verbose=False)
 
     opt = parser.parse_args()
@@ -74,6 +75,7 @@ if __name__ == "__main__":
     if opt.verbose:
         print(kp_detector)
 
+    config['dataset_params']['person_id'] = opt.person_id
     if "voxceleb2" in config['dataset_params']['root_dir']:
         dataset = Voxceleb2Dataset(is_train=(opt.mode == 'train'), **config['dataset_params'])
     else:
