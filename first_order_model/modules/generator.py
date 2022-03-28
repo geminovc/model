@@ -96,7 +96,6 @@ class OcclusionAwareGenerator(nn.Module):
         self.final = nn.Conv2d(final_input_features, num_channels, kernel_size=(7, 7), padding=(3, 3))
         self.estimate_occlusion_map = estimate_occlusion_map
         self.num_channels = num_channels
-        self.starter, self.ender = torch.cuda.Event(enable_timing=True), torch.cuda.Event(enable_timing=True)
 
     def deform_input(self, inp, deformation):
         _, h_old, w_old, _ = deformation.shape
@@ -115,7 +114,6 @@ class OcclusionAwareGenerator(nn.Module):
         
         # Encoding (downsampling) part
         hr_out = None
-        self.starter.record()
         if self.use_hr_skip_connections or self.encode_hr_input_with_additional_blocks:
             hr_out = self.hr_first(source_image)
             skip_connections = [hr_out] if self.use_hr_skip_connections else []
@@ -125,26 +123,14 @@ class OcclusionAwareGenerator(nn.Module):
                     skip_connections.append(hr_out)
         
         out = hr_out if self.encode_hr_input_with_additional_blocks else self.first(resized_source_image)
-        self.ender.record()
-        torch.cuda.synchronize()
-        first_time = self.starter.elapsed_time(self.ender)
-        
-        self.starter.record()
         for block in self.down_blocks: 
             out = block(out)
-        self.ender.record()
-        torch.cuda.synchronize()
-        down_blocks_time = self.starter.elapsed_time(self.ender)
 
         # Transforming feature representation according to deformation and occlusion
         output_dict = {}
         if self.dense_motion_network is not None:
-            self.starter.record()
             dense_motion = self.dense_motion_network(source_image=source_image, kp_driving=kp_driving,
                                                      kp_source=kp_source)
-            self.ender.record()
-            torch.cuda.synchronize()
-            dense_motion_time = self.starter.elapsed_time(self.ender)
             output_dict['mask'] = dense_motion['mask']
             output_dict['sparse_deformed'] = dense_motion['sparse_deformed']
 
@@ -168,13 +154,7 @@ class OcclusionAwareGenerator(nn.Module):
             output_dict["deformation"] = deformation
 
         # Decoding part
-        self.starter.record()
         out = self.bottleneck(out)
-        self.ender.record()
-        torch.cuda.synchronize()
-        bottleneck_time = self.starter.elapsed_time(self.ender)
-        
-        self.starter.record()
         for block in self.up_blocks:
             out = block(out)
         
@@ -184,20 +164,10 @@ class OcclusionAwareGenerator(nn.Module):
                 skip, _ = self.deform_input(skip, deformation)
                 out = torch.cat([out, skip], dim=1)
             out = block(out)
-        
-        self.ender.record()
-        torch.cuda.synchronize()
-        up_blocks_time = self.starter.elapsed_time(self.ender)
-        
-        self.starter.record()
+
         out = self.final(out)
-        self.ender.record()
-        torch.cuda.synchronize()
-        final_time = self.starter.elapsed_time(self.ender)
-        
         out = F.sigmoid(out)
 
         output_dict["prediction"] = out
-        time_dict = {'dense_motion_time': dense_motion_time, 'first_time': first_time, 'down_blocks_time': down_blocks_time,
-                'bottleneck_time': bottleneck_time, 'up_blocks_time': up_blocks_time, 'final_time': final_time}
-        return output_dict, time_dict
+
+        return output_dict
