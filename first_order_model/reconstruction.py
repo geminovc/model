@@ -8,6 +8,7 @@ import imageio
 from sync_batchnorm import DataParallelWithCallback
 from skimage.metrics import peak_signal_noise_ratio
 from skimage.metrics import structural_similarity
+from frames_dataset import get_num_frames, get_frame
 import lpips
 
 """ helper to get size of nested parameter list """
@@ -61,6 +62,12 @@ def get_avg_visual_metrics(visual_metrics):
     lpips_list = [m['lpips'] for m in visual_metrics]
     return np.mean(psnrs), np.mean(ssims), np.mean(lpips_list)
 
+"""convert numpy arrays to tensors for reconstruction pipeline
+"""
+def frame_to_tensor(frame, device):
+    array = np.expand_dims(frame, 0).transpose(0, 3, 1, 2)
+    array = torch.from_numpy(array)
+    return array.float().to(device)
 
 """ reconstruct driving frames for each video in the dataset using the first frame
     as a source frame. Config specifies configration details, while timing 
@@ -71,7 +78,6 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
     log_dir = os.path.join(log_dir, 'reconstruction' + '_' + experiment_name)
     png_dir = os.path.join(log_dir, 'png')
     visualization_dir = os.path.join(log_dir, 'visualization')
-
     if checkpoint is not None:
         Logger.load_cpk(checkpoint, generator=generator, kp_detector=kp_detector)
     else:
@@ -95,7 +101,7 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
         generator = DataParallelWithCallback(generator)
         kp_detector = DataParallelWithCallback(kp_detector)
         loss_fn_vgg = loss_fn_vgg.cuda()
-
+ 
     generator.eval()
     kp_detector.eval()
 
@@ -103,7 +109,6 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
     get_model_info(log_dir, kp_detector, generator)
     start = torch.cuda.Event(enable_timing=timing_enabled)
     end = torch.cuda.Event(enable_timing=timing_enabled)
-
     for it, x in tqdm(enumerate(dataloader)):
         if config['reconstruction_params']['num_videos'] is not None:
             if it > config['reconstruction_params']['num_videos']:
@@ -111,12 +116,14 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
         with torch.no_grad():
             predictions = []
             visualizations = []
-            last_prediction = x['video'][:, :, 0].numpy()
+            device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+            last_prediction = frame_to_tensor(get_frame(x['video_path'][0], 0), device).cpu().numpy()
             if torch.cuda.is_available():
                 x['video'] = x['video'].cuda()
             
+            source = frame_to_tensor(get_frame(x['video_path'][0], 0), device)
             start.record()
-            kp_source = kp_detector(x['video'][:, :, 0])
+            kp_source = kp_detector(source)
             end.record()
             torch.cuda.synchronize()
             
@@ -124,14 +131,14 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
                 source_time = start.elapsed_time(end)
                 driving_times, generator_times, visualization_times = [], [], []
 
-            for frame_idx in range(x['video'].shape[2]):
+            for frame_idx in range(get_num_frames(x['video_path'][0])):
                 if reference_frame_update_freq is not None:
                     if frame_idx % reference_frame_update_freq == 0:
-                        source = x['video'][:, :, frame_idx]
+                        source = frame_to_tensor(get_frame(x['video_path'][0], frame_idx), device) 
                         kp_source = kp_detector(source)
                 else:
-                    source = x['video'][:, :, 0]
-                driving = x['video'][:, :, frame_idx]
+                    source = frame_to_tensor(get_frame(x['video_path'][0], 0), device)
+                driving = frame_to_tensor(get_frame(x['video_path'][0], frame_idx), device)
                 
                 start.record()
                 kp_driving = kp_detector(driving)
