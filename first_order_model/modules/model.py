@@ -137,9 +137,15 @@ class GeneratorFullModel(torch.nn.Module):
         self.train_params = train_params
         self.scales = train_params['scales']
         self.disc_scales = self.discriminator.scales
+        
         self.pyramid = ImagePyramide(self.scales, generator.num_channels)
         if torch.cuda.is_available():
             self.pyramid = self.pyramid.cuda()
+        
+        if self.train_params.get('conditional_gan', False):
+            self.cgan_pyramide = ImagePyramide(self.scales, 2 * generator.num_channels)
+            if torch.cuda.is_available():
+                self.cgan_pyramide = self.cgan_pyramide.cuda()
 
         self.loss_weights = train_params['loss_weights']
 
@@ -157,9 +163,22 @@ class GeneratorFullModel(torch.nn.Module):
 
         loss_values = {}
 
-        pyramide_real = self.pyramid(x['driving'])
-        pyramide_generated = self.pyramid(generated['prediction'])
-
+        # standard pyramides for Vgg perceptual loss
+        real_input = x['driving']
+        generated_input = generated['prediction']
+        pyramide_real = self.pyramid(real_input)
+        pyramide_generated = self.pyramid(generated_input)
+        
+        # pyramides for conditional gan if need be to be used by discriminator
+        if self.train_params.get('conditional_gan', False):
+            concatenated_real_input = torch.cat([real_input, x['source']], dim=1)
+            concatenated_generated_input = torch.cat([generated_input, x['source']], dim=1)
+            disc_pyramide_real = self.cgan_pyramide(concatenated_real_input)
+            disc_pyramide_generated = self.cgan_pyramide(concatenated_generated_input)
+        else:
+            disc_pyramide_real = pyramide_real
+            disc_pyramide_generated = pyramide_generated
+        
         if sum(self.loss_weights['perceptual']) != 0:
             value_total = 0
             for scale in self.scales:
@@ -172,8 +191,8 @@ class GeneratorFullModel(torch.nn.Module):
                 loss_values['perceptual'] = value_total
 
         if self.loss_weights['generator_gan'] != 0:
-            discriminator_maps_generated = self.discriminator(pyramide_generated, kp=detach_kp(kp_driving))
-            discriminator_maps_real = self.discriminator(pyramide_real, kp=detach_kp(kp_driving))
+            discriminator_maps_generated = self.discriminator(disc_pyramide_generated, kp=detach_kp(kp_driving))
+            discriminator_maps_real = self.discriminator(disc_pyramide_real, kp=detach_kp(kp_driving))
             value_total = 0
             for scale in self.disc_scales:
                 key = 'prediction_map_%s' % scale
@@ -234,15 +253,23 @@ class DiscriminatorFullModel(torch.nn.Module):
         self.discriminator = discriminator
         self.train_params = train_params
         self.scales = self.discriminator.scales
-        self.pyramid = ImagePyramide(self.scales, generator.num_channels)
+
+        channel_offset = 2 if self.train_params.get('conditional_gan', False) else 1
+        self.pyramid = ImagePyramide(self.scales, channel_offset * generator.num_channels)
         if torch.cuda.is_available():
             self.pyramid = self.pyramid.cuda()
 
         self.loss_weights = train_params['loss_weights']
 
     def forward(self, x, generated):
-        pyramide_real = self.pyramid(x['driving'])
-        pyramide_generated = self.pyramid(generated['prediction'].detach())
+        real_input = x['driving']
+        generated_input = generated['prediction'].detach()
+        if self.train_params.get('conditional_gan', False):
+            real_input = torch.cat([real_input, x['source']], dim=1)
+            generated_input = torch.cat([generated_input, x['source']], dim=1)
+        
+        pyramide_real = self.pyramid(real_input)
+        pyramide_generated = self.pyramid(generated_input)
 
         kp_driving = generated['kp_driving']
         discriminator_maps_generated = self.discriminator(pyramide_generated, kp=detach_kp(kp_driving))

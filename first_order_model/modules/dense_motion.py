@@ -5,7 +5,6 @@ from first_order_model.modules.util import Hourglass, AntiAliasInterpolation2d, 
 import time
 import numpy as np
 
-
 class DenseMotionNetwork(nn.Module):
     """
     Module that predicting a dense motion from sparse motion representation given by kp_source and kp_driving
@@ -13,7 +12,7 @@ class DenseMotionNetwork(nn.Module):
 
     def __init__(self, block_expansion, num_blocks, max_features, num_kp,
             num_channels, estimate_residual=False, num_pixel_features=0, estimate_occlusion_map=False, 
-            scale_factor=1, kp_variance=0.01):
+            scale_factor=1, kp_variance=0.01, run_at_256=False):
         super(DenseMotionNetwork, self).__init__()
         self.hourglass = Hourglass(block_expansion=block_expansion, 
                          in_features=(num_kp + 1) * (num_channels + 1 + num_pixel_features),
@@ -35,6 +34,7 @@ class DenseMotionNetwork(nn.Module):
         self.num_kp = num_kp
         self.scale_factor = scale_factor
         self.kp_variance = kp_variance
+        self.run_at_256 = run_at_256
 
         if self.scale_factor != 1:
             self.down = AntiAliasInterpolation2d(num_channels, self.scale_factor)
@@ -119,6 +119,9 @@ class DenseMotionNetwork(nn.Module):
         return sparse_deformed
 
     def forward(self, source_image, kp_driving, kp_source):
+        if self.run_at_256:
+            source_image = F.interpolate(source_image, 256)
+
         if self.scale_factor != 1:
             source_image = self.down(source_image)
 

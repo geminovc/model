@@ -10,6 +10,9 @@ from skimage.metrics import structural_similarity
 import matplotlib.pyplot as plt
 import collections
 import tensorboardX
+import flow_vis
+from skimage.metrics import peak_signal_noise_ratio
+from skimage.metrics import structural_similarity
 
 
 class Logger:
@@ -27,7 +30,8 @@ class Logger:
         self.epoch = 0
         self.best_loss = float('inf')
         self.names = None
-        self.writer = tensorboardX.SummaryWriter(os.path.join(log_dir, 'tensorboard')) 
+        self.writer = tensorboardX.SummaryWriter(os.path.join(log_dir, 'tensorboard'))
+        self.metrics_averages = None
 
     def log_scores(self, loss_names):
         loss_mean = np.array(self.loss_list).mean(axis=0)
@@ -41,6 +45,35 @@ class Logger:
         
         for name, value in zip(loss_names, loss_mean):
             self.writer.add_scalar(f'losses/{name}', value, self.epoch)
+
+
+    """ get visual metrics for the model's reconstruction """
+    def get_visual_metrics(self, prediction, original, loss_fn_vgg):
+        if torch.cuda.is_available():
+            original = original.cuda()
+            prediction = prediction.cuda()
+        lpips_val = loss_fn_vgg(original, prediction).data.cpu().numpy().flatten()[0]
+        
+        prediction = np.transpose(prediction.data.cpu().numpy(), [0, 2, 3, 1])[0]
+        original = np.transpose(original.data.cpu().numpy(), [0, 2, 3, 1])[0]
+        psnr = peak_signal_noise_ratio(original, prediction, data_range=1)
+        ssim = structural_similarity(original, prediction, multichannel=True, data_range=1)
+        
+        return {'psnr': psnr, 'ssim': ssim, 'lpips': lpips_val}
+
+    def log_metrics_images(self, iteration, input_data, output, loss_fn_vgg):
+        if iteration == 0:
+            if self.metrics_averages is not None:
+                for name, values in self.metrics_averages.items():
+                    average = np.mean(values)
+                    self.writer.add_scalar(f'metrics/{name}', average, self.epoch)
+            self.metrics_averages = {'psnr': [], 'ssim': [], 'lpips': []}
+
+        image = self.visualizer.visualize(input_data['driving'], input_data['source'], output)
+        self.writer.add_image(f'metrics{iteration}', image, self.epoch, dataformats='HWC')
+        metrics = self.get_visual_metrics(output['prediction'], input_data['driving'], loss_fn_vgg)
+        for name, value in metrics.items():
+            self.metrics_averages[name].append(value)
 
     def visualize_rec(self, inp, out):
         image = self.visualizer.visualize(inp['driving'], inp['source'], out)
@@ -58,23 +91,48 @@ class Logger:
     @staticmethod
     def load_cpk(checkpoint_path, generator=None, discriminator=None, kp_detector=None,
                  optimizer_generator=None, optimizer_discriminator=None, optimizer_kp_detector=None, 
-                 device='gpu'):
+                 device='gpu', dense_motion_network=None, upsampling_enabled=False, 
+                 hr_skip_connections=False, run_at_256=True):
+
         if device == torch.device('cpu'):
             checkpoint = torch.load(checkpoint_path, map_location=torch.device('cpu'))
         else:
             checkpoint = torch.load(checkpoint_path)
 
-        if generator is not None:
+        if generator is not None and dense_motion_network is not None:
+            gen_params = checkpoint['generator']
+            dense_motion_params = {k: gen_params[k] for k in gen_params.keys() if k.startswith('dense_motion_network')}
+            generator.load_state_dict(dense_motion_params, strict=False)
+        elif generator is not None and upsampling_enabled:
+            if hr_skip_connections:
+                modified_generator_params = {k: v for k, v in checkpoint['generator'].items() \
+                    if not (k.startswith("final") or k.startswith("sigmoid"))}
+            elif run_at_256:
+                modified_generator_params = {k: v for k, v in checkpoint['generator'].items() \
+                    if not (k.startswith("final") or k.startswith("sigmoid"))}
+            else:
+                modified_generator_params = {k: v for k, v in checkpoint['generator'].items() \
+                    if not (k.startswith("final") or k.startswith("sigmoid") or k.startswith('first'))}
+            generator.load_state_dict(modified_generator_params, strict=False)
+        elif generator is not None and dense_motion_network is None:
+            gen_params = checkpoint['generator']
+            gen_params_but_dense_motion_params = {k: gen_params[k] for k in gen_params.keys() if not k.startswith('dense_motion_network')}
+            generator.load_state_dict(gen_params_but_dense_motion_params, strict=False)
+        elif generator is not None:
             generator.load_state_dict(checkpoint['generator'])
+
         if kp_detector is not None:
             kp_detector.load_state_dict(checkpoint['kp_detector'])
-        if discriminator is not None:
+
+        if discriminator is not None: 
             try:
                discriminator.load_state_dict(checkpoint['discriminator'])
             except:
                print ('No discriminator in the state-dict. Dicriminator will be randomly initialized')
+
         if optimizer_generator is not None:
             optimizer_generator.load_state_dict(checkpoint['optimizer_generator'])
+
         if optimizer_discriminator is not None:
             try:
                 optimizer_discriminator.load_state_dict(checkpoint['optimizer_discriminator'])
@@ -104,7 +162,8 @@ class Logger:
         self.models = models
         if (self.epoch + 1) % self.checkpoint_freq == 0:
             self.save_cpk()
-        self.log_scores(self.names)
+        if self.epoch > 0:
+            self.log_scores(self.names)
         self.visualize_rec(inp, out)
 
 
@@ -113,6 +172,7 @@ class Visualizer:
         self.kp_size = kp_size
         self.draw_border = draw_border
         self.colormap = plt.get_cmap(colormap)
+        self.identity_grid = None
 
     def draw_image_with_kp(self, image, kp_array):
         image = np.copy(image)
@@ -146,13 +206,16 @@ class Visualizer:
 
     def draw_deformation_heatmap(self, deformation):
         b, h, w = deformation.shape[0:3]
+        if self.identity_grid is None:
+            self.identity_grid = np.zeros((h, w, 2))
+            for i, ival in enumerate(np.linspace(-1, 1, h)):
+                for j, jval in enumerate(np.linspace(-1, 1, w)):
+                    self.identity_grid[i][j][0] = jval
+                    self.identity_grid[i][j][1] = ival
+
         deformation_heatmap = np.zeros((b, h, w, 3))
         for i in range(b):
-            for x in range(h):
-                for y in range(w):
-                    input_location = deformation[i][x][y] 
-                    deformation_heatmap[i][x][y][0] = (input_location[0] + 1.0) / 2.0
-                    deformation_heatmap[i][x][y][1] = (input_location[1] + 1.0) / 2.0
+            deformation_heatmap[i] = flow_vis.flow_to_color(deformation[i] - self.identity_grid)
         return deformation_heatmap
 
 

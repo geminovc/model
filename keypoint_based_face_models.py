@@ -15,7 +15,7 @@ class KeypointBasedFaceModels(torch.nn.Module):
         pass
 
     @abstractmethod
-    def update_source(self, source_frame, source_keypoints):
+    def update_source(self, index, source_frame, source_keypoints):
         """ update the source frame and keypoints used by the model
             based on the RGB frame received as input
         """

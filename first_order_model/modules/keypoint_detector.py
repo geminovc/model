@@ -3,7 +3,6 @@ import torch
 import torch.nn.functional as F
 from first_order_model.modules.util import Hourglass, make_coordinate_grid, AntiAliasInterpolation2d
 
-
 class KPDetector(nn.Module):
     """
     Detecting a keypoints. Return keypoint position and jacobian near each keypoint.
@@ -12,7 +11,7 @@ class KPDetector(nn.Module):
     def __init__(self, block_expansion, num_kp, num_channels, max_features,
                  num_blocks, temperature, estimate_jacobian=False, scale_factor=1,
                  single_jacobian_map=False, pad=0, num_pixel_features=0, 
-                 predict_pixel_features=False):
+                 predict_pixel_features=False, run_at_256=False):
         super(KPDetector, self).__init__()
 
         self.predictor = Hourglass(block_expansion, in_features=num_channels,
@@ -42,6 +41,7 @@ class KPDetector(nn.Module):
 
         self.temperature = temperature
         self.scale_factor = scale_factor
+        self.run_at_256 = run_at_256
         if self.scale_factor != 1:
             self.down = AntiAliasInterpolation2d(num_channels, self.scale_factor)
 
@@ -71,6 +71,9 @@ class KPDetector(nn.Module):
         return feature
 
     def forward(self, x):
+        if self.run_at_256:
+            x = F.interpolate(x, 256)
+        
         if self.scale_factor != 1:
             x = self.down(x)
 

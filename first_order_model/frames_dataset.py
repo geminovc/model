@@ -61,7 +61,7 @@ def get_num_frames(filename):
 def get_frame(filename, frame_num):
     reader = imageio.get_reader(filename, "ffmpeg")
     reader.set_image_index(frame_num)
-    frame = np.array(reader.get_next_data())
+    frame = img_as_float32(np.array(reader.get_next_data()))
     reader.close()
     return frame
 
@@ -83,23 +83,23 @@ class FramesDataset(Dataset):
         self.id_sampling = id_sampling
         self.person_id = person_id
 
+        if person_id is not None:
+            root_dir = os.path.join(root_dir, person_id)
+            self.root_dir = root_dir
+        
         if os.path.exists(os.path.join(root_dir, 'train')):
             assert os.path.exists(os.path.join(root_dir, 'test'))
             print("Use predefined train-test split.")
-            if person_id is None:
-                if id_sampling:
-                    train_videos = {os.path.basename(video).split('#')[0] for video in
-                                    os.listdir(os.path.join(root_dir, 'train'))}
-                    train_videos = list(train_videos)
-                else:
-                    train_videos = os.listdir(os.path.join(root_dir, 'train'))
-                print("number of train videos", len(train_videos))
-                test_videos = os.listdir(os.path.join(root_dir, 'test'))
-            else:
-                print("Training on specific person", person_id)
-                train_videos = ["id" + str(person_id)]
-                test_videos = ["id" + str(person_id)]
             
+            if id_sampling:
+                train_videos = {os.path.basename(video).split('#')[0] for video in
+                                os.listdir(os.path.join(root_dir, 'train'))}
+                train_videos = list(train_videos)
+            else:
+                train_videos = os.listdir(os.path.join(root_dir, 'train'))
+            print("number of train videos", len(train_videos))
+            test_videos = os.listdir(os.path.join(root_dir, 'test'))
+             
             self.root_dir = os.path.join(self.root_dir, 'train' if is_train else 'test')
         else:
             print("Use random train-test split.")
@@ -121,7 +121,7 @@ class FramesDataset(Dataset):
         return len(self.videos)
 
     def __getitem__(self, idx):
-        if (self.is_train and self.id_sampling) or (self.person_id is not None):
+        if (self.is_train and self.id_sampling):
             name = self.videos[idx]
             path = np.random.choice(glob.glob(os.path.join(self.root_dir, name + '*.mp4')))
         else:
@@ -139,7 +139,7 @@ class FramesDataset(Dataset):
             num_frames = get_num_frames(path)
             frame_idx = np.sort(np.random.choice(num_frames, replace=True, size=2)) if self.is_train else range(
             num_frames)
-            video_array = np.array([get_frame(path, frame_idx[0]), get_frame(path, frame_idx[1])])
+            video_array = np.array([get_frame(path, frame_idx[0]), get_frame(path, frame_idx[1])]) 
 
         if self.transform is not None:
             video_array = self.transform(video_array)
@@ -152,13 +152,40 @@ class FramesDataset(Dataset):
             out['driving'] = driving.transpose((2, 0, 1))
             out['source'] = source.transpose((2, 0, 1))
         else:
-            video = np.array(video_array, dtype='float32')
-            out['video'] = video.transpose((3, 0, 1, 2))
-
+            video = video_array
+            out['video'] = video
+            out['video_path'] = str(path)
+        
         out['name'] = video_name
 
         return out
 
+class MetricsDataset(Dataset):
+    """
+        Load a select set of frames for computing consistent metrics/visuals on
+    """
+
+    def __init__(self, root_dir, frame_shape):
+        self.root_dir = root_dir
+        self.videos = os.listdir(root_dir)
+        self.frame_shape = tuple(frame_shape)
+
+    def __len__(self):
+        return len(self.videos)
+
+    def __getitem__(self, idx):
+        file_name = self.videos[idx]
+        path = os.path.join(self.root_dir, file_name)
+        assert os.path.isdir(path)
+
+        driving = img_as_float32(io.imread(os.path.join(path, "target.jpg")))
+        source = img_as_float32(io.imread(os.path.join(path, "source.jpg")))
+        
+        out = {}
+        out['driving'] = driving.transpose((2, 0, 1))
+        out['source'] = source.transpose((2, 0, 1))
+
+        return out 
 
 class DatasetRepeater(Dataset):
     """

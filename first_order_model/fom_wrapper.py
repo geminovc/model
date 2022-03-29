@@ -24,8 +24,8 @@ from keypoint_based_face_models import KeypointBasedFaceModels
     target = video_array[1:2, :, :, :]
     
     model = FirstOrderModel("temp.yaml")
-    source_kp = model.extract_keypoints(source)
-    model.update_source(source, source_kp)
+    source_kp, source_idx = model.extract_keypoints(source)
+    model.update_source(0, source, source_kp)
     target_kp = model.extract_keypoints(target)
     prediction = model.predict(target_kp))
 """
@@ -62,41 +62,72 @@ class FirstOrderModel(KeypointBasedFaceModels):
         self.kp_detector.eval()
         
         # placeholders for source information
-        self.source_keypoints = None
-        self.source = None
+        self.source_keypoints = {}
+        self.source_frames = {}
+   
+        timing_enabled = True
+        self.times = []
+        self.start = torch.cuda.Event(enable_timing=timing_enabled)
+        self.end = torch.cuda.Event(enable_timing=timing_enabled)
 
 
-    def update_source(self, source_frame, source_keypoints):
+    def reset(self):
+        """ reset stats """
+        self.times = []
+
+
+    def update_source(self, index, source_frame, source_keypoints):
         """ update the source and keypoints the frame is using 
             from the RGB source provided as input
         """
-        transformed_source = np.array([img_as_float32(source_frame)])
-        transformed_source = transformed_source.transpose((0, 3, 1, 2))
-        self.source = torch.from_numpy(transformed_source)
-        self.source_keypoints = source_keypoints 
+        transformed_source = source_frame.transpose((2, 0, 1))
+        transformed_source = torch.from_numpy(transformed_source).to(torch.uint8)
+        if torch.cuda.is_available():
+            transformed_source = transformed_source.cuda()
+        
+        # convert to float
+        transformed_source = transformed_source.to(torch.float32)
+        transformed_source = torch.div(transformed_source, 255)
+        transformed_source = torch.unsqueeze(transformed_source, 0)
+        self.source_frames[index] = transformed_source
+        
+        self.source_keypoints[index] = self.convert_kp_dict_to_tensors(source_keypoints)
 
 
     def extract_keypoints(self, frame):
         """ extract keypoints into a keypoint dictionary with/without jacobians
-            from the provided RGB image 
+            from the provided RGB image
+            uses keypoints to detect the best source image to use
         """
-        transformed_frame = np.array([img_as_float32(frame)])
-        transformed_frame = transformed_frame.transpose((0, 3, 1, 2))
-
-        frame = torch.from_numpy(transformed_frame)
+        transformed_frame = frame.transpose((2, 0, 1))
+        transformed_frame = torch.from_numpy(transformed_frame).to(torch.uint8)
         if torch.cuda.is_available():
-            frame = frame.cuda() 
-        keypoint_struct = self.kp_detector(frame)
-
+            transformed_frame = transformed_frame.cuda()
+        
+        # convert to float
+        transformed_frame = transformed_frame.to(torch.float32)
+        transformed_frame = torch.div(transformed_frame, 255)
+        transformed_frame = torch.unsqueeze(transformed_frame, 0)
+        
         # change to arrays and standardize
         # Note: keypoints are stored at key 'value' in FOM
+        keypoint_struct = self.kp_detector(transformed_frame)
         keypoint_struct['value'] = keypoint_struct['value'].data.cpu().numpy()[0]
         keypoint_struct['keypoints'] = keypoint_struct.pop('value')
         if 'jacobian' in keypoint_struct:
             keypoint_struct['jacobian'] = keypoint_struct['jacobian'].data.cpu().numpy()[0]
             keypoint_struct['jacobians'] = keypoint_struct.pop('jacobian')
         
-        return keypoint_struct
+        return keypoint_struct, self.best_source_frame(frame, keypoint_struct)
+
+    
+    def best_source_frame(self, frame, keypoint_struct):
+        """ return best source frame to use for prediction for these keypoints
+            and update source frame list if need be
+        """
+        if len(self.source_frames) == 0:
+            return 0
+        return list(self.source_frames)[-1]
 
 
     def convert_kp_dict_to_tensors(self, keypoint_dict):
@@ -122,18 +153,23 @@ class FirstOrderModel(KeypointBasedFaceModels):
 
     def predict(self, target_keypoints):
         """ takes target keypoints and returns an RGB image for the prediction """
-        assert(self.source_keypoints is not None)
-        assert(self.source is not None)
+        source_index = target_keypoints['source_index']
+        assert(source_index in self.source_keypoints)
+        assert(source_index in self.source_frames) 
 
-        if torch.cuda.is_available():
-            self.source = self.source.cuda()
-
-        source_kp_tensors = self.convert_kp_dict_to_tensors(self.source_keypoints)
+        source_kp_tensors = self.source_keypoints[source_index]
         target_kp_tensors = self.convert_kp_dict_to_tensors(target_keypoints)
 
-        out = self.generator(self.source, \
+        self.start.record()
+        out = self.generator(self.source_frames[source_index], \
                 kp_source=source_kp_tensors, kp_driving=target_kp_tensors)
-        prediction_cpu = out['prediction'].data.cpu().numpy()
-        prediction = np.transpose(prediction_cpu, [0, 2, 3, 1])[0]
-        return (255 * prediction).astype(np.uint8)
+        self.end.record()
+        torch.cuda.synchronize()
+        last_val = self.start.elapsed_time(self.end)
+        self.times.append(last_val)
+        print(np.mean(self.times), len(self.times), last_val)
 
+        prediction = torch.mul(out['prediction'][0], 255).to(torch.uint8)
+        prediction_cpu = prediction.data.cpu().numpy()
+        final_prediction = np.transpose(prediction_cpu, [1, 2, 0])
+        return final_prediction
