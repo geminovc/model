@@ -51,7 +51,7 @@ class OcclusionAwareGenerator(nn.Module):
         self.num_channels = num_channels
         self.source_image = None
         self.update_source = True
-        self.out = None
+        self.encoder_output = None
 
     def deform_input(self, inp, deformation):
         _, h_old, w_old, _ = deformation.shape
@@ -72,11 +72,11 @@ class OcclusionAwareGenerator(nn.Module):
         if self.update_source:
             self.source_image = source_image
 
-        if self.out is None or self.update_source:
+        if self.encoder_output is None or self.update_source:
             out = self.first(source_image)
             for i in range(len(self.down_blocks)):
                 out = self.down_blocks[i](out)
-            self.out = out
+            self.encoder_output = out
 
         # Transforming feature representation according to deformation and occlusion
         output_dict = {}
@@ -92,7 +92,7 @@ class OcclusionAwareGenerator(nn.Module):
             else:
                 occlusion_map = None
             deformation = dense_motion['deformation']
-            out, _ = self.deform_input(self.out, deformation)
+            out, _ = self.deform_input(self.encoder_output, deformation)
 
             if occlusion_map is not None:
                 if out.shape[2] != occlusion_map.shape[2] or out.shape[3] != occlusion_map.shape[3]:

@@ -38,6 +38,8 @@ class DenseMotionNetwork(nn.Module):
 
         if self.scale_factor != 1:
             self.down = AntiAliasInterpolation2d(num_channels, self.scale_factor)
+
+        # saving state to reduce computation
         self.source_image = None
         self.update_source = True
         self.gaussian_source = None
