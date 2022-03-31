@@ -15,9 +15,9 @@ times = []
 
 for i in range(1, len(video_array) - 1):
     driving = video_array[i, :, :, :] 
-    target_kp, _ = model.extract_keypoints(driving)
+    target_kp, source_index = model.extract_keypoints(driving)
     start = time.time()
-    predictions.append(model.predict(target_kp))
+    predictions.append(model.predict(target_kp, source_index))
     times.append(time.time() - start)
 
 print(f"Average prediction time per frame is {sum(times)/len(times)}s.")    
