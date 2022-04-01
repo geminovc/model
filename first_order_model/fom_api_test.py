@@ -12,10 +12,17 @@ source_kp, _= model.extract_keypoints(source)
 model.update_source(0, source, source_kp)
 predictions = []
 times = []
+source_update_frequency = 1000
 
 for i in range(1, len(video_array) - 1):
+    if i % source_update_frequency == 0:
+        source = video_array[i, :, :, :]
+        source_kp, _= model.extract_keypoints(source)
+        model.update_source(len(model.source_frames), source, source_kp) 
+
     driving = video_array[i, :, :, :] 
     target_kp, source_index = model.extract_keypoints(driving)
+    print(source_index)
     start = time.time()
     predictions.append(model.predict(target_kp, source_index))
     times.append(time.time() - start)

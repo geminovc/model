@@ -84,7 +84,7 @@ class FirstOrderModel(KeypointBasedFaceModels):
         transformed_source = torch.from_numpy(transformed_source).to(torch.uint8)
         if torch.cuda.is_available():
             transformed_source = transformed_source.cuda()
-        
+
         # convert to float
         transformed_source = transformed_source.to(torch.float32)
         transformed_source = torch.div(transformed_source, 255)
@@ -118,16 +118,16 @@ class FirstOrderModel(KeypointBasedFaceModels):
             keypoint_struct['jacobian'] = keypoint_struct['jacobian'].data.cpu().numpy()[0]
             keypoint_struct['jacobians'] = keypoint_struct.pop('jacobian')
         
-        return keypoint_struct, self.best_source_frame(frame, keypoint_struct)
+        return keypoint_struct, self.best_source_frame_index(frame, keypoint_struct)
 
     
-    def best_source_frame(self, frame, keypoint_struct):
+    def best_source_frame_index(self, frame, keypoint_struct):
         """ return best source frame to use for prediction for these keypoints
             and update source frame list if need be
         """
         if len(self.source_frames) == 0:
-            return 0
-        return list(self.source_frames)[-1]
+            return -1
+        return len(self.source_frames) - 1
 
 
     def convert_kp_dict_to_tensors(self, keypoint_dict):
@@ -156,18 +156,17 @@ class FirstOrderModel(KeypointBasedFaceModels):
         #source_index = target_keypoints['source_index']
         assert(source_index in self.source_keypoints)
         assert(source_index in self.source_frames) 
-
+	
         source_kp_tensors = self.source_keypoints[source_index]
         target_kp_tensors = self.convert_kp_dict_to_tensors(target_keypoints)
-
-        self.start.record()
+        #self.start.record()
         out = self.generator(self.source_frames[source_index], \
                 kp_source=source_kp_tensors, kp_driving=target_kp_tensors)
-        self.end.record()
-        torch.cuda.synchronize()
-        last_val = self.start.elapsed_time(self.end)
-        self.times.append(last_val)
-        print(np.mean(self.times), len(self.times), last_val)
+        #self.end.record()
+        #torch.cuda.synchronize()
+        #last_val = self.start.elapsed_time(self.end)
+        #self.times.append(last_val)
+        #print(np.mean(self.times), len(self.times), last_val)
 
         prediction = torch.mul(out['prediction'][0], 255).to(torch.uint8)
         prediction_cpu = prediction.data.cpu().numpy()
