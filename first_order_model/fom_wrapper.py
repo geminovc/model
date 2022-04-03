@@ -55,7 +55,8 @@ class FirstOrderModel(KeypointBasedFaceModels):
         # initialize weights
         checkpoint = config['checkpoint_params']['checkpoint_path']
         Logger.load_cpk(checkpoint, generator=self.generator, 
-                kp_detector=self.kp_detector, device=device)
+                kp_detector=self.kp_detector, device=device, 
+                dense_motion_network=self.generator.dense_motion_network)
 
         # set to test mode
         self.generator.eval()

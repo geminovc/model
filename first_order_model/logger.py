@@ -99,7 +99,7 @@ class Logger:
         else:
             checkpoint = torch.load(checkpoint_path)
 
-        if generator is not None and dense_motion_network is not None:
+        if generator is None and dense_motion_network is not None:
             gen_params = checkpoint['generator']
             dense_motion_params = {k: gen_params[k] for k in gen_params.keys() if k.startswith('dense_motion_network')}
             generator.load_state_dict(dense_motion_params, strict=False)
