@@ -30,17 +30,26 @@ NUM_RUNS = 1000
 WARM_UP = 100
 
 
+def get_mean(test_list):
+    if len(test_list) != 0:
+        return sum(test_list) / len(test_list)
+    return 0
+
 def get_variance(test_list, mean):
-    variance = sum([((x - mean) ** 2) for x in test_list]) / len(test_list)
-    res = variance ** 0.5
-    return res
+    if len(test_list) != 0:
+        variance = sum([((x - mean) ** 2) for x in test_list]) / len(test_list)
+        res = variance ** 0.5
+        return res
+    return 0
 
 
 def print_average_and_std(test_list, name):
-    mean = sum(test_list) / len(test_list)
-    res = get_variance(test_list, mean)
-    print(f"{name}:: mean={round(mean, 6)}, std={round(res / mean * 100, 6)}%")
-    return mean, res
+    if len(test_list) != 0:
+        mean = get_mean(test_list)
+        res = get_variance(test_list, mean)
+        print(f"{name}:: mean={round(mean, 6)}, std={round(res / mean * 100, 6)}%")
+        return mean, res
+    return 0, 0
 
 
 def display_times(times, module_name, USE_FAST_CONV2, USE_QUANTIZATION, USE_FLOAT_16, IMAGE_RESOLUTION):
@@ -66,9 +75,9 @@ def display_times(times, module_name, USE_FAST_CONV2, USE_QUANTIZATION, USE_FLOA
         writer = csv.writer(f)
         writer.writerow(header)
         mean_row = ['mean']
-        mean_row += [sum(times[key])/len(times[key]) for key in times.keys()]
+        mean_row += [get_mean(times[key]) for key in times.keys()]
         std_row = ['std%']
-        std_row += [100 * get_variance(times[key], sum(times[key])/len(times[key])) / (sum(times[key])/len(times[key])) for key in times.keys()]
+        std_row += [100 * get_variance(times[key], get_mean(times[key])) / (get_mean(times[key]) + 1e-8) for key in times.keys()]
         writer.writerow(mean_row)
         writer.writerow(std_row)
 
@@ -136,7 +145,8 @@ def time_generator(model):
             total_times.append(curr_time)
             for key in time_dict.keys():
                 times_dict[key].append(time_dict[key])
-
+            if SLEEP_DUR > 0:
+                time.sleep(SLEEP_DUR)
     times_dict['total_with_print'] = total_times
     display_times(times_dict, 'generator', USE_FAST_CONV2, USE_QUANTIZATION, USE_FLOAT_16, IMAGE_RESOLUTION)
 
@@ -145,6 +155,7 @@ parser = ArgumentParser()
 parser.add_argument("--config", default="config/vox-256.yaml", help="path to config")
 parser.add_argument("--resolution", default=1024, help="image resolution")
 parser.add_argument("--batch_size", default=1, help="image batch_size")
+parser.add_argument("--sleep_dur", default=0, help="sleep duration in seconds")
 parser.add_argument("--float16", dest="float16", action="store_true", help="use float16")
 parser.set_defaults(verbose=False)
 opt = parser.parse_args()
@@ -155,5 +166,6 @@ with open(opt.config) as f:
 IMAGE_RESOLUTION = int(opt.resolution)
 BATCH_SIZE = int(opt.batch_size)
 USE_FLOAT_16 = opt.float16
+SLEEP_DUR = float(opt.sleep_dur)
 generator = OcclusionAwareGenerator(**config['model_params']['generator_params'],**config['model_params']['common_params'])
 time_generator(generator)
