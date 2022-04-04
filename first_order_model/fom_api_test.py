@@ -3,7 +3,7 @@ import imageio
 import numpy as np
 import time
 
-video_name = "/video-conf/scratch/vibhaa/custom_dataset/test/vibhaa_smiling_modified.mp4"
+video_name = "/video-conf/scratch/pantea/1024_short_clips_pantea/test/idPani_10_2.mp4"
 video_array = np.array(imageio.mimread(video_name))
 
 source = video_array[0, :, :, :]
@@ -13,6 +13,11 @@ model.update_source(0, source, source_kp)
 predictions = []
 times = []
 source_update_frequency = 1000
+
+# warm-up
+for _ in range(100):
+    source_kp['source_index'] = 0
+    _ = model.predict(source_kp)
 
 for i in range(1, len(video_array) - 1):
     if i % source_update_frequency == 0:

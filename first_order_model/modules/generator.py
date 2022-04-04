@@ -99,6 +99,7 @@ class OcclusionAwareGenerator(nn.Module):
         self.source_image = None
         self.update_source = True
         self.encoder_output = None
+        self.skip_connections = None
 
     def deform_input(self, inp, deformation):
         _, h_old, w_old, _ = deformation.shape
@@ -128,11 +129,11 @@ class OcclusionAwareGenerator(nn.Module):
             hr_out = None
             if self.use_hr_skip_connections or self.encode_hr_input_with_additional_blocks:
                 hr_out = self.hr_first(source_image)
-                skip_connections = [hr_out] if self.use_hr_skip_connections else []
+                self.skip_connections = [hr_out] if self.use_hr_skip_connections else []
                 for block in self.hr_down_blocks:
                     hr_out = block(hr_out)
                     if self.use_hr_skip_connections:
-                        skip_connections.append(hr_out)
+                        self.skip_connections.append(hr_out)
             
             out = hr_out if self.encode_hr_input_with_additional_blocks else self.first(resized_source_image)
             for block in self.down_blocks: 
@@ -171,6 +172,8 @@ class OcclusionAwareGenerator(nn.Module):
         out = self.bottleneck(out)
         for block in self.up_blocks:
             out = block(out)
+        if self.skip_connections is not None:
+            skip_connections = [x.clone() for x in self.skip_connections]
         
         for block in self.hr_up_blocks:
             if self.use_hr_skip_connections:
