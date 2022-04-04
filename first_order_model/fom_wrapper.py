@@ -151,9 +151,9 @@ class FirstOrderModel(KeypointBasedFaceModels):
         return new_kp_dict
 
 
-    def predict(self, target_keypoints, source_index):
+    def predict(self, target_keypoints):
         """ takes target keypoints and returns an RGB image for the prediction """
-        #source_index = target_keypoints['source_index']
+        source_index = target_keypoints['source_index']
         assert(source_index in self.source_keypoints)
         assert(source_index in self.source_frames) 
 	
