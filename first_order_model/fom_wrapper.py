@@ -127,7 +127,7 @@ class FirstOrderModel(KeypointBasedFaceModels):
         """
         if len(self.source_frames) == 0:
             return -1
-        return len(self.source_frames) - 1
+        return list(self.source_frames.keys())[-1]
 
 
     def convert_kp_dict_to_tensors(self, keypoint_dict):

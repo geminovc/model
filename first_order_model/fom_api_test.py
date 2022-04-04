@@ -22,10 +22,9 @@ for i in range(1, len(video_array) - 1):
 
     driving = video_array[i, :, :, :] 
     target_kp, source_index = model.extract_keypoints(driving)
-    print(source_index)
-    start = time.time()
+    start = time.perf_counter()
     predictions.append(model.predict(target_kp, source_index))
-    times.append(time.time() - start)
+    times.append(time.perf_counter() - start)
 
 print(f"Average prediction time per frame is {sum(times)/len(times)}s.")    
 imageio.mimsave('prediction.mp4', predictions)
