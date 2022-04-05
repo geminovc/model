@@ -127,7 +127,7 @@ class FirstOrderModel(KeypointBasedFaceModels):
             and update source frame list if need be
         """
         if len(self.source_frames) == 0:
-            return -1
+            return 0
         return list(self.source_frames.keys())[-1]
 
 
