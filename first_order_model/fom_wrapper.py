@@ -30,7 +30,7 @@ from keypoint_based_face_models import KeypointBasedFaceModels
     prediction = model.predict(target_kp))
 """
 class FirstOrderModel(KeypointBasedFaceModels):
-    def __init__(self, config_path):
+    def __init__(self, config_path, checkpoint='None'):
         super(FirstOrderModel, self).__init__()
         
         with open(config_path) as f:
@@ -52,8 +52,11 @@ class FirstOrderModel(KeypointBasedFaceModels):
         if torch.cuda.is_available():
             self.kp_detector.to(device)
 
+        self.shape = config['dataset_params']['frame_shape']
+
         # initialize weights
-        checkpoint = config['checkpoint_params']['checkpoint_path']
+        if checkpoint == 'None':
+            checkpoint = config['checkpoint_params']['checkpoint_path']
         Logger.load_cpk(checkpoint, generator=self.generator, 
                 kp_detector=self.kp_detector, device=device, 
                 dense_motion_network=self.generator.dense_motion_network)
@@ -70,6 +73,10 @@ class FirstOrderModel(KeypointBasedFaceModels):
         self.times = []
         self.start = torch.cuda.Event(enable_timing=timing_enabled)
         self.end = torch.cuda.Event(enable_timing=timing_enabled)
+
+
+    def get_shape(self):
+        return tuple(self.shape)
 
 
     def reset(self):

@@ -1,6 +1,19 @@
 checkpoint_params:
     checkpoint_path: '/video-conf/scratch/vibhaa_mm_log_directory/pantea1024_hr_skip_connections_augmented_new_layers_alone_trained 17_03_22_16.06.03/00000026-checkpoint.pth.tar'
 
+dataset_params:
+  root_dir: /video-conf/scratch/pantea/fom_personalized_512
+  frame_shape: [1024, 1024, 3]
+  augmentation_params:
+    flip_param:
+      horizontal_flip: True
+      time_flip: True
+    jitter_param:
+      brightness: 0.1
+      contrast: 0.1
+      saturation: 0.1
+      hue: 0.1
+
 model_params:
   common_params:
     num_kp: 10

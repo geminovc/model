@@ -11,6 +11,8 @@ dataset_params:
       saturation: 0.1
       hue: 0.1
 
+checkpoint_params:
+    checkpoint_path: '/video-conf/scratch/vibhaa_tardy/jen_psaki_512 28_03_22_21.45.03/00000099-checkpoint.pth.tar'
 
 model_params:
   common_params:
