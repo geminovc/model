@@ -7,6 +7,7 @@ video_name = "/video-conf/scratch/pantea/1024_short_clips_pantea/test/idPani_10_
 video_array = np.array(imageio.mimread(video_name))
 
 source = video_array[0, :, :, :]
+old_source = source
 model = FirstOrderModel("config/api_sample.yaml")
 source_kp, _= model.extract_keypoints(source)
 model.update_source(0, source, source_kp)
@@ -24,12 +25,17 @@ for i in range(1, len(video_array) - 1):
         source = video_array[i, :, :, :]
         source_kp, _= model.extract_keypoints(source)
         model.update_source(len(model.source_frames), source, source_kp) 
-
+    
+    if np.array_equal(source, old_source):
+        update_source = False
+    else:
+        update_source = True
+        old_source = source
     driving = video_array[i, :, :, :] 
     target_kp, source_index = model.extract_keypoints(driving)
     target_kp['source_index'] = source_index
     start = time.perf_counter()
-    predictions.append(model.predict(target_kp))
+    predictions.append(model.predict(target_kp, update_source))
     times.append(time.perf_counter() - start)
 
 print(f"Average prediction time per frame is {sum(times)/len(times)}s.")    

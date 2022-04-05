@@ -117,9 +117,9 @@ def time_generator(model):
     x0, x1, x2, x3, x4 = get_random_inputs("generator")
     if USE_FLOAT_16:
         model.half()
-        model_inputs = [x0, {'value':x1}, {'value':x3}]
+        model_inputs = [x0, {'value':x1}, {'value':x3}, False]
     else:
-        model_inputs = [x0, {'value':x1, 'jacobian':x2}, {'value':x3, 'jacobian':x4}]
+        model_inputs = [x0, {'value':x1, 'jacobian':x2}, {'value':x3, 'jacobian':x4}, False]
 
     if USE_CUDA:
         model.cuda()
@@ -134,6 +134,7 @@ def time_generator(model):
     total_times = []
     times_dict = { 'first_time': [], 'down_blocks_time': [],'dense_motion_time':[],'deform_input_time':[],
                   'bottleneck_time': [], 'up_blocks_time': [], 'final_time': []}
+    #with torch.autograd.profiler.emit_nvtx():
     with torch.no_grad():
         for rep in range(NUM_RUNS):
             starter.record()
@@ -142,6 +143,7 @@ def time_generator(model):
             # WAIT FOR GPU SYNC
             torch.cuda.synchronize()
             curr_time = starter.elapsed_time(ender)
+            print(curr_time)
             total_times.append(curr_time)
             for key in time_dict.keys():
                 times_dict[key].append(time_dict[key])

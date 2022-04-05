@@ -110,11 +110,11 @@ class OcclusionAwareGenerator(nn.Module):
             deformation = deformation.permute(0, 2, 3, 1)
         return F.grid_sample(inp, deformation), deformation
 
-    def forward(self, source_image, kp_driving, kp_source):
+    def forward(self, source_image, kp_driving, kp_source, update_source=False):
         if self.source_image is None:
             self.update_source = True
         else:
-            self.update_source = not torch.all(self.source_image == source_image).item()
+            self.update_source = update_source #not torch.all(self.source_image == source_image).item()
 
         if self.update_source:
             self.source_image = source_image

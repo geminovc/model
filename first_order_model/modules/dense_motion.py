@@ -59,7 +59,7 @@ class DenseMotionNetwork(nn.Module):
         heatmap = gaussian_driving - self.gaussian_source
 
         #adding background feature
-        zeros = torch.zeros(heatmap.shape[0], 1, spatial_size[0], spatial_size[1]).type(heatmap.type())
+        zeros = torch.zeros(heatmap.shape[0], 1, spatial_size[0], spatial_size[1], dtype=heatmap.dtype, device=heatmap.device)
         heatmap = torch.cat([zeros, heatmap], dim=1)
         heatmap = heatmap.unsqueeze(2)
 

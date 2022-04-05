@@ -151,7 +151,7 @@ class FirstOrderModel(KeypointBasedFaceModels):
         return new_kp_dict
 
 
-    def predict(self, target_keypoints):
+    def predict(self, target_keypoints, update_source=False):
         """ takes target keypoints and returns an RGB image for the prediction """
         source_index = target_keypoints['source_index']
         assert(source_index in self.source_keypoints)
@@ -161,7 +161,7 @@ class FirstOrderModel(KeypointBasedFaceModels):
         target_kp_tensors = self.convert_kp_dict_to_tensors(target_keypoints)
         #self.start.record()
         out = self.generator(self.source_frames[source_index], \
-                kp_source=source_kp_tensors, kp_driving=target_kp_tensors)
+                kp_source=source_kp_tensors, kp_driving=target_kp_tensors, update_source=update_source)
         #self.end.record()
         #torch.cuda.synchronize()
         #last_val = self.start.elapsed_time(self.end)
