@@ -114,7 +114,7 @@ class OcclusionAwareGenerator(nn.Module):
         if self.source_image is None:
             self.update_source = True
         else:
-            self.update_source = update_source #not torch.all(self.source_image == source_image).item()
+            self.update_source = update_source
 
         if self.update_source:
             self.source_image = source_image

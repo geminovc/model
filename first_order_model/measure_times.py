@@ -3,7 +3,6 @@ from torch import nn
 from torch.autograd import grad
 from torch.optim.lr_scheduler import MultiStepLR
 from torch.utils.data import DataLoader
-# from mmcv.ops.point_sample import bilinear_grid_sample
 import yaml
 import csv
 import imageio 

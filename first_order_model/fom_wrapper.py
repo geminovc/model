@@ -160,14 +160,8 @@ class FirstOrderModel(KeypointBasedFaceModels):
 	
         source_kp_tensors = self.source_keypoints[source_index]
         target_kp_tensors = self.convert_kp_dict_to_tensors(target_keypoints)
-        #self.start.record()
         out = self.generator(self.source_frames[source_index], \
                 kp_source=source_kp_tensors, kp_driving=target_kp_tensors, update_source=update_source)
-        #self.end.record()
-        #torch.cuda.synchronize()
-        #last_val = self.start.elapsed_time(self.end)
-        #self.times.append(last_val)
-        #print(np.mean(self.times), len(self.times), last_val)
 
         prediction = torch.mul(out['prediction'][0], 255).to(torch.uint8)
         prediction_cpu = prediction.data.cpu().numpy()
