@@ -55,7 +55,7 @@ train_params:
   skip_generator_loading: False
   train_only_generator: False
   train_only_upsample_layers: False
-  num_epochs: 100
+  num_epochs: 70
   num_repeats: 15
   epoch_milestones: [60, 90]
   lr_generator: 2.0e-4
