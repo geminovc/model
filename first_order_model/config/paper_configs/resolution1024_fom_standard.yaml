@@ -1,5 +1,5 @@
 dataset_params:
-  root_dir: /video-conf/scratch/pantea/fom_personalized_512
+  root_dir: /video-conf/scratch/pantea/fom_personalized_1024
   frame_shape: [1024, 1024, 3]
   augmentation_params:
     flip_param:

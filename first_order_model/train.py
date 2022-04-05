@@ -49,7 +49,7 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
             start_epoch = Logger.load_cpk(checkpoint, generator, discriminator, kp_detector,
                                       optimizer_generator, optimizer_discriminator,
                                       None if train_params['lr_kp_detector'] == 0 else optimizer_kp_detector, 
-                                      dense_motion_network=generator.dense_motion_network))
+                                      dense_motion_network=generator.dense_motion_network)
     else:
         start_epoch = 0
 

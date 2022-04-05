@@ -1,5 +1,5 @@
 dataset_params:
-  root_dir: /video-conf/scratch/pantea/fom_personalized_512
+  root_dir: /video-conf/scratch/pantea/fom_personalized_1024
   frame_shape: [1024, 1024, 3]
   augmentation_params:
     flip_param:
@@ -35,7 +35,7 @@ model_params:
     run_at_256: True
     upsample_factor: 4
     use_hr_skip_connections: True
-    hr_features: 32
+    hr_features: 16
     encode_hr_input_with_additional_blocks: False
     dense_motion_params:
       block_expansion: 64

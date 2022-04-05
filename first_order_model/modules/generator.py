@@ -43,8 +43,7 @@ class OcclusionAwareGenerator(nn.Module):
         
         self.upsample_factor = upsample_factor
         upsample_levels = round(math.log(upsample_factor, 2))
-        hr_starting_depth = block_expansion // (2 ** upsample_levels) if encode_hr_input_with_additional_blocks\
-                else hr_features
+        hr_starting_depth = hr_features if use_hr_skip_connections else block_expansion // (2 ** upsample_levels) 
 
         # first layer either designed for 256x256 input or HR input
         self.first = SameBlock2d(num_channels, block_expansion, kernel_size=(7, 7), padding=(3, 3))
@@ -91,8 +90,7 @@ class OcclusionAwareGenerator(nn.Module):
         for i in range(num_bottleneck_blocks):
             self.bottleneck.add_module('r' + str(i), ResBlock2d(in_features, kernel_size=(3, 3), padding=(1, 1)))
 
-        final_input_features = hr_starting_depth if self.use_hr_skip_connections or self.encode_hr_input_with_additional_blocks \
-                else block_expansion
+        final_input_features = hr_starting_depth if upsample_levels > 0 else block_expansion
         self.final = nn.Conv2d(final_input_features, num_channels, kernel_size=(7, 7), padding=(3, 3))
         self.estimate_occlusion_map = estimate_occlusion_map
         self.num_channels = num_channels
