@@ -3,17 +3,17 @@ import imageio
 import numpy as np
 import time
 
-video_name = "/video-conf/scratch/pantea/1024_short_clips_pantea/test/idPani_10_2.mp4"
+video_name = "/video-conf/scratch/vibhaa/custom_dataset/test/vibhaa_smiling_modified.mp4"
 video_array = np.array(imageio.mimread(video_name))
 
 source = video_array[0, :, :, :]
-old_source = source
-model = FirstOrderModel("config/api_sample.yaml")
+model = FirstOrderModel("config/fom_original.yaml")
 source_kp, _= model.extract_keypoints(source)
 model.update_source(0, source, source_kp)
+old_source_index = 0
 predictions = []
 times = []
-source_update_frequency = 1000
+source_update_frequency = 5
 
 # warm-up
 for _ in range(100):
@@ -26,14 +26,14 @@ for i in range(1, len(video_array) - 1):
         source_kp, _= model.extract_keypoints(source)
         model.update_source(len(model.source_frames), source, source_kp) 
     
-    if np.array_equal(source, old_source):
-        update_source = False
-    else:
-        update_source = True
-        old_source = source
     driving = video_array[i, :, :, :] 
     target_kp, source_index = model.extract_keypoints(driving)
     target_kp['source_index'] = source_index
+    if source_index == old_source_index:
+        update_source = False
+    else:
+        update_source = True
+        old_source_index = source_index
     start = time.perf_counter()
     predictions.append(model.predict(target_kp, update_source))
     times.append(time.perf_counter() - start)

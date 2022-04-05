@@ -29,7 +29,7 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
     if checkpoint is not None:
         if train_params.get('skip_generator_loading', False):
             # set optimizers and discriminator to None to avoid bogus values and to start training from scratch
-            start_epoch = Logger.load_cpk(checkpoint, generator, None, kp_detector,
+            start_epoch = Logger.load_cpk(checkpoint, None, None, kp_detector,
                                       None, None, None, dense_motion_network=generator.dense_motion_network)
             start_epoch = 0
         elif generator_params.get('upsample_factor', 1) > 1:
@@ -48,7 +48,8 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
         else:
             start_epoch = Logger.load_cpk(checkpoint, generator, discriminator, kp_detector,
                                       optimizer_generator, optimizer_discriminator,
-                                      None if train_params['lr_kp_detector'] == 0 else optimizer_kp_detector, None)
+                                      None if train_params['lr_kp_detector'] == 0 else optimizer_kp_detector, 
+                                      dense_motion_network=generator.dense_motion_network))
     else:
         start_epoch = 0
 
