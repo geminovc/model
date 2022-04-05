@@ -137,9 +137,12 @@ class FramesDataset(Dataset):
             video_array = [img_as_float32(io.imread(os.path.join(path, frames[idx]))) for idx in frame_idx]
         else:
             num_frames = get_num_frames(path)
-            frame_idx = np.sort(np.random.choice(num_frames, replace=True, size=2)) if self.is_train else range(
+            frame_idx = np.sort(np.random.choice(num_frames - 1, replace=True, size=2)) if self.is_train else range(
             num_frames)
-            video_array = np.array([get_frame(path, frame_idx[0]), get_frame(path, frame_idx[1])]) 
+            try:
+                video_array = np.array([get_frame(path, frame_idx[0]), get_frame(path, frame_idx[1])])
+            except:
+                print("Couldn't get indices", frame_idx, "of video", path, "with", num_frames, "total frames")
 
         if self.transform is not None:
             video_array = self.transform(video_array)
