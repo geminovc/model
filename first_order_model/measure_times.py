@@ -1,3 +1,7 @@
+""" This files measures the prediction time statistics of FOM after warm-up for NUM_RUNS rounds.
+    You should make a change at modules/generator.py file. In the forward function, change 
+    output_dict to output_dict, {}.
+"""
 import torch
 from torch import nn
 from torch.autograd import grad
@@ -133,7 +137,6 @@ def time_generator(model):
     total_times = []
     times_dict = { 'first_time': [], 'down_blocks_time': [],'dense_motion_time':[],'deform_input_time':[],
                   'bottleneck_time': [], 'up_blocks_time': [], 'final_time': []}
-    #with torch.autograd.profiler.emit_nvtx():
     with torch.no_grad():
         for rep in range(NUM_RUNS):
             starter.record()
