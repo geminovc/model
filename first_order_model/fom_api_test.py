@@ -13,7 +13,7 @@ model.update_source(0, source, source_kp)
 old_source_index = 0
 predictions = []
 times = []
-source_update_frequency = 5
+source_update_frequency = 1800
 
 # warm-up
 for _ in range(100):
