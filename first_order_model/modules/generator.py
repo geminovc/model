@@ -172,12 +172,11 @@ class OcclusionAwareGenerator(nn.Module):
         out = self.bottleneck(out)
         for block in self.up_blocks:
             out = block(out)
-        if self.skip_connections is not None:
-            skip_connections = [x.clone() for x in self.skip_connections]
-        
-        for block in self.hr_up_blocks:
+
+        for i in range(len(self.hr_up_blocks)):
+            block = self.hr_up_blocks[i]
             if self.use_hr_skip_connections:
-                skip = skip_connections.pop()
+                skip = self.skip_connections[len(self.skip_connections) - 1 - i]
                 skip, _ = self.deform_input(skip, deformation)
                 out = torch.cat([out, skip], dim=1)
             out = block(out)
