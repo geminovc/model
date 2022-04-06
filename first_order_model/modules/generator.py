@@ -94,6 +94,10 @@ class OcclusionAwareGenerator(nn.Module):
         self.final = nn.Conv2d(final_input_features, num_channels, kernel_size=(7, 7), padding=(3, 3))
         self.estimate_occlusion_map = estimate_occlusion_map
         self.num_channels = num_channels
+        self.source_image = None
+        self.update_source = True
+        self.encoder_output = None
+        self.skip_connections = None
 
     def deform_input(self, inp, deformation):
         _, h_old, w_old, _ = deformation.shape
@@ -104,25 +108,36 @@ class OcclusionAwareGenerator(nn.Module):
             deformation = deformation.permute(0, 2, 3, 1)
         return F.grid_sample(inp, deformation), deformation
 
-    def forward(self, source_image, kp_driving, kp_source):
-        if self.run_at_256:
-            resized_source_image = F.interpolate(source_image, 256)
+    def forward(self, source_image, kp_driving, kp_source, update_source=False):
+        if self.source_image is None:
+            self.update_source = True
         else:
-            resized_source_image = source_image
+            self.update_source = update_source
+
+        if self.update_source:
+            self.source_image = source_image
         
         # Encoding (downsampling) part
-        hr_out = None
-        if self.use_hr_skip_connections or self.encode_hr_input_with_additional_blocks:
-            hr_out = self.hr_first(source_image)
-            skip_connections = [hr_out] if self.use_hr_skip_connections else []
-            for block in self.hr_down_blocks:
-                hr_out = block(hr_out)
-                if self.use_hr_skip_connections:
-                    skip_connections.append(hr_out)
-        
-        out = hr_out if self.encode_hr_input_with_additional_blocks else self.first(resized_source_image)
-        for block in self.down_blocks: 
-            out = block(out)
+        if self.encoder_output is None or self.update_source:
+            if self.run_at_256:
+                resized_source_image = F.interpolate(source_image, 256)
+            else:
+                resized_source_image = source_image
+            
+            hr_out = None
+            if self.use_hr_skip_connections or self.encode_hr_input_with_additional_blocks:
+                hr_out = self.hr_first(source_image)
+                self.skip_connections = [hr_out] if self.use_hr_skip_connections else []
+                for block in self.hr_down_blocks:
+                    hr_out = block(hr_out)
+                    if self.use_hr_skip_connections:
+                        self.skip_connections.append(hr_out)
+            
+            out = hr_out if self.encode_hr_input_with_additional_blocks else self.first(resized_source_image)
+            for block in self.down_blocks: 
+                out = block(out)
+
+            self.encoder_output = out
 
         # Transforming feature representation according to deformation and occlusion
         output_dict = {}
@@ -138,7 +153,7 @@ class OcclusionAwareGenerator(nn.Module):
             else:
                 occlusion_map = None
             deformation = dense_motion['deformation']
-            out, _ = self.deform_input(out, deformation)
+            out, _ = self.deform_input(self.encoder_output, deformation)
 
             if occlusion_map is not None:
                 if out.shape[2] != occlusion_map.shape[2] or out.shape[3] != occlusion_map.shape[3]:
@@ -155,10 +170,11 @@ class OcclusionAwareGenerator(nn.Module):
         out = self.bottleneck(out)
         for block in self.up_blocks:
             out = block(out)
-        
-        for block in self.hr_up_blocks:
+
+        for i in range(len(self.hr_up_blocks)):
+            block = self.hr_up_blocks[i]
             if self.use_hr_skip_connections:
-                skip = skip_connections.pop()
+                skip = self.skip_connections[len(self.skip_connections) - 1 - i]
                 skip, _ = self.deform_input(skip, deformation)
                 out = torch.cat([out, skip], dim=1)
             out = block(out)

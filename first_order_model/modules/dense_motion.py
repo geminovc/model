@@ -2,6 +2,8 @@ from torch import nn
 import torch.nn.functional as F
 import torch
 from first_order_model.modules.util import Hourglass, AntiAliasInterpolation2d, make_coordinate_grid, kp2gaussian
+import time
+import numpy as np
 
 class DenseMotionNetwork(nn.Module):
     """
@@ -37,6 +39,13 @@ class DenseMotionNetwork(nn.Module):
         if self.scale_factor != 1:
             self.down = AntiAliasInterpolation2d(num_channels, self.scale_factor)
 
+        # saving state to reduce computation
+        self.source_image = None
+        self.update_source = True
+        self.gaussian_source = None
+        self.source_repeat = None
+        self.identity_grid = None
+    
     def create_heatmap_representations(self, source_image, kp_driving, kp_source):
         """
         Eq 6. in the paper H_k(z)
@@ -44,11 +53,13 @@ class DenseMotionNetwork(nn.Module):
         spatial_size = source_image.shape[2:]
         pixel_heatmap = None
         gaussian_driving = kp2gaussian(kp_driving, spatial_size=spatial_size, kp_variance=self.kp_variance)
-        gaussian_source = kp2gaussian(kp_source, spatial_size=spatial_size, kp_variance=self.kp_variance)
-        heatmap = gaussian_driving - gaussian_source
+        if self.update_source or self.gaussian_source == None:
+            self.gaussian_source = kp2gaussian(kp_source, spatial_size=spatial_size, kp_variance=self.kp_variance)
+
+        heatmap = gaussian_driving - self.gaussian_source
 
         #adding background feature
-        zeros = torch.zeros(heatmap.shape[0], 1, spatial_size[0], spatial_size[1]).type(heatmap.type())
+        zeros = torch.zeros(heatmap.shape[0], 1, spatial_size[0], spatial_size[1], dtype=heatmap.dtype, device=heatmap.device)
         heatmap = torch.cat([zeros, heatmap], dim=1)
         heatmap = heatmap.unsqueeze(2)
 
@@ -59,7 +70,7 @@ class DenseMotionNetwork(nn.Module):
             pf_source = kp_source['pixel_features'].unsqueeze(3).unsqueeze(4)
 
             gaussian_driving = gaussian_driving.unsqueeze(2)
-            gaussian_source = gaussian_source.unsqueeze(2)
+            gaussian_source = self.gaussian_source.unsqueeze(2)
 
             pixel_gaussian_driving = pf_driving * gaussian_driving
             pixel_gaussian_source = pf_source * gaussian_source
@@ -76,9 +87,10 @@ class DenseMotionNetwork(nn.Module):
         Eq 4. in the paper T_{s<-d}(z)
         """
         bs, _, h, w = source_image.shape
-        identity_grid = make_coordinate_grid((h, w), type=kp_source['value'].type())
-        identity_grid = identity_grid.view(1, 1, h, w, 2)
-        coordinate_grid = identity_grid - kp_driving['value'].view(bs, self.num_kp, 1, 1, 2)
+        if self.identity_grid is None or self.update_source:
+            self.identity_grid = make_coordinate_grid((h, w), type=kp_source['value'].type())
+            self.identity_grid = self.identity_grid.view(1, 1, h, w, 2)
+        coordinate_grid = self.identity_grid - kp_driving['value'].view(bs, self.num_kp, 1, 1, 2)
         if 'jacobian' in kp_driving:
             jacobian = torch.matmul(kp_source['jacobian'], torch.inverse(kp_driving['jacobian']))
             jacobian = jacobian.unsqueeze(-3).unsqueeze(-3)
@@ -89,7 +101,7 @@ class DenseMotionNetwork(nn.Module):
         driving_to_source = coordinate_grid + kp_source['value'].view(bs, self.num_kp, 1, 1, 2)
 
         #adding background feature
-        identity_grid = identity_grid.repeat(bs, 1, 1, 1, 1)
+        identity_grid = self.identity_grid.repeat(bs, 1, 1, 1, 1)
         sparse_motions = torch.cat([identity_grid, driving_to_source], dim=1)
         return sparse_motions
 
@@ -98,10 +110,11 @@ class DenseMotionNetwork(nn.Module):
         Eq 7. in the paper \hat{T}_{s<-d}(z)
         """
         bs, _, h, w = source_image.shape
-        source_repeat = source_image.unsqueeze(1).unsqueeze(1).repeat(1, self.num_kp + 1, 1, 1, 1, 1)
-        source_repeat = source_repeat.view(bs * (self.num_kp + 1), -1, h, w)
+        if self.source_repeat is None or self.update_source:
+            self.source_repeat = source_image.unsqueeze(1).unsqueeze(1).repeat(1, self.num_kp + 1, 1, 1, 1, 1)
+            self.source_repeat = self.source_repeat.view(bs * (self.num_kp + 1), -1, h, w)
         sparse_motions = sparse_motions.view((bs * (self.num_kp + 1), h, w, -1))
-        sparse_deformed = F.grid_sample(source_repeat, sparse_motions)
+        sparse_deformed = F.grid_sample(self.source_repeat, sparse_motions)
         sparse_deformed = sparse_deformed.view((bs, self.num_kp + 1, -1, h, w))
         return sparse_deformed
 
@@ -111,6 +124,14 @@ class DenseMotionNetwork(nn.Module):
 
         if self.scale_factor != 1:
             source_image = self.down(source_image)
+
+        if self.source_image is None:
+            self.update_source = True
+        else:
+            self.update_source = not torch.all(self.source_image == source_image).item()
+
+        if self.update_source:
+            self.source_image = source_image
 
         bs, _, h, w = source_image.shape
 
