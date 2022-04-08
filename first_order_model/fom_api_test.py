@@ -6,11 +6,21 @@ from argparse import ArgumentParser
 from frames_dataset import get_num_frames, get_frame
 
 parser = ArgumentParser()
-parser.add_argument("--config", default="config/paper_configs/resolution512_with_hr_skip_connections.yaml", help="path to config")
-parser.add_argument("--video_path", default="512_kayleigh_10_second_0_1.mp4", help="path to the video")
-parser.add_argument("--output_name", default="prediction", help="name of the output file to be saved")
-parser.add_argument("--output_fps", default=30, help="fps of the final video")
-parser.add_argument("--source_update_frequency", default=1800, help="source update frequency")
+parser.add_argument("--config", 
+                    default="config/paper_configs/resolution512_with_hr_skip_connections.yaml",
+                    help="path to config")
+parser.add_argument("--video_path",
+                    default="512_kayleigh_10_second_0_1.mp4",
+                    help="path to the video")
+parser.add_argument("--output_name",
+                    default="prediction",
+                    help="name of the output file to be saved")
+parser.add_argument("--output_fps",
+                    default=30,
+                    help="fps of the final video")
+parser.add_argument("--source_update_frequency",
+                    default=1800,
+                    help="source update frequency")
 parser.set_defaults(verbose=False)
 opt = parser.parse_args()
 
@@ -19,6 +29,7 @@ model = FirstOrderModel(opt.config)
 video_name = opt.video_path
 num_frames = get_num_frames(video_name)
 print(num_frames)
+
 source = get_frame(video_name, 0, ifnormalize=False)
 source_kp, _= model.extract_keypoints(source)
 model.update_source(0, source, source_kp)
