@@ -58,10 +58,12 @@ def get_num_frames(filename):
     return num_frames
 
 
-def get_frame(filename, frame_num):
+def get_frame(filename, frame_num, ifnormalize=True):
     reader = imageio.get_reader(filename, "ffmpeg")
     reader.set_image_index(frame_num)
-    frame = img_as_float32(np.array(reader.get_next_data()))
+    frame = np.array(reader.get_next_data())
+    if ifnormalize:
+        frame = img_as_float32(frame)
     reader.close()
     return frame
 
