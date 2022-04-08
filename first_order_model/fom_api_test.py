@@ -31,7 +31,7 @@ for _ in range(100):
     source_kp['source_index'] = 0
     _ = model.predict(source_kp)
 
-for i in range(0, num_frames + 1):
+for i in range(0, num_frames):
     print(i)
     if i % opt.source_update_frequency == 0:
         source = get_frame(video_name, i, ifnormalize=False)
