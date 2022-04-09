@@ -116,29 +116,29 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
         with torch.no_grad():
             predictions = []
             visualizations = []
+            video_name = x['video_path'][0]
+            reader = imageio.get_reader(video_name, "ffmpeg")
             device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-            last_prediction = frame_to_tensor(get_frame(x['video_path'][0], 0), device).cpu().numpy()
-            if torch.cuda.is_available():
-                x['video'] = x['video'].cuda()
-            
-            source = frame_to_tensor(get_frame(x['video_path'][0], 0), device)
-            start.record()
-            kp_source = kp_detector(source)
-            end.record()
-            torch.cuda.synchronize()
-            
             if timing_enabled:
                 source_time = start.elapsed_time(end)
                 driving_times, generator_times, visualization_times = [], [], []
 
-            for frame_idx in range(get_num_frames(x['video_path'][0])):
+            frame_idx = 0
+            for frame in reader:
+                if frame_idx == 0:
+                    source = frame_to_tensor(frame, device)
+                    start.record()
+                    kp_source = kp_detector(source)
+                    end.record()
+                    torch.cuda.synchronize()
+
                 if reference_frame_update_freq is not None:
                     if frame_idx % reference_frame_update_freq == 0:
                         source = frame_to_tensor(get_frame(x['video_path'][0], frame_idx), device) 
                         kp_source = kp_detector(source)
-                else:
-                    source = frame_to_tensor(get_frame(x['video_path'][0], 0), device)
-                driving = frame_to_tensor(get_frame(x['video_path'][0], frame_idx), device)
+                
+                driving = frame_to_tensor(frame, device)
+                frame_idx += 1
                 
                 start.record()
                 kp_driving = kp_detector(driving)
