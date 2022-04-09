@@ -158,7 +158,7 @@ class GeneratorFullModel(torch.nn.Module):
         kp_source = self.kp_extractor(x['source'])
         kp_driving = self.kp_extractor(x['driving'])
 
-        generated = self.generator(x['source'], kp_source=kp_source, kp_driving=kp_driving)
+        generated = self.generator(x['source'], kp_source=kp_source, kp_driving=kp_driving, update_source=True)
         generated.update({'kp_source': kp_source, 'kp_driving': kp_driving})
 
         loss_values = {}
