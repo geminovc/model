@@ -70,7 +70,7 @@ class Logger:
 
         image = self.visualizer.visualize(input_data['driving'], input_data['source'], output)
         self.writer.add_image(f'metrics{iteration}', image, self.epoch, dataformats='HWC')
-        metrics = get_visual_metrics(output['prediction'], input_data['driving'], loss_fn_vgg)
+        metrics = Logger.get_visual_metrics(output['prediction'], input_data['driving'], loss_fn_vgg)
         for name, value in metrics.items():
             self.metrics_averages[name].append(value)
 
