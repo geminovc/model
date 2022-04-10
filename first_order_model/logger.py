@@ -5,7 +5,6 @@ import imageio
 
 import os
 from skimage.draw import circle
-from skimage.metrics import structural_similarity
 
 import matplotlib.pyplot as plt
 import collections
@@ -13,6 +12,7 @@ import tensorboardX
 import flow_vis
 from skimage.metrics import peak_signal_noise_ratio
 from skimage.metrics import structural_similarity
+import piq
 
 
 class Logger:
@@ -48,16 +48,15 @@ class Logger:
 
 
     """ get visual metrics for the model's reconstruction """
-    def get_visual_metrics(self, prediction, original, loss_fn_vgg):
+    @staticmethod
+    def get_visual_metrics(prediction, original, loss_fn_vgg):
         if torch.cuda.is_available():
             original = original.cuda()
             prediction = prediction.cuda()
         lpips_val = loss_fn_vgg(original, prediction).data.cpu().numpy().flatten()[0]
         
-        prediction = np.transpose(prediction.data.cpu().numpy(), [0, 2, 3, 1])[0]
-        original = np.transpose(original.data.cpu().numpy(), [0, 2, 3, 1])[0]
-        psnr = peak_signal_noise_ratio(original, prediction, data_range=1)
-        ssim = structural_similarity(original, prediction, multichannel=True, data_range=1)
+        ssim = piq.ssim(original, prediction, data_range=1.).data.cpu().numpy().flatten()[0]
+        psnr = piq.psnr(original, prediction, data_range=1., reduction='none').data.cpu().numpy()
         
         return {'psnr': psnr, 'ssim': ssim, 'lpips': lpips_val}
 
@@ -71,7 +70,7 @@ class Logger:
 
         image = self.visualizer.visualize(input_data['driving'], input_data['source'], output)
         self.writer.add_image(f'metrics{iteration}', image, self.epoch, dataformats='HWC')
-        metrics = self.get_visual_metrics(output['prediction'], input_data['driving'], loss_fn_vgg)
+        metrics = get_visual_metrics(output['prediction'], input_data['driving'], loss_fn_vgg)
         for name, value in metrics.items():
             self.metrics_averages[name].append(value)
 
