@@ -10,7 +10,7 @@ from skimage.metrics import peak_signal_noise_ratio
 from skimage import img_as_float32
 from skimage.metrics import structural_similarity
 from frames_dataset import get_num_frames, get_frame
-import lpips
+from modules.model import Vgg19
 
 """ helper to get size of nested parameter list """
 def get_size_of_nested_list(list_of_elem):
@@ -82,12 +82,13 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
     metrics_file = open(os.path.join(log_dir, experiment_name + '_metrics_summary.txt'), 'wt')
     loss_list = []
     visual_metrics = []
-    loss_fn_vgg = lpips.LPIPS(net='vgg')
+    vgg_model = Vgg19()
     if torch.cuda.is_available():
         generator = DataParallelWithCallback(generator)
         kp_detector = DataParallelWithCallback(kp_detector)
-        loss_fn_vgg = loss_fn_vgg.cuda()
+        vgg_model = vgg_model.cuda()
  
+    loss_fn_vgg = vgg_model.compute_loss
     generator.eval()
     kp_detector.eval()
 

@@ -48,6 +48,17 @@ class Vgg19(torch.nn.Module):
         out = [h_relu1, h_relu2, h_relu3, h_relu4, h_relu5]
         return out
 
+    def compute_loss(self, X, Y, weights=[10, 10, 10, 10, 10]):
+        X_vgg = self.forward(X)
+        Y_vgg = self.forward(Y)
+
+        loss_val = 0
+        diffs = [(x - y)**2 for x, y in zip(X_vgg, Y_vgg)]
+        for d, w in zip(diffs, weights):
+            loss_val += w * d.mean()
+        loss_val /= np.sum(weights)
+        return loss_val
+
 
 class ImagePyramide(torch.nn.Module):
     """
