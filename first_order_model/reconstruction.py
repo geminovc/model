@@ -1,6 +1,7 @@
 import os
 from tqdm import tqdm
 import torch
+import torch.nn.functional as F
 from torch.utils.data import DataLoader
 from logger import Logger, Visualizer
 import numpy as np
@@ -126,6 +127,7 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
                         kp_source = kp_detector(source)
                 
                 driving = frame_to_tensor(frame, device)
+                driving_64x64 =  F.interpolate(driving, 64)
                 frame_idx += 1
                 
                 start.record()
@@ -136,7 +138,7 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
                     driving_times.append(start.elapsed_time(end))
                 
                 start.record()
-                out = generator(source, kp_source=kp_source, kp_driving=kp_driving)
+                out = generator(source, kp_source=kp_source, kp_driving=kp_driving, driving_64x64=driving_64x64)
                 end.record()
                 torch.cuda.synchronize()
                 if timing_enabled:

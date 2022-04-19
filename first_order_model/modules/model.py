@@ -167,8 +167,11 @@ class GeneratorFullModel(torch.nn.Module):
     def forward(self, x):
         kp_source = self.kp_extractor(x['source'])
         kp_driving = self.kp_extractor(x['driving'])
+        driving_64x64 =  F.interpolate(x['driving'], 64)
 
-        generated = self.generator(x['source'], kp_source=kp_source, kp_driving=kp_driving, update_source=True)
+        generated = self.generator(x['source'], kp_source=kp_source, 
+                kp_driving=kp_driving, update_source=True, 
+                driving_64x64=driving_64x64)
         generated.update({'kp_source': kp_source, 'kp_driving': kp_driving})
 
         loss_values = {}

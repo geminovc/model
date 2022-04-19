@@ -90,7 +90,7 @@ class Logger:
     @staticmethod
     def load_cpk(checkpoint_path, generator=None, discriminator=None, kp_detector=None,
                  optimizer_generator=None, optimizer_discriminator=None, optimizer_kp_detector=None, 
-                 device='gpu', dense_motion_network=None, upsampling_enabled=False, 
+                 device='gpu', dense_motion_network=None, upsampling_enabled=False, use_64x64_video=False, 
                  hr_skip_connections=False, run_at_256=True):
 
         if device == torch.device('cpu'):
@@ -112,6 +112,10 @@ class Logger:
             else:
                 modified_generator_params = {k: v for k, v in checkpoint['generator'].items() \
                     if not (k.startswith("final") or k.startswith("sigmoid") or k.startswith('first'))}
+
+            if use_64x64_video:
+                modified_generator_params = {k: v for k, v in modified_generator_params.items() \
+                    if not k.startswith("up_blocks")}
             generator.load_state_dict(modified_generator_params, strict=False)
         elif generator is not None and dense_motion_network is None:
             gen_params = checkpoint['generator']

@@ -15,7 +15,8 @@ class OcclusionAwareGenerator(nn.Module):
                  num_bottleneck_blocks, estimate_occlusion_map=False, 
                  predict_pixel_features=False, num_pixel_features=0, 
                  run_at_256=False, upsample_factor=1, use_hr_skip_connections=False,
-                 dense_motion_params=None, estimate_jacobian=False, encode_hr_input_with_additional_blocks=False, 
+                 dense_motion_params=None, estimate_jacobian=False, encode_hr_input_with_additional_blocks=False,
+                 use_64x64_video=False, lr_features=32,
                  hr_features=16):
         super(OcclusionAwareGenerator, self).__init__()
 
@@ -31,6 +32,7 @@ class OcclusionAwareGenerator(nn.Module):
         self.run_at_256 = run_at_256
         self.use_hr_skip_connections = use_hr_skip_connections
         self.encode_hr_input_with_additional_blocks = encode_hr_input_with_additional_blocks
+        self.use_64x64_video = use_64x64_video
 
         if use_hr_skip_connections:
             assert run_at_256, "Skip connections require parallel 256 FOM pipeline"
@@ -50,6 +52,10 @@ class OcclusionAwareGenerator(nn.Module):
         if self.use_hr_skip_connections or self.encode_hr_input_with_additional_blocks:
             input_features = hr_features if self.use_hr_skip_connections else hr_starting_depth
             self.hr_first = SameBlock2d(num_channels, input_features, kernel_size=(7, 7), padding=(3, 3))
+
+        # first layer for LR 64x64 input
+        if self.use_64x64_video:
+            self.lr_first = SameBlock2d(num_channels, lr_features, kernel_size=(7, 7), padding=(3, 3))
 
         # enabling extra blocks for bringing higher resolution down
         hr_down_blocks = []
@@ -72,6 +78,9 @@ class OcclusionAwareGenerator(nn.Module):
         up_blocks = []
         for i in range(num_down_blocks):
             in_features =  min(max_features, block_expansion * (2 ** (num_down_blocks - i)))
+            if i == 0 and self.use_64x64_video:
+                in_features += lr_features
+
             out_features = min(max_features, block_expansion * (2 ** (num_down_blocks - i - 1)))
             up_blocks.append(UpBlock2d(in_features, out_features, kernel_size=(3, 3), padding=(1, 1)))
         self.up_blocks = nn.ModuleList(up_blocks)
@@ -108,7 +117,7 @@ class OcclusionAwareGenerator(nn.Module):
             deformation = deformation.permute(0, 2, 3, 1)
         return F.grid_sample(inp, deformation), deformation
 
-    def forward(self, source_image, kp_driving, kp_source, update_source=False):
+    def forward(self, source_image, kp_driving, kp_source, update_source=False, driving_64x64=None):
         if self.source_image is None:
             self.update_source = True
         else:
@@ -139,6 +148,10 @@ class OcclusionAwareGenerator(nn.Module):
 
             self.encoder_output = out
 
+        # lr target image encoding
+        if self.use_64x64_video:
+            lr_encoded_features = self.lr_first(driving_64x64)
+
         # Transforming feature representation according to deformation and occlusion
         output_dict = {}
         if self.dense_motion_network is not None:
@@ -168,7 +181,14 @@ class OcclusionAwareGenerator(nn.Module):
 
         # Decoding part
         out = self.bottleneck(out)
-        for block in self.up_blocks:
+        for i, block in enumerate(self.up_blocks):
+            if i == 0 and self.use_64x64_video:
+                out_shape = list(out.shape)
+                out_shape.pop(1)
+                lr_shape = list(lr_encoded_features.shape)
+                lr_shape.pop(1)
+                assert out_shape == lr_shape, "Dimensions mismatch in LR video input and rest of pipeline"
+                out = torch.cat([out, lr_encoded_features], dim=1)
             out = block(out)
 
         for i in range(len(self.hr_up_blocks)):

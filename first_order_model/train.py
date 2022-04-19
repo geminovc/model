@@ -35,8 +35,10 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
         elif generator_params.get('upsample_factor', 1) > 1:
             hr_skip_connections = generator_params.get('use_hr_skip_connections', False)
             run_at_256 = generator_params.get('run_at_256', True)
+            use_64x64_video = generator_params.get('use_64x64_video', False)
             start_epoch = Logger.load_cpk(checkpoint, generator, discriminator, kp_detector,
-                                      None, None, None, None, upsampling_enabled=True, 
+                                      None, None, None, None, upsampling_enabled=True,
+                                      use_64x64_video=use_64x64_video,
                                       hr_skip_connections=hr_skip_connections, run_at_256=run_at_256)
             start_epoch = 0
         elif train_params.get('train_everything_but_generator', False):
