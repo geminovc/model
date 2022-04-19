@@ -12,7 +12,7 @@ dataset_params:
       hue: 0.1
 
 checkpoint_params:
-    checkpoint_path: '/video-conf/scratch/vibhaa_tardy/jen_psaki_512 28_03_22_21.45.03/00000099-checkpoint.pth.tar'
+    checkpoint_path: '/video-conf/scratch/vibhaa_mm_arjun_directory/needle_drop_with_hr_skip_connections 11_04_22_16.54.29/00000069-checkpoint.pth.tar'
 
 model_params:
   common_params:
