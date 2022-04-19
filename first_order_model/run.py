@@ -12,6 +12,7 @@ from frames_dataset import FramesDataset
 from voxceleb2_dataset import Voxceleb2Dataset
 
 from modules.generator import OcclusionAwareGenerator
+from modules.sr_generator import SuperResolutionGenerator
 from modules.discriminator import MultiScaleDiscriminator
 from modules.keypoint_detector import KPDetector
 
@@ -51,7 +52,13 @@ if __name__ == "__main__":
         log_dir = os.path.join(opt.log_dir, opt.experiment_name)
         log_dir += ' ' + strftime("%d_%m_%y_%H.%M.%S", gmtime())
 
-    generator = OcclusionAwareGenerator(**config['model_params']['generator_params'],
+    generator_params = config['model_params']['generator_params']
+    generator_type = generator_params.get('generator_type', 'occlusion_aware')
+    if generator_type == 'occlusion_aware':
+        generator = OcclusionAwareGenerator(**config['model_params']['generator_params'],
+                                        **config['model_params']['common_params'])
+    else:
+        generator = SuperResolutionGenerator(**config['model_params']['generator_params'],
                                         **config['model_params']['common_params'])
 
     if torch.cuda.is_available():
@@ -66,14 +73,16 @@ if __name__ == "__main__":
     if opt.verbose:
         print(discriminator)
 
-    kp_detector = KPDetector(**config['model_params']['kp_detector_params'],
+    if generator_type == 'occlusion_aware':
+        kp_detector = KPDetector(**config['model_params']['kp_detector_params'],
                              **config['model_params']['common_params'])
+        if torch.cuda.is_available():
+            kp_detector.to(opt.device_ids[0])
 
-    if torch.cuda.is_available():
-        kp_detector.to(opt.device_ids[0])
-
-    if opt.verbose:
-        print(kp_detector)
+        if opt.verbose:
+            print(kp_detector)
+    else:
+        kp_detector = None
 
     config['dataset_params']['person_id'] = opt.person_id
     if "voxceleb2" in config['dataset_params']['root_dir']:

@@ -17,7 +17,7 @@ class OcclusionAwareGenerator(nn.Module):
                  run_at_256=False, upsample_factor=1, use_hr_skip_connections=False,
                  dense_motion_params=None, estimate_jacobian=False, encode_hr_input_with_additional_blocks=False,
                  use_64x64_video=False, lr_features=32,
-                 hr_features=16):
+                 hr_features=16, generator_type='occlusion_aware'):
         super(OcclusionAwareGenerator, self).__init__()
 
         if dense_motion_params is not None:

@@ -164,15 +164,20 @@ class GeneratorFullModel(torch.nn.Module):
             if torch.cuda.is_available():
                 self.vgg = self.vgg.cuda()
 
-    def forward(self, x):
-        kp_source = self.kp_extractor(x['source'])
-        kp_driving = self.kp_extractor(x['driving'])
+    def forward(self, x, generator_type='occlusion_aware'):
         driving_64x64 =  F.interpolate(x['driving'], 64)
+        
+        if generator_type == 'occlusion_aware':
+            kp_source = self.kp_extractor(x['source'])
+            kp_driving = self.kp_extractor(x['driving'])
+            generated = self.generator(x['source'], kp_source=kp_source, 
+                    kp_driving=kp_driving, update_source=True, 
+                    driving_64x64=driving_64x64)
+            generated.update({'kp_source': kp_source, 'kp_driving': kp_driving})
+        
+        else:
+            generated = self.generator(driving_64x64)
 
-        generated = self.generator(x['source'], kp_source=kp_source, 
-                kp_driving=kp_driving, update_source=True, 
-                driving_64x64=driving_64x64)
-        generated.update({'kp_source': kp_source, 'kp_driving': kp_driving})
 
         loss_values = {}
 
@@ -204,8 +209,13 @@ class GeneratorFullModel(torch.nn.Module):
                 loss_values['perceptual'] = value_total
 
         if self.loss_weights['generator_gan'] != 0:
-            discriminator_maps_generated = self.discriminator(disc_pyramide_generated, kp=detach_kp(kp_driving))
-            discriminator_maps_real = self.discriminator(disc_pyramide_real, kp=detach_kp(kp_driving))
+            if generator_type == 'occlusion_aware':
+                discriminator_maps_generated = self.discriminator(disc_pyramide_generated, kp=detach_kp(kp_driving))
+                discriminator_maps_real = self.discriminator(disc_pyramide_real, kp=detach_kp(kp_driving))
+            else:
+                discriminator_maps_generated = self.discriminator(disc_pyramide_generated)
+                discriminator_maps_real = self.discriminator(disc_pyramide_real)
+
             value_total = 0
             for scale in self.disc_scales:
                 key = 'prediction_map_%s' % scale
@@ -284,9 +294,13 @@ class DiscriminatorFullModel(torch.nn.Module):
         pyramide_real = self.pyramid(real_input)
         pyramide_generated = self.pyramid(generated_input)
 
-        kp_driving = generated['kp_driving']
-        discriminator_maps_generated = self.discriminator(pyramide_generated, kp=detach_kp(kp_driving))
-        discriminator_maps_real = self.discriminator(pyramide_real, kp=detach_kp(kp_driving))
+        if 'kp_driving' in generated:
+            kp_driving = generated['kp_driving']
+            discriminator_maps_generated = self.discriminator(pyramide_generated, kp=detach_kp(kp_driving))
+            discriminator_maps_real = self.discriminator(pyramide_real, kp=detach_kp(kp_driving))
+        else:
+            discriminator_maps_generated = self.discriminator(pyramide_generated)
+            discriminator_maps_real = self.discriminator(pyramide_real)
 
         loss_values = {}
         value_total = 0

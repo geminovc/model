@@ -18,15 +18,20 @@ import lpips
 def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, dataset, device_ids):
     train_params = config['train_params'] 
     generator_params = config['model_params']['generator_params']
+    generator_type = generator_params.get('generator_type', 'occlusion_aware')
     if config['model_params']['discriminator_params'].get('conditional_gan', False):
         train_params['conditional_gan'] = True
         assert(train_params['skip_generator_loading'])
 
     optimizer_generator = torch.optim.Adam(generator.parameters(), lr=train_params['lr_generator'], betas=(0.5, 0.999))
     optimizer_discriminator = torch.optim.Adam(discriminator.parameters(), lr=train_params['lr_discriminator'], betas=(0.5, 0.999))
-    optimizer_kp_detector = torch.optim.Adam(kp_detector.parameters(), lr=train_params['lr_kp_detector'], betas=(0.5, 0.999))
+    if kp_detector is not None:
+        optimizer_kp_detector = torch.optim.Adam(kp_detector.parameters(), 
+                lr=train_params['lr_kp_detector'], betas=(0.5, 0.999))
+    else:
+        optimizer_kp_detector = None
 
-    if checkpoint is not None:
+    if checkpoint is not None and generator_type == "occlusion_aware":
         if train_params.get('skip_generator_loading', False):
             # set optimizers and discriminator to None to avoid bogus values and to start training from scratch
             start_epoch = Logger.load_cpk(checkpoint, None, None, kp_detector,
@@ -52,6 +57,12 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
                                       optimizer_generator, optimizer_discriminator,
                                       None if train_params['lr_kp_detector'] == 0 else optimizer_kp_detector, 
                                       dense_motion_network=generator.dense_motion_network)
+
+    elif checkpoint is not None and generator_type == "super_resolution":
+            start_epoch = Logger.load_cpk(checkpoint, generator, discriminator, None,
+                                      optimizer_generator, optimizer_discriminator,
+                                      None, dense_motion_network=None, run_at_256=run_at_256, 
+                                      generator_type=generator_type)
     else:
         start_epoch = 0
 
@@ -59,19 +70,21 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
                                       last_epoch=start_epoch - 1)
     scheduler_discriminator = MultiStepLR(optimizer_discriminator, train_params['epoch_milestones'], gamma=0.1,
                                           last_epoch=start_epoch - 1)
-    scheduler_kp_detector = MultiStepLR(optimizer_kp_detector, train_params['epoch_milestones'], gamma=0.1,
+    if kp_detector is not None:
+        scheduler_kp_detector = MultiStepLR(optimizer_kp_detector, train_params['epoch_milestones'], gamma=0.1,
                                         last_epoch=-1 + start_epoch * (train_params['lr_kp_detector'] != 0))
 
     # train only generator parameters and keep dense motion/keypoint stuff frozen
     if train_params.get('train_only_generator', False) and checkpoint is not None:
-        for param in kp_detector.parameters():
-            param.requires_grad = False
-        ev_loss = train_params['loss_weights']['equivariance_value']
-        ev_jacobian = train_params['loss_weights']['equivariance_jacobian']
-        assert ev_loss == 0 and ev_jacobian == 0, "Equivariance losses must be 0 to freeze keypoint detector"
+        if kp_detector is not None:
+            for param in kp_detector.parameters():
+                param.requires_grad = False
+            ev_loss = train_params['loss_weights']['equivariance_value']
+            ev_jacobian = train_params['loss_weights']['equivariance_jacobian']
+            assert ev_loss == 0 and ev_jacobian == 0, "Equivariance losses must be 0 to freeze keypoint detector"
 
-        for param in generator.dense_motion_network.parameters():
-            param.requires_grad = False
+            for param in generator.dense_motion_network.parameters():
+                param.requires_grad = False
     elif train_params.get('train_everything_but_generator', False) and checkpoint is not None:
         for param in generator.parameters():
             param.requires_grad = False
@@ -81,11 +94,12 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
 
     # train only new layers added to increase resolution while keeping the rest of the pipeline frozen
     if train_params.get('train_only_non_fom_layers', False) and checkpoint is not None:
-        for param in kp_detector.parameters():
-            param.requires_grad = False
-        ev_loss = train_params['loss_weights']['equivariance_value']
-        ev_jacobian = train_params['loss_weights']['equivariance_jacobian']
-        assert ev_loss == 0 and ev_jacobian == 0, "Equivariance losses must be 0 to freeze keypoint detector"
+        if kp_detector is not None:
+            for param in kp_detector.parameters():
+                param.requires_grad = False
+            ev_loss = train_params['loss_weights']['equivariance_value']
+            ev_jacobian = train_params['loss_weights']['equivariance_jacobian']
+            assert ev_loss == 0 and ev_jacobian == 0, "Equivariance losses must be 0 to freeze keypoint detector"
 
         for name, param in generator.named_parameters():
             if not(name.startswith("sigmoid") or name.startswith("hr") or name.startswith("final")):
@@ -113,7 +127,7 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
     with Logger(log_dir=log_dir, visualizer_params=config['visualizer_params'], checkpoint_freq=train_params['checkpoint_freq']) as logger:
         for epoch in trange(start_epoch, train_params['num_epochs']):
             for x in dataloader:
-                losses_generator, generated = generator_full(x)
+                losses_generator, generated = generator_full(x, generator_type)
 
                 if epoch == 0:
                     break
@@ -124,8 +138,10 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
                 loss.backward()
                 optimizer_generator.step()
                 optimizer_generator.zero_grad()
-                optimizer_kp_detector.step()
-                optimizer_kp_detector.zero_grad()
+
+                if optimizer_kp_detector is not None:
+                    optimizer_kp_detector.step()
+                    optimizer_kp_detector.zero_grad()
 
                 if train_params['loss_weights']['generator_gan'] != 0:
                     optimizer_discriminator.zero_grad()

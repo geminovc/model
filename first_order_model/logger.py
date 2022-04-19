@@ -81,7 +81,7 @@ class Logger:
         self.writer.add_image('reconstruction', image, self.epoch, dataformats='HWC')
 
     def save_cpk(self, emergent=False):
-        cpk = {k: v.state_dict() for k, v in self.models.items()}
+        cpk = {k: v.state_dict() for k, v in self.models.items() if v is not None}
         cpk['epoch'] = self.epoch
         cpk_path = os.path.join(self.cpk_dir, '%s-checkpoint.pth.tar' % str(self.epoch).zfill(self.zfill_num)) 
         if not (os.path.exists(cpk_path) and emergent):
@@ -91,7 +91,7 @@ class Logger:
     def load_cpk(checkpoint_path, generator=None, discriminator=None, kp_detector=None,
                  optimizer_generator=None, optimizer_discriminator=None, optimizer_kp_detector=None, 
                  device='gpu', dense_motion_network=None, upsampling_enabled=False, use_64x64_video=False, 
-                 hr_skip_connections=False, run_at_256=True):
+                 hr_skip_connections=False, run_at_256=True, generator_type='occlusion_aware'):
 
         if device == torch.device('cpu'):
             checkpoint = torch.load(checkpoint_path, map_location=torch.device('cpu'))
@@ -117,7 +117,7 @@ class Logger:
                 modified_generator_params = {k: v for k, v in modified_generator_params.items() \
                     if not k.startswith("up_blocks")}
             generator.load_state_dict(modified_generator_params, strict=False)
-        elif generator is not None and dense_motion_network is None:
+        elif generator is not None and dense_motion_network is None and generator_type == 'occlusion_aware':
             gen_params = checkpoint['generator']
             gen_params_but_dense_motion_params = {k: gen_params[k] for k in gen_params.keys() if not k.startswith('dense_motion_network')}
             generator.load_state_dict(gen_params_but_dense_motion_params, strict=False)
@@ -227,9 +227,10 @@ class Visualizer:
 
         # Source image with keypoints
         source = source.data.cpu()
-        kp_source = out['kp_source']['value'].data.cpu().numpy()
         source = np.transpose(source, [0, 2, 3, 1])
-        images.append((source, kp_source))
+        if 'kp_source' in out:
+            kp_source = out['kp_source']['value'].data.cpu().numpy()
+            images.append((source, kp_source))
 
         # Equivariance visualization
         if 'transformed_frame' in out:
@@ -239,10 +240,11 @@ class Visualizer:
             images.append((transformed, transformed_kp))
 
         # Driving image with keypoints
-        kp_driving = out['kp_driving']['value'].data.cpu().numpy()
-        driving = driving.data.cpu().numpy()
         driving = np.transpose(driving, [0, 2, 3, 1])
-        images.append((driving, kp_driving))
+        if 'kp_driving' in out:
+            kp_driving = out['kp_driving']['value'].data.cpu().numpy()
+            driving = driving.data.cpu().numpy()
+            images.append((driving, kp_driving))
         images.append(driving)
 
         # Deformed image
