@@ -61,7 +61,7 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
     elif checkpoint is not None and generator_type == "super_resolution":
             start_epoch = Logger.load_cpk(checkpoint, generator, discriminator, None,
                                       optimizer_generator, optimizer_discriminator,
-                                      None, dense_motion_network=None, run_at_256=run_at_256, 
+                                      None, dense_motion_network=None, 
                                       generator_type=generator_type)
     else:
         start_epoch = 0
@@ -73,6 +73,8 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
     if kp_detector is not None:
         scheduler_kp_detector = MultiStepLR(optimizer_kp_detector, train_params['epoch_milestones'], gamma=0.1,
                                         last_epoch=-1 + start_epoch * (train_params['lr_kp_detector'] != 0))
+    else:
+        scheduler_kp_detector = None
 
     # train only generator parameters and keep dense motion/keypoint stuff frozen
     if train_params.get('train_only_generator', False) and checkpoint is not None:
@@ -162,7 +164,8 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
             if epoch > 0:
                 scheduler_generator.step()
                 scheduler_discriminator.step()
-                scheduler_kp_detector.step()
+                if scheduler_kp_detector is not None:
+                    scheduler_kp_detector.step()
            
             # record a standard set of metrics
             if metrics_dataloader is not None:

@@ -240,10 +240,10 @@ class Visualizer:
             images.append((transformed, transformed_kp))
 
         # Driving image with keypoints
+        driving = driving.data.cpu().numpy()
         driving = np.transpose(driving, [0, 2, 3, 1])
         if 'kp_driving' in out:
             kp_driving = out['kp_driving']['value'].data.cpu().numpy()
-            driving = driving.data.cpu().numpy()
             images.append((driving, kp_driving))
         images.append(driving)
 
