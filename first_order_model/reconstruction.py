@@ -173,17 +173,27 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
                     visualization_times.append(start.elapsed_time(end))
                 visualizations.append(visualization)
 
+                if frame_idx % 50 == 0:
+                    print(f'saving {frame_idx} frames')
+                    if save_visualizations_as_images:
+                        for i, v in enumerate(visualizations):
+                            frame_name = x['name'][0] + '_frame' + str(frame_idx - 50 + i) + '.png'
+                            imageio.imsave(os.path.join(visualization_dir, frame_name), v)
+                    image_name = f"{x['name'][0]}_{frame_idx}_{config['reconstruction_params']['format']}"
+                    imageio.mimsave(os.path.join(log_dir, image_name), visualizations)
+                    visualizations = []
+
                 loss_list.append(torch.abs(out['prediction'] - driving).mean().cpu().numpy())
                 visual_metrics.append(Logger.get_visual_metrics(out['prediction'], driving, loss_fn_vgg))
                 
                 last_prediction = np.transpose(out['prediction'].data.cpu().numpy(), [0, 2, 3, 1])[0]
                 predictions.append(np.transpose(out['prediction'].data.cpu().numpy(), [0, 2, 3, 1])[0])
 
+            """
             predictions = np.concatenate(predictions, axis=1)
             imageio.imsave(os.path.join(png_dir, x['name'][0] + '.png'), 
                     (255 * predictions).astype(np.uint8))
-
-            image_name = x['name'][0] + config['reconstruction_params']['format']
+            """
 
             psnr, ssim, lpips_val = get_avg_visual_metrics(visual_metrics)
             metrics_file.write("%s PSNR: %s, SSIM: %s, LPIPS: %s\n" % (x['name'][0], 
@@ -192,10 +202,11 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
 
             if save_visualizations_as_images:
                 for i, v in enumerate(visualizations):
-                    frame_name = x['name'][0] + '_frame' + str(i) + '.png'
+                    frame_name = x['name'][0] + '_frame' + str(frame_idx - len(visualizations) + i) + '.png'
                     imageio.imsave(os.path.join(visualization_dir, frame_name), v)
-
+            image_name = f"{x['name'][0]}_{frame_idx}_{config['reconstruction_params']['format']}"
             imageio.mimsave(os.path.join(log_dir, image_name), visualizations)
+            visualizations = []
             
             if timing_enabled:
                 print("source keypoints:", source_time, "driving:", np.average(driving_times), \
