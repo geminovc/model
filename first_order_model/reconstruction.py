@@ -31,15 +31,16 @@ def get_model_info(log_dir, kp_detector, generator):
         for model, name in zip([kp_detector, generator], ['kp', 'generator']):
             number_of_trainable_parameters = 0
             total_number_of_parameters = 0
-            for param in model.parameters():
-                total_number_of_parameters += get_size_of_nested_list(list(param))
-                if param.requires_grad:
-                    number_of_trainable_parameters += get_size_of_nested_list(list(param))
+            if model is not None:
+                for param in model.parameters():
+                    total_number_of_parameters += get_size_of_nested_list(list(param))
+                    if param.requires_grad:
+                        number_of_trainable_parameters += get_size_of_nested_list(list(param))
 
-            model_file.write('%s %s: %s\n' % (name, 'total_number_of_parameters', \
-                    str(total_number_of_parameters)))
-            model_file.write('%s %s: %s\n' % (name, 'number_of_trainable_parameters', \
-                    str(number_of_trainable_parameters)))
+                model_file.write('%s %s: %s\n' % (name, 'total_number_of_parameters', \
+                        str(total_number_of_parameters)))
+                model_file.write('%s %s: %s\n' % (name, 'number_of_trainable_parameters', \
+                        str(number_of_trainable_parameters)))
 
 """ get average of visual metrics across all frames
 """
@@ -80,18 +81,23 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
     if not os.path.exists(visualization_dir):
         os.makedirs(visualization_dir)
     
+    generator_params = config['model_params']['generator_params']
+    generator_type = generator_params.get('generator_type', 'occlusion_aware')
+    
     metrics_file = open(os.path.join(log_dir, experiment_name + '_metrics_summary.txt'), 'wt')
     loss_list = []
     visual_metrics = []
     vgg_model = Vgg19()
     if torch.cuda.is_available():
         generator = DataParallelWithCallback(generator)
-        kp_detector = DataParallelWithCallback(kp_detector)
+        if kp_detector is not None:
+            kp_detector = DataParallelWithCallback(kp_detector)
         vgg_model = vgg_model.cuda()
  
     loss_fn_vgg = vgg_model.compute_loss
     generator.eval()
-    kp_detector.eval()
+    if kp_detector is not None:
+        kp_detector.eval()
 
     # get number of model parameters and timing stats
     get_model_info(log_dir, kp_detector, generator)
@@ -114,39 +120,49 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
             frame_idx = 0
             for frame in reader:
                 frame = img_as_float32(frame)
-                if frame_idx == 0:
+                if frame_idx == 0: 
                     source = frame_to_tensor(frame, device)
-                    start.record()
-                    kp_source = kp_detector(source)
-                    end.record()
-                    torch.cuda.synchronize()
-
-                if reference_frame_update_freq is not None:
-                    if frame_idx % reference_frame_update_freq == 0:
-                        source = frame_to_tensor(frame, device) 
+                
+                if kp_detector is not None:
+                    if frame_idx == 0: 
+                        source = frame_to_tensor(frame, device)
+                        start.record()
                         kp_source = kp_detector(source)
+                        end.record()
+                        torch.cuda.synchronize()
+
+                    if reference_frame_update_freq is not None:
+                        if frame_idx % reference_frame_update_freq == 0:
+                            source = frame_to_tensor(frame, device) 
+                            kp_source = kp_detector(source)
                 
                 driving = frame_to_tensor(frame, device)
                 driving_64x64 =  F.interpolate(driving, 64)
                 frame_idx += 1
                 
-                start.record()
-                kp_driving = kp_detector(driving)
-                end.record()
-                torch.cuda.synchronize()
-                if timing_enabled:
-                    driving_times.append(start.elapsed_time(end))
+                if kp_detector is not None:
+                    start.record()
+                    kp_driving = kp_detector(driving)
+                    end.record()
+                    torch.cuda.synchronize()
+                    if timing_enabled:
+                        driving_times.append(start.elapsed_time(end))
                 
                 start.record()
-                out = generator(source, kp_source=kp_source, kp_driving=kp_driving, driving_64x64=driving_64x64)
+                if generator_type == 'occlusion_aware':
+                    out = generator(source, kp_source=kp_source, \
+                            kp_driving=kp_driving, driving_64x64=driving_64x64)
+                else:
+                    out = generator(driving_64x64)
                 end.record()
                 torch.cuda.synchronize()
                 if timing_enabled:
                     generator_times.append(start.elapsed_time(end))
                 
-                out['kp_source'] = kp_source
-                out['kp_driving'] = kp_driving
-                del out['sparse_deformed']
+                if kp_detector is not None:
+                    out['kp_source'] = kp_source
+                    out['kp_driving'] = kp_driving
+                    del out['sparse_deformed']
 
                 start.record()
                 visualization = Visualizer(**config['visualizer_params']).visualize(source=source,
