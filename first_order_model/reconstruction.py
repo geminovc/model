@@ -66,10 +66,18 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
     log_dir = os.path.join(log_dir, 'reconstruction' + '_' + experiment_name)
     png_dir = os.path.join(log_dir, 'png')
     visualization_dir = os.path.join(log_dir, 'visualization')
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    generator_params = config['model_params']['generator_params']
+    generator_type = generator_params.get('generator_type', 'occlusion_aware')
+    
     if checkpoint is not None:
-        Logger.load_cpk(checkpoint, generator=generator, kp_detector=kp_detector)
+        dense_motion = generator.dense_motion_network if generator_type == 'occlusion_aware' else None
+        Logger.load_cpk(checkpoint, generator=generator, 
+                kp_detector=kp_detector, device=device, 
+                dense_motion_network=dense_motion, generator_type=generator_type)
     else:
         raise AttributeError("Checkpoint should be specified for mode='reconstruction'.")
+    
     dataloader = DataLoader(dataset, batch_size=1, shuffle=False, num_workers=1)
 
     if not os.path.exists(log_dir):
@@ -81,8 +89,6 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
     if not os.path.exists(visualization_dir):
         os.makedirs(visualization_dir)
     
-    generator_params = config['model_params']['generator_params']
-    generator_type = generator_params.get('generator_type', 'occlusion_aware')
     
     metrics_file = open(os.path.join(log_dir, experiment_name + '_metrics_summary.txt'), 'wt')
     loss_list = []
@@ -120,6 +126,7 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
             frame_idx = 0
             for frame in reader:
                 frame = img_as_float32(frame)
+                update_source = False
                 if frame_idx == 0: 
                     source = frame_to_tensor(frame, device)
                 
@@ -130,11 +137,13 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
                         kp_source = kp_detector(source)
                         end.record()
                         torch.cuda.synchronize()
+                        update_source = True
 
                     if reference_frame_update_freq is not None:
                         if frame_idx % reference_frame_update_freq == 0:
                             source = frame_to_tensor(frame, device) 
                             kp_source = kp_detector(source)
+                            update_source = True
                 
                 driving = frame_to_tensor(frame, device)
                 driving_64x64 =  F.interpolate(driving, 64)
@@ -151,7 +160,7 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
                 start.record()
                 if generator_type == 'occlusion_aware':
                     out = generator(source, kp_source=kp_source, \
-                            kp_driving=kp_driving, driving_64x64=driving_64x64)
+                            kp_driving=kp_driving, update_source=update_source, driving_64x64=driving_64x64)
                 else:
                     out = generator(driving_64x64)
                 end.record()
