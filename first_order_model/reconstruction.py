@@ -195,8 +195,8 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
                 loss_list.append(torch.abs(out['prediction'] - driving).mean().cpu().numpy())
                 visual_metrics.append(Logger.get_visual_metrics(out['prediction'], driving, loss_fn_vgg))
                 
-                last_prediction = np.transpose(out['prediction'].data.cpu().numpy(), [0, 2, 3, 1])[0]
-                predictions.append(np.transpose(out['prediction'].data.cpu().numpy(), [0, 2, 3, 1])[0])
+                #last_prediction = np.transpose(out['prediction'].data.cpu().numpy(), [0, 2, 3, 1])[0]
+                #predictions.append(np.transpose(out['prediction'].data.cpu().numpy(), [0, 2, 3, 1])[0])
 
             """
             predictions = np.concatenate(predictions, axis=1)
