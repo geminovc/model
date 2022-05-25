@@ -1,11 +1,10 @@
 from torch import nn
 import torch
 import torch.nn.functional as F
-from modules.util import AntiAliasInterpolation2d, make_coordinate_grid
+from first_order_model.modules.util import AntiAliasInterpolation2d, make_coordinate_grid
 from torchvision import models
 import numpy as np
 from torch.autograd import grad
-
 
 class Vgg19(torch.nn.Module):
     """
@@ -48,6 +47,17 @@ class Vgg19(torch.nn.Module):
         h_relu5 = self.slice5(h_relu4)
         out = [h_relu1, h_relu2, h_relu3, h_relu4, h_relu5]
         return out
+
+    def compute_loss(self, X, Y, weights=[10, 10, 10, 10, 10]):
+        X_vgg = self.forward(X)
+        Y_vgg = self.forward(Y)
+
+        loss_val = 0
+        diffs = [(x - y)**2 for x, y in zip(X_vgg, Y_vgg)]
+        for d, w in zip(diffs, weights):
+            loss_val += w * d.mean()
+        loss_val /= np.sum(weights)
+        return loss_val
 
 
 class ImagePyramide(torch.nn.Module):
@@ -158,7 +168,7 @@ class GeneratorFullModel(torch.nn.Module):
         kp_source = self.kp_extractor(x['source'])
         kp_driving = self.kp_extractor(x['driving'])
 
-        generated = self.generator(x['source'], kp_source=kp_source, kp_driving=kp_driving)
+        generated = self.generator(x['source'], kp_source=kp_source, kp_driving=kp_driving, update_source=True)
         generated.update({'kp_source': kp_source, 'kp_driving': kp_driving})
 
         loss_values = {}

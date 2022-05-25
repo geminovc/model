@@ -68,6 +68,7 @@ class FirstOrderModel(KeypointBasedFaceModels):
         # placeholders for source information
         self.source_keypoints = {}
         self.source_frames = {}
+        self.last_source_index = -1
    
         timing_enabled = True
         self.times = []
@@ -82,6 +83,10 @@ class FirstOrderModel(KeypointBasedFaceModels):
     def reset(self):
         """ reset stats """
         self.times = []
+        self.source_keypoints.clear()
+        self.source_frames.clear()
+        self.last_source_index = -1
+
 
 
     def update_source(self, index, source_frame, source_keypoints):
@@ -159,12 +164,15 @@ class FirstOrderModel(KeypointBasedFaceModels):
         return new_kp_dict
 
 
-    def predict(self, target_keypoints, update_source=False):
+    def predict(self, target_keypoints):
         """ takes target keypoints and returns an RGB image for the prediction """
         source_index = target_keypoints['source_index']
         assert(source_index in self.source_keypoints)
         assert(source_index in self.source_frames) 
-	
+        
+        update_source = not (source_index == self.last_source_index)
+        self.last_source_index = source_index
+        
         source_kp_tensors = self.source_keypoints[source_index]
         target_kp_tensors = self.convert_kp_dict_to_tensors(target_keypoints)
         out = self.generator(self.source_frames[source_index], \
