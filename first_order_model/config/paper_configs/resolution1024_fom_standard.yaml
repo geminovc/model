@@ -1,8 +1,6 @@
 dataset_params:
-  root_dir: /video-conf/scratch/vibhaa/voxceleb_original 
-  frame_shape: [256, 256, 3]
-  id_sampling: True
-  pairs_list: data/vox256.csv
+  root_dir: /video-conf/scratch/pantea/fom_personalized_1024
+  frame_shape: [1024, 1024, 3]
   augmentation_params:
     flip_param:
       horizontal_flip: True
@@ -13,6 +11,8 @@ dataset_params:
       saturation: 0.1
       hue: 0.1
 
+checkpoint_params:
+    checkpoint_path: '/video-conf/scratch/vibhaa_tardy/jen_psaki_512 28_03_22_21.45.03/00000099-checkpoint.pth.tar'
 
 model_params:
   common_params:
@@ -25,34 +25,45 @@ model_params:
      max_features: 1024
      scale_factor: 0.25
      num_blocks: 5
+     run_at_256: True
   generator_params:
     block_expansion: 64
     max_features: 512
     num_down_blocks: 2
     num_bottleneck_blocks: 6
     estimate_occlusion_map: True
+    run_at_256: False
+    upsample_factor: 1
+    use_hr_skip_connections: False
+    hr_features: 32
+    encode_hr_input_with_additional_blocks: False
     dense_motion_params:
       block_expansion: 64
       max_features: 1024
       num_blocks: 5
       scale_factor: 0.25
+      run_at_256: True
   discriminator_params:
     scales: [1]
     block_expansion: 32
     max_features: 512
     num_blocks: 4
     sn: True
+    conditional_gan: False
 
 train_params:
-  num_epochs: 500
+  skip_generator_loading: False
+  train_only_generator: False
+  train_only_upsample_layers: False
+  num_epochs: 170
   num_repeats: 15
-  epoch_milestones: [300, 450]
+  epoch_milestones: [60, 90]
   lr_generator: 2.0e-4
   lr_discriminator: 2.0e-4
   lr_kp_detector: 2.0e-4
   batch_size: 2
   scales: [1, 0.5, 0.25, 0.125]
-  checkpoint_freq: 50
+  checkpoint_freq: 10
   transform_params:
     sigma_affine: 0.05
     sigma_tps: 0.005

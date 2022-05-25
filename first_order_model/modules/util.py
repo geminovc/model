@@ -1,9 +1,28 @@
 from torch import nn
-
+from torch.nn import Conv2d
+# from first_order_model.modules.custom import Conv2d
 import torch.nn.functional as F
 import torch
 
 from first_order_model.sync_batchnorm import SynchronizedBatchNorm2d as BatchNorm2d
+
+coordinate_grid_global = None
+shape_global = None
+
+def set_global_shape_and_coordinate_grid(mean, spatial_size):
+    global coordinate_grid_global
+    global shape_global
+    coordinate_grid = make_coordinate_grid(spatial_size, mean.type())
+    number_of_leading_dimensions = len(mean.shape) - 1
+    shape = (1,) * number_of_leading_dimensions + coordinate_grid.shape
+    coordinate_grid = coordinate_grid.view(*shape)
+    repeats = mean.shape[:number_of_leading_dimensions] + (1, 1, 1)
+    coordinate_grid = coordinate_grid.repeat(*repeats)
+    coordinate_grid_global = coordinate_grid
+    # Preprocess kp shape
+    shape = mean.shape[:number_of_leading_dimensions] + (1, 1, 2)
+    shape_global = shape
+    coordinate_grid_global.requires_grad = False
 
 
 def kp2gaussian(kp_value, spatial_size, kp_variance):
@@ -11,22 +30,16 @@ def kp2gaussian(kp_value, spatial_size, kp_variance):
     Transform a keypoint into gaussian like representation
     """
     mean = kp_value
+    global coordinate_grid_global
+    global shape_global
+    if coordinate_grid_global == None:
+        set_global_shape_and_coordinate_grid(mean, spatial_size)
 
-    coordinate_grid = make_coordinate_grid(spatial_size, mean.type())
-    number_of_leading_dimensions = len(mean.shape) - 1
-    shape = (1,) * number_of_leading_dimensions + coordinate_grid.shape
-    coordinate_grid = coordinate_grid.view(*shape)
-    repeats = mean.shape[:number_of_leading_dimensions] + (1, 1, 1)
-    coordinate_grid = coordinate_grid.repeat(*repeats)
-
-    # Preprocess kp shape
-    shape = mean.shape[:number_of_leading_dimensions] + (1, 1, 2)
+    coordinate_grid, shape = coordinate_grid_global, shape_global
     mean = mean.view(*shape)
 
     mean_sub = (coordinate_grid - mean)
-
     out = torch.exp(-0.5 * (mean_sub ** 2).sum(-1) / kp_variance)
-
     return out
 
 
@@ -56,9 +69,9 @@ class ResBlock2d(nn.Module):
 
     def __init__(self, in_features, kernel_size, padding):
         super(ResBlock2d, self).__init__()
-        self.conv1 = nn.Conv2d(in_channels=in_features, out_channels=in_features, kernel_size=kernel_size,
+        self.conv1 = Conv2d(in_channels=in_features, out_channels=in_features, kernel_size=kernel_size,
                                padding=padding)
-        self.conv2 = nn.Conv2d(in_channels=in_features, out_channels=in_features, kernel_size=kernel_size,
+        self.conv2 = Conv2d(in_channels=in_features, out_channels=in_features, kernel_size=kernel_size,
                                padding=padding)
         self.norm1 = BatchNorm2d(in_features, affine=True)
         self.norm2 = BatchNorm2d(in_features, affine=True)
@@ -81,8 +94,7 @@ class UpBlock2d(nn.Module):
 
     def __init__(self, in_features, out_features, kernel_size=3, padding=1, groups=1):
         super(UpBlock2d, self).__init__()
-
-        self.conv = nn.Conv2d(in_channels=in_features, out_channels=out_features, kernel_size=kernel_size,
+        self.conv = Conv2d(in_channels=in_features, out_channels=out_features, kernel_size=kernel_size,
                               padding=padding, groups=groups)
         self.norm = BatchNorm2d(out_features, affine=True)
 
@@ -101,7 +113,7 @@ class DownBlock2d(nn.Module):
 
     def __init__(self, in_features, out_features, kernel_size=3, padding=1, groups=1):
         super(DownBlock2d, self).__init__()
-        self.conv = nn.Conv2d(in_channels=in_features, out_channels=out_features, kernel_size=kernel_size,
+        self.conv = Conv2d(in_channels=in_features, out_channels=out_features, kernel_size=kernel_size,
                               padding=padding, groups=groups)
         self.norm = BatchNorm2d(out_features, affine=True)
         self.pool = nn.AvgPool2d(kernel_size=(2, 2))
@@ -121,7 +133,7 @@ class SameBlock2d(nn.Module):
 
     def __init__(self, in_features, out_features, groups=1, kernel_size=3, padding=1):
         super(SameBlock2d, self).__init__()
-        self.conv = nn.Conv2d(in_channels=in_features, out_channels=out_features,
+        self.conv = Conv2d(in_channels=in_features, out_channels=out_features,
                               kernel_size=kernel_size, padding=padding, groups=groups)
         self.norm = BatchNorm2d(out_features, affine=True)
 

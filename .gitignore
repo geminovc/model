@@ -1,6 +1,7 @@
 *.pkl
 *.pyc
 *.txt
+!requirements.txt
 *.ipynb_checkpoints
 *.pkl
 *.pth

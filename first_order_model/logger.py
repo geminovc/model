@@ -8,6 +8,11 @@ from skimage.draw import circle
 
 import matplotlib.pyplot as plt
 import collections
+import tensorboardX
+import flow_vis
+from skimage.metrics import peak_signal_noise_ratio
+from skimage.metrics import structural_similarity
+import piq
 
 
 class Logger:
@@ -25,6 +30,8 @@ class Logger:
         self.epoch = 0
         self.best_loss = float('inf')
         self.names = None
+        self.writer = tensorboardX.SummaryWriter(os.path.join(log_dir, 'tensorboard'))
+        self.metrics_averages = None
 
     def log_scores(self, loss_names):
         loss_mean = np.array(self.loss_list).mean(axis=0)
@@ -35,10 +42,43 @@ class Logger:
         print(loss_string, file=self.log_file)
         self.loss_list = []
         self.log_file.flush()
+        
+        for name, value in zip(loss_names, loss_mean):
+            self.writer.add_scalar(f'losses/{name}', value, self.epoch)
+
+
+    """ get visual metrics for the model's reconstruction """
+    @staticmethod
+    def get_visual_metrics(prediction, original, loss_fn_vgg):
+        if torch.cuda.is_available():
+            original = original.cuda()
+            prediction = prediction.cuda()
+        lpips_val = loss_fn_vgg(original, prediction).data.cpu().numpy().flatten()[0]
+        
+        ssim = piq.ssim(original, prediction, data_range=1.).data.cpu().numpy().flatten()[0]
+        psnr = piq.psnr(original, prediction, data_range=1., reduction='none').data.cpu().numpy()
+        
+        return {'psnr': psnr, 'ssim': ssim, 'lpips': lpips_val}
+
+    def log_metrics_images(self, iteration, input_data, output, loss_fn_vgg):
+        if iteration == 0:
+            if self.metrics_averages is not None:
+                for name, values in self.metrics_averages.items():
+                    average = np.mean(values)
+                    self.writer.add_scalar(f'metrics/{name}', average, self.epoch)
+            self.metrics_averages = {'psnr': [], 'ssim': [], 'lpips': []}
+
+        image = self.visualizer.visualize(input_data['driving'], input_data['source'], output)
+        self.writer.add_image(f'metrics{iteration}', image, self.epoch, dataformats='HWC')
+        metrics = Logger.get_visual_metrics(output['prediction'], input_data['driving'], loss_fn_vgg)
+        for name, value in metrics.items():
+            self.metrics_averages[name].append(value)
 
     def visualize_rec(self, inp, out):
         image = self.visualizer.visualize(inp['driving'], inp['source'], out)
-        imageio.imsave(os.path.join(self.visualizations_dir, "%s-rec.png" % str(self.epoch).zfill(self.zfill_num)), image)
+        imageio.imsave(os.path.join(self.visualizations_dir, 
+                "%s-rec.png" % str(self.epoch).zfill(self.zfill_num)), image)
+        self.writer.add_image('reconstruction', image, self.epoch, dataformats='HWC')
 
     def save_cpk(self, emergent=False):
         cpk = {k: v.state_dict() for k, v in self.models.items()}
@@ -50,23 +90,48 @@ class Logger:
     @staticmethod
     def load_cpk(checkpoint_path, generator=None, discriminator=None, kp_detector=None,
                  optimizer_generator=None, optimizer_discriminator=None, optimizer_kp_detector=None, 
-                 device='gpu'):
+                 device='gpu', dense_motion_network=None, upsampling_enabled=False, 
+                 hr_skip_connections=False, run_at_256=True):
+
         if device == torch.device('cpu'):
             checkpoint = torch.load(checkpoint_path, map_location=torch.device('cpu'))
         else:
             checkpoint = torch.load(checkpoint_path)
 
-        if generator is not None:
+        if generator is None and dense_motion_network is not None:
+            gen_params = checkpoint['generator']
+            dense_motion_params = {k: gen_params[k] for k in gen_params.keys() if k.startswith('dense_motion_network')}
+            generator.load_state_dict(dense_motion_params, strict=False)
+        elif generator is not None and upsampling_enabled:
+            if hr_skip_connections:
+                modified_generator_params = {k: v for k, v in checkpoint['generator'].items() \
+                    if not (k.startswith("final") or k.startswith("sigmoid"))}
+            elif run_at_256:
+                modified_generator_params = {k: v for k, v in checkpoint['generator'].items() \
+                    if not (k.startswith("final") or k.startswith("sigmoid"))}
+            else:
+                modified_generator_params = {k: v for k, v in checkpoint['generator'].items() \
+                    if not (k.startswith("final") or k.startswith("sigmoid") or k.startswith('first'))}
+            generator.load_state_dict(modified_generator_params, strict=False)
+        elif generator is not None and dense_motion_network is None:
+            gen_params = checkpoint['generator']
+            gen_params_but_dense_motion_params = {k: gen_params[k] for k in gen_params.keys() if not k.startswith('dense_motion_network')}
+            generator.load_state_dict(gen_params_but_dense_motion_params, strict=False)
+        elif generator is not None:
             generator.load_state_dict(checkpoint['generator'])
+
         if kp_detector is not None:
             kp_detector.load_state_dict(checkpoint['kp_detector'])
-        if discriminator is not None:
+
+        if discriminator is not None: 
             try:
                discriminator.load_state_dict(checkpoint['discriminator'])
             except:
                print ('No discriminator in the state-dict. Dicriminator will be randomly initialized')
+
         if optimizer_generator is not None:
             optimizer_generator.load_state_dict(checkpoint['optimizer_generator'])
+
         if optimizer_discriminator is not None:
             try:
                 optimizer_discriminator.load_state_dict(checkpoint['optimizer_discriminator'])
@@ -96,7 +161,8 @@ class Logger:
         self.models = models
         if (self.epoch + 1) % self.checkpoint_freq == 0:
             self.save_cpk()
-        self.log_scores(self.names)
+        if self.epoch > 0:
+            self.log_scores(self.names)
         self.visualize_rec(inp, out)
 
 
@@ -105,6 +171,7 @@ class Visualizer:
         self.kp_size = kp_size
         self.draw_border = draw_border
         self.colormap = plt.get_cmap(colormap)
+        self.identity_grid = None
 
     def draw_image_with_kp(self, image, kp_array):
         image = np.copy(image)
@@ -137,15 +204,18 @@ class Visualizer:
         return np.concatenate(out, axis=1)
 
     def draw_deformation_heatmap(self, deformation):
-        h, w = 256, 256
-        deformation_heatmap = np.zeros((1, h, w, 3))
-        for x in range(h):
-            for y in range(w):
-                input_location = deformation[0][x][y] 
-                deformation_heatmap[0][x][y][0] = (input_location[0] + 1.0) / 2.0
-                deformation_heatmap[0][x][y][1] = (input_location[1] + 1.0) / 2.0
-        return deformation_heatmap
+        b, h, w = deformation.shape[0:3]
+        if self.identity_grid is None:
+            self.identity_grid = np.zeros((h, w, 2))
+            for i, ival in enumerate(np.linspace(-1, 1, h)):
+                for j, jval in enumerate(np.linspace(-1, 1, w)):
+                    self.identity_grid[i][j][0] = jval
+                    self.identity_grid[i][j][1] = ival
 
+        deformation_heatmap = np.zeros((b, h, w, 3))
+        for i in range(b):
+            deformation_heatmap[i] = flow_vis.flow_to_color(deformation[i] - self.identity_grid)
+        return deformation_heatmap
 
 
     def visualize(self, driving, source, out):
@@ -169,13 +239,14 @@ class Visualizer:
         driving = driving.data.cpu().numpy()
         driving = np.transpose(driving, [0, 2, 3, 1])
         images.append((driving, kp_driving))
+        images.append(driving)
 
         # Deformed image
         if 'deformed' in out:
             deformed = out['deformed'].data.cpu().numpy()
             deformed = np.transpose(deformed, [0, 2, 3, 1])
             images.append(deformed)
-
+        
         # deformation heatmap
         if 'deformation' in out:
             deformation = out['deformation'].data.cpu().numpy()
@@ -190,8 +261,15 @@ class Visualizer:
             images.append((prediction, kp_norm))
         images.append(prediction)
 
+        # residual/difference
+        residual = np.zeros(driving.shape)
+        for c, (d, p) in enumerate(zip(driving, prediction)):
+            diff = d - p
+            diff = (diff + np.ones_like(d)) / 2.0
+            residual[c] = diff
+        images.append(residual)
 
-        ## Occlusion map
+        # Occlusion map
         if 'occlusion_map' in out:
             occlusion_map = out['occlusion_map'].data.cpu().repeat(1, 3, 1, 1)
             occlusion_map = F.interpolate(occlusion_map, size=source.shape[1:3]).numpy()

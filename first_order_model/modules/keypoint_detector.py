@@ -3,7 +3,6 @@ import torch
 import torch.nn.functional as F
 from first_order_model.modules.util import Hourglass, make_coordinate_grid, AntiAliasInterpolation2d
 
-
 class KPDetector(nn.Module):
     """
     Detecting a keypoints. Return keypoint position and jacobian near each keypoint.
@@ -11,7 +10,8 @@ class KPDetector(nn.Module):
 
     def __init__(self, block_expansion, num_kp, num_channels, max_features,
                  num_blocks, temperature, estimate_jacobian=False, scale_factor=1,
-                 single_jacobian_map=False, pad=0, for_onnx=False):
+                 single_jacobian_map=False, pad=0, num_pixel_features=0, 
+                 predict_pixel_features=False, run_at_256=False, for_onnx=False):
         super(KPDetector, self).__init__()
 
         self.predictor = Hourglass(block_expansion, in_features=num_channels,
@@ -20,6 +20,9 @@ class KPDetector(nn.Module):
         self.kp = nn.Conv2d(in_channels=self.predictor.out_filters, out_channels=num_kp, kernel_size=(7, 7),
                             padding=pad)
 
+        self.num_kp = num_kp
+        self.num_pixel_features = num_pixel_features
+        
         if estimate_jacobian:
             self.num_jacobian_maps = 1 if single_jacobian_map else num_kp
             self.jacobian = nn.Conv2d(in_channels=self.predictor.out_filters,
@@ -29,9 +32,17 @@ class KPDetector(nn.Module):
         else:
             self.jacobian = None
 
+        if predict_pixel_features:
+            self.pixel_feature_network = nn.Conv2d(in_channels=self.predictor.out_filters,
+                                      out_channels=num_pixel_features * num_kp, 
+                                      kernel_size=(7, 7), padding=pad)
+        else:
+            self.pixel_feature_network = None
+
         self.temperature = temperature
         self.for_onnx = for_onnx
         self.scale_factor = scale_factor
+        self.run_at_256 = run_at_256
         if self.scale_factor != 1:
             self.down = AntiAliasInterpolation2d(num_channels, self.scale_factor)
 
@@ -51,7 +62,23 @@ class KPDetector(nn.Module):
 
         return kp
 
+    def reshape(self, feature_map, final_shape, num_features, entries_per_feature, heatmap):
+        """ 
+        Reshape Jacobian and pixel features to right dimensions and sum
+        """
+        feature_map = feature_map.reshape(final_shape[0], num_features, entries_per_feature, 
+                                            final_shape[2], final_shape[3])
+        unsqueezed_heatmap = heatmap.unsqueeze(2)
+
+        feature = unsqueezed_heatmap * feature_map
+        feature = feature.view(final_shape[0], final_shape[1], entries_per_feature, -1)
+        feature = feature.sum(dim=-1)
+        return feature
+
     def forward(self, x):
+        if self.run_at_256:
+            x = F.interpolate(x, 256)
+        
         if self.scale_factor != 1:
             x = self.down(x)
 
@@ -67,13 +94,8 @@ class KPDetector(nn.Module):
 
         if self.jacobian is not None:
             jacobian_map = self.jacobian(feature_map)
-            jacobian_map = jacobian_map.reshape(final_shape[0], self.num_jacobian_maps, 4, final_shape[2],
-                                                final_shape[3])
-            heatmap = heatmap.unsqueeze(2)
-
-            jacobian = heatmap * jacobian_map
-            jacobian = jacobian.view(final_shape[0], final_shape[1], 4, -1)
-            jacobian = jacobian.sum(dim=-1)
+            jacobian = self.reshape(jacobian_map, final_shape, 
+                                    self.num_jacobian_maps, 4, heatmap)
             jacobian = jacobian.view(jacobian.shape[0], jacobian.shape[1], 2, 2)
 
             if not self.for_onnx:
@@ -82,4 +104,10 @@ class KPDetector(nn.Module):
         if self.for_onnx:
             return out, jacobian
         else:
+            if self.pixel_feature_network is not None:
+                pixel_feature_map = self.pixel_feature_network(feature_map)
+                pixel_feature = self.reshape(pixel_feature_map, final_shape, 
+                                    self.num_kp, self.num_pixel_features, heatmap)
+                out['pixel_features'] = pixel_feature
+
             return out

@@ -39,13 +39,15 @@ class Discriminator(nn.Module):
     """
 
     def __init__(self, num_channels=3, block_expansion=64, num_blocks=4, max_features=512,
-                 sn=False, use_kp=False, num_kp=10, kp_variance=0.01, **kwargs):
+                 sn=False, use_kp=False, num_kp=10, kp_variance=0.01, conditional_gan=False, **kwargs):
         super(Discriminator, self).__init__()
 
+        channel_offset = 2 if conditional_gan else 1
         down_blocks = []
         for i in range(num_blocks):
             down_blocks.append(
-                DownBlock2d(num_channels + num_kp * use_kp if i == 0 else min(max_features, block_expansion * (2 ** i)),
+                DownBlock2d(num_channels * channel_offset + \
+                        num_kp * use_kp if i == 0 else min(max_features, block_expansion * (2 ** i)),
                             min(max_features, block_expansion * (2 ** (i + 1))),
                             norm=(i != 0), kernel_size=4, pool=(i != num_blocks - 1), sn=sn))
 

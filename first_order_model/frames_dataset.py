@@ -3,13 +3,12 @@ from skimage import io, img_as_float32
 from skimage.color import gray2rgb
 from sklearn.model_selection import train_test_split
 from imageio import mimread
-
+import imageio
 import numpy as np
 from torch.utils.data import Dataset
 import pandas as pd
 from first_order_model.augmentation import AllAugmentationTransform
 import glob
-
 
 def read_video(name, frame_shape):
     """
@@ -52,6 +51,21 @@ def read_video(name, frame_shape):
     return video_array
 
 
+def get_num_frames(filename):
+    cmd = f"ffprobe -v error -select_streams v:0 -count_frames -show_entries stream=nb_read_frames -print_format csv {filename}"
+    num_frames = os.popen(cmd).read()
+    num_frames = int(num_frames.split(',')[1])
+    return num_frames
+
+
+def get_frame(filename, frame_num):
+    reader = imageio.get_reader(filename, "ffmpeg")
+    reader.set_image_index(frame_num)
+    frame = img_as_float32(np.array(reader.get_next_data()))
+    reader.close()
+    return frame
+
+
 class FramesDataset(Dataset):
     """
     Dataset of videos, each video can be represented as:
@@ -61,22 +75,31 @@ class FramesDataset(Dataset):
     """
 
     def __init__(self, root_dir, frame_shape=(256, 256, 3), id_sampling=False, is_train=True,
-                 random_seed=0, pairs_list=None, augmentation_params=None):
+                 random_seed=0, pairs_list=None, augmentation_params=None, person_id=None):
         self.root_dir = root_dir
         self.videos = os.listdir(root_dir)
         self.frame_shape = tuple(frame_shape)
         self.pairs_list = pairs_list
         self.id_sampling = id_sampling
+        self.person_id = person_id
+
+        if person_id is not None:
+            root_dir = os.path.join(root_dir, person_id)
+            self.root_dir = root_dir
+        
         if os.path.exists(os.path.join(root_dir, 'train')):
             assert os.path.exists(os.path.join(root_dir, 'test'))
             print("Use predefined train-test split.")
+            
             if id_sampling:
                 train_videos = {os.path.basename(video).split('#')[0] for video in
                                 os.listdir(os.path.join(root_dir, 'train'))}
                 train_videos = list(train_videos)
             else:
                 train_videos = os.listdir(os.path.join(root_dir, 'train'))
+            print("number of train videos", len(train_videos))
             test_videos = os.listdir(os.path.join(root_dir, 'test'))
+             
             self.root_dir = os.path.join(self.root_dir, 'train' if is_train else 'test')
         else:
             print("Use random train-test split.")
@@ -98,7 +121,7 @@ class FramesDataset(Dataset):
         return len(self.videos)
 
     def __getitem__(self, idx):
-        if self.is_train and self.id_sampling:
+        if (self.is_train and self.id_sampling):
             name = self.videos[idx]
             path = np.random.choice(glob.glob(os.path.join(self.root_dir, name + '*.mp4')))
         else:
@@ -113,11 +136,13 @@ class FramesDataset(Dataset):
             frame_idx = np.sort(np.random.choice(num_frames, replace=True, size=2))
             video_array = [img_as_float32(io.imread(os.path.join(path, frames[idx]))) for idx in frame_idx]
         else:
-            video_array = read_video(path, frame_shape=self.frame_shape)
-            num_frames = len(video_array)
-            frame_idx = np.sort(np.random.choice(num_frames, replace=True, size=2)) if self.is_train else range(
-                num_frames)
-            video_array = video_array[frame_idx]
+            num_frames = get_num_frames(path)
+            frame_idx = np.sort(np.random.choice(num_frames - 1, replace=True, size=2)) if self.is_train else range(
+            num_frames)
+            try:
+                video_array = np.array([get_frame(path, frame_idx[0]), get_frame(path, frame_idx[1])])
+            except:
+                print("Couldn't get indices", frame_idx, "of video", path, "with", num_frames, "total frames")
 
         if self.transform is not None:
             video_array = self.transform(video_array)
@@ -130,13 +155,40 @@ class FramesDataset(Dataset):
             out['driving'] = driving.transpose((2, 0, 1))
             out['source'] = source.transpose((2, 0, 1))
         else:
-            video = np.array(video_array, dtype='float32')
-            out['video'] = video.transpose((3, 0, 1, 2))
-
+            video = video_array
+            out['video'] = video
+            out['video_path'] = str(path)
+        
         out['name'] = video_name
 
         return out
 
+class MetricsDataset(Dataset):
+    """
+        Load a select set of frames for computing consistent metrics/visuals on
+    """
+
+    def __init__(self, root_dir, frame_shape):
+        self.root_dir = root_dir
+        self.videos = os.listdir(root_dir)
+        self.frame_shape = tuple(frame_shape)
+
+    def __len__(self):
+        return len(self.videos)
+
+    def __getitem__(self, idx):
+        file_name = self.videos[idx]
+        path = os.path.join(self.root_dir, file_name)
+        assert os.path.isdir(path)
+
+        driving = img_as_float32(io.imread(os.path.join(path, "target.jpg")))
+        source = img_as_float32(io.imread(os.path.join(path, "source.jpg")))
+        
+        out = {}
+        out['driving'] = driving.transpose((2, 0, 1))
+        out['source'] = source.transpose((2, 0, 1))
+
+        return out 
 
 class DatasetRepeater(Dataset):
     """
