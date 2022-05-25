@@ -4,7 +4,7 @@ import torch
 from first_order_model.modules.util import Hourglass, AntiAliasInterpolation2d, make_coordinate_grid, kp2gaussian
 import time
 import numpy as np
-#from mmcv.ops.point_sample import bilinear_grid_sample
+from mmcv.ops.point_sample import bilinear_grid_sample
 
 class DenseMotionNetwork(nn.Module):
     """

@@ -4,7 +4,7 @@ import torch.nn.functional as F
 from first_order_model.modules.util import ResBlock2d, SameBlock2d, UpBlock2d, DownBlock2d
 from first_order_model.modules.dense_motion import DenseMotionNetwork
 from first_order_model.onnx.modules.dense_motion import DenseMotionNetwork_ONNX
-#from mmcv.ops.point_sample import bilinear_grid_sample
+from mmcv.ops.point_sample import bilinear_grid_sample
 import math
 
 class OcclusionAwareGenerator(nn.Module):

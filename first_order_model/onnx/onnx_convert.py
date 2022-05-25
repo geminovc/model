@@ -4,7 +4,7 @@ import os
 import torch
 os.environ['KMP_DUPLICATE_LIB_OK']='True'
 
-model = FirstOrderModel("../config/api_sample.yaml", True)
+model = FirstOrderModel("../config/fom_original.yaml", for_onnx=True)
 
 x0 = torch.randn(1, 3, 256, 256, requires_grad=False)
 x1 = torch.randn(1, 10, 2, requires_grad=False)
