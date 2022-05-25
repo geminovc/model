@@ -15,16 +15,16 @@ parser = ArgumentParser()
 parser.add_argument("--config", 
                     default="config/paper_configs/resolution512_with_hr_skip_connections.yaml",
                     help="path to config")
-parser.add_argument("--video_path",
+parser.add_argument("--video-path",
                     default="512_kayleigh_10_second_0_1.mp4",
                     help="path to the video")
-parser.add_argument("--output_name",
+parser.add_argument("--output-name",
                     default="prediction",
                     help="name of the output file to be saved")
-parser.add_argument("--output_fps",
+parser.add_argument("--output-fps",
                     default=30,
                     help="fps of the final video")
-parser.add_argument("--source_update_frequency",
+parser.add_argument("--source-update-frequency",
                     default=1800,
                     help="source update frequency")
 parser.set_defaults(verbose=False)
