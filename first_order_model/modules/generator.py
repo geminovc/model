@@ -4,7 +4,7 @@ import torch.nn.functional as F
 from first_order_model.modules.util import ResBlock2d, SameBlock2d, UpBlock2d, DownBlock2d
 from first_order_model.modules.dense_motion import DenseMotionNetwork
 from first_order_model.onnx.modules.dense_motion import DenseMotionNetwork_ONNX
-from mmcv.ops.point_sample import bilinear_grid_sample
+#from mmcv.ops.point_sample import bilinear_grid_sample
 import math
 
 class OcclusionAwareGenerator(nn.Module):
@@ -18,7 +18,7 @@ class OcclusionAwareGenerator(nn.Module):
                  predict_pixel_features=False, num_pixel_features=0, 
                  run_at_256=False, upsample_factor=1, use_hr_skip_connections=False,
                  dense_motion_params=None, estimate_jacobian=False, encode_hr_input_with_additional_blocks=False, 
-                 hr_features=16i, for_onnx=False):
+                 hr_features=16, for_onnx=False):
         super(OcclusionAwareGenerator, self).__init__()
 
         if dense_motion_params is not None:

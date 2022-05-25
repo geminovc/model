@@ -4,7 +4,7 @@ import torch
 from first_order_model.modules.util import Hourglass, AntiAliasInterpolation2d, make_coordinate_grid, kp2gaussian
 import time
 import numpy as np
-from mmcv.ops.point_sample import bilinear_grid_sample
+#from mmcv.ops.point_sample import bilinear_grid_sample
 
 class DenseMotionNetwork(nn.Module):
     """
@@ -56,7 +56,7 @@ class DenseMotionNetwork(nn.Module):
         spatial_size = source_image.shape[2:]
         pixel_heatmap = None
         gaussian_driving = kp2gaussian(kp_driving['value'], spatial_size=spatial_size, kp_variance=self.kp_variance)
-        if self.update_source or self.gaussian_source == None or self.onnx:
+        if self.update_source or self.gaussian_source == None:
             self.gaussian_source = kp2gaussian(kp_source['value'], spatial_size=spatial_size, kp_variance=self.kp_variance)
 
         heatmap = gaussian_driving - self.gaussian_source
@@ -118,9 +118,9 @@ class DenseMotionNetwork(nn.Module):
             self.source_repeat = self.source_repeat.view(bs * (self.num_kp + 1), -1, h, w)
         sparse_motions = sparse_motions.view((bs * (self.num_kp + 1), h, w, -1))
         if self.for_onnx:
-            sparse_deformed = bilinear_grid_sample(source_repeat, sparse_motions)
+            sparse_deformed = bilinear_grid_sample(self.source_repeat, sparse_motions)
         else:
-            sparse_deformed = F.grid_sample(source_repeat, sparse_motions)
+            sparse_deformed = F.grid_sample(self.source_repeat, sparse_motions)
 
         sparse_deformed = sparse_deformed.view((bs, self.num_kp + 1, -1, h, w))
         return sparse_deformed

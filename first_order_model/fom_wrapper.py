@@ -125,10 +125,10 @@ class FirstOrderModel(KeypointBasedFaceModels):
         transformed_frame = frame.transpose((2, 0, 1))
         transformed_frame = torch.from_numpy(transformed_frame).to(torch.uint8)
         if torch.cuda.is_available():
-	    transformed_frame = transformed_frame.cuda() 
-        
-	# convert to float
-	transformed_frame = transformed_frame.to(torch.float32)
+            transformed_frame = transformed_frame.cuda()
+ 
+        # convert to float
+        transformed_frame = transformed_frame.to(torch.float32)
         transformed_frame = torch.div(transformed_frame, 255)
         transformed_frame = torch.unsqueeze(transformed_frame, 0)
 
@@ -191,7 +191,7 @@ class FirstOrderModel(KeypointBasedFaceModels):
         target_kp_tensors = self.convert_kp_dict_to_tensors(target_keypoints)
         if self.for_onnx:
             with torch.no_grad():
-		out = {}
+                out = {}
 		# Regardless of the update_source, the following has redundant computation
 		# WARNING: onnx/modules/generator.py should be changed to accept update_source
                 out['prediction'] = self.generator(self.source, \

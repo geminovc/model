@@ -2,7 +2,7 @@ from torch import nn
 import torch.nn.functional as F
 import torch
 from first_order_model.modules.util import Hourglass, AntiAliasInterpolation2d, make_coordinate_grid, kp2gaussian
-from mmcv.ops.point_sample import bilinear_grid_sample
+#from mmcv.ops.point_sample import bilinear_grid_sample
 from first_order_model.modules.dense_motion import DenseMotionNetwork
 
 
