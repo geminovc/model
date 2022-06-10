@@ -17,6 +17,7 @@ reference_frame_list = []
 
 
 def get_size_of_nested_list(list_of_elem):
+    """ helper to get size of nested parameter list """ 
     count = 0
     for elem in list_of_elem:
         if type(elem) == list:  
@@ -25,10 +26,10 @@ def get_size_of_nested_list(list_of_elem):
             count += 1    
     return count
 
-""" get model summary information for the passed in keypoint detector and 
-    generator in a text file in the log directory 
-"""
+
 def get_model_info(log_dir, kp_detector, generator):
+    """ get model summary information for the passed in keypoint detector and 
+        generator in a text file in the log directory """
     with open(os.path.join(log_dir, 'model_summary.txt'), 'wt') as model_file:
         for model, name in zip([kp_detector, generator], ['kp', 'generator']):
             number_of_trainable_parameters = 0
@@ -39,22 +40,21 @@ def get_model_info(log_dir, kp_detector, generator):
                     if param.requires_grad:
                         number_of_trainable_parameters += get_size_of_nested_list(list(param))
 
-                model_file.write('%s %s: %s\n' % (name, 'total_number_of_parameters', \
+                model_file.write('%s %s: %s\n' % (name, 'total_number_of_parameters',
                         str(total_number_of_parameters)))
-                model_file.write('%s %s: %s\n' % (name, 'number_of_trainable_parameters', \
+                model_file.write('%s %s: %s\n' % (name, 'number_of_trainable_parameters',
                         str(number_of_trainable_parameters)))
 
-""" get average of visual metrics across all frames
-"""
 def get_avg_visual_metrics(visual_metrics):
+    """ get average of visual metrics across all frames """
     psnrs = [m['psnr'] for m in visual_metrics]
     ssims = [m['ssim'] for m in visual_metrics]
     lpips_list = [m['lpips'] for m in visual_metrics]
     return np.mean(psnrs), np.mean(ssims), np.mean(lpips_list)
 
-"""convert numpy arrays to tensors for reconstruction pipeline
-"""
+
 def frame_to_tensor(frame, device):
+    """ convert numpy arrays to tensors for reconstruction pipeline """
     array = np.expand_dims(frame, 0).transpose(0, 3, 1, 2)
     array = torch.from_numpy(array)
     return array.float().to(device)
@@ -105,7 +105,7 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
                 kp_detector=kp_detector, device=device, 
                 dense_motion_network=dense_motion, generator_type=generator_type)
     else:
-        raise AttributeError("Checkpoint should be specified for mode='reconstruction'.")
+        raise AttributeError('Checkpoint should be specified for reconstruction')
     
     dataloader = DataLoader(dataset, batch_size=1, shuffle=False, num_workers=1)
 
@@ -142,12 +142,13 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
         if config['reconstruction_params']['num_videos'] is not None:
             if it > config['reconstruction_params']['num_videos']:
                 break
+
         with torch.no_grad():
             predictions = []
             visualizations = []
             video_name = x['video_path'][0]
-            reader = imageio.get_reader(video_name, "ffmpeg")
-            device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+            reader = imageio.get_reader(video_name, 'ffmpeg')
+            device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
             if timing_enabled:
                 source_time = start.elapsed_time(end)
                 driving_times, generator_times, visualization_times = [], [], []
@@ -239,7 +240,7 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
             """
 
             psnr, ssim, lpips_val = get_avg_visual_metrics(visual_metrics)
-            metrics_file.write("%s PSNR: %s, SSIM: %s, LPIPS: %s\n" % (x['name'][0], 
+            metrics_file.write('%s PSNR: %s, SSIM: %s, LPIPS: %s\n' % (x['name'][0], 
                     psnr, ssim, lpips_val))
             metrics_file.flush()
 
@@ -252,10 +253,10 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
             visualizations = []
             
             if timing_enabled:
-                print("source keypoints:", source_time, "driving:", np.average(driving_times), \
-                    "generator:", np.average(generator_times), "visualization:", np.average(visualization_times))
+                print('source keypoints:', source_time, 'driving:', np.average(driving_times), \
+                    'generator:', np.average(generator_times),'visualization:', np.average(visualization_times))
 
-    print("Reconstruction loss: %s" % np.mean(loss_list))
-    metrics_file.write("Reconstruction loss: %s\n" % np.mean(loss_list))
+    print('Reconstruction loss: %s' % np.mean(loss_list))
+    metrics_file.write('Reconstruction loss: %s\n' % np.mean(loss_list))
     metrics_file.close()
 
