@@ -13,7 +13,9 @@ from skimage.metrics import structural_similarity
 from frames_dataset import get_num_frames, get_frame
 from modules.model import Vgg19
 
-""" helper to get size of nested parameter list """
+reference_frame_list = []
+
+
 def get_size_of_nested_list(list_of_elem):
     count = 0
     for elem in list_of_elem:
@@ -57,12 +59,39 @@ def frame_to_tensor(frame, device):
     array = torch.from_numpy(array)
     return array.float().to(device)
 
-""" reconstruct driving frames for each video in the dataset using the first frame
-    as a source frame. Config specifies configration details, while timing 
-    determines whether to time the functions on a gpu or not
-"""
+
+def nearness_check(ref_frame, ref_kp, frame, kp_frame, method='single_reference'):
+    """ checks if two frames are close enough to not be treated as new reference """
+    threshold = float('inf')
+    if method == 'single_reference':
+        return True
+
+    elif method == 'kp_l2_distance':
+        xy_frame = kp_frame['value']
+        xy_ref = ref_kp['value']
+        dist = torch.dist(xy_frame, xy_ref, p=2)
+        print('kp distance', dist, dist.shape)
+        if dist > threshold:
+            return False
+
+    return True
+
+
+def find_best_reference_frame(cur_frame, cur_kp):
+    """ find the best reference frame for this current frame """
+    for (ref_s, ref_kp) in reversed(reference_frame_list):
+        if nearness_check(ref_s, ref_kp, cur_frame, cur_kp, method='kp_l2_distance'):
+            return True, ref_s, ref_kp
+
+    reference_frame_list.append((cur_frame, cur_kp))
+    return False, cur_frame, cur_kp
+
+
 def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset, timing_enabled, 
         save_visualizations_as_images, experiment_name, reference_frame_update_freq=None):
+    """ reconstruct driving frames for each video in the dataset using the first frame
+        as a source frame. Config specifies configuration details, while timing 
+        determines whether to time the functions on a gpu or not """
     log_dir = os.path.join(log_dir, 'reconstruction' + '_' + experiment_name)
     png_dir = os.path.join(log_dir, 'png')
     visualization_dir = os.path.join(log_dir, 'visualization')
@@ -127,8 +156,6 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
             for frame in reader:
                 frame = img_as_float32(frame)
                 update_source = False
-                if frame_idx == 0: 
-                    source = frame_to_tensor(frame, device)
                 
                 if kp_detector is not None:
                     if frame_idx == 0: 
@@ -138,12 +165,19 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
                         end.record()
                         torch.cuda.synchronize()
                         update_source = True
+                        reference_frame_list.append((source, kp_source))
 
                     if reference_frame_update_freq is not None:
                         if frame_idx % reference_frame_update_freq == 0:
                             source = frame_to_tensor(frame, device) 
                             kp_source = kp_detector(source)
-                            update_source = True
+                    else:
+                        cur_frame = frame_to_tensor(frame, device) 
+                        cur_kp = kp_detector(cur_frame)
+
+                        frame_reuse, source, kp_source = find_best_reference_frame(cur_frame, cur_kp)
+                        if frame_reuse:
+                            print('reusing frame')
                 
                 driving = frame_to_tensor(frame, device)
                 driving_64x64 =  F.interpolate(driving, 64)
