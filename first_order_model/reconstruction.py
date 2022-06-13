@@ -59,9 +59,13 @@ def frame_to_tensor(frame, device):
     array = torch.from_numpy(array)
     return array.float().to(device)
 
-
+cnt = 1
+kp_file = open('kp_data.txt', 'w+')
 def nearness_check(ref_frame, ref_kp, frame, kp_frame, method='single_reference'):
     """ checks if two frames are close enough to not be treated as new reference """
+    global cnt
+    global kp_file
+
     threshold = float('inf')
     if method == 'single_reference':
         return True
@@ -70,9 +74,10 @@ def nearness_check(ref_frame, ref_kp, frame, kp_frame, method='single_reference'
         xy_frame = kp_frame['value']
         xy_ref = ref_kp['value']
         dist = torch.dist(xy_frame, xy_ref, p=2)
-        print('kp distance', dist, dist.shape)
+        kp_file.write(f'{cnt},{dist.data.cpu().numpy():.4f}\n')
         if dist > threshold:
             return False
+        cnt += 1
 
     return True
 
@@ -177,8 +182,10 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
                         cur_kp = kp_detector(cur_frame)
 
                         frame_reuse, source, kp_source = find_best_reference_frame(cur_frame, cur_kp)
+                        """
                         if frame_reuse:
                             print('reusing frame')
+                        """
                 
                 driving = frame_to_tensor(frame, device)
                 driving_64x64 =  F.interpolate(driving, 64)
@@ -259,4 +266,5 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
     print('Reconstruction loss: %s' % np.mean(loss_list))
     metrics_file.write('Reconstruction loss: %s\n' % np.mean(loss_list))
     metrics_file.close()
+    kp_file.close()
 
