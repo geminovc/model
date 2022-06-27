@@ -54,7 +54,7 @@ if __name__ == "__main__":
 
     generator_params = config['model_params']['generator_params']
     generator_type = generator_params.get('generator_type', 'occlusion_aware')
-    if generator_type == 'occlusion_aware':
+    if generator_type in ['occlusion_aware', 'split_hf_lf']:
         generator = OcclusionAwareGenerator(**config['model_params']['generator_params'],
                                         **config['model_params']['common_params'])
     else:
@@ -73,7 +73,7 @@ if __name__ == "__main__":
     if opt.verbose:
         print(discriminator)
 
-    if generator_type == 'occlusion_aware':
+    if generator_type in ['occlusion_aware', 'split_hf_lf']:
         kp_detector = KPDetector(**config['model_params']['kp_detector_params'],
                              **config['model_params']['common_params'])
         if torch.cuda.is_available():

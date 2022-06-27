@@ -167,7 +167,7 @@ class GeneratorFullModel(torch.nn.Module):
     def forward(self, x, generator_type='occlusion_aware'):
         driving_64x64 =  F.interpolate(x['driving'], 64)
         
-        if generator_type == 'occlusion_aware':
+        if generator_type in ['occlusion_aware', 'split_hf_lf']:
             kp_source = self.kp_extractor(x['source'])
             kp_driving = self.kp_extractor(x['driving'])
             generated = self.generator(x['source'], kp_source=kp_source, 
@@ -178,14 +178,16 @@ class GeneratorFullModel(torch.nn.Module):
         else:
             generated = self.generator(driving_64x64)
 
-
         loss_values = {}
 
         # standard pyramides for Vgg perceptual loss
         real_input = x['driving']
         generated_input = generated['prediction']
+        generated_input_lf_detached = generated['prediction_lf_detached'] \
+                if generator_type == "split_hf_lf" else generated_input
         pyramide_real = self.pyramid(real_input)
         pyramide_generated = self.pyramid(generated_input)
+        pyramide_generated_lf_detached = self.pyramid(generated_input_lf_detached)
         
         # pyramides for conditional gan if need be to be used by discriminator
         if self.train_params.get('conditional_gan', False):
@@ -197,6 +199,9 @@ class GeneratorFullModel(torch.nn.Module):
             disc_pyramide_real = pyramide_real
             disc_pyramide_generated = pyramide_generated
         
+        if generator_type == 'split_hf_lf':
+            pyramid_generated = pyramide_generated_lf_detached
+
         if sum(self.loss_weights['perceptual']) != 0:
             value_total = 0
             for scale in self.scales:
@@ -208,6 +213,15 @@ class GeneratorFullModel(torch.nn.Module):
                     value_total += self.loss_weights['perceptual'][i] * value
                 loss_values['perceptual'] = value_total
 
+        if self.loss_weights.get('pixelwise', 0) != 0:
+            loss_dict = {
+                    'mse': F.mse_loss,
+                    'l1': F.l1_loss,
+                    'ce': F.cross_entropy }
+            loss_fn = loss_dict['l1']
+            pix_loss = loss_fn(generated['prediction_lf'], real_input.detach())
+            loss_values['pixelwise'] = self.loss_weights['pixelwise'] * pix_loss
+                   
         if self.loss_weights['generator_gan'] != 0:
             if generator_type == 'occlusion_aware':
                 discriminator_maps_generated = self.discriminator(disc_pyramide_generated, kp=detach_kp(kp_driving))

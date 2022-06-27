@@ -33,6 +33,7 @@ class OcclusionAwareGenerator(nn.Module):
         self.use_hr_skip_connections = use_hr_skip_connections
         self.encode_hr_input_with_additional_blocks = encode_hr_input_with_additional_blocks
         self.use_64x64_video = use_64x64_video
+        self.generator_type = generator_type
 
         if use_hr_skip_connections:
             assert run_at_256, "Skip connections require parallel 256 FOM pipeline"
@@ -78,7 +79,7 @@ class OcclusionAwareGenerator(nn.Module):
         up_blocks = []
         for i in range(num_down_blocks):
             in_features =  min(max_features, block_expansion * (2 ** (num_down_blocks - i)))
-            if i == 0 and self.use_64x64_video:
+            if i == 0 and self.use_64x64_video and self.generator_type == 'occlusion_aware':
                 in_features += lr_features
 
             out_features = min(max_features, block_expansion * (2 ** (num_down_blocks - i - 1)))
@@ -98,10 +99,29 @@ class OcclusionAwareGenerator(nn.Module):
         in_features = min(max_features, block_expansion * (2 ** num_down_blocks))
         for i in range(num_bottleneck_blocks):
             self.bottleneck.add_module('r' + str(i), ResBlock2d(in_features, kernel_size=(3, 3), padding=(1, 1)))
-
         final_input_features = hr_starting_depth if upsample_levels > 0 else block_expansion
         self.final = nn.Conv2d(final_input_features, num_channels, kernel_size=(7, 7), padding=(3, 3))
         self.estimate_occlusion_map = estimate_occlusion_map
+
+        # upsampling blocks for LF superresolution if using it
+        if generator_type == "split_hf_lf":
+            sr_up_blocks = []
+            total_blocks = upsample_levels + num_down_blocks
+            for i in range(total_blocks):
+                in_features =  min(max_features, lr_features // (2 ** i))
+                out_features = min(max_features, lr_features // (2 ** (i + 1)))
+                sr_up_blocks.append(UpBlock2d(in_features, out_features, kernel_size=(3, 3), padding=(1, 1)))
+            self.sr_up_blocks = nn.ModuleList(sr_up_blocks)
+
+            self.sr_bottleneck = torch.nn.Sequential()
+            in_features = lr_features
+            for i in range(num_bottleneck_blocks):
+                self.sr_bottleneck.add_module('r' + str(i), \
+                        ResBlock2d(in_features, kernel_size=(3, 3), padding=(1, 1)))
+
+            sr_final_input_features = out_features
+            self.sr_final = nn.Conv2d(sr_final_input_features, num_channels, kernel_size=(7, 7), padding=(3, 3))
+
         self.num_channels = num_channels
         self.source_image = None
         self.update_source = True
@@ -182,7 +202,7 @@ class OcclusionAwareGenerator(nn.Module):
         # Decoding part
         out = self.bottleneck(out)
         for i, block in enumerate(self.up_blocks):
-            if i == 0 and self.use_64x64_video:
+            if i == 0 and self.use_64x64_video and self.generator_type == "occlusion_aware":
                 out_shape = list(out.shape)
                 out_shape.pop(1)
                 lr_shape = list(lr_encoded_features.shape)
@@ -201,6 +221,18 @@ class OcclusionAwareGenerator(nn.Module):
 
         out = self.final(out)
         out = F.sigmoid(out)
+
+        # use LF SR pipeline if required and add it to above pipeline result
+        if self.generator_type == "split_hf_lf":
+            lf_out = self.sr_bottleneck(lr_encoded_features)
+            for i, block in enumerate(self.sr_up_blocks):
+                lf_out = block(lf_out)
+
+            lf_out = self.sr_final(lf_out)
+            lf_out = F.sigmoid(lf_out)
+            output_dict["prediction_lf"] = lf_out
+            output_dict["prediction_lf_detached"] = lf_out.detach() + out
+            out = out + lf_out
 
         output_dict["prediction"] = out
 

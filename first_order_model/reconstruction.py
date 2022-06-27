@@ -170,7 +170,6 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
                         source = frame_to_tensor(frame, device)
                         start.record()
                         kp_source = kp_detector(source)
-<<<<<<< HEAD
                         end.record()
                         torch.cuda.synchronize()
                         update_source = True
