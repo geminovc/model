@@ -60,6 +60,61 @@ class Vgg19(torch.nn.Module):
         return loss_val
 
 
+class VggFace16(torch.nn.Module):
+    """
+    Vgg16 network for face perceptual loss. Was added by Vibhaa.
+    """
+    def __init__(self, requires_grad=False):
+        super(Vgg16, self).__init__()
+        vgg_pretrained_features = models.vgg19(pretrained=True).features
+        self.slice1 = torch.nn.Sequential()
+        self.slice2 = torch.nn.Sequential()
+        self.slice3 = torch.nn.Sequential()
+        self.slice4 = torch.nn.Sequential()
+        self.slice5 = torch.nn.Sequential()
+        for x in range(2):
+            self.slice1.add_module(str(x), vgg_pretrained_features[x])
+        for x in range(2, 7):
+            self.slice2.add_module(str(x), vgg_pretrained_features[x])
+        for x in range(7, 12):
+            self.slice3.add_module(str(x), vgg_pretrained_features[x])
+        for x in range(12, 19):
+            self.slice4.add_module(str(x), vgg_pretrained_features[x])
+        for x in range(19, 26):
+            self.slice5.add_module(str(x), vgg_pretrained_features[x])
+
+        self.mean = torch.nn.Parameter(data=torch.Tensor(np.array([103.939/127.5, 116.779/127.5, \
+                                        123.680/127.5]).reshape((1, 3, 1, 1))),
+                                       requires_grad=False)
+        self.std = torch.nn.Parameter(data=torch.Tensor(np.array([1/127.5, 1/127.5, 1/127.5]).reshape((1, 3, 1, 1))),
+                                      requires_grad=False)
+
+        if not requires_grad:
+            for param in self.parameters():
+                param.requires_grad = False
+
+    def forward(self, X):
+        X = (X - self.mean) / self.std
+        h_relu1 = self.slice1(X)
+        h_relu2 = self.slice2(h_relu1)
+        h_relu3 = self.slice3(h_relu2)
+        h_relu4 = self.slice4(h_relu3)
+        h_relu5 = self.slice5(h_relu4)
+        out = [h_relu1, h_relu2, h_relu3, h_relu4, h_relu5]
+        return out
+
+    def compute_loss(self, X, Y, weights=[10, 10, 10, 10, 10]):
+        X_vgg = self.forward(X)
+        Y_vgg = self.forward(Y)
+
+        loss_val = 0
+        diffs = [(x - y)**2 for x, y in zip(X_vgg, Y_vgg)]
+        for d, w in zip(diffs, weights):
+            loss_val += w * d.mean()
+        loss_val /= np.sum(weights)
+        return loss_val
+
+
 class ImagePyramide(torch.nn.Module):
     """
     Create image pyramide for computing pyramide perceptual loss. See Sec 3.3
@@ -164,6 +219,12 @@ class GeneratorFullModel(torch.nn.Module):
             if torch.cuda.is_available():
                 self.vgg = self.vgg.cuda()
 
+        if sum(self.loss_weights.get('perceptual_face', [0])) != 0:
+            self.vgg_face = VggFace16()
+            if torch.cuda.is_available():
+                self.vgg_face = self.vgg_face.cuda()
+
+
     def forward(self, x, generator_type='occlusion_aware'):
         driving_64x64 =  F.interpolate(x['driving'], 64)
         
@@ -212,6 +273,17 @@ class GeneratorFullModel(torch.nn.Module):
                     value = torch.abs(x_vgg[i] - y_vgg[i].detach()).mean()
                     value_total += self.loss_weights['perceptual'][i] * value
                 loss_values['perceptual'] = value_total
+
+        if sum(self.loss_weights.get('perceptual_face', [0])) != 0:
+            value_total = 0
+            for scale in self.scales:
+                x_vgg = self.vgg_face(pyramide_generated['prediction_' + str(scale)])
+                y_vgg = self.vgg_face(pyramide_real['prediction_' + str(scale)])
+
+                for i, weight in enumerate(self.loss_weights['perceptual_face']):
+                    value = torch.abs(x_vgg[i] - y_vgg[i].detach()).mean()
+                    value_total += weight * value
+                loss_values['perceptual_face'] = value_total
 
         if self.loss_weights.get('pixelwise', 0) != 0:
             loss_dict = {
