@@ -78,11 +78,17 @@ def nearness_check(ref_frame, ref_kp, frame, kp_frame, method='single_reference'
         if dist > threshold:
             return False
 
+    elif method == 'ssim':
+        dist = piq.ssim(ref_frame, frame, data_range=1.).data.cpu().numpy().flatten()[0]
+        kp_file.write(f'{video_num},{frame_idx},{dist:.4f},')
+        if dist > threshold:
+            return False
     return True
 
 
 def find_best_reference_frame(cur_frame, cur_kp, video_num=1, frame_idx=0):
     """ find the best reference frame for this current frame """
+    global reference_frame_list
     for (ref_s, ref_kp) in reversed(reference_frame_list):
         if nearness_check(ref_s, ref_kp, cur_frame, cur_kp, \
                 method='kp_l2_distance', video_num=video_num, frame_idx=frame_idx):
@@ -98,6 +104,7 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
         as a source frame. Config specifies configuration details, while timing 
         determines whether to time the functions on a gpu or not """
     global kp_file
+    global reference_frame_list
     log_dir = os.path.join(log_dir, 'reconstruction' + '_' + experiment_name)
     png_dir = os.path.join(log_dir, 'png')
     visualization_dir = os.path.join(log_dir, 'visualization')
@@ -179,6 +186,7 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
                         if frame_idx % reference_frame_update_freq == 0:
                             source = frame_to_tensor(frame, device) 
                             kp_source = kp_detector(source)
+                            update_source = True
                     else:
                         cur_frame = frame_to_tensor(frame, device) 
                         cur_kp = kp_detector(cur_frame)
