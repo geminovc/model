@@ -259,6 +259,16 @@ class Visualizer:
             heatmap = self.draw_deformation_heatmap(deformation)
             images.append(heatmap)
 
+        # show the lf and hf separately
+        if 'prediction_lf' in out and 'prediction_hf' in out:
+            prediction_lf = out['prediction_lf'].data.cpu().numpy()
+            prediction_lf = np.transpose(prediction_lf, [0, 2, 3, 1])
+            images.append(prediction_lf)
+        
+            prediction_hf = out['prediction_hf'].data.cpu().numpy()
+            prediction_hf = np.transpose(prediction_hf, [0, 2, 3, 1])
+            images.append(prediction_hf)
+
         # Result with and without keypoints
         prediction = out['prediction'].data.cpu().numpy()
         prediction = np.transpose(prediction, [0, 2, 3, 1])

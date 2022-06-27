@@ -31,7 +31,7 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
     else:
         optimizer_kp_detector = None
 
-    if checkpoint is not None and generator_type == "occlusion_aware":
+    if checkpoint is not None and generator_type in ["occlusion_aware", "split_hf_lf"]:
         if train_params.get('skip_generator_loading', False):
             # set optimizers and discriminator to None to avoid bogus values and to start training from scratch
             start_epoch = Logger.load_cpk(checkpoint, None, None, kp_detector,

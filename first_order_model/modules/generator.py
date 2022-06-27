@@ -231,6 +231,7 @@ class OcclusionAwareGenerator(nn.Module):
             lf_out = self.sr_final(lf_out)
             lf_out = F.sigmoid(lf_out)
             output_dict["prediction_lf"] = lf_out
+            output_dict["prediction_hf"] = out
             output_dict["prediction_lf_detached"] = lf_out.detach() + out
             out = out + lf_out
 
