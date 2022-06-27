@@ -291,7 +291,9 @@ class GeneratorFullModel(torch.nn.Module):
                     'l1': F.l1_loss,
                     'ce': F.cross_entropy }
             loss_fn = loss_dict['l1']
-            pix_loss = loss_fn(generated['prediction_lf'], real_input.detach())
+            generated_lf = generated['prediction_lf'] if generator_type == 'split_hf_lf' \
+                    else generated_input
+            pix_loss = loss_fn(generated_lf, real_input.detach())
             loss_values['pixelwise'] = self.loss_weights['pixelwise'] * pix_loss
                    
         if self.loss_weights['generator_gan'] != 0:
