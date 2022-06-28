@@ -88,22 +88,11 @@ class FirstOrderModel(KeypointBasedFaceModels):
         self.last_source_index = -1
 
 
-
     def update_source(self, index, source_frame, source_keypoints):
         """ update the source and keypoints the frame is using 
             from the RGB source provided as input
         """
-        transformed_source = source_frame.transpose((2, 0, 1))
-        transformed_source = torch.from_numpy(transformed_source).to(torch.uint8)
-        if torch.cuda.is_available():
-            transformed_source = transformed_source.cuda()
-
-        # convert to float
-        transformed_source = transformed_source.to(torch.float32)
-        transformed_source = torch.div(transformed_source, 255)
-        transformed_source = torch.unsqueeze(transformed_source, 0)
-        self.source_frames[index] = transformed_source
-        
+        self.source_frames[index] = self.convert_image_to_tensor(source_frame)
         self.source_keypoints[index] = self.convert_kp_dict_to_tensors(source_keypoints)
 
 
@@ -112,15 +101,10 @@ class FirstOrderModel(KeypointBasedFaceModels):
             from the provided RGB image
             uses keypoints to detect the best source image to use
         """
-        transformed_frame = frame.transpose((2, 0, 1))
-        transformed_frame = torch.from_numpy(transformed_frame).to(torch.uint8)
-        if torch.cuda.is_available():
-            transformed_frame = transformed_frame.cuda()
-        
-        # convert to float
-        transformed_frame = transformed_frame.to(torch.float32)
-        transformed_frame = torch.div(transformed_frame, 255)
-        transformed_frame = torch.unsqueeze(transformed_frame, 0)
+        if not torch.is_tensor(frame):
+            transformed_frame = self.convert_image_to_tensor(frame)
+        else:
+            transformed_frame = frame
         
         # change to arrays and standardize
         # Note: keypoints are stored at key 'value' in FOM
@@ -164,7 +148,22 @@ class FirstOrderModel(KeypointBasedFaceModels):
         return new_kp_dict
 
 
-    def predict(self, target_keypoints):
+    def convert_image_to_tensor(self, image):
+        """ takes an RGB image in 0-255 range and converts it into a float tensor """
+        transformed_image = image.transpose((2, 0, 1))
+        transformed_image = torch.from_numpy(transformed_image).to(torch.uint8)
+        if torch.cuda.is_available():
+            transformed_image = transformed_image.cuda()
+
+        # convert to float
+        transformed_image = transformed_image.to(torch.float32)
+        transformed_image = torch.div(transformed_image, 255)
+        transformed_image = torch.unsqueeze(transformed_image, 0)
+
+        return transformed_image
+
+
+    def predict(self, target_keypoints, target_64x64=None):
         """ takes target keypoints and returns an RGB image for the prediction """
         source_index = target_keypoints['source_index']
         assert(source_index in self.source_keypoints)
@@ -176,9 +175,53 @@ class FirstOrderModel(KeypointBasedFaceModels):
         source_kp_tensors = self.source_keypoints[source_index]
         target_kp_tensors = self.convert_kp_dict_to_tensors(target_keypoints)
         out = self.generator(self.source_frames[source_index], \
-                kp_source=source_kp_tensors, kp_driving=target_kp_tensors, update_source=update_source)
+            kp_source=source_kp_tensors, kp_driving=target_kp_tensors, \
+            update_source=update_source, driving_64x64=target_64x64)
+
 
         prediction = torch.mul(out['prediction'][0], 255).to(torch.uint8)
         prediction_cpu = prediction.data.cpu().numpy()
         final_prediction = np.transpose(prediction_cpu, [1, 2, 0])
         return final_prediction
+
+
+    def predict_with_source(self, target_keypoints, source_frame, source_keypoints, target_64x64=None):
+        """ takes target keypoints and returns an RGB image for the prediction 
+            using the source passed in
+        """
+        update_source = True
+        self.last_source_index = -1 
+        
+        source_kp_tensors = self.convert_kp_dict_to_tensors(source_keypoints)
+        target_kp_tensors = self.convert_kp_dict_to_tensors(target_keypoints)
+        
+        transformed_source = self.convert_image_to_tensor(source_frame)
+        out = self.generator(transformed_source, \
+                kp_source=source_kp_tensors, kp_driving=target_kp_tensors,\
+                update_source=update_source, driving_64x64=target_64x64)
+
+        prediction = torch.mul(out['prediction'][0], 255).to(torch.uint8)
+        prediction_cpu = prediction.data.cpu().numpy()
+        final_prediction = np.transpose(prediction_cpu, [1, 2, 0])
+        return final_prediction
+
+
+    def predict_with_lr_video(self, target_64x64):
+        """ predict and return the target RGB frame 
+            from a low-res version of it. 
+        """
+        target_64x64_tensor = self.convert_image_to_tensor(target_64x64)
+        target_keypoints, best_source_index = self.extract_keypoints(target_64x64_tensor)
+        target_keypoints['source_index'] = best_source_index
+
+        return self.predict(target_keypoints, target_64x64_tensor)
+
+
+    def predict_with_lr_video_and_source(self, target_64x64, source_frame, source_keypoints):
+        """ predict and return the target RGB frame 
+            from a low-res version of it. 
+        """
+        target_64x64_tensor = self.convert_image_to_tensor(target_64x64_tensor)
+        target_keypoints, _ = self.extract_keypoints(target_64x64_tensor)
+        return self.predict_with_source(target_keypoints, source_frame, source_keypoints, target_64x64_tensor)
+

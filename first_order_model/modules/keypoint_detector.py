@@ -71,11 +71,12 @@ class KPDetector(nn.Module):
         return feature
 
     def forward(self, x):
-        if self.run_at_256:
-            x = F.interpolate(x, 256)
-        
-        if self.scale_factor != 1:
-            x = self.down(x)
+        if x.size(dim=1) > 64:
+            if self.run_at_256:
+                x = F.interpolate(x, 256)
+            
+            if self.scale_factor != 1:
+                x = self.down(x)
 
         feature_map = self.predictor(x)
         prediction = self.kp(feature_map)
