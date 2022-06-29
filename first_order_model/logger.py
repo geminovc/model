@@ -113,7 +113,7 @@ class Logger:
                 modified_generator_params = {k: v for k, v in checkpoint['generator'].items() \
                     if not (k.startswith("final") or k.startswith("sigmoid") or k.startswith('first'))}
 
-            if use_64x64_video:
+            if use_64x64_video and generator_type == 'occlusion_aware':
                 modified_generator_params = {k: v for k, v in modified_generator_params.items() \
                     if not k.startswith("up_blocks")}
             generator.load_state_dict(modified_generator_params, strict=False)

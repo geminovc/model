@@ -35,7 +35,8 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
         if train_params.get('skip_generator_loading', False):
             # set optimizers and discriminator to None to avoid bogus values and to start training from scratch
             start_epoch = Logger.load_cpk(checkpoint, None, None, kp_detector,
-                                      None, None, None, dense_motion_network=generator.dense_motion_network)
+                                      None, None, None, dense_motion_network=generator.dense_motion_network,
+                                      generator_type=generator_type)
             start_epoch = 0
         elif generator_params.get('upsample_factor', 1) > 1:
             hr_skip_connections = generator_params.get('use_hr_skip_connections', False)
@@ -44,19 +45,22 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
             start_epoch = Logger.load_cpk(checkpoint, generator, discriminator, kp_detector,
                                       None, None, None, None, upsampling_enabled=True,
                                       use_64x64_video=use_64x64_video,
-                                      hr_skip_connections=hr_skip_connections, run_at_256=run_at_256)
+                                      hr_skip_connections=hr_skip_connections, run_at_256=run_at_256,
+                                      generator_type=generator_type)
             start_epoch = 0
         elif train_params.get('train_everything_but_generator', False):
             run_at_256 = generator_params.get('run_at_256', True)
             start_epoch = Logger.load_cpk(checkpoint, generator, discriminator, None,
                                       optimizer_generator, optimizer_discriminator, 
                                       None if train_params['lr_kp_detector'] == 0 else optimizer_kp_detector,
-                                      dense_motion_network=None, run_at_256=run_at_256)
+                                      dense_motion_network=None, run_at_256=run_at_256,
+                                      generator_type=generator_type)
         else:
             start_epoch = Logger.load_cpk(checkpoint, generator, discriminator, kp_detector,
                                       optimizer_generator, optimizer_discriminator,
                                       None if train_params['lr_kp_detector'] == 0 else optimizer_kp_detector, 
-                                      dense_motion_network=generator.dense_motion_network)
+                                      dense_motion_network=generator.dense_motion_network,
+                                      generator_type=generator_type)
 
     elif checkpoint is not None and generator_type == "super_resolution":
             start_epoch = Logger.load_cpk(checkpoint, generator, discriminator, None,
@@ -171,7 +175,7 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
             if metrics_dataloader is not None:
                 with torch.no_grad():
                     for i, y in enumerate(metrics_dataloader):
-                        _, metrics_generated = generator_full(y)
+                        _, metrics_generated = generator_full(y, generator_type)
                         logger.log_metrics_images(i, y, metrics_generated, loss_fn_vgg)
 
             logger.log_epoch(epoch, {'generator': generator,

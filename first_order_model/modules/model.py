@@ -244,11 +244,9 @@ class GeneratorFullModel(torch.nn.Module):
         # standard pyramides for Vgg perceptual loss
         real_input = x['driving']
         generated_input = generated['prediction']
-        generated_input_lf_detached = generated['prediction_lf_detached'] \
-                if generator_type == "split_hf_lf" else generated_input
         pyramide_real = self.pyramid(real_input)
         pyramide_generated = self.pyramid(generated_input)
-        pyramide_generated_lf_detached = self.pyramid(generated_input_lf_detached)
+        
         
         # pyramides for conditional gan if need be to be used by discriminator
         if self.train_params.get('conditional_gan', False):
@@ -260,9 +258,13 @@ class GeneratorFullModel(torch.nn.Module):
             disc_pyramide_real = pyramide_real
             disc_pyramide_generated = pyramide_generated
         
+        # use only HF pipeline for perceptual if there's a split
         if generator_type == 'split_hf_lf':
+            generated_input_lf_detached = generated['prediction_lf_detached']
+            pyramide_generated_lf_detached = self.pyramid(generated_input_lf_detached)
             pyramid_generated = pyramide_generated_lf_detached
-
+            print("running perceptual on lf detached")
+        
         if sum(self.loss_weights['perceptual']) != 0:
             value_total = 0
             for scale in self.scales:
@@ -292,7 +294,7 @@ class GeneratorFullModel(torch.nn.Module):
                     'ce': F.cross_entropy }
             loss_fn = loss_dict['l1']
             generated_lf = generated['prediction_lf'] if generator_type == 'split_hf_lf' \
-                    else generated_input
+                    else generated['prediction']
             pix_loss = loss_fn(generated_lf, real_input.detach())
             loss_values['pixelwise'] = self.loss_weights['pixelwise'] * pix_loss
                    

@@ -71,7 +71,7 @@ class KPDetector(nn.Module):
         return feature
 
     def forward(self, x):
-        if x.size(dim=1) > 64:
+        if x.size(dim=2) > 64:
             if self.run_at_256:
                 x = F.interpolate(x, 256)
             
