@@ -263,7 +263,6 @@ class GeneratorFullModel(torch.nn.Module):
             generated_input_lf_detached = generated['prediction_lf_detached']
             pyramide_generated_lf_detached = self.pyramid(generated_input_lf_detached)
             pyramid_generated = pyramide_generated_lf_detached
-            print("running perceptual on lf detached")
         
         if sum(self.loss_weights['perceptual']) != 0:
             value_total = 0

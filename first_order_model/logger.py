@@ -102,46 +102,58 @@ class Logger:
             gen_params = checkpoint['generator']
             dense_motion_params = {k: gen_params[k] for k in gen_params.keys() if k.startswith('dense_motion_network')}
             generator.load_state_dict(dense_motion_params, strict=False)
+            print("loading only dense motion in generator")
         elif generator is not None and upsampling_enabled:
             if hr_skip_connections:
                 modified_generator_params = {k: v for k, v in checkpoint['generator'].items() \
                     if not (k.startswith("final") or k.startswith("sigmoid"))}
+                print("loading everything in generator except final and sigmoid")
             elif run_at_256:
                 modified_generator_params = {k: v for k, v in checkpoint['generator'].items() \
                     if not (k.startswith("final") or k.startswith("sigmoid"))}
+                print("loading everything in generator except final and sigmoid")
             else:
                 modified_generator_params = {k: v for k, v in checkpoint['generator'].items() \
                     if not (k.startswith("final") or k.startswith("sigmoid") or k.startswith('first'))}
+                print("loading everything in generator except final and sigmoid and first")
 
             if use_64x64_video and generator_type == 'occlusion_aware':
                 modified_generator_params = {k: v for k, v in modified_generator_params.items() \
                     if not k.startswith("up_blocks")}
+                print("not loading upblocks in generator")
             generator.load_state_dict(modified_generator_params, strict=False)
         elif generator is not None and dense_motion_network is None and generator_type == 'occlusion_aware':
             gen_params = checkpoint['generator']
             gen_params_but_dense_motion_params = {k: gen_params[k] for k in gen_params.keys() if not k.startswith('dense_motion_network')}
             generator.load_state_dict(gen_params_but_dense_motion_params, strict=False)
+            print("loading everything but dense motion in generator")
         elif generator is not None:
+            print("loading everything in generator as is")
             generator.load_state_dict(checkpoint['generator'])
 
         if kp_detector is not None:
+            print("loading everything in kp detector as is")
             kp_detector.load_state_dict(checkpoint['kp_detector'])
 
         if discriminator is not None: 
             try:
                discriminator.load_state_dict(checkpoint['discriminator'])
+               print("loading everything in discriminator as is")
             except:
                print ('No discriminator in the state-dict. Dicriminator will be randomly initialized')
 
         if optimizer_generator is not None:
             optimizer_generator.load_state_dict(checkpoint['optimizer_generator'])
+            print("loading everything in generator optimizer as is")
 
         if optimizer_discriminator is not None:
             try:
                 optimizer_discriminator.load_state_dict(checkpoint['optimizer_discriminator'])
+                print("loading everything in discriminator optimizer as is")
             except RuntimeError as e:
                 print ('No discriminator optimizer in the state-dict. Optimizer will be not initialized')
         if optimizer_kp_detector is not None:
+            print("loading everything in kp detector optimizer as is")
             optimizer_kp_detector.load_state_dict(checkpoint['optimizer_kp_detector'])
 
         return checkpoint['epoch']
