@@ -120,7 +120,7 @@ class OcclusionAwareGenerator(nn.Module):
                         ResBlock2d(in_features, kernel_size=(3, 3), padding=(1, 1)))
 
             sr_final_input_features = out_features
-            self.sr_final = nn.Conv2d(sr_final_input_features, num_channels, kernel_size=(7, 7), padding=(3, 3))
+            self.sr_final = nn.Conv2d(sr_final_input_features + final_input_features, num_channels, kernel_size=(7, 7), padding=(3, 3))
 
         self.num_channels = num_channels
         self.source_image = None
@@ -219,8 +219,8 @@ class OcclusionAwareGenerator(nn.Module):
                 out = torch.cat([out, skip], dim=1)
             out = block(out)
 
-        out = self.final(out)
-        out = F.sigmoid(out)
+        #out = self.final(out)
+        #out = F.sigmoid(out)
 
         # use LF SR pipeline if required and add it to above pipeline result
         if self.generator_type == "split_hf_lf":
@@ -228,12 +228,18 @@ class OcclusionAwareGenerator(nn.Module):
             for i, block in enumerate(self.sr_up_blocks):
                 lf_out = block(lf_out)
 
+            """
             lf_out = self.sr_final(lf_out)
             lf_out = F.sigmoid(lf_out)
             output_dict["prediction_lf"] = lf_out
             output_dict["prediction_hf"] = out
             output_dict["prediction_lf_detached"] = lf_out.detach() + out
             out = out + lf_out
+            """
+            out = torch.cat([out, lf_out], dim = 1)
+            out = self.sr_final(out)
+            out = F.sigmoid(out)
+
 
         output_dict["prediction"] = out
 

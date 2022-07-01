@@ -259,10 +259,12 @@ class GeneratorFullModel(torch.nn.Module):
             disc_pyramide_generated = pyramide_generated
         
         # use only HF pipeline for perceptual if there's a split
+        """
         if generator_type == 'split_hf_lf':
             generated_input_lf_detached = generated['prediction_lf_detached']
             pyramide_generated_lf_detached = self.pyramid(generated_input_lf_detached)
             pyramid_generated = pyramide_generated_lf_detached
+        """
         
         if sum(self.loss_weights['perceptual']) != 0:
             value_total = 0
@@ -292,8 +294,7 @@ class GeneratorFullModel(torch.nn.Module):
                     'l1': F.l1_loss,
                     'ce': F.cross_entropy }
             loss_fn = loss_dict['l1']
-            generated_lf = generated['prediction_lf'] if generator_type == 'split_hf_lf' \
-                    else generated['prediction']
+            generated_lf = generated['prediction']
             pix_loss = loss_fn(generated_lf, real_input.detach())
             loss_values['pixelwise'] = self.loss_weights['pixelwise'] * pix_loss
                    
