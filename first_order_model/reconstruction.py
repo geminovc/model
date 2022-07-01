@@ -212,7 +212,7 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
                         driving_times.append(start.elapsed_time(end))
                 
                 start.record()
-                if generator_type == 'occlusion_aware':
+                if generator_type in ['occlusion_aware', 'split_hf_lf']:
                     out = generator(source, kp_source=kp_source, \
                             kp_driving=kp_driving, update_source=update_source, driving_64x64=driving_64x64)
                 else:
@@ -221,7 +221,9 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
                 torch.cuda.synchronize()
                 if timing_enabled:
                     generator_times.append(start.elapsed_time(end))
-                
+
+                out['prediction'] = torch.clamp(out['prediction'], min=0, max=1)
+                                
                 if kp_detector is not None:
                     out['kp_source'] = kp_source
                     out['kp_driving'] = kp_driving
