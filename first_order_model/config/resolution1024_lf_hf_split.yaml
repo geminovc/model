@@ -56,7 +56,7 @@ model_params:
 
 train_params:
   skip_generator_loading: False
-  train_only_generator: True
+  train_only_generator: False
   train_only_upsample_layers: False
   num_epochs: 100
   num_repeats: 15
@@ -77,8 +77,8 @@ train_params:
     feature_matching: [10, 10, 10, 10]
     perceptual: [10, 10, 10, 10, 10]
     pixelwise: 10 
-    equivariance_value: 0
-    equivariance_jacobian: 0
+    equivariance_value: 10
+    equivariance_jacobian: 10
 
 reconstruction_params:
   num_videos: 1000
