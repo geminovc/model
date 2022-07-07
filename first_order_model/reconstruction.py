@@ -310,13 +310,14 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
                 visualizations.append(visualization)
 
                 if frame_idx % 50 == 0:
-                    print(f'saving {frame_idx} frames')
                     if save_visualizations_as_images:
                         for i, v in enumerate(visualizations):
                             frame_name = x['name'][0] + '_frame' + str(frame_idx - 50 + i) + '.png'
                             imageio.imsave(os.path.join(visualization_dir, frame_name), v)
                     image_name = f"{x['name'][0]}_{frame_idx}_{config['reconstruction_params']['format']}"
-                    imageio.mimsave(os.path.join(log_dir, image_name), visualizations)
+                    if frame_idx % 1000 == 0:
+                        print(f'saving {frame_idx} frames')
+                        imageio.mimsave(os.path.join(log_dir, image_name), visualizations)
                     visualizations = []
 
                 loss_list.append(torch.abs(out['prediction'] - driving).mean().cpu().numpy())
