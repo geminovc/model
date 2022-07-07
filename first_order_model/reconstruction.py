@@ -66,11 +66,11 @@ def frame_to_tensor(frame, device):
     array = torch.from_numpy(array)
     return array.float().to(device)
 
-kp_file = open('kp_data.txt', 'w+')
-kp_file.write('video,frame,dist,ssim\n')
+ssim_correlation_file = open('ssim_data.txt', 'w+')
+ssim_correlation_file.write('video,frame,dist,ssim\n')
 def nearness_check(ref_frame, ref_kp, frame, kp_frame, method='single_reference', video_num=1, frame_idx=0):
     """ checks if two frames are close enough to not be treated as new reference """
-    global kp_file
+    global ssim_correlation_file
 
     threshold = float('inf')
     if method == 'single_reference':
@@ -80,13 +80,13 @@ def nearness_check(ref_frame, ref_kp, frame, kp_frame, method='single_reference'
         xy_frame = kp_frame['value']
         xy_ref = ref_kp['value']
         dist = torch.dist(xy_frame, xy_ref, p=2)
-        kp_file.write(f'{video_num},{frame_idx},{dist.data.cpu().numpy():.4f},')
+        ssim_correlation_file.write(f'{video_num},{frame_idx},{dist.data.cpu().numpy():.4f},')
         if dist > threshold:
             return False
 
     elif method == 'ssim':
         dist = piq.ssim(ref_frame, frame, data_range=1.).data.cpu().numpy().flatten()[0]
-        kp_file.write(f'{video_num},{frame_idx},{dist:.4f},')
+        ssim_correlation_file.write(f'{video_num},{frame_idx},{dist:.4f},')
         if dist > threshold:
             return False
     return True
@@ -97,10 +97,10 @@ def find_best_reference_frame(cur_frame, cur_kp, video_num=1, frame_idx=0):
     global reference_frame_list
     for (ref_s, ref_kp) in reversed(reference_frame_list):
         if nearness_check(ref_s, ref_kp, cur_frame, cur_kp, \
-                method='kp_l2_distance', video_num=video_num, frame_idx=frame_idx):
+                method='ssim', video_num=video_num, frame_idx=frame_idx):
             return True, ref_s, ref_kp
 
-    reference_frame_list.append((cur_frame, cur_kp))
+    #reference_frame_list.append((cur_frame, cur_kp))
     return False, cur_frame, cur_kp
 
 
@@ -138,7 +138,7 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
     """ reconstruct driving frames for each video in the dataset using the first frame
         as a source frame. Config specifies configuration details, while timing 
         determines whether to time the functions on a gpu or not """
-    global kp_file
+    global ssim_correlation_file
     global reference_frame_list
     log_dir = os.path.join(log_dir, 'reconstruction' + '_' + experiment_name)
     png_dir = os.path.join(log_dir, 'png')
@@ -146,6 +146,9 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     generator_params = config['model_params']['generator_params']
     generator_type = generator_params.get('generator_type', 'occlusion_aware')
+    
+    choose_reference_frame = False
+    use_same_tgt_ref_quality = False
     
     if checkpoint is not None:
         dense_motion = generator.dense_motion_network if generator_type == 'occlusion_aware' else None
@@ -232,13 +235,14 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
                 driving = frame_to_tensor(img_as_float32(frame), device)
                 
                 # for use as source frame
-                frame, compressed_src = get_frame_from_video_codec(av_frame, hr_encoder, hr_decoder)
-                frame = img_as_float32(frame)
-                update_source = False
+                decoded_frame, compressed_src = get_frame_from_video_codec(av_frame, hr_encoder, hr_decoder)
+                decoded_frame = img_as_float32(decoded_frame)
+                decoded_tensor = frame_to_tensor(decoded_frame, device)
+                update_source = False if not use_same_tgt_ref_quality else True
                 
                 if kp_detector is not None:
                     if frame_idx == 0: 
-                        source = frame_to_tensor(frame, device)
+                        source = decoded_tensor
                         start.record()
                         kp_source = kp_detector(source)
                         end.record()
@@ -249,22 +253,19 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
 
                     if reference_frame_update_freq is not None:
                         if frame_idx % reference_frame_update_freq == 0:
-                            source = frame_to_tensor(frame, device) 
+                            source = decoded_tensor
                             kp_source = kp_detector(source)
                             update_source = True
                             reference_stream.append(compressed_src)
-                    else:
+
+                    elif choose_reference_frame:
+                        # runs at sender, so use frame prior to encode/decode pipeline
                         cur_frame = frame_to_tensor(frame, device) 
                         cur_kp = kp_detector(cur_frame)
 
                         frame_reuse, source, kp_source = find_best_reference_frame(cur_frame, cur_kp, \
                             video_num=it+1, frame_idx=frame_idx)
 
-                        """
-                        if frame_reuse:
-                            print('reusing frame')
-                        """
-                
                 frame_idx += 1
                 if generator_params.get('use_64x64_video', False):
                     lr_stream.append(compressed_tgt)
@@ -273,7 +274,10 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
                 
                 if kp_detector is not None:
                     start.record()
-                    kp_driving = kp_detector(driving)
+                    if generator_params.get('use_64x64_video', False):
+                        kp_driving = kp_detector(driving_64x64)
+                    else:
+                        kp_driving = kp_detector(driving)
                     end.record()
                     torch.cuda.synchronize()
                     if timing_enabled:
@@ -283,6 +287,11 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
                 if generator_type in ['occlusion_aware', 'split_hf_lf']:
                     out = generator(source, kp_source=kp_source, \
                             kp_driving=kp_driving, update_source=update_source, driving_64x64=driving_64x64)
+
+                    if use_same_tgt_ref_quality:
+                        ref_out = generator(driving, kp_source=kp_driving, \
+                            kp_driving=kp_driving, update_source=True, driving_64x64=driving_64x64)
+
                 else:
                     out = generator(driving_64x64)
                 end.record()
@@ -291,14 +300,27 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
                     generator_times.append(start.elapsed_time(end))
 
                 out['prediction'] = torch.clamp(out['prediction'], min=0, max=1)
+                
+                ssim = piq.ssim(driving, out['prediction'], data_range=1.).data.cpu().numpy().flatten()[0]
+                if use_same_tgt_ref_quality:
+                    ref_ssim = piq.ssim(driving, ref_out['prediction'], data_range=1.).data.cpu().numpy().flatten()[0]
+                    if ssim < ref_ssim:
+                        source = driving
+                        kp_source = kp_driving
+                        reference_frame_list = [(source, kp_source)]
+                        updated_src += 1
+                        reference_stream.append(compressed_src)
+                        ssim = ref_ssim
+                
+                if choose_reference_frame:
+                    ssim_correlation_file.write(f'{ssim:.4f}\n')
+                else:
+                    ssim_correlation_file.write(f'{it+1},{frame_idx},{ssim:.4f}\n')
                                 
                 if kp_detector is not None:
                     out['kp_source'] = kp_source
                     out['kp_driving'] = kp_driving
                     del out['sparse_deformed']
-
-                ssim = piq.ssim(driving, out['prediction'], data_range=1.).data.cpu().numpy().flatten()[0]
-                kp_file.write(f'{ssim:.4f}\n')
                 
                 start.record()
                 visualization = Visualizer(**config['visualizer_params']).visualize(source=source,
@@ -310,6 +332,7 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
                 visualizations.append(visualization)
 
                 if frame_idx % 50 == 0:
+                    print(f'finished {frame_idx} frames')
                     if save_visualizations_as_images:
                         for i, v in enumerate(visualizations):
                             frame_name = x['name'][0] + '_frame' + str(frame_idx - 50 + i) + '.png'
@@ -323,15 +346,6 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
                 loss_list.append(torch.abs(out['prediction'] - driving).mean().cpu().numpy())
                 visual_metrics.append(Logger.get_visual_metrics(out['prediction'], driving, loss_fn_vgg))
                 
-                #last_prediction = np.transpose(out['prediction'].data.cpu().numpy(), [0, 2, 3, 1])[0]
-                #predictions.append(np.transpose(out['prediction'].data.cpu().numpy(), [0, 2, 3, 1])[0])
-
-            """
-            predictions = np.concatenate(predictions, axis=1)
-            imageio.imsave(os.path.join(png_dir, x['name'][0] + '.png'), 
-                    (255 * predictions).astype(np.uint8))
-            """
-            
             print('total frames', frame_idx, 'updated src', updated_src)
             ref_br = get_bitrate(reference_stream, video_duration)
             lr_br = get_bitrate(lr_stream, video_duration)
@@ -356,5 +370,5 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
     print('Reconstruction loss: %s' % np.mean(loss_list))
     metrics_file.write('Reconstruction loss: %s\n' % np.mean(loss_list))
     metrics_file.close()
-    kp_file.close()
+    ssim_correlation_file.close()
 
