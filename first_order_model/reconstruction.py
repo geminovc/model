@@ -9,13 +9,21 @@ import imageio
 from sync_batchnorm import DataParallelWithCallback
 from skimage.metrics import peak_signal_noise_ratio
 from skimage import img_as_float32
+from skimage.transform import resize
 from skimage.metrics import structural_similarity
 from frames_dataset import get_num_frames, get_frame
 from modules.model import Vgg19
 import piq
+import subprocess
+import av
 
 reference_frame_list = []
 
+from aiortc.codecs.vpx import Vp8Encoder, Vp8Decoder, vp8_depayload
+from aiortc.jitterbuffer import JitterFrame
+
+encoder = Vp8Encoder()
+decoder = Vp8Decoder()
 
 def get_size_of_nested_list(list_of_elem):
     """ helper to get size of nested parameter list """ 
@@ -98,6 +106,32 @@ def find_best_reference_frame(cur_frame, cur_kp, video_num=1, frame_idx=0):
     return False, cur_frame, cur_kp
 
 
+def get_frame_from_video_codec(av_frame):
+    """ go through the encoder/decoder pipeline to get a 
+        representative decoded frame
+    """
+    payloads, timestamp = encoder.encode(av_frame)
+    payload_data = [vp8_depayload(p) for p in payloads]
+    decoded_jitter_frame = JitterFrame(data=b"".join(payload_data), timestamp=timestamp)
+    decoded_frame = decoder.decode(decoded_jitter_frame)[0].to_rgb().to_ndarray()
+    return decoded_frame, sum([len(p) for p in payloads])
+
+
+def get_bitrate(stream, video_duration):
+    """ get bitrate (in kbps) from a sequence of frame sizes and video
+        duration in seconds
+    """
+    total_bytes = np.sum(stream)
+    return total_bytes * 8 / video_duration / 1000.0
+
+
+def get_video_duration(filename):
+    result = subprocess.run(["ffprobe", "-v", "error", "-show_entries",
+                             "format=duration", "-of",
+                             "default=noprint_wrappers=1:nokey=1", filename],
+                            stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    return float(result.stdout)
+
 def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset, timing_enabled, 
         save_visualizations_as_images, experiment_name, reference_frame_update_freq=None):
     """ reconstruct driving frames for each video in the dataset using the first frame
@@ -152,6 +186,10 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
     start = torch.cuda.Event(enable_timing=timing_enabled)
     end = torch.cuda.Event(enable_timing=timing_enabled)
     for it, x in tqdm(enumerate(dataloader)):
+        updated_src = 0
+        reference_stream = []
+        lr_stream = []
+        
         if config['reconstruction_params']['num_videos'] is not None:
             if it > config['reconstruction_params']['num_videos']:
                 break
@@ -161,14 +199,36 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
             visualizations = []
             video_name = x['video_path'][0]
             print('doing video', video_name)
-            reader = imageio.get_reader(video_name, 'ffmpeg')
+            video_duration = get_video_duration(video_name)
+
             device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
             if timing_enabled:
                 source_time = start.elapsed_time(end)
                 driving_times, generator_times, visualization_times = [], [], []
+            
+            container = av.open(video_name)
+            stream = container.streams.video[0]
 
             frame_idx = 0
-            for frame in reader:
+            for av_frame in container.decode(stream):
+                frame = av_frame.to_rgb().to_ndarray()
+                
+                # get LR video frame
+                driving_64x64 = resize(frame, (64, 64), anti_aliasing=True, preserve_range=True)
+                driving_64x64 = driving_64x64.astype(np.uint8)
+                
+                driving_64x64_av = av.VideoFrame.from_ndarray(driving_64x64)
+                driving_64x64_av.pts = av_frame.pts
+                driving_64x64_av.time_base = av_frame.time_base
+                
+                driving_64x64, compressed_tgt_size = get_frame_from_video_codec(driving_64x64_av)
+                driving_64x64 = frame_to_tensor(img_as_float32(driving_64x64), device)
+                
+                # ground truth
+                driving = frame_to_tensor(img_as_float32(frame), device)
+                
+                # for use as source frame
+                frame, compressed_src_size = get_frame_from_video_codec(av_frame)
                 frame = img_as_float32(frame)
                 update_source = False
                 
@@ -181,12 +241,14 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
                         torch.cuda.synchronize()
                         update_source = True
                         reference_frame_list.append((source, kp_source))
+                        reference_stream.append(compressed_src_size)
 
                     if reference_frame_update_freq is not None:
                         if frame_idx % reference_frame_update_freq == 0:
                             source = frame_to_tensor(frame, device) 
                             kp_source = kp_detector(source)
                             update_source = True
+                            reference_stream.append(compressed_src_size)
                     else:
                         cur_frame = frame_to_tensor(frame, device) 
                         cur_kp = kp_detector(cur_frame)
@@ -199,9 +261,11 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
                             print('reusing frame')
                         """
                 
-                driving = frame_to_tensor(frame, device)
-                driving_64x64 =  F.interpolate(driving, 64)
                 frame_idx += 1
+                if generator_params.get('use_64x64_video', False):
+                    lr_stream.append(compressed_tgt_size)
+                else:
+                    lr_stream.append(KEYPOINT_FIXED_PAYLOAD_SIZE)
                 
                 if kp_detector is not None:
                     start.record()
@@ -262,10 +326,14 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
             imageio.imsave(os.path.join(png_dir, x['name'][0] + '.png'), 
                     (255 * predictions).astype(np.uint8))
             """
+            
+            print('total frames', frame_idx, 'updated src', updated_src)
+            ref_br = get_bitrate(reference_stream, video_duration)
+            lr_br = get_bitrate(lr_stream, video_duration)
 
             psnr, ssim, lpips_val = get_avg_visual_metrics(visual_metrics)
-            metrics_file.write('%s PSNR: %s, SSIM: %s, LPIPS: %s\n' % (x['name'][0], 
-                    psnr, ssim, lpips_val))
+            metrics_file.write(f'{x["name"][0]} PSNR: {psnr}, SSIM: {ssim}, LPIPS: {lpips_val}, ' +
+                    f'Reference: {ref_br:.3f}Kbps, LR: {lr_br:.3f}Kbps \n')
             metrics_file.flush()
 
             if save_visualizations_as_images:
