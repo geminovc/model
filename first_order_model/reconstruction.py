@@ -22,8 +22,6 @@ reference_frame_list = []
 from aiortc.codecs.vpx import Vp8Encoder, Vp8Decoder, vp8_depayload
 from aiortc.jitterbuffer import JitterFrame
 
-encoder = Vp8Encoder()
-decoder = Vp8Decoder()
 
 def get_size_of_nested_list(list_of_elem):
     """ helper to get size of nested parameter list """ 
@@ -106,7 +104,7 @@ def find_best_reference_frame(cur_frame, cur_kp, video_num=1, frame_idx=0):
     return False, cur_frame, cur_kp
 
 
-def get_frame_from_video_codec(av_frame):
+def get_frame_from_video_codec(av_frame, encoder, decoder):
     """ go through the encoder/decoder pipeline to get a 
         representative decoded frame
     """
@@ -126,11 +124,14 @@ def get_bitrate(stream, video_duration):
 
 
 def get_video_duration(filename):
+    """ get duration of video in seconds 
+    """
     result = subprocess.run(["ffprobe", "-v", "error", "-show_entries",
                              "format=duration", "-of",
                              "default=noprint_wrappers=1:nokey=1", filename],
                             stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     return float(result.stdout)
+
 
 def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset, timing_enabled, 
         save_visualizations_as_images, experiment_name, reference_frame_update_freq=None):
@@ -190,6 +191,9 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
         reference_stream = []
         lr_stream = []
         
+        hr_encoder, lr_encoder = Vp8Encoder(), Vp8Encoder()
+        hr_decoder, lr_decoder = Vp8Decoder(), Vp8Decoder()
+        
         if config['reconstruction_params']['num_videos'] is not None:
             if it > config['reconstruction_params']['num_videos']:
                 break
@@ -221,14 +225,14 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
                 driving_64x64_av.pts = av_frame.pts
                 driving_64x64_av.time_base = av_frame.time_base
                 
-                driving_64x64, compressed_tgt_size = get_frame_from_video_codec(driving_64x64_av)
+                driving_64x64, compressed_tgt = get_frame_from_video_codec(driving_64x64_av, lr_encoder, lr_decoder)
                 driving_64x64 = frame_to_tensor(img_as_float32(driving_64x64), device)
                 
                 # ground truth
                 driving = frame_to_tensor(img_as_float32(frame), device)
                 
                 # for use as source frame
-                frame, compressed_src_size = get_frame_from_video_codec(av_frame)
+                frame, compressed_src = get_frame_from_video_codec(av_frame, hr_encoder, hr_decoder)
                 frame = img_as_float32(frame)
                 update_source = False
                 
@@ -241,14 +245,14 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
                         torch.cuda.synchronize()
                         update_source = True
                         reference_frame_list.append((source, kp_source))
-                        reference_stream.append(compressed_src_size)
+                        reference_stream.append(compressed_src)
 
                     if reference_frame_update_freq is not None:
                         if frame_idx % reference_frame_update_freq == 0:
                             source = frame_to_tensor(frame, device) 
                             kp_source = kp_detector(source)
                             update_source = True
-                            reference_stream.append(compressed_src_size)
+                            reference_stream.append(compressed_src)
                     else:
                         cur_frame = frame_to_tensor(frame, device) 
                         cur_kp = kp_detector(cur_frame)
@@ -263,7 +267,7 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
                 
                 frame_idx += 1
                 if generator_params.get('use_64x64_video', False):
-                    lr_stream.append(compressed_tgt_size)
+                    lr_stream.append(compressed_tgt)
                 else:
                     lr_stream.append(KEYPOINT_FIXED_PAYLOAD_SIZE)
                 
