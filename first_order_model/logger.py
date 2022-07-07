@@ -257,6 +257,14 @@ class Visualizer:
             transformed_kp = out['transformed_kp']['value'].data.cpu().numpy()
             images.append((transformed, transformed_kp))
 
+        #64x64 driving image
+        driving_64x64 =  F.interpolate(driving, 64)
+        driving_64x64_padded = torch.zeros(driving.shape[0], 3, driving.shape[2], driving.shape[3]) 
+        driving_64x64_padded[:, :, :64, :64] = driving_64x64
+        driving_64x64_padded = driving_64x64_padded.data.cpu().numpy()
+        driving_64x64_padded = np.transpose(driving_64x64_padded, [0, 2, 3, 1])
+        images.append(driving_64x64_padded)
+       
         # Driving image with keypoints
         driving = driving.data.cpu().numpy()
         driving = np.transpose(driving, [0, 2, 3, 1])
@@ -264,6 +272,7 @@ class Visualizer:
             kp_driving = out['kp_driving']['value'].data.cpu().numpy()
             images.append((driving, kp_driving))
         images.append(driving)
+
 
         # Deformed image
         if 'deformed' in out:
