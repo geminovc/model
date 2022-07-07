@@ -64,9 +64,10 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
 
     elif checkpoint is not None and generator_type == "super_resolution":
             start_epoch = Logger.load_cpk(checkpoint, generator, discriminator, None,
-                                      optimizer_generator, optimizer_discriminator,
+                                      None, optimizer_discriminator,
                                       None, dense_motion_network=None, 
                                       generator_type=generator_type)
+            start_epoch = 0
     else:
         start_epoch = 0
 

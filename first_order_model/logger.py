@@ -127,9 +127,15 @@ class Logger:
             gen_params_but_dense_motion_params = {k: gen_params[k] for k in gen_params.keys() if not k.startswith('dense_motion_network')}
             generator.load_state_dict(gen_params_but_dense_motion_params, strict=False)
             print("loading everything but dense motion in generator")
-        elif generator is not None:
+        elif generator is not None and generator_type == 'occlusion_aware':
             print("loading everything in generator as is")
             generator.load_state_dict(checkpoint['generator'])
+        elif generator is not None and generator_type == "super_resolution":
+            modified_generator_params = {k: v for k, v in checkpoint['generator'].items() \
+                if (k.startswith("bottleneck") or k.startswith("up"))}
+            generator.load_state_dict(modified_generator_params, strict=False)
+            print("SR: loading bottleneck and upblocks, not loading final/first because of dimensions")
+
 
         if kp_detector is not None:
             print("loading everything in kp detector as is")
