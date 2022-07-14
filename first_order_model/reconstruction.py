@@ -17,10 +17,14 @@ import piq
 import subprocess
 import av
 
+import matplotlib
+import matplotlib.pyplot as plt
+
 reference_frame_list = []
 
 from aiortc.codecs.vpx import Vp8Encoder, Vp8Decoder, vp8_depayload
 from aiortc.jitterbuffer import JitterFrame
+KEYPOINT_FIXED_PAYLOAD_SIZE = 125 # bytes
 
 
 def get_size_of_nested_list(list_of_elem):
@@ -66,7 +70,7 @@ def frame_to_tensor(frame, device):
     array = torch.from_numpy(array)
     return array.float().to(device)
 
-ssim_correlation_file = open('ssim_data.txt', 'w+')
+ssim_correlation_file = open('ssim_data_threshold_approach.txt', 'w+')
 ssim_correlation_file.write('video,frame,dist,ssim\n')
 def nearness_check(ref_frame, ref_kp, frame, kp_frame, method='single_reference', video_num=1, frame_idx=0):
     """ checks if two frames are close enough to not be treated as new reference """
@@ -104,14 +108,15 @@ def find_best_reference_frame(cur_frame, cur_kp, video_num=1, frame_idx=0):
     return False, cur_frame, cur_kp
 
 
-def get_frame_from_video_codec(av_frame, encoder, decoder):
+def get_frame_from_video_codec(av_frame, encoder, decoder, quantizer):
     """ go through the encoder/decoder pipeline to get a 
         representative decoded frame
     """
-    payloads, timestamp = encoder.encode(av_frame)
+    payloads, timestamp = encoder.encode(av_frame, quantizer=quantizer)
     payload_data = [vp8_depayload(p) for p in payloads]
-    decoded_jitter_frame = JitterFrame(data=b"".join(payload_data), timestamp=timestamp)
-    decoded_frame = decoder.decode(decoded_jitter_frame)[0].to_rgb().to_ndarray()
+    jitter_frame = JitterFrame(data=b"".join(payload_data), timestamp=timestamp)
+    decoded_frames = decoder.decode(jitter_frame)
+    decoded_frame = decoded_frames[0].to_rgb().to_ndarray()
     return decoded_frame, sum([len(p) for p in payloads])
 
 
@@ -154,7 +159,7 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
         dense_motion = generator.dense_motion_network if generator_type == 'occlusion_aware' else None
         Logger.load_cpk(checkpoint, generator=generator, 
                 kp_detector=kp_detector, device=device, 
-                dense_motion_network=dense_motion, generator_type=generator_type)
+                dense_motion_network=dense_motion, generator_type=generator_type, reconstruction=True)
     else:
         raise AttributeError('Checkpoint should be specified for reconstruction')
     
@@ -213,29 +218,30 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
                 source_time = start.elapsed_time(end)
                 driving_times, generator_times, visualization_times = [], [], []
             
-            container = av.open(video_name)
+            container = av.open(file=video_name, format=None, mode='r')
             stream = container.streams.video[0]
 
             frame_idx = 0
             for av_frame in container.decode(stream):
+                # ground-truth
                 frame = av_frame.to_rgb().to_ndarray()
+                driving = frame_to_tensor(img_as_float32(frame), device)
                 
                 # get LR video frame
-                driving_64x64 = resize(frame, (64, 64), anti_aliasing=True, preserve_range=True)
+                driving_64x64 = F.interpolate(driving, 64).data.cpu().numpy()
+                driving_64x64 = np.transpose(driving_64x64, [0, 2, 3, 1])[0]
+                driving_64x64 *= 255
                 driving_64x64 = driving_64x64.astype(np.uint8)
                 
                 driving_64x64_av = av.VideoFrame.from_ndarray(driving_64x64)
                 driving_64x64_av.pts = av_frame.pts
                 driving_64x64_av.time_base = av_frame.time_base
                 
-                driving_64x64, compressed_tgt = get_frame_from_video_codec(driving_64x64_av, lr_encoder, lr_decoder)
+                driving_64x64, compressed_tgt = get_frame_from_video_codec(driving_64x64_av, lr_encoder, lr_decoder, 5)
                 driving_64x64 = frame_to_tensor(img_as_float32(driving_64x64), device)
                 
-                # ground truth
-                driving = frame_to_tensor(img_as_float32(frame), device)
-                
                 # for use as source frame
-                decoded_frame, compressed_src = get_frame_from_video_codec(av_frame, hr_encoder, hr_decoder)
+                decoded_frame, compressed_src = get_frame_from_video_codec(av_frame, hr_encoder, hr_decoder, 32)
                 decoded_frame = img_as_float32(decoded_frame)
                 decoded_tensor = frame_to_tensor(decoded_frame, device)
                 update_source = False if not use_same_tgt_ref_quality else True
