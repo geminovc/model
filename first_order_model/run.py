@@ -54,24 +54,28 @@ if __name__ == "__main__":
 
     generator_params = config['model_params']['generator_params']
     generator_type = generator_params.get('generator_type', 'occlusion_aware')
-    if generator_type in ['occlusion_aware', 'split_hf_lf']:
-        generator = OcclusionAwareGenerator(**config['model_params']['generator_params'],
-                                        **config['model_params']['common_params'])
-    else:
-        generator = SuperResolutionGenerator(**config['model_params']['generator_params'],
-                                        **config['model_params']['common_params'])
-
-    if torch.cuda.is_available():
-        generator.to(opt.device_ids[0])
-    if opt.verbose:
-        print(generator)
-
-    discriminator = MultiScaleDiscriminator(**config['model_params']['discriminator_params'],
+    if generator_type not in ['vpx', 'bicubic']:
+        if generator_type in ['occlusion_aware', 'split_hf_lf']:
+            generator = OcclusionAwareGenerator(**config['model_params']['generator_params'],
                                             **config['model_params']['common_params'])
-    if torch.cuda.is_available():
-        discriminator.to(opt.device_ids[0])
-    if opt.verbose:
-        print(discriminator)
+        elif generator_type == 'super_resolution':
+            generator = SuperResolutionGenerator(**config['model_params']['generator_params'],
+                                            **config['model_params']['common_params'])
+
+        if torch.cuda.is_available():
+            generator.to(opt.device_ids[0])
+        if opt.verbose:
+            print(generator)
+
+        discriminator = MultiScaleDiscriminator(**config['model_params']['discriminator_params'],
+                                                **config['model_params']['common_params'])
+        if torch.cuda.is_available():
+            discriminator.to(opt.device_ids[0])
+        if opt.verbose:
+            print(discriminator)
+    
+    else: # VPX/Bicubic
+        generator = None
 
     if generator_type in ['occlusion_aware', 'split_hf_lf']:
         kp_detector = KPDetector(**config['model_params']['kp_detector_params'],

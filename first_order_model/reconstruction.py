@@ -155,13 +155,14 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
     choose_reference_frame = False
     use_same_tgt_ref_quality = False
     
-    if checkpoint is not None:
-        dense_motion = generator.dense_motion_network if generator_type == 'occlusion_aware' else None
-        Logger.load_cpk(checkpoint, generator=generator, 
-                kp_detector=kp_detector, device=device, 
-                dense_motion_network=dense_motion, generator_type=generator_type, reconstruction=True)
-    else:
-        raise AttributeError('Checkpoint should be specified for reconstruction')
+    if generator_type not in ['vpx', 'bicubic']:
+        if checkpoint is not None:
+            dense_motion = generator.dense_motion_network if generator_type == 'occlusion_aware' else None
+            Logger.load_cpk(checkpoint, generator=generator, 
+                    kp_detector=kp_detector, device=device, 
+                    dense_motion_network=dense_motion, generator_type=generator_type, reconstruction=True)
+        else:
+            raise AttributeError('Checkpoint should be specified for reconstruction')
     
     dataloader = DataLoader(dataset, batch_size=1, shuffle=False, num_workers=1)
 
@@ -180,13 +181,15 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
     visual_metrics = []
     vgg_model = Vgg19()
     if torch.cuda.is_available():
-        generator = DataParallelWithCallback(generator)
+        if generator is not None:
+            generator = DataParallelWithCallback(generator)
         if kp_detector is not None:
             kp_detector = DataParallelWithCallback(kp_detector)
         vgg_model = vgg_model.cuda()
  
     loss_fn_vgg = vgg_model.compute_loss
-    generator.eval()
+    if generator is not None:
+        generator.eval()
     if kp_detector is not None:
         kp_detector.eval()
 
@@ -271,6 +274,9 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
 
                         frame_reuse, source, kp_source = find_best_reference_frame(cur_frame, cur_kp, \
                             video_num=it+1, frame_idx=frame_idx)
+                else:
+                    # default if there's no KP based method
+                    source = decoded_tensor
 
                 frame_idx += 1
                 if generator_params.get('use_64x64_video', False):
@@ -298,8 +304,18 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
                         ref_out = generator(driving, kp_source=kp_driving, \
                             kp_driving=kp_driving, update_source=True, driving_64x64=driving_64x64)
 
+                elif generator_type == "bicubic":
+                    out = {'prediction': F.interpolate(driving_64x64, source.shape[2], mode='bicubic')}
+                    lr_stream.append(compressed_tgt)
+                
+                elif generator_type == "vpx":
+                    out = {'prediction': decoded_tensor}
+                    reference_stream.append(compressed_src)
+
                 else:
                     out = generator(driving_64x64)
+                    lr_stream.append(compressed_tgt)
+                
                 end.record()
                 torch.cuda.synchronize()
                 if timing_enabled:
