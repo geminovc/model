@@ -21,7 +21,8 @@ class OcclusionAwareGenerator(nn.Module):
         super(OcclusionAwareGenerator, self).__init__()
 
         if dense_motion_params is not None:
-            self.dense_motion_network = DenseMotionNetwork(num_kp=num_kp, num_channels=num_channels, 
+            self.dense_motion_network = DenseMotionNetwork(num_kp=num_kp, num_channels=num_channels,
+                    lr_features=lr_features,
                     estimate_residual=predict_pixel_features,
                     num_pixel_features=num_pixel_features,
                     estimate_occlusion_map=estimate_occlusion_map, 
@@ -32,8 +33,14 @@ class OcclusionAwareGenerator(nn.Module):
         self.run_at_256 = run_at_256
         self.use_hr_skip_connections = use_hr_skip_connections
         self.encode_hr_input_with_additional_blocks = encode_hr_input_with_additional_blocks
-        self.use_64x64_video = use_64x64_video
         self.generator_type = generator_type
+        
+        if dense_motion_params['concatenate_lr_frame_to_hourglass'] \
+                or dense_motion_params['concatenate_lr_frame_to_prediction']:
+            self.use_64x64_video = False 
+        else:
+            self.use_64x64_video = use_64x64_video
+
 
         if use_hr_skip_connections:
             assert run_at_256, "Skip connections require parallel 256 FOM pipeline"
@@ -176,7 +183,7 @@ class OcclusionAwareGenerator(nn.Module):
         output_dict = {}
         if self.dense_motion_network is not None:
             dense_motion = self.dense_motion_network(source_image=source_image, kp_driving=kp_driving,
-                                                     kp_source=kp_source)
+                                                     kp_source=kp_source, lr_frame=driving_64x64)
             output_dict['mask'] = dense_motion['mask']
             output_dict['sparse_deformed'] = dense_motion['sparse_deformed']
 

@@ -19,6 +19,7 @@ model_params:
     num_kp: 10
     num_channels: 3
     estimate_jacobian: True
+    lr_features: 32
   kp_detector_params:
      temperature: 0.1
      block_expansion: 32
@@ -38,13 +39,14 @@ model_params:
     hr_features: 16
     encode_hr_input_with_additional_blocks: False
     use_64x64_video: True
-    lr_features: 32
     dense_motion_params:
       block_expansion: 64
       max_features: 1024
       num_blocks: 5
       scale_factor: 0.25
       run_at_256: True
+      concatenate_lr_frame_to_hourglass: False
+      concatenate_lr_frame_to_prediction: False
   discriminator_params:
     scales: [1]
     block_expansion: 32

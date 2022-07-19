@@ -122,9 +122,16 @@ class Logger:
                 print("loading everything in generator except final and sigmoid and first")
 
             if use_64x64_video and generator_type == 'occlusion_aware':
+                """
                 modified_generator_params = {k: v for k, v in modified_generator_params.items() \
                     if not k.startswith("up_blocks")}
                 print("not loading upblocks in generator")
+                """
+                modified_generator_params = {k: v for k, v in modified_generator_params.items() \
+                    if not (k.startswith("dense_motion_network.hourglass") or \
+                    k.startswith("dense_motion_network.mask") or \
+                    k.startswith("dense_motion_network.occlusion"))}
+                print("not loading hourglass or mask or occlusion blocks")
             generator.load_state_dict(modified_generator_params, strict=False)
         elif generator is not None and dense_motion_network is None and generator_type == 'occlusion_aware':
             gen_params = checkpoint['generator']
