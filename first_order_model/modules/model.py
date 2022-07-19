@@ -225,12 +225,17 @@ class GeneratorFullModel(torch.nn.Module):
                 self.vgg_face = self.vgg_face.cuda()
 
 
-    def forward(self, x, generator_type='occlusion_aware'):
+    def forward(self, x, generator_type='occlusion_aware', use_64x64_video=False):
         driving_64x64 =  F.interpolate(x['driving'], 64)
         
         if generator_type in ['occlusion_aware', 'split_hf_lf']:
             kp_source = self.kp_extractor(x['source'])
-            kp_driving = self.kp_extractor(x['driving'])
+            
+            if use_64x64_video:
+                kp_driving = self.kp_extractor(driving_64x64)
+            else:
+                kp_driving = self.kp_extractor(x['driving'])
+            
             generated = self.generator(x['source'], kp_source=kp_source, 
                     kp_driving=kp_driving, update_source=True, 
                     driving_64x64=driving_64x64)

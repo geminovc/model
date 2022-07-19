@@ -19,6 +19,8 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
     train_params = config['train_params'] 
     generator_params = config['model_params']['generator_params']
     generator_type = generator_params.get('generator_type', 'occlusion_aware')
+    use_64x64_video = generator_params.get('use_64x64_video', False)
+    
     if config['model_params']['discriminator_params'].get('conditional_gan', False):
         train_params['conditional_gan'] = True
         assert(train_params['skip_generator_loading'])
@@ -41,7 +43,6 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
         elif generator_params.get('upsample_factor', 1) > 1:
             hr_skip_connections = generator_params.get('use_hr_skip_connections', False)
             run_at_256 = generator_params.get('run_at_256', True)
-            use_64x64_video = generator_params.get('use_64x64_video', False)
             start_epoch = Logger.load_cpk(checkpoint, generator, discriminator, kp_detector,
                                       None, None, None, None, upsampling_enabled=True,
                                       use_64x64_video=use_64x64_video,
@@ -134,7 +135,7 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
     with Logger(log_dir=log_dir, visualizer_params=config['visualizer_params'], checkpoint_freq=train_params['checkpoint_freq']) as logger:
         for epoch in trange(start_epoch, train_params['num_epochs']):
             for x in dataloader:
-                losses_generator, generated = generator_full(x, generator_type)
+                losses_generator, generated = generator_full(x, generator_type, use_64x64_video)
 
                 if epoch == 0:
                     break
@@ -176,7 +177,7 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
             if metrics_dataloader is not None:
                 with torch.no_grad():
                     for i, y in enumerate(metrics_dataloader):
-                        _, metrics_generated = generator_full(y, generator_type)
+                        _, metrics_generated = generator_full(y, generator_type, use_64x64_video)
                         logger.log_metrics_images(i, y, metrics_generated, loss_fn_vgg)
 
             logger.log_epoch(epoch, {'generator': generator,

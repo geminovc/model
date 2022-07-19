@@ -28,12 +28,14 @@ class DenseMotionNetwork(nn.Module):
                               num_kp + 1, kernel_size=(7, 7), padding=(3, 3))
 
         if estimate_occlusion_map:
-            self.occlusion = nn.Conv2d(self.hourglass.out_filters, 1, kernel_size=(7, 7), padding=(3, 3))
+            self.occlusion = nn.Conv2d(self.hourglass.out_filters + additional_features, \
+                    1, kernel_size=(7, 7), padding=(3, 3))
         else:
             self.occlusion = None
         
         if estimate_residual:
-            self.residual = nn.Conv2d(self.hourglass.out_filters, 1, kernel_size=(7, 7), padding=(3, 3))
+            self.residual = nn.Conv2d(self.hourglass.out_filters + additional_features, \
+                    1, kernel_size=(7, 7), padding=(3, 3))
             self.num_pixel_features = num_pixel_features
         else:
             self.residual = None
@@ -167,7 +169,7 @@ class DenseMotionNetwork(nn.Module):
         prediction = self.hourglass(input)
         if self.concatenate_lr_frame_to_prediction:
             lr_frame_features = self.lr_first(lr_frame)
-            input = torch.cat([prediction, lr_frame_features], dim = 1)
+            prediction = torch.cat([prediction, lr_frame_features], dim = 1)
 
         mask = self.mask(prediction)
         mask = F.softmax(mask, dim=1)
