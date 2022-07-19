@@ -177,6 +177,7 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
     
     
     metrics_file = open(os.path.join(log_dir, experiment_name + '_metrics_summary.txt'), 'wt')
+    frame_metrics_file = open(os.path.join(log_dir, experiment_name + 'per_frame_metrics.txt'), 'wt')
     loss_list = []
     visual_metrics = []
     vgg_model = Vgg19()
@@ -377,6 +378,12 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
                     f'Reference: {ref_br:.3f}Kbps, LR: {lr_br:.3f}Kbps \n')
             metrics_file.flush()
 
+            if it == 0:
+                frame_metrics_file.write('video_num,frame,psnr,ssim,lpips\n')
+            for i, m in enumerate(visual_metrics):
+                frame_metrics_file.write(f'{it + 1},{i},{m["psnr"][0]},{m["ssim"]},{m["lpips"]}\n')
+            frame_metrics_file.flush()
+
             if save_visualizations_as_images:
                 for i, v in enumerate(visualizations):
                     frame_name = x['name'][0] + '_frame' + str(frame_idx - len(visualizations) + i) + '.png'
@@ -392,5 +399,6 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
     print('Reconstruction loss: %s' % np.mean(loss_list))
     metrics_file.write('Reconstruction loss: %s\n' % np.mean(loss_list))
     metrics_file.close()
+    frame_metrics_file.close()
     ssim_correlation_file.close()
 
