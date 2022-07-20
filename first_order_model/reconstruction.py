@@ -177,7 +177,7 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
     
     
     metrics_file = open(os.path.join(log_dir, experiment_name + '_metrics_summary.txt'), 'wt')
-    frame_metrics_file = open(os.path.join(log_dir, experiment_name + 'per_frame_metrics.txt'), 'wt')
+    frame_metrics_file = open(os.path.join(log_dir, experiment_name + '_per_frame_metrics.txt'), 'wt')
     loss_list = []
     visual_metrics = []
     vgg_model = Vgg19()
