@@ -179,7 +179,6 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
     metrics_file = open(os.path.join(log_dir, experiment_name + '_metrics_summary.txt'), 'wt')
     frame_metrics_file = open(os.path.join(log_dir, experiment_name + '_per_frame_metrics.txt'), 'wt')
     loss_list = []
-    visual_metrics = []
     vgg_model = Vgg19()
     if torch.cuda.is_available():
         if generator is not None:
@@ -213,6 +212,7 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
         with torch.no_grad():
             predictions = []
             visualizations = []
+            visual_metrics = []
             video_name = x['video_path'][0]
             print('doing video', video_name)
             video_duration = get_video_duration(video_name)
@@ -330,6 +330,7 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
                     if ssim < ref_ssim:
                         source = driving
                         kp_source = kp_driving
+                        out = ref_out
                         reference_frame_list = [(source, kp_source)]
                         updated_src += 1
                         reference_stream.append(compressed_src)

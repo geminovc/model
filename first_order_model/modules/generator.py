@@ -35,8 +35,8 @@ class OcclusionAwareGenerator(nn.Module):
         self.encode_hr_input_with_additional_blocks = encode_hr_input_with_additional_blocks
         self.generator_type = generator_type
         
-        if dense_motion_params['concatenate_lr_frame_to_hourglass'] \
-                or dense_motion_params['concatenate_lr_frame_to_prediction']:
+        if dense_motion_params.get('concatenate_lr_frame_to_hourglass', False) \
+                or dense_motion_params.get('concatenate_lr_frame_to_prediction', False):
             self.use_64x64_video = False 
         else:
             self.use_64x64_video = use_64x64_video
