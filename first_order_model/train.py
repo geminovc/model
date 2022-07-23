@@ -1,6 +1,6 @@
 from tqdm import trange
 import torch
-
+import torch.nn.functional as F
 from torch.utils.data import DataLoader
 
 from logger import Logger
@@ -14,12 +14,29 @@ from frames_dataset import DatasetRepeater
 from frames_dataset import MetricsDataset
 import lpips
 
+from aiortc.codecs.vpx import Vp8Encoder, Vp8Decoder, vp8_depayload
+from aiortc.jitterbuffer import JitterFrame
+
+def get_frame_from_video_codec(av_frame, quantizer):
+    """ go through the encoder/decoder pipeline to get a 
+        representative decoded frame
+    """
+    # encode every frame as a keyframe with new encoder/decoder
+    encoder, decoder = Vp8Encoder(), Vp8Decoder()
+    payloads, timestamp = encoder.encode(av_frame, quantizer=quantizer)
+    payload_data = [vp8_depayload(p) for p in payloads]
+    jitter_frame = JitterFrame(data=b"".join(payload_data), timestamp=timestamp)
+    decoded_frames = decoder.decode(jitter_frame)
+    decoded_frame = decoded_frames[0].to_rgb().to_ndarray()
+    return decoded_frame, sum([len(p) for p in payloads])
+
 
 def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, dataset, device_ids):
     train_params = config['train_params'] 
     generator_params = config['model_params']['generator_params']
     generator_type = generator_params.get('generator_type', 'occlusion_aware')
-    use_64x64_video = generator_params.get('use_64x64_video', False)
+    use_lr_video = generator_params.get('use_lr_video', False)
+    lr_size = generator_params.get('lr_size', 64)
     
     if config['model_params']['discriminator_params'].get('conditional_gan', False):
         train_params['conditional_gan'] = True
@@ -45,7 +62,7 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
             run_at_256 = generator_params.get('run_at_256', True)
             start_epoch = Logger.load_cpk(checkpoint, generator, discriminator, kp_detector,
                                       None, None, None, None, upsampling_enabled=True,
-                                      use_64x64_video=use_64x64_video,
+                                      use_lr_video=use_lr_video,
                                       hr_skip_connections=hr_skip_connections, run_at_256=run_at_256,
                                       generator_type=generator_type)
             start_epoch = 0
@@ -135,7 +152,15 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
     with Logger(log_dir=log_dir, visualizer_params=config['visualizer_params'], checkpoint_freq=train_params['checkpoint_freq']) as logger:
         for epoch in trange(start_epoch, train_params['num_epochs']):
             for x in dataloader:
-                losses_generator, generated = generator_full(x, generator_type, use_64x64_video)
+                if use_lr_video:
+                    lr_frame = F.interpolate(x['driving'], lr_size)
+                    if train_params.get('encode_video_for_training', False):
+                        quantizer = random.randint(0, 63)
+                        x['driving_lr'] = get_frame_from_video_codec(lr_frame, quantizer) 
+                    else:
+                        x['driving_lr'] = lr_frame
+
+                losses_generator, generated = generator_full(x, generator_type)
 
                 if epoch == 0:
                     break
@@ -177,7 +202,16 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
             if metrics_dataloader is not None:
                 with torch.no_grad():
                     for i, y in enumerate(metrics_dataloader):
-                        _, metrics_generated = generator_full(y, generator_type, use_64x64_video)
+                        if use_lr_video:
+                            lr_frame = F.interpolate(y['driving'], lr_size)
+                            if train_params.get('encode_video_for_training', False):
+                                quantizer = random.randint(0, 63)
+                                y['driving_lr'] = get_frame_from_video_codec(lr_frame, quantizer) 
+                            else:
+                                y['driving_lr'] = lr_frame
+
+
+                        _, metrics_generated = generator_full(y, generator_type)
                         logger.log_metrics_images(i, y, metrics_generated, loss_fn_vgg)
 
             logger.log_epoch(epoch, {'generator': generator,

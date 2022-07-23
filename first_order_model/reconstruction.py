@@ -232,17 +232,17 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
                 driving = frame_to_tensor(img_as_float32(frame), device)
                 
                 # get LR video frame
-                driving_64x64 = F.interpolate(driving, 64).data.cpu().numpy()
-                driving_64x64 = np.transpose(driving_64x64, [0, 2, 3, 1])[0]
-                driving_64x64 *= 255
-                driving_64x64 = driving_64x64.astype(np.uint8)
+                driving_lr = F.interpolate(driving, 64).data.cpu().numpy()
+                driving_lr = np.transpose(driving_lr, [0, 2, 3, 1])[0]
+                driving_lr *= 255
+                driving_lr = driving_lr.astype(np.uint8)
                 
-                driving_64x64_av = av.VideoFrame.from_ndarray(driving_64x64)
-                driving_64x64_av.pts = av_frame.pts
-                driving_64x64_av.time_base = av_frame.time_base
+                driving_lr_av = av.VideoFrame.from_ndarray(driving_lr)
+                driving_lr_av.pts = av_frame.pts
+                driving_lr_av.time_base = av_frame.time_base
                 
-                driving_64x64, compressed_tgt = get_frame_from_video_codec(driving_64x64_av, lr_encoder, lr_decoder, 5)
-                driving_64x64 = frame_to_tensor(img_as_float32(driving_64x64), device)
+                driving_lr, compressed_tgt = get_frame_from_video_codec(driving_lr_av, lr_encoder, lr_decoder, 5)
+                driving_lr = frame_to_tensor(img_as_float32(driving_lr), device)
                 
                 # for use as source frame
                 decoded_frame, compressed_src = get_frame_from_video_codec(av_frame, hr_encoder, hr_decoder, 32)
@@ -280,15 +280,15 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
                     source = decoded_tensor
 
                 frame_idx += 1
-                if generator_params.get('use_64x64_video', False):
+                if generator_params.get('use_lr_video', False):
                     lr_stream.append(compressed_tgt)
                 else:
                     lr_stream.append(KEYPOINT_FIXED_PAYLOAD_SIZE)
                 
                 if kp_detector is not None:
                     start.record()
-                    if generator_params.get('use_64x64_video', False):
-                        kp_driving = kp_detector(driving_64x64)
+                    if generator_params.get('use_lr_video', False):
+                        kp_driving = kp_detector(driving_lr)
                     else:
                         kp_driving = kp_detector(driving)
                     end.record()
@@ -299,14 +299,14 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
                 start.record()
                 if generator_type in ['occlusion_aware', 'split_hf_lf']:
                     out = generator(source, kp_source=kp_source, \
-                            kp_driving=kp_driving, update_source=update_source, driving_64x64=driving_64x64)
+                            kp_driving=kp_driving, update_source=update_source, driving_lr=driving_lr)
 
                     if use_same_tgt_ref_quality:
                         ref_out = generator(driving, kp_source=kp_driving, \
-                            kp_driving=kp_driving, update_source=True, driving_64x64=driving_64x64)
+                            kp_driving=kp_driving, update_source=True, driving_lr=driving_lr)
 
                 elif generator_type == "bicubic":
-                    out = {'prediction': F.interpolate(driving_64x64, source.shape[2], mode='bicubic')}
+                    out = {'prediction': F.interpolate(driving_lr, source.shape[2], mode='bicubic')}
                     lr_stream.append(compressed_tgt)
                 
                 elif generator_type == "vpx":
@@ -314,7 +314,7 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
                     reference_stream.append(compressed_src)
 
                 else:
-                    out = generator(driving_64x64)
+                    out = generator(driving_lr)
                     lr_stream.append(compressed_tgt)
                 
                 end.record()
@@ -373,7 +373,7 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
             print('total frames', frame_idx, 'updated src', updated_src)
             ref_br = get_bitrate(reference_stream, video_duration)
             lr_br = get_bitrate(lr_stream, video_duration)
-
+            
             psnr, ssim, lpips_val = get_avg_visual_metrics(visual_metrics)
             metrics_file.write(f'{x["name"][0]} PSNR: {psnr}, SSIM: {ssim}, LPIPS: {lpips_val}, ' +
                     f'Reference: {ref_br:.3f}Kbps, LR: {lr_br:.3f}Kbps \n')

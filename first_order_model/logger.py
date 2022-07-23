@@ -90,7 +90,7 @@ class Logger:
     @staticmethod
     def load_cpk(checkpoint_path, generator=None, discriminator=None, kp_detector=None,
                  optimizer_generator=None, optimizer_discriminator=None, optimizer_kp_detector=None, 
-                 device='gpu', dense_motion_network=None, upsampling_enabled=False, use_64x64_video=False, 
+                 device='gpu', dense_motion_network=None, upsampling_enabled=False, use_lr_video=False, 
                  hr_skip_connections=False, run_at_256=True, generator_type='occlusion_aware', reconstruction=False):
 
         if device == torch.device('cpu'):
@@ -121,8 +121,7 @@ class Logger:
                     if not (k.startswith("final") or k.startswith("sigmoid") or k.startswith('first'))}
                 print("loading everything in generator except final and sigmoid and first")
 
-            if use_64x64_video and generator_type == 'occlusion_aware':
-                """
+            if use_lr_video and generator_type == 'occlusion_aware':
                 modified_generator_params = {k: v for k, v in modified_generator_params.items() \
                     if not k.startswith("up_blocks")}
                 print("not loading upblocks in generator")
@@ -132,6 +131,7 @@ class Logger:
                     k.startswith("dense_motion_network.mask") or \
                     k.startswith("dense_motion_network.occlusion"))}
                 print("not loading hourglass or mask or occlusion blocks")
+                """
             generator.load_state_dict(modified_generator_params, strict=False)
         elif generator is not None and dense_motion_network is None and generator_type == 'occlusion_aware':
             gen_params = checkpoint['generator']
@@ -268,13 +268,15 @@ class Visualizer:
             transformed_kp = out['transformed_kp']['value'].data.cpu().numpy()
             images.append((transformed, transformed_kp))
 
-        #64x64 driving image
-        driving_64x64 =  F.interpolate(driving, 64)
-        driving_64x64_padded = torch.zeros(driving.shape[0], 3, driving.shape[2], driving.shape[3]) 
-        driving_64x64_padded[:, :, :64, :64] = driving_64x64
-        driving_64x64_padded = driving_64x64_padded.data.cpu().numpy()
-        driving_64x64_padded = np.transpose(driving_64x64_padded, [0, 2, 3, 1])
-        images.append(driving_64x64_padded)
+        #LR driving image
+        if 'driving_lr' in out:
+            driving_lr = out['driving_lr']
+            size = driving_lr.shape[2]
+            driving_lr_padded = torch.zeros(driving.shape[0], 3, driving.shape[2], driving.shape[3]) 
+            driving_lr_padded[:, :, :size, :size] = driving_lr
+            driving_lr_padded = driving_lr_padded.data.cpu().numpy()
+            driving_lr_padded = np.transpose(driving_lr_padded, [0, 2, 3, 1])
+            images.append(driving_lr_padded)
        
         # Driving image with keypoints
         driving = driving.data.cpu().numpy()

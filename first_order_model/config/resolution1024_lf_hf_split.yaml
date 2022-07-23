@@ -38,7 +38,7 @@ model_params:
     use_hr_skip_connections: True
     hr_features: 16
     encode_hr_input_with_additional_blocks: False
-    use_64x64_video: True
+    use_lr_video: True
     lr_features: 32
     dense_motion_params:
       block_expansion: 64

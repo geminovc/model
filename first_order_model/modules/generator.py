@@ -16,7 +16,7 @@ class OcclusionAwareGenerator(nn.Module):
                  predict_pixel_features=False, num_pixel_features=0, 
                  run_at_256=False, upsample_factor=1, use_hr_skip_connections=False,
                  dense_motion_params=None, estimate_jacobian=False, encode_hr_input_with_additional_blocks=False,
-                 use_64x64_video=False, lr_features=32,
+                 use_lr_video=False, lr_features=32, lr_size=64,
                  hr_features=16, generator_type='occlusion_aware'):
         super(OcclusionAwareGenerator, self).__init__()
 
@@ -34,12 +34,13 @@ class OcclusionAwareGenerator(nn.Module):
         self.use_hr_skip_connections = use_hr_skip_connections
         self.encode_hr_input_with_additional_blocks = encode_hr_input_with_additional_blocks
         self.generator_type = generator_type
+        self.lr_size = lr_size
         
         if dense_motion_params.get('concatenate_lr_frame_to_hourglass', False) \
                 or dense_motion_params.get('concatenate_lr_frame_to_prediction', False):
-            self.use_64x64_video = False 
+            self.use_lr_video = False 
         else:
-            self.use_64x64_video = use_64x64_video
+            self.use_lr_video = use_lr_video
 
 
         if use_hr_skip_connections:
@@ -61,8 +62,8 @@ class OcclusionAwareGenerator(nn.Module):
             input_features = hr_features if self.use_hr_skip_connections else hr_starting_depth
             self.hr_first = SameBlock2d(num_channels, input_features, kernel_size=(7, 7), padding=(3, 3))
 
-        # first layer for LR 64x64 input
-        if self.use_64x64_video:
+        # first layer for LR input
+        if self.use_lr_video:
             self.lr_first = SameBlock2d(num_channels, lr_features, kernel_size=(7, 7), padding=(3, 3))
 
         # enabling extra blocks for bringing higher resolution down
@@ -86,7 +87,8 @@ class OcclusionAwareGenerator(nn.Module):
         up_blocks = []
         for i in range(num_down_blocks):
             in_features =  min(max_features, block_expansion * (2 ** (num_down_blocks - i)))
-            if i == 0 and self.use_64x64_video and self.generator_type == 'occlusion_aware':
+            if i == math.log(self.lr_size / 64, 2) \
+                    and self.use_lr_video and self.generator_type == 'occlusion_aware':
                 in_features += lr_features
 
             out_features = min(max_features, block_expansion * (2 ** (num_down_blocks - i - 1)))
@@ -98,6 +100,9 @@ class OcclusionAwareGenerator(nn.Module):
         offset = 2 if use_hr_skip_connections else 1
         for i in range(upsample_levels):
             in_features = offset * min(max_features, hr_starting_depth * (2 ** (upsample_levels - i)))
+            if i == (math.log(self.lr_size / 64, 2) - len(self.up_blocks)) \
+                    and self.use_lr_video and self.generator_type == 'occlusion_aware':
+                in_features += lr_features
             out_features = min(max_features, hr_starting_depth * (2 ** (upsample_levels - i - 1)))
             hr_up_blocks.append(UpBlock2d(in_features, out_features, kernel_size=(3, 3), padding=(1, 1)))
         self.hr_up_blocks = nn.ModuleList(hr_up_blocks)
@@ -144,7 +149,7 @@ class OcclusionAwareGenerator(nn.Module):
             deformation = deformation.permute(0, 2, 3, 1)
         return F.grid_sample(inp, deformation), deformation
 
-    def forward(self, source_image, kp_driving, kp_source, update_source=False, driving_64x64=None):
+    def forward(self, source_image, kp_driving, kp_source, update_source=False, driving_lr=None):
         if self.source_image is None:
             self.update_source = True
         else:
@@ -176,14 +181,14 @@ class OcclusionAwareGenerator(nn.Module):
             self.encoder_output = out
 
         # lr target image encoding
-        if self.use_64x64_video:
-            lr_encoded_features = self.lr_first(driving_64x64)
+        if self.use_lr_video:
+            lr_encoded_features = self.lr_first(driving_lr)
 
         # Transforming feature representation according to deformation and occlusion
         output_dict = {}
         if self.dense_motion_network is not None:
             dense_motion = self.dense_motion_network(source_image=source_image, kp_driving=kp_driving,
-                                                     kp_source=kp_source, lr_frame=driving_64x64)
+                                                     kp_source=kp_source, lr_frame=driving_lr)
             output_dict['mask'] = dense_motion['mask']
             output_dict['sparse_deformed'] = dense_motion['sparse_deformed']
 
@@ -209,7 +214,8 @@ class OcclusionAwareGenerator(nn.Module):
         # Decoding part
         out = self.bottleneck(out)
         for i, block in enumerate(self.up_blocks):
-            if i == 0 and self.use_64x64_video and self.generator_type == "occlusion_aware":
+            if i == math.log(self.lr_size / 64, 2) \
+                    and self.use_lr_video and self.generator_type == "occlusion_aware":
                 out_shape = list(out.shape)
                 out_shape.pop(1)
                 lr_shape = list(lr_encoded_features.shape)
@@ -220,6 +226,14 @@ class OcclusionAwareGenerator(nn.Module):
 
         for i in range(len(self.hr_up_blocks)):
             block = self.hr_up_blocks[i]
+            if i == (math.log(self.lr_size / 64, 2) - len(self.up_blocks)) \
+                    and self.use_lr_video and self.generator_type == "occlusion_aware":
+                out_shape = list(out.shape)
+                out_shape.pop(1)
+                lr_shape = list(lr_encoded_features.shape)
+                lr_shape.pop(1)
+                assert out_shape == lr_shape, "Dimensions mismatch in LR video input and rest of pipeline"
+                out = torch.cat([out, lr_encoded_features], dim=1)
             if self.use_hr_skip_connections:
                 skip = self.skip_connections[len(self.skip_connections) - 1 - i]
                 skip, _ = self.deform_input(skip, deformation)
@@ -243,5 +257,8 @@ class OcclusionAwareGenerator(nn.Module):
             out = out + lf_out
 
         output_dict["prediction"] = out
+
+        if self.use_lr_video:
+            output_dict['driving_lr'] = driving_lr
 
         return output_dict

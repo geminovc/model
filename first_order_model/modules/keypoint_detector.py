@@ -74,6 +74,8 @@ class KPDetector(nn.Module):
         if x.size(dim=2) > 64:
             if self.run_at_256:
                 x = F.interpolate(x, 256)
+            else:
+                self.scale_factor = 64 / x.size(dim=2)
             
             if self.scale_factor != 1:
                 x = self.down(x)
