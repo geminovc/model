@@ -9,26 +9,47 @@ from modules.model import GeneratorFullModel, DiscriminatorFullModel
 from torch.optim.lr_scheduler import MultiStepLR
 
 from sync_batchnorm import DataParallelWithCallback
+from skimage import img_as_float32
 
 from frames_dataset import DatasetRepeater
 from frames_dataset import MetricsDataset
+from fractions import Fraction
 import lpips
+import random
+import av
+import numpy as np
 
 from aiortc.codecs.vpx import Vp8Encoder, Vp8Decoder, vp8_depayload
 from aiortc.jitterbuffer import JitterFrame
 
-def get_frame_from_video_codec(av_frame, quantizer):
+def get_frame_from_video_codec(frame_tensor, nr_list, dr_list, quantizer):
     """ go through the encoder/decoder pipeline to get a 
         representative decoded frame
     """
     # encode every frame as a keyframe with new encoder/decoder
-    encoder, decoder = Vp8Encoder(), Vp8Decoder()
-    payloads, timestamp = encoder.encode(av_frame, quantizer=quantizer)
-    payload_data = [vp8_depayload(p) for p in payloads]
-    jitter_frame = JitterFrame(data=b"".join(payload_data), timestamp=timestamp)
-    decoded_frames = decoder.decode(jitter_frame)
-    decoded_frame = decoded_frames[0].to_rgb().to_ndarray()
-    return decoded_frame, sum([len(p) for p in payloads])
+    frame_data = frame_tensor.data.cpu().numpy()
+    decoded_data = np.zeros(frame_data.shape) 
+    
+    frame_data = np.transpose(frame_data, [0, 2, 3, 1])
+    frame_data *= 255
+    frame_data = frame_data.astype(np.uint8)
+    
+    nr_list = nr_list.data.cpu().numpy()
+    dr_list = dr_list.data.cpu().numpy()
+
+    for i, (frame, nr, dr) in enumerate(zip(frame_data, nr_list, dr_list)):
+        av_frame = av.VideoFrame.from_ndarray(frame)
+        av_frame.pts = 0
+        av_frame.time_base = Fraction(nr, dr)
+        encoder, decoder = Vp8Encoder(), Vp8Decoder()
+        payloads, timestamp = encoder.encode(av_frame, quantizer=quantizer)
+        payload_data = [vp8_depayload(p) for p in payloads]
+        
+        jitter_frame = JitterFrame(data=b"".join(payload_data), timestamp=timestamp)
+        decoded_frames = decoder.decode(jitter_frame)
+        decoded_frame = decoded_frames[0].to_rgb().to_ndarray()
+        decoded_data[i] = decoded_frame.transpose(2, 0, 1)
+    return torch.from_numpy(img_as_float32(decoded_data))
 
 
 def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, dataset, device_ids):
@@ -156,7 +177,9 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
                     lr_frame = F.interpolate(x['driving'], lr_size)
                     if train_params.get('encode_video_for_training', False):
                         quantizer = random.randint(0, 63)
-                        x['driving_lr'] = get_frame_from_video_codec(lr_frame, quantizer) 
+                        nr = x.get('time_base_nr', torch.ones(lr_frame.size(dim=0)))
+                        dr = x.get('time_base_dr', 30000 * torch.ones(lr_frame.size(dim=0)))
+                        x['driving_lr'] = get_frame_from_video_codec(lr_frame, nr, dr, quantizer) 
                     else:
                         x['driving_lr'] = lr_frame
 
