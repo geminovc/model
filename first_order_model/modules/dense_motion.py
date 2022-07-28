@@ -13,17 +13,17 @@ class DenseMotionNetwork(nn.Module):
 
     def __init__(self, block_expansion, num_blocks, max_features, num_kp, lr_features,
             num_channels, estimate_residual=False, num_pixel_features=0, estimate_occlusion_map=False, 
-            scale_factor=1, kp_variance=0.01, run_at_256=False, concatenate_lr_frame_to_hourglass=False,
-            concatenate_lr_frame_to_prediction=False):
+            scale_factor=1, kp_variance=0.01, run_at_256=False, concatenate_lr_frame_to_hourglass_input=False,
+            concatenate_lr_frame_to_hourglass_output=False):
         super(DenseMotionNetwork, self).__init__()
 
-        additional_features = lr_features if concatenate_lr_frame_to_hourglass else 0
+        additional_features = lr_features if concatenate_lr_frame_to_hourglass_input else 0
         self.hourglass = Hourglass(block_expansion=block_expansion, 
                          in_features=(num_kp + 1) * (num_channels + 1 + num_pixel_features) + additional_features,
                          max_features=max_features, num_blocks=num_blocks)
 
-        use_lr_frame = concatenate_lr_frame_to_hourglass or concatenate_lr_frame_to_prediction
-        additional_features = lr_features if concatenate_lr_frame_to_prediction else 0
+        use_lr_frame = concatenate_lr_frame_to_hourglass_input or concatenate_lr_frame_to_hourglass_output
+        additional_features = lr_features if concatenate_lr_frame_to_hourglass_output else 0
         self.mask = nn.Conv2d(self.hourglass.out_filters + additional_features, 
                               num_kp + 1, kernel_size=(7, 7), padding=(3, 3))
 
@@ -44,8 +44,8 @@ class DenseMotionNetwork(nn.Module):
         self.scale_factor = scale_factor
         self.kp_variance = kp_variance
         self.run_at_256 = run_at_256
-        self.concatenate_lr_frame_to_hourglass = concatenate_lr_frame_to_hourglass
-        self.concatenate_lr_frame_to_prediction = concatenate_lr_frame_to_prediction
+        self.concatenate_lr_frame_to_hourglass_input = concatenate_lr_frame_to_hourglass_input
+        self.concatenate_lr_frame_to_hourglass_output = concatenate_lr_frame_to_hourglass_output
 
         if use_lr_frame:
             self.lr_first = SameBlock2d(num_channels, lr_features, kernel_size=(7, 7), padding=(3, 3))
@@ -162,12 +162,12 @@ class DenseMotionNetwork(nn.Module):
             input = torch.cat([heatmap_representation, deformed_source], dim=2)
 
         input = input.view(bs, -1, h, w)
-        if self.concatenate_lr_frame_to_hourglass:
+        if self.concatenate_lr_frame_to_hourglass_input:
             lr_frame_features = self.lr_first(lr_frame)
             input = torch.cat([input, lr_frame_features], dim = 1)
 
         prediction = self.hourglass(input)
-        if self.concatenate_lr_frame_to_prediction:
+        if self.concatenate_lr_frame_to_hourglass_output:
             lr_frame_features = self.lr_first(lr_frame)
             prediction = torch.cat([prediction, lr_frame_features], dim = 1)
 

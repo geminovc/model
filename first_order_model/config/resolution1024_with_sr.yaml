@@ -46,8 +46,8 @@ model_params:
       num_blocks: 5
       scale_factor: 0.25
       run_at_256: True
-      concatenate_lr_frame_to_hourglass: False
-      concatenate_lr_frame_to_prediction: False
+      concatenate_lr_frame_to_hourglass_input: False
+      concatenate_lr_frame_to_hourglass_output: False
   discriminator_params:
     scales: [1]
     block_expansion: 32

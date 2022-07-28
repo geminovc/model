@@ -36,8 +36,8 @@ class OcclusionAwareGenerator(nn.Module):
         self.generator_type = generator_type
         self.lr_size = lr_size
         
-        if dense_motion_params.get('concatenate_lr_frame_to_hourglass', False) \
-                or dense_motion_params.get('concatenate_lr_frame_to_prediction', False):
+        if dense_motion_params.get('concatenate_lr_frame_to_hourglass_input', False) \
+                or dense_motion_params.get('concatenate_lr_frame_to_hourglass_output', False):
             self.use_lr_video = False 
         else:
             self.use_lr_video = use_lr_video
