@@ -56,7 +56,7 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
     train_params = config['train_params'] 
     generator_params = config['model_params']['generator_params']
     generator_type = generator_params.get('generator_type', 'occlusion_aware')
-    use_lr_video = generator_params.get('use_lr_video', False)
+    use_lr_video = generator_params.get('use_lr_video', False) or generator_type == 'super_resolution'
     lr_size = generator_params.get('lr_size', 64)
     
     if config['model_params']['discriminator_params'].get('conditional_gan', False):
