@@ -39,7 +39,7 @@ def get_size_of_nested_list(list_of_elem):
 
 
 def get_model_info(log_dir, kp_detector, generator):
-    """ get model summary information for the passed in keypoint detector and 
+    """ get model summary information for the passed-in keypoint detector and 
         generator in a text file in the log directory """
     with open(os.path.join(log_dir, 'model_summary.txt'), 'wt') as model_file:
         for model, name in zip([kp_detector, generator], ['kp', 'generator']):

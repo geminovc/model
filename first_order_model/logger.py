@@ -108,11 +108,9 @@ class Logger:
             generator.load_state_dict(dense_motion_params, strict=False)
             print("loading only dense motion in generator")
         elif generator is not None and upsampling_enabled:
-            if hr_skip_connections:
-                modified_generator_params = {k: v for k, v in checkpoint['generator'].items() \
-                    if not (k.startswith("final") or k.startswith("sigmoid"))}
-                print("loading everything in generator except final and sigmoid")
-            elif run_at_256:
+            if hr_skip_connections or run_at_256:
+                # skip connections used in the decoder or bring everything down to same dimensions 
+                # as original FOMM pipeline
                 modified_generator_params = {k: v for k, v in checkpoint['generator'].items() \
                     if not (k.startswith("final") or k.startswith("sigmoid"))}
                 print("loading everything in generator except final and sigmoid")

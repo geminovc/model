@@ -52,6 +52,20 @@ if __name__ == "__main__":
         log_dir = os.path.join(opt.log_dir, opt.experiment_name)
         log_dir += ' ' + strftime("%d_%m_%y_%H.%M.%S", gmtime())
 
+    """ Generator can be of the following types:
+        1. VPX: (not model based) just runs through the regular VPX 
+           decoder to decode the frame at its highest resolution
+        2. Bicubic - does a simple bicubic-based upsampling from low-resolution
+           to high-resolution frames
+        3. Super-resolution: does a simple super-resolution using upsampling
+           learnt blocks to generate the high-resolution image
+        4. OcclusionAware: uses the standard FOM model with/without an additional
+           low-resolution video in the decoder/hourglass to produce the high-resolution
+           warped image in the desired orientation from a reference frame
+        5. Split HF/LF: Generator that uses the Occlusion aware pipeline for
+           High-frequency (HF) content and simple super-resolution for the 
+           low-frequency (LF) content
+    """
     generator_params = config['model_params']['generator_params']
     generator_type = generator_params.get('generator_type', 'occlusion_aware')
     if generator_type not in ['vpx', 'bicubic']:
