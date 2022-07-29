@@ -81,7 +81,7 @@ class Logger:
         self.writer.add_image('reconstruction', image, self.epoch, dataformats='HWC')
 
     def save_cpk(self, emergent=False):
-        cpk = {k: v.state_dict() for k, v in self.models.items()}
+        cpk = {k: v.state_dict() for k, v in self.models.items() if v is not None}
         cpk['epoch'] = self.epoch
         cpk_path = os.path.join(self.cpk_dir, '%s-checkpoint.pth.tar' % str(self.epoch).zfill(self.zfill_num)) 
         if not (os.path.exists(cpk_path) and emergent):
@@ -90,54 +90,85 @@ class Logger:
     @staticmethod
     def load_cpk(checkpoint_path, generator=None, discriminator=None, kp_detector=None,
                  optimizer_generator=None, optimizer_discriminator=None, optimizer_kp_detector=None, 
-                 device='gpu', dense_motion_network=None, upsampling_enabled=False, 
-                 hr_skip_connections=False, run_at_256=True):
+                 device='gpu', dense_motion_network=None, upsampling_enabled=False, use_lr_video=False, 
+                 hr_skip_connections=False, run_at_256=True, generator_type='occlusion_aware', reconstruction=False):
 
         if device == torch.device('cpu'):
             checkpoint = torch.load(checkpoint_path, map_location=torch.device('cpu'))
         else:
             checkpoint = torch.load(checkpoint_path)
 
-        if generator is None and dense_motion_network is not None:
+        if reconstruction:
+            print("loading everything in generator as is")
+            generator.load_state_dict(checkpoint['generator'])
+
+        elif generator is None and dense_motion_network is not None:
             gen_params = checkpoint['generator']
             dense_motion_params = {k: gen_params[k] for k in gen_params.keys() if k.startswith('dense_motion_network')}
             generator.load_state_dict(dense_motion_params, strict=False)
+            print("loading only dense motion in generator")
         elif generator is not None and upsampling_enabled:
-            if hr_skip_connections:
+            if hr_skip_connections or run_at_256:
+                # skip connections used in the decoder or bring everything down to same dimensions 
+                # as original FOMM pipeline
                 modified_generator_params = {k: v for k, v in checkpoint['generator'].items() \
                     if not (k.startswith("final") or k.startswith("sigmoid"))}
-            elif run_at_256:
-                modified_generator_params = {k: v for k, v in checkpoint['generator'].items() \
-                    if not (k.startswith("final") or k.startswith("sigmoid"))}
+                print("loading everything in generator except final and sigmoid")
             else:
                 modified_generator_params = {k: v for k, v in checkpoint['generator'].items() \
                     if not (k.startswith("final") or k.startswith("sigmoid") or k.startswith('first'))}
+                print("loading everything in generator except final and sigmoid and first")
+
+            if use_lr_video and generator_type == 'occlusion_aware':
+                modified_generator_params = {k: v for k, v in modified_generator_params.items() \
+                    if not k.startswith("up_blocks")}
+                print("not loading upblocks in generator")
+                """
+                modified_generator_params = {k: v for k, v in modified_generator_params.items() \
+                    if not (k.startswith("dense_motion_network.hourglass") or \
+                    k.startswith("dense_motion_network.mask") or \
+                    k.startswith("dense_motion_network.occlusion"))}
+                print("not loading hourglass or mask or occlusion blocks")
+                """
             generator.load_state_dict(modified_generator_params, strict=False)
-        elif generator is not None and dense_motion_network is None:
+        elif generator is not None and dense_motion_network is None and generator_type == 'occlusion_aware':
             gen_params = checkpoint['generator']
             gen_params_but_dense_motion_params = {k: gen_params[k] for k in gen_params.keys() if not k.startswith('dense_motion_network')}
             generator.load_state_dict(gen_params_but_dense_motion_params, strict=False)
-        elif generator is not None:
+            print("loading everything but dense motion in generator")
+        elif generator is not None and generator_type in ['occlusion_aware', 'split_hf_lf']:
+            print("loading everything in generator as is")
             generator.load_state_dict(checkpoint['generator'])
+        elif generator is not None and generator_type == "super_resolution":
+            modified_generator_params = {k: v for k, v in checkpoint['generator'].items() \
+                if (k.startswith("bottleneck") or k.startswith("up"))}
+            generator.load_state_dict(modified_generator_params, strict=False)
+            print("SR: loading bottleneck and upblocks, not loading final/first because of dimensions")
+
 
         if kp_detector is not None:
+            print("loading everything in kp detector as is")
             kp_detector.load_state_dict(checkpoint['kp_detector'])
 
         if discriminator is not None: 
             try:
                discriminator.load_state_dict(checkpoint['discriminator'])
+               print("loading everything in discriminator as is")
             except:
                print ('No discriminator in the state-dict. Dicriminator will be randomly initialized')
 
         if optimizer_generator is not None:
             optimizer_generator.load_state_dict(checkpoint['optimizer_generator'])
+            print("loading everything in generator optimizer as is")
 
         if optimizer_discriminator is not None:
             try:
                 optimizer_discriminator.load_state_dict(checkpoint['optimizer_discriminator'])
+                print("loading everything in discriminator optimizer as is")
             except RuntimeError as e:
                 print ('No discriminator optimizer in the state-dict. Optimizer will be not initialized')
         if optimizer_kp_detector is not None:
+            print("loading everything in kp detector optimizer as is")
             optimizer_kp_detector.load_state_dict(checkpoint['optimizer_kp_detector'])
 
         return checkpoint['epoch']
@@ -223,9 +254,10 @@ class Visualizer:
 
         # Source image with keypoints
         source = source.data.cpu()
-        kp_source = out['kp_source']['value'].data.cpu().numpy()
         source = np.transpose(source, [0, 2, 3, 1])
-        images.append((source, kp_source))
+        if 'kp_source' in out:
+            kp_source = out['kp_source']['value'].data.cpu().numpy()
+            images.append((source, kp_source))
 
         # Equivariance visualization
         if 'transformed_frame' in out:
@@ -234,12 +266,24 @@ class Visualizer:
             transformed_kp = out['transformed_kp']['value'].data.cpu().numpy()
             images.append((transformed, transformed_kp))
 
+        #LR driving image
+        if 'driving_lr' in out:
+            driving_lr = out['driving_lr']
+            size = driving_lr.shape[2]
+            driving_lr_padded = torch.zeros(driving.shape[0], 3, driving.shape[2], driving.shape[3]) 
+            driving_lr_padded[:, :, :size, :size] = driving_lr
+            driving_lr_padded = driving_lr_padded.data.cpu().numpy()
+            driving_lr_padded = np.transpose(driving_lr_padded, [0, 2, 3, 1])
+            images.append(driving_lr_padded)
+       
         # Driving image with keypoints
-        kp_driving = out['kp_driving']['value'].data.cpu().numpy()
         driving = driving.data.cpu().numpy()
         driving = np.transpose(driving, [0, 2, 3, 1])
-        images.append((driving, kp_driving))
+        if 'kp_driving' in out:
+            kp_driving = out['kp_driving']['value'].data.cpu().numpy()
+            images.append((driving, kp_driving))
         images.append(driving)
+
 
         # Deformed image
         if 'deformed' in out:
@@ -252,6 +296,16 @@ class Visualizer:
             deformation = out['deformation'].data.cpu().numpy()
             heatmap = self.draw_deformation_heatmap(deformation)
             images.append(heatmap)
+
+        # show the lf and hf separately
+        if 'prediction_lf' in out and 'prediction_hf' in out:
+            prediction_lf = out['prediction_lf'].data.cpu().numpy()
+            prediction_lf = np.transpose(prediction_lf, [0, 2, 3, 1])
+            images.append(prediction_lf)
+        
+            prediction_hf = out['prediction_hf'].data.cpu().numpy()
+            prediction_hf = np.transpose(prediction_hf, [0, 2, 3, 1])
+            images.append(prediction_hf)
 
         # Result with and without keypoints
         prediction = out['prediction'].data.cpu().numpy()

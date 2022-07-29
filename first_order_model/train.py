@@ -1,6 +1,6 @@
 from tqdm import trange
 import torch
-
+import torch.nn.functional as F
 from torch.utils.data import DataLoader
 
 from logger import Logger
@@ -9,47 +9,104 @@ from modules.model import GeneratorFullModel, DiscriminatorFullModel
 from torch.optim.lr_scheduler import MultiStepLR
 
 from sync_batchnorm import DataParallelWithCallback
+from skimage import img_as_float32
 
 from frames_dataset import DatasetRepeater
 from frames_dataset import MetricsDataset
+from fractions import Fraction
 import lpips
+import random
+import av
+import numpy as np
+
+from aiortc.codecs.vpx import Vp8Encoder, Vp8Decoder, vp8_depayload
+from aiortc.jitterbuffer import JitterFrame
+
+def get_frame_from_video_codec(frame_tensor, nr_list, dr_list, quantizer):
+    """ go through the encoder/decoder pipeline to get a 
+        representative decoded frame
+    """
+    # encode every frame as a keyframe with new encoder/decoder
+    frame_data = frame_tensor.data.cpu().numpy()
+    decoded_data = np.zeros(frame_data.shape) 
+    
+    frame_data = np.transpose(frame_data, [0, 2, 3, 1])
+    frame_data *= 255
+    frame_data = frame_data.astype(np.uint8)
+    
+    nr_list = nr_list.data.cpu().numpy()
+    dr_list = dr_list.data.cpu().numpy()
+
+    for i, (frame, nr, dr) in enumerate(zip(frame_data, nr_list, dr_list)):
+        av_frame = av.VideoFrame.from_ndarray(frame)
+        av_frame.pts = 0
+        av_frame.time_base = Fraction(nr, dr)
+        encoder, decoder = Vp8Encoder(), Vp8Decoder()
+        payloads, timestamp = encoder.encode(av_frame, quantizer=quantizer)
+        payload_data = [vp8_depayload(p) for p in payloads]
+        
+        jitter_frame = JitterFrame(data=b"".join(payload_data), timestamp=timestamp)
+        decoded_frames = decoder.decode(jitter_frame)
+        decoded_frame = decoded_frames[0].to_rgb().to_ndarray()
+        decoded_data[i] = decoded_frame.transpose(2, 0, 1)
+    return torch.from_numpy(img_as_float32(decoded_data))
 
 
 def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, dataset, device_ids):
     train_params = config['train_params'] 
     generator_params = config['model_params']['generator_params']
+    generator_type = generator_params.get('generator_type', 'occlusion_aware')
+    use_lr_video = generator_params.get('use_lr_video', False) or generator_type == 'super_resolution'
+    lr_size = generator_params.get('lr_size', 64)
+    
     if config['model_params']['discriminator_params'].get('conditional_gan', False):
         train_params['conditional_gan'] = True
         assert(train_params['skip_generator_loading'])
 
     optimizer_generator = torch.optim.Adam(generator.parameters(), lr=train_params['lr_generator'], betas=(0.5, 0.999))
     optimizer_discriminator = torch.optim.Adam(discriminator.parameters(), lr=train_params['lr_discriminator'], betas=(0.5, 0.999))
-    optimizer_kp_detector = torch.optim.Adam(kp_detector.parameters(), lr=train_params['lr_kp_detector'], betas=(0.5, 0.999))
+    if kp_detector is not None:
+        optimizer_kp_detector = torch.optim.Adam(kp_detector.parameters(), 
+                lr=train_params['lr_kp_detector'], betas=(0.5, 0.999))
+    else:
+        optimizer_kp_detector = None
 
-    if checkpoint is not None:
+    if checkpoint is not None and generator_type in ["occlusion_aware", "split_hf_lf"]:
         if train_params.get('skip_generator_loading', False):
             # set optimizers and discriminator to None to avoid bogus values and to start training from scratch
             start_epoch = Logger.load_cpk(checkpoint, None, None, kp_detector,
-                                      None, None, None, dense_motion_network=generator.dense_motion_network)
+                                      None, None, None, dense_motion_network=generator.dense_motion_network,
+                                      generator_type=generator_type)
             start_epoch = 0
         elif generator_params.get('upsample_factor', 1) > 1:
             hr_skip_connections = generator_params.get('use_hr_skip_connections', False)
             run_at_256 = generator_params.get('run_at_256', True)
             start_epoch = Logger.load_cpk(checkpoint, generator, discriminator, kp_detector,
-                                      None, None, None, None, upsampling_enabled=True, 
-                                      hr_skip_connections=hr_skip_connections, run_at_256=run_at_256)
+                                      None, None, None, None, upsampling_enabled=True,
+                                      use_lr_video=use_lr_video,
+                                      hr_skip_connections=hr_skip_connections, run_at_256=run_at_256,
+                                      generator_type=generator_type)
             start_epoch = 0
         elif train_params.get('train_everything_but_generator', False):
             run_at_256 = generator_params.get('run_at_256', True)
             start_epoch = Logger.load_cpk(checkpoint, generator, discriminator, None,
                                       optimizer_generator, optimizer_discriminator, 
                                       None if train_params['lr_kp_detector'] == 0 else optimizer_kp_detector,
-                                      dense_motion_network=None, run_at_256=run_at_256)
+                                      dense_motion_network=None, run_at_256=run_at_256,
+                                      generator_type=generator_type)
         else:
             start_epoch = Logger.load_cpk(checkpoint, generator, discriminator, kp_detector,
                                       optimizer_generator, optimizer_discriminator,
                                       None if train_params['lr_kp_detector'] == 0 else optimizer_kp_detector, 
-                                      dense_motion_network=generator.dense_motion_network)
+                                      dense_motion_network=generator.dense_motion_network,
+                                      generator_type=generator_type)
+
+    elif checkpoint is not None and generator_type == "super_resolution":
+            start_epoch = Logger.load_cpk(checkpoint, generator, discriminator, None,
+                                      None, optimizer_discriminator,
+                                      None, dense_motion_network=None, 
+                                      generator_type=generator_type)
+            start_epoch = 0
     else:
         start_epoch = 0
 
@@ -57,19 +114,23 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
                                       last_epoch=start_epoch - 1)
     scheduler_discriminator = MultiStepLR(optimizer_discriminator, train_params['epoch_milestones'], gamma=0.1,
                                           last_epoch=start_epoch - 1)
-    scheduler_kp_detector = MultiStepLR(optimizer_kp_detector, train_params['epoch_milestones'], gamma=0.1,
+    if kp_detector is not None:
+        scheduler_kp_detector = MultiStepLR(optimizer_kp_detector, train_params['epoch_milestones'], gamma=0.1,
                                         last_epoch=-1 + start_epoch * (train_params['lr_kp_detector'] != 0))
+    else:
+        scheduler_kp_detector = None
 
     # train only generator parameters and keep dense motion/keypoint stuff frozen
     if train_params.get('train_only_generator', False) and checkpoint is not None:
-        for param in kp_detector.parameters():
-            param.requires_grad = False
-        ev_loss = train_params['loss_weights']['equivariance_value']
-        ev_jacobian = train_params['loss_weights']['equivariance_jacobian']
-        assert ev_loss == 0 and ev_jacobian == 0, "Equivariance losses must be 0 to freeze keypoint detector"
+        if kp_detector is not None:
+            for param in kp_detector.parameters():
+                param.requires_grad = False
+            ev_loss = train_params['loss_weights']['equivariance_value']
+            ev_jacobian = train_params['loss_weights']['equivariance_jacobian']
+            assert ev_loss == 0 and ev_jacobian == 0, "Equivariance losses must be 0 to freeze keypoint detector"
 
-        for param in generator.dense_motion_network.parameters():
-            param.requires_grad = False
+            for param in generator.dense_motion_network.parameters():
+                param.requires_grad = False
     elif train_params.get('train_everything_but_generator', False) and checkpoint is not None:
         for param in generator.parameters():
             param.requires_grad = False
@@ -79,11 +140,12 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
 
     # train only new layers added to increase resolution while keeping the rest of the pipeline frozen
     if train_params.get('train_only_non_fom_layers', False) and checkpoint is not None:
-        for param in kp_detector.parameters():
-            param.requires_grad = False
-        ev_loss = train_params['loss_weights']['equivariance_value']
-        ev_jacobian = train_params['loss_weights']['equivariance_jacobian']
-        assert ev_loss == 0 and ev_jacobian == 0, "Equivariance losses must be 0 to freeze keypoint detector"
+        if kp_detector is not None:
+            for param in kp_detector.parameters():
+                param.requires_grad = False
+            ev_loss = train_params['loss_weights']['equivariance_value']
+            ev_jacobian = train_params['loss_weights']['equivariance_jacobian']
+            assert ev_loss == 0 and ev_jacobian == 0, "Equivariance losses must be 0 to freeze keypoint detector"
 
         for name, param in generator.named_parameters():
             if not(name.startswith("sigmoid") or name.startswith("hr") or name.startswith("final")):
@@ -111,7 +173,17 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
     with Logger(log_dir=log_dir, visualizer_params=config['visualizer_params'], checkpoint_freq=train_params['checkpoint_freq']) as logger:
         for epoch in trange(start_epoch, train_params['num_epochs']):
             for x in dataloader:
-                losses_generator, generated = generator_full(x)
+                if use_lr_video:
+                    lr_frame = F.interpolate(x['driving'], lr_size)
+                    if train_params.get('encode_video_for_training', False):
+                        quantizer = random.randint(0, 63)
+                        nr = x.get('time_base_nr', torch.ones(lr_frame.size(dim=0)))
+                        dr = x.get('time_base_dr', 30000 * torch.ones(lr_frame.size(dim=0)))
+                        x['driving_lr'] = get_frame_from_video_codec(lr_frame, nr, dr, quantizer) 
+                    else:
+                        x['driving_lr'] = lr_frame
+
+                losses_generator, generated = generator_full(x, generator_type)
 
                 if epoch == 0:
                     break
@@ -122,8 +194,10 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
                 loss.backward()
                 optimizer_generator.step()
                 optimizer_generator.zero_grad()
-                optimizer_kp_detector.step()
-                optimizer_kp_detector.zero_grad()
+
+                if optimizer_kp_detector is not None:
+                    optimizer_kp_detector.step()
+                    optimizer_kp_detector.zero_grad()
 
                 if train_params['loss_weights']['generator_gan'] != 0:
                     optimizer_discriminator.zero_grad()
@@ -144,13 +218,23 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
             if epoch > 0:
                 scheduler_generator.step()
                 scheduler_discriminator.step()
-                scheduler_kp_detector.step()
+                if scheduler_kp_detector is not None:
+                    scheduler_kp_detector.step()
            
             # record a standard set of metrics
             if metrics_dataloader is not None:
                 with torch.no_grad():
                     for i, y in enumerate(metrics_dataloader):
-                        _, metrics_generated = generator_full(y)
+                        if use_lr_video:
+                            lr_frame = F.interpolate(y['driving'], lr_size)
+                            if train_params.get('encode_video_for_training', False):
+                                quantizer = random.randint(0, 63)
+                                y['driving_lr'] = get_frame_from_video_codec(lr_frame, quantizer) 
+                            else:
+                                y['driving_lr'] = lr_frame
+
+
+                        _, metrics_generated = generator_full(y, generator_type)
                         logger.log_metrics_images(i, y, metrics_generated, loss_fn_vgg)
 
             logger.log_epoch(epoch, {'generator': generator,

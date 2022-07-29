@@ -9,6 +9,7 @@ from torch.utils.data import Dataset
 import pandas as pd
 from augmentation import AllAugmentationTransform
 import glob
+import av
 
 def read_video(name, frame_shape):
     """
@@ -67,6 +68,14 @@ def get_frame(filename, frame_num, ifnormalize=True):
     reader.close()
     return frame
 
+
+def get_video_details(filename):
+    container = av.open(file=filename, format=None, mode='r')
+    fps = container.streams.video[0].average_rate
+    video_stream = container.streams.video[0]
+    nr, dr = video_stream.time_base.as_integer_ratio()
+    container.close()
+    return fps, nr, dr
 
 class FramesDataset(Dataset):
     """
@@ -131,6 +140,7 @@ class FramesDataset(Dataset):
             path = os.path.join(self.root_dir, name)
 
         video_name = os.path.basename(path)
+        av_video_array = []
 
         if self.is_train and os.path.isdir(path):
             frames = os.listdir(path)
@@ -143,6 +153,7 @@ class FramesDataset(Dataset):
             num_frames)
             try:
                 video_array = np.array([get_frame(path, frame_idx[0]), get_frame(path, frame_idx[1])])
+                fps, time_base_nr, time_base_dr = get_video_details(path)
             except:
                 print("Couldn't get indices", frame_idx, "of video", path, "with", num_frames, "total frames")
 
@@ -156,6 +167,8 @@ class FramesDataset(Dataset):
 
             out['driving'] = driving.transpose((2, 0, 1))
             out['source'] = source.transpose((2, 0, 1))
+            out['time_base_nr'] = time_base_nr
+            out['time_base_dr'] = time_base_dr
         else:
             video = video_array
             out['video'] = video

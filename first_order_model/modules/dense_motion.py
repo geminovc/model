@@ -2,6 +2,7 @@ from torch import nn
 import torch.nn.functional as F
 import torch
 from first_order_model.modules.util import Hourglass, AntiAliasInterpolation2d, make_coordinate_grid, kp2gaussian
+from first_order_model.modules.util import SameBlock2d 
 import time
 import numpy as np
 
@@ -10,23 +11,31 @@ class DenseMotionNetwork(nn.Module):
     Module that predicting a dense motion from sparse motion representation given by kp_source and kp_driving
     """
 
-    def __init__(self, block_expansion, num_blocks, max_features, num_kp,
+    def __init__(self, block_expansion, num_blocks, max_features, num_kp, lr_features,
             num_channels, estimate_residual=False, num_pixel_features=0, estimate_occlusion_map=False, 
-            scale_factor=1, kp_variance=0.01, run_at_256=False):
+            scale_factor=1, kp_variance=0.01, run_at_256=False, concatenate_lr_frame_to_hourglass_input=False,
+            concatenate_lr_frame_to_hourglass_output=False):
         super(DenseMotionNetwork, self).__init__()
+
+        additional_features = lr_features if concatenate_lr_frame_to_hourglass_input else 0
         self.hourglass = Hourglass(block_expansion=block_expansion, 
-                         in_features=(num_kp + 1) * (num_channels + 1 + num_pixel_features),
+                         in_features=(num_kp + 1) * (num_channels + 1 + num_pixel_features) + additional_features,
                          max_features=max_features, num_blocks=num_blocks)
 
-        self.mask = nn.Conv2d(self.hourglass.out_filters, num_kp + 1, kernel_size=(7, 7), padding=(3, 3))
+        use_lr_frame = concatenate_lr_frame_to_hourglass_input or concatenate_lr_frame_to_hourglass_output
+        additional_features = lr_features if concatenate_lr_frame_to_hourglass_output else 0
+        self.mask = nn.Conv2d(self.hourglass.out_filters + additional_features, 
+                              num_kp + 1, kernel_size=(7, 7), padding=(3, 3))
 
         if estimate_occlusion_map:
-            self.occlusion = nn.Conv2d(self.hourglass.out_filters, 1, kernel_size=(7, 7), padding=(3, 3))
+            self.occlusion = nn.Conv2d(self.hourglass.out_filters + additional_features, \
+                    1, kernel_size=(7, 7), padding=(3, 3))
         else:
             self.occlusion = None
         
         if estimate_residual:
-            self.residual = nn.Conv2d(self.hourglass.out_filters, 1, kernel_size=(7, 7), padding=(3, 3))
+            self.residual = nn.Conv2d(self.hourglass.out_filters + additional_features, \
+                    1, kernel_size=(7, 7), padding=(3, 3))
             self.num_pixel_features = num_pixel_features
         else:
             self.residual = None
@@ -35,6 +44,11 @@ class DenseMotionNetwork(nn.Module):
         self.scale_factor = scale_factor
         self.kp_variance = kp_variance
         self.run_at_256 = run_at_256
+        self.concatenate_lr_frame_to_hourglass_input = concatenate_lr_frame_to_hourglass_input
+        self.concatenate_lr_frame_to_hourglass_output = concatenate_lr_frame_to_hourglass_output
+
+        if use_lr_frame:
+            self.lr_first = SameBlock2d(num_channels, lr_features, kernel_size=(7, 7), padding=(3, 3))
 
         if self.scale_factor != 1:
             self.down = AntiAliasInterpolation2d(num_channels, self.scale_factor)
@@ -118,7 +132,7 @@ class DenseMotionNetwork(nn.Module):
         sparse_deformed = sparse_deformed.view((bs, self.num_kp + 1, -1, h, w))
         return sparse_deformed
 
-    def forward(self, source_image, kp_driving, kp_source):
+    def forward(self, source_image, kp_driving, kp_source, lr_frame = None):
         if self.run_at_256:
             source_image = F.interpolate(source_image, 256)
 
@@ -148,8 +162,14 @@ class DenseMotionNetwork(nn.Module):
             input = torch.cat([heatmap_representation, deformed_source], dim=2)
 
         input = input.view(bs, -1, h, w)
+        if self.concatenate_lr_frame_to_hourglass_input:
+            lr_frame_features = self.lr_first(lr_frame)
+            input = torch.cat([input, lr_frame_features], dim = 1)
 
         prediction = self.hourglass(input)
+        if self.concatenate_lr_frame_to_hourglass_output:
+            lr_frame_features = self.lr_first(lr_frame)
+            prediction = torch.cat([prediction, lr_frame_features], dim = 1)
 
         mask = self.mask(prediction)
         mask = F.softmax(mask, dim=1)

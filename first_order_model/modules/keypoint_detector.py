@@ -11,7 +11,7 @@ class KPDetector(nn.Module):
     def __init__(self, block_expansion, num_kp, num_channels, max_features,
                  num_blocks, temperature, estimate_jacobian=False, scale_factor=1,
                  single_jacobian_map=False, pad=0, num_pixel_features=0, 
-                 predict_pixel_features=False, run_at_256=False):
+                 predict_pixel_features=False, run_at_256=False, lr_features=0):
         super(KPDetector, self).__init__()
 
         self.predictor = Hourglass(block_expansion, in_features=num_channels,
@@ -71,11 +71,14 @@ class KPDetector(nn.Module):
         return feature
 
     def forward(self, x):
-        if self.run_at_256:
-            x = F.interpolate(x, 256)
-        
-        if self.scale_factor != 1:
-            x = self.down(x)
+        if x.size(dim=2) > 64:
+            if self.run_at_256:
+                x = F.interpolate(x, 256)
+            else:
+                self.scale_factor = 64 / x.size(dim=2)
+            
+            if self.scale_factor != 1:
+                x = self.down(x)
 
         feature_map = self.predictor(x)
         prediction = self.kp(feature_map)

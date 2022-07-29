@@ -1,0 +1,27 @@
+dataset_params:
+  root_dir: /video-conf/scratch/pantea/fom_personalized_1024
+  frame_shape: [1024, 1024, 3]
+  augmentation_params:
+    flip_param:
+      horizontal_flip: True
+      time_flip: True
+    jitter_param:
+      brightness: 0.1
+      contrast: 0.1
+      saturation: 0.1
+      hue: 0.1
+
+model_params:
+  common_params:
+    num_channels: 3
+  generator_params:
+    generator_type: 'bicubic'
+
+reconstruction_params:
+  num_videos: 1000
+  format: '.mp4'
+
+visualizer_params:
+  kp_size: 5
+  draw_border: True
+  colormap: 'gist_rainbow'

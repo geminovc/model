@@ -60,6 +60,61 @@ class Vgg19(torch.nn.Module):
         return loss_val
 
 
+class VggFace16(torch.nn.Module):
+    """
+    Vgg16 network for face perceptual loss. Was added by Vibhaa.
+    """
+    def __init__(self, requires_grad=False):
+        super(Vgg16, self).__init__()
+        vgg_pretrained_features = models.vgg19(pretrained=True).features
+        self.slice1 = torch.nn.Sequential()
+        self.slice2 = torch.nn.Sequential()
+        self.slice3 = torch.nn.Sequential()
+        self.slice4 = torch.nn.Sequential()
+        self.slice5 = torch.nn.Sequential()
+        for x in range(2):
+            self.slice1.add_module(str(x), vgg_pretrained_features[x])
+        for x in range(2, 7):
+            self.slice2.add_module(str(x), vgg_pretrained_features[x])
+        for x in range(7, 12):
+            self.slice3.add_module(str(x), vgg_pretrained_features[x])
+        for x in range(12, 19):
+            self.slice4.add_module(str(x), vgg_pretrained_features[x])
+        for x in range(19, 26):
+            self.slice5.add_module(str(x), vgg_pretrained_features[x])
+
+        self.mean = torch.nn.Parameter(data=torch.Tensor(np.array([103.939/127.5, 116.779/127.5, \
+                                        123.680/127.5]).reshape((1, 3, 1, 1))),
+                                       requires_grad=False)
+        self.std = torch.nn.Parameter(data=torch.Tensor(np.array([1/127.5, 1/127.5, 1/127.5]).reshape((1, 3, 1, 1))),
+                                      requires_grad=False)
+
+        if not requires_grad:
+            for param in self.parameters():
+                param.requires_grad = False
+
+    def forward(self, X):
+        X = (X - self.mean) / self.std
+        h_relu1 = self.slice1(X)
+        h_relu2 = self.slice2(h_relu1)
+        h_relu3 = self.slice3(h_relu2)
+        h_relu4 = self.slice4(h_relu3)
+        h_relu5 = self.slice5(h_relu4)
+        out = [h_relu1, h_relu2, h_relu3, h_relu4, h_relu5]
+        return out
+
+    def compute_loss(self, X, Y, weights=[10, 10, 10, 10, 10]):
+        X_vgg = self.forward(X)
+        Y_vgg = self.forward(Y)
+
+        loss_val = 0
+        diffs = [(x - y)**2 for x, y in zip(X_vgg, Y_vgg)]
+        for d, w in zip(diffs, weights):
+            loss_val += w * d.mean()
+        loss_val /= np.sum(weights)
+        return loss_val
+
+
 class ImagePyramide(torch.nn.Module):
     """
     Create image pyramide for computing pyramide perceptual loss. See Sec 3.3
@@ -164,13 +219,32 @@ class GeneratorFullModel(torch.nn.Module):
             if torch.cuda.is_available():
                 self.vgg = self.vgg.cuda()
 
-    def forward(self, x):
-        kp_source = self.kp_extractor(x['source'])
-        kp_driving = self.kp_extractor(x['driving'])
+        if sum(self.loss_weights.get('perceptual_face', [0])) != 0:
+            self.vgg_face = VggFace16()
+            if torch.cuda.is_available():
+                self.vgg_face = self.vgg_face.cuda()
 
-        generated = self.generator(x['source'], kp_source=kp_source, kp_driving=kp_driving, update_source=True)
-        generated.update({'kp_source': kp_source, 'kp_driving': kp_driving})
 
+    def forward(self, x, generator_type='occlusion_aware'):
+        driving_lr =  x.get('driving_lr', None)
+
+        if generator_type in ['occlusion_aware', 'split_hf_lf']:
+            kp_source = self.kp_extractor(x['source'])
+            
+            if driving_lr is not None:
+                kp_driving = self.kp_extractor(driving_lr)
+            else:
+                kp_driving = self.kp_extractor(x['driving'])
+            
+            generated = self.generator(x['source'], kp_source=kp_source, 
+                    kp_driving=kp_driving, update_source=True, 
+                    driving_lr=driving_lr)
+            generated.update({'kp_source': kp_source, 'kp_driving': kp_driving})
+        else:
+            assert(driving_lr is not None)
+            generated = self.generator(driving_lr)
+            generated.update({'driving_lr': driving_lr})
+        
         loss_values = {}
 
         # standard pyramides for Vgg perceptual loss
@@ -178,6 +252,7 @@ class GeneratorFullModel(torch.nn.Module):
         generated_input = generated['prediction']
         pyramide_real = self.pyramid(real_input)
         pyramide_generated = self.pyramid(generated_input)
+        
         
         # pyramides for conditional gan if need be to be used by discriminator
         if self.train_params.get('conditional_gan', False):
@@ -188,6 +263,12 @@ class GeneratorFullModel(torch.nn.Module):
         else:
             disc_pyramide_real = pyramide_real
             disc_pyramide_generated = pyramide_generated
+        
+        # use only HF pipeline for perceptual if there's a split
+        if generator_type == 'split_hf_lf':
+            generated_input_lf_detached = generated['prediction_lf_detached']
+            pyramide_generated_lf_detached = self.pyramid(generated_input_lf_detached)
+            pyramid_generated = pyramide_generated_lf_detached
         
         if sum(self.loss_weights['perceptual']) != 0:
             value_total = 0
@@ -200,9 +281,37 @@ class GeneratorFullModel(torch.nn.Module):
                     value_total += self.loss_weights['perceptual'][i] * value
                 loss_values['perceptual'] = value_total
 
+        if sum(self.loss_weights.get('perceptual_face', [0])) != 0:
+            value_total = 0
+            for scale in self.scales:
+                x_vgg = self.vgg_face(pyramide_generated['prediction_' + str(scale)])
+                y_vgg = self.vgg_face(pyramide_real['prediction_' + str(scale)])
+
+                for i, weight in enumerate(self.loss_weights['perceptual_face']):
+                    value = torch.abs(x_vgg[i] - y_vgg[i].detach()).mean()
+                    value_total += weight * value
+                loss_values['perceptual_face'] = value_total
+
+        if self.loss_weights.get('pixelwise', 0) != 0:
+            loss_dict = {
+                            'mse': F.mse_loss,
+                            'l1': F.l1_loss,
+                            'ce': F.cross_entropy
+                        }
+            loss_fn = loss_dict['l1']
+            generated_lf = generated['prediction_lf'] if generator_type == 'split_hf_lf' \
+                    else generated['prediction']
+            pix_loss = loss_fn(generated_lf, real_input.detach())
+            loss_values['pixelwise'] = self.loss_weights['pixelwise'] * pix_loss
+                   
         if self.loss_weights['generator_gan'] != 0:
-            discriminator_maps_generated = self.discriminator(disc_pyramide_generated, kp=detach_kp(kp_driving))
-            discriminator_maps_real = self.discriminator(disc_pyramide_real, kp=detach_kp(kp_driving))
+            if generator_type == 'occlusion_aware':
+                discriminator_maps_generated = self.discriminator(disc_pyramide_generated, kp=detach_kp(kp_driving))
+                discriminator_maps_real = self.discriminator(disc_pyramide_real, kp=detach_kp(kp_driving))
+            else:
+                discriminator_maps_generated = self.discriminator(disc_pyramide_generated)
+                discriminator_maps_real = self.discriminator(disc_pyramide_real)
+
             value_total = 0
             for scale in self.disc_scales:
                 key = 'prediction_map_%s' % scale
@@ -281,9 +390,13 @@ class DiscriminatorFullModel(torch.nn.Module):
         pyramide_real = self.pyramid(real_input)
         pyramide_generated = self.pyramid(generated_input)
 
-        kp_driving = generated['kp_driving']
-        discriminator_maps_generated = self.discriminator(pyramide_generated, kp=detach_kp(kp_driving))
-        discriminator_maps_real = self.discriminator(pyramide_real, kp=detach_kp(kp_driving))
+        if 'kp_driving' in generated:
+            kp_driving = generated['kp_driving']
+            discriminator_maps_generated = self.discriminator(pyramide_generated, kp=detach_kp(kp_driving))
+            discriminator_maps_real = self.discriminator(pyramide_real, kp=detach_kp(kp_driving))
+        else:
+            discriminator_maps_generated = self.discriminator(pyramide_generated)
+            discriminator_maps_real = self.discriminator(pyramide_real)
 
         loss_values = {}
         value_total = 0
