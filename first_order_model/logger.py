@@ -90,7 +90,7 @@ class Logger:
     @staticmethod
     def load_cpk(checkpoint_path, generator=None, discriminator=None, kp_detector=None,
                  optimizer_generator=None, optimizer_discriminator=None, optimizer_kp_detector=None, 
-                 device='gpu', dense_motion_network=None, upsampling_enabled=False, use_lr_video=False, 
+                 device='gpu', dense_motion_network=None, upsampling_enabled=False, use_lr_video=[], 
                  hr_skip_connections=False, run_at_256=True, generator_type='occlusion_aware', reconstruction=False):
 
         if device == torch.device('cpu'):
@@ -119,18 +119,32 @@ class Logger:
                     if not (k.startswith("final") or k.startswith("sigmoid") or k.startswith('first'))}
                 print("loading everything in generator except final and sigmoid and first")
 
-            if use_lr_video and generator_type == 'occlusion_aware':
-                modified_generator_params = {k: v for k, v in modified_generator_params.items() \
-                    if not k.startswith("up_blocks")}
-                print("not loading upblocks in generator")
-                """
-                modified_generator_params = {k: v for k, v in modified_generator_params.items() \
-                    if not (k.startswith("dense_motion_network.hourglass") or \
-                    k.startswith("dense_motion_network.mask") or \
-                    k.startswith("dense_motion_network.occlusion"))}
-                print("not loading hourglass or mask or occlusion blocks")
-                """
+            if len(use_lr_video) > 0 and generator_type == 'occlusion_aware':
+                if 'decoder' in use_lr_video:
+                    modified_generator_params = {k: v for k, v in modified_generator_params.items() \
+                        if not k.startswith("up_blocks")}
+                    print("not loading upblocks in generator")
+                
+                if 'hourglass_input' in use_lr_video:
+                    modified_generator_params = {k: v for k, v in modified_generator_params.items() \
+                        if not (k.startswith("dense_motion_network.hourglass") or \
+                        k.startswith("dense_motion_network.mask") or \
+                        k.startswith("dense_motion_network.occlusion"))}
+                    print("not loading hourglass or mask or occlusion blocks")
+                
+                if 'hourglass_output' in use_lr_video:
+                    modified_generator_params = {k: v for k, v in modified_generator_params.items() \
+                        if not (k.startswith("dense_motion_network.mask") or \
+                        k.startswith("dense_motion_network.occlusion"))}
+                    print("not loading hourglass or mask or occlusion blocks")
+
+                if 'hourglass_input' in use_lr_video and 'decoder' in use_lr_video:
+                    modified_generator_params = {k: v for k, v in modified_generator_params.items() \
+                        if not k.startswith("bottleneck")}
+                    print("not loading bottleneck")
+
             generator.load_state_dict(modified_generator_params, strict=False)
+        
         elif generator is not None and dense_motion_network is None and generator_type == 'occlusion_aware':
             gen_params = checkpoint['generator']
             gen_params_but_dense_motion_params = {k: gen_params[k] for k in gen_params.keys() if not k.startswith('dense_motion_network')}

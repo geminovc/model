@@ -57,7 +57,17 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
     generator_params = config['model_params']['generator_params']
     generator_type = generator_params.get('generator_type', 'occlusion_aware')
     use_lr_video = generator_params.get('use_lr_video', False) or generator_type == 'super_resolution'
+    lr_video_locations = ['decoder'] if use_lr_video else []
     lr_size = generator_params.get('lr_size', 64)
+
+    dense_motion_params = generator_params.get('dense_motion_params', {})
+    if dense_motion_params.get('concatenate_lr_frame_to_hourglass_input', False):
+        if dense_motion_params.get('estimate_additional_masks_for_lr_and_hr_bckgnd', False):
+            lr_video_locations.append('hourglass_input')
+        else:
+            lr_video_locations = ['hourglass_input']
+    elif dense_motion_params.get('concatenate_lr_frame_to_hourglass_output', False):
+        lr_video_locations = ['hourglass_output']
     
     if config['model_params']['discriminator_params'].get('conditional_gan', False):
         train_params['conditional_gan'] = True
@@ -83,7 +93,7 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
             run_at_256 = generator_params.get('run_at_256', True)
             start_epoch = Logger.load_cpk(checkpoint, generator, discriminator, kp_detector,
                                       None, None, None, None, upsampling_enabled=True,
-                                      use_lr_video=use_lr_video,
+                                      use_lr_video=lr_video_locations,
                                       hr_skip_connections=hr_skip_connections, run_at_256=run_at_256,
                                       generator_type=generator_type)
             start_epoch = 0

@@ -14,9 +14,10 @@ class DenseMotionNetwork(nn.Module):
     def __init__(self, block_expansion, num_blocks, max_features, num_kp, lr_features,
             num_channels, estimate_residual=False, num_pixel_features=0, estimate_occlusion_map=False, 
             scale_factor=1, kp_variance=0.01, run_at_256=False, concatenate_lr_frame_to_hourglass_input=False,
-            concatenate_lr_frame_to_hourglass_output=False):
+            concatenate_lr_frame_to_hourglass_output=False, estimate_additional_masks_for_lr_and_hr_bckgnd=False):
         super(DenseMotionNetwork, self).__init__()
 
+        lr_features = 3 # only considering RGB image for now
         additional_features = lr_features if concatenate_lr_frame_to_hourglass_input else 0
         self.hourglass = Hourglass(block_expansion=block_expansion, 
                          in_features=(num_kp + 1) * (num_channels + 1 + num_pixel_features) + additional_features,
@@ -32,6 +33,16 @@ class DenseMotionNetwork(nn.Module):
                     1, kernel_size=(7, 7), padding=(3, 3))
         else:
             self.occlusion = None
+        
+        if estimate_additional_masks_for_lr_and_hr_bckgnd:
+            assert concatenate_lr_frame_to_hourglass_input, "Need LR in hourglass input to get additional masks"
+            self.lr_occlusion = nn.Conv2d(self.hourglass.out_filters + additional_features, \
+                    1, kernel_size=(7, 7), padding=(3, 3))
+            self.hr_background_occlusion = nn.Conv2d(self.hourglass.out_filters + additional_features, \
+                    1, kernel_size=(7, 7), padding=(3, 3))
+        else:
+            self.lr_occlusion = None
+            self.hr_background_occlusion = None
         
         if estimate_residual:
             self.residual = nn.Conv2d(self.hourglass.out_filters + additional_features, \
@@ -163,12 +174,12 @@ class DenseMotionNetwork(nn.Module):
 
         input = input.view(bs, -1, h, w)
         if self.concatenate_lr_frame_to_hourglass_input:
-            lr_frame_features = self.lr_first(lr_frame)
+            lr_frame_features = lr_frame
             input = torch.cat([input, lr_frame_features], dim = 1)
 
         prediction = self.hourglass(input)
         if self.concatenate_lr_frame_to_hourglass_output:
-            lr_frame_features = self.lr_first(lr_frame)
+            lr_frame_features = lr_frame
             prediction = torch.cat([prediction, lr_frame_features], dim = 1)
 
         mask = self.mask(prediction)
@@ -188,5 +199,13 @@ class DenseMotionNetwork(nn.Module):
         if self.occlusion:
             occlusion_map = torch.sigmoid(self.occlusion(prediction))
             out_dict['occlusion_map'] = occlusion_map
+        
+        if self.lr_occlusion:
+            lr_occlusion_map = torch.sigmoid(self.lr_occlusion(prediction))
+            out_dict['lr_occlusion_mask'] = occlusion_map
 
+        if self.hr_background_occlusion:
+            hr_background_mask = torch.sigmoid(self.hr_background_occlusion(prediction))
+            out_dict['hr_background_mask'] = hr_background_mask
+        
         return out_dict

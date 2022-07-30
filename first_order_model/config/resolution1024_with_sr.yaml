@@ -29,7 +29,7 @@ model_params:
      run_at_256: True
   generator_params:
     block_expansion: 64
-    max_features: 512
+    max_features: 1024
     num_down_blocks: 2
     num_bottleneck_blocks: 6
     estimate_occlusion_map: True
@@ -48,6 +48,7 @@ model_params:
       run_at_256: True
       concatenate_lr_frame_to_hourglass_input: False
       concatenate_lr_frame_to_hourglass_output: False
+      estimate_additional_masks_for_lr_and_hr_bckgnd: False
   discriminator_params:
     scales: [1]
     block_expansion: 32
@@ -60,7 +61,7 @@ train_params:
   skip_generator_loading: False
   train_only_generator: False
   train_only_upsample_layers: False
-  encode_video_for_training: True
+  encode_video_for_training: False
   num_epochs: 100
   num_repeats: 15
   epoch_milestones: [60, 90]

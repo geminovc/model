@@ -253,7 +253,6 @@ class GeneratorFullModel(torch.nn.Module):
         pyramide_real = self.pyramid(real_input)
         pyramide_generated = self.pyramid(generated_input)
         
-        
         # pyramides for conditional gan if need be to be used by discriminator
         if self.train_params.get('conditional_gan', False):
             concatenated_real_input = torch.cat([real_input, x['source']], dim=1)
