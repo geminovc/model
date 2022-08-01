@@ -343,6 +343,18 @@ class Visualizer:
             occlusion_map = F.interpolate(occlusion_map, size=source.shape[1:3]).numpy()
             occlusion_map = np.transpose(occlusion_map, [0, 2, 3, 1])
             images.append(occlusion_map)
+        
+        if 'lr_occlusion_map' in out:
+            occlusion_map = out['lr_occlusion_map'].data.cpu().repeat(1, 3, 1, 1)
+            occlusion_map = F.interpolate(occlusion_map, size=source.shape[1:3]).numpy()
+            occlusion_map = np.transpose(occlusion_map, [0, 2, 3, 1])
+            images.append(occlusion_map)
+        
+        if 'hr_background_mask' in out:
+            occlusion_map = out['hr_background_mask'].data.cpu().repeat(1, 3, 1, 1)
+            occlusion_map = F.interpolate(occlusion_map, size=source.shape[1:3]).numpy()
+            occlusion_map = np.transpose(occlusion_map, [0, 2, 3, 1])
+            images.append(occlusion_map)
 
         # Deformed images according to each individual transform
         if 'sparse_deformed' in out:
