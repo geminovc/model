@@ -28,7 +28,7 @@ def get_frame_from_video_codec(frame_tensor, nr_list, dr_list, quantizer):
     """
     # encode every frame as a keyframe with new encoder/decoder
     frame_data = frame_tensor.data.cpu().numpy()
-    decoded_data = np.zeros(frame_data.shape) 
+    decoded_data = np.zeros(frame_data.shape, dtype=np.uint8) 
     
     frame_data = np.transpose(frame_data, [0, 2, 3, 1])
     frame_data *= 255
@@ -48,7 +48,7 @@ def get_frame_from_video_codec(frame_tensor, nr_list, dr_list, quantizer):
         jitter_frame = JitterFrame(data=b"".join(payload_data), timestamp=timestamp)
         decoded_frames = decoder.decode(jitter_frame)
         decoded_frame = decoded_frames[0].to_rgb().to_ndarray()
-        decoded_data[i] = decoded_frame.transpose(2, 0, 1)
+        decoded_data[i] = np.transpose(decoded_frame, [2, 0, 1]).astype(np.uint8)
     return torch.from_numpy(img_as_float32(decoded_data))
 
 
