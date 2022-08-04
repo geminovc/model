@@ -207,5 +207,12 @@ class DenseMotionNetwork(nn.Module):
         if self.hr_background_occlusion:
             hr_background_mask = torch.sigmoid(self.hr_background_occlusion(prediction))
             out_dict['hr_background_mask'] = hr_background_mask
-        
+
+        if self.lr_occlusion and self.hr_background_occlusion:
+            combined_mask = torch.cat((occlusion_map, lr_occlusion_map, hr_background_mask), 1)
+            combined_mask = F.softmax(combined_mask, dim=1)
+            out_dict['occlusion_map'] = combined_mask[:, 0:1, :, :]
+            out_dict['lr_occlusion_mask'] = combined_mask[:, 1:2, :, :]
+            out_dict['hr_background_mask'] = combined_mask[:, 2:3, :, :]
+
         return out_dict
