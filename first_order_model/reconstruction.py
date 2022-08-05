@@ -60,8 +60,9 @@ def get_avg_visual_metrics(visual_metrics):
     """ get average of visual metrics across all frames """
     psnrs = [m['psnr'] for m in visual_metrics]
     ssims = [m['ssim'] for m in visual_metrics]
+    ssim_dbs = [m['ssim_db'] for m in visual_metrics]
     lpips_list = [m['lpips'] for m in visual_metrics]
-    return np.mean(psnrs), np.mean(ssims), np.mean(lpips_list)
+    return np.mean(psnrs), np.mean(ssims), np.mean(lpips_list), np.mean(ssim_dbs)
 
 
 def frame_to_tensor(frame, device):
@@ -374,15 +375,15 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
             ref_br = get_bitrate(reference_stream, video_duration)
             lr_br = get_bitrate(lr_stream, video_duration)
             
-            psnr, ssim, lpips_val = get_avg_visual_metrics(visual_metrics)
-            metrics_file.write(f'{x["name"][0]} PSNR: {psnr}, SSIM: {ssim}, LPIPS: {lpips_val}, ' +
+            psnr, ssim, lpips_val, ssim_db = get_avg_visual_metrics(visual_metrics)
+            metrics_file.write(f'{x["name"][0]} PSNR: {psnr}, SSIM: {ssim}, SSIM_DB: {ssim_db}, LPIPS: {lpips_val}, ' +
                     f'Reference: {ref_br:.3f}Kbps, LR: {lr_br:.3f}Kbps \n')
             metrics_file.flush()
 
             if it == 0:
-                frame_metrics_file.write('video_num,frame,psnr,ssim,lpips\n')
+                frame_metrics_file.write('video_num,frame,psnr,ssim,ssim_db,lpips\n')
             for i, m in enumerate(visual_metrics):
-                frame_metrics_file.write(f'{it + 1},{i},{m["psnr"][0]},{m["ssim"]},{m["lpips"]}\n')
+                frame_metrics_file.write(f'{it + 1},{i},{m["psnr"][0]},{m["ssim"]},{m["ssim_db"]},{m["lpips"]}\n')
             frame_metrics_file.flush()
 
             if save_visualizations_as_images:
