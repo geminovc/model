@@ -90,11 +90,15 @@ class OcclusionAwareGenerator(nn.Module):
         # increase decoder feature sizes if you're getting multiple inputus
         if self.common_decoder_for_3_paths:
             adjusted_block_expansion = block_expansion * 2 + lr_features // (2 ** num_down_blocks)
-            adjusted_hr_depth = hr_starting_depth * 2 + \
+            if upsample_levels > 0:
+                adjusted_hr_depth = hr_starting_depth * 2 + \
                     lr_features // (2 ** (upsample_levels + num_down_blocks))
+            else:
+                adjusted_hr_depth = block_expansion * 2 + \
+                    lr_features // (2 ** num_down_blocks)
         else:
             adjusted_block_expansion = block_expansion
-            adjusted_hr_depth = hr_starting_depth
+            adjusted_hr_depth = hr_starting_depth if upsample_levels > 0 else block_expansion
         
         # regular decoder blocks with skip connections if need be
         up_blocks = []
@@ -127,7 +131,7 @@ class OcclusionAwareGenerator(nn.Module):
         for i in range(num_bottleneck_blocks):
             self.bottleneck.add_module('r' + str(i), ResBlock2d(in_features, kernel_size=(3, 3), \
                     padding=(1, 1)))
-        final_input_features = adjusted_hr_depth if upsample_levels > 0 else block_expansion
+        final_input_features = adjusted_hr_depth
         self.final = nn.Conv2d(final_input_features, num_channels, kernel_size=(7, 7), padding=(3, 3))
         self.estimate_occlusion_map = estimate_occlusion_map
 

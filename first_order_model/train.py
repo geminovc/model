@@ -88,7 +88,7 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
                                       None, None, None, dense_motion_network=generator.dense_motion_network,
                                       generator_type=generator_type)
             start_epoch = 0
-        elif generator_params.get('upsample_factor', 1) > 1:
+        elif generator_params.get('upsample_factor', 1) > 1 or use_lr_video:
             hr_skip_connections = generator_params.get('use_hr_skip_connections', False)
             run_at_256 = generator_params.get('run_at_256', True)
             start_epoch = Logger.load_cpk(checkpoint, generator, discriminator, kp_detector,

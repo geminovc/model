@@ -161,7 +161,6 @@ class Logger:
             generator.load_state_dict(modified_generator_params, strict=False)
             print("SR: loading bottleneck and upblocks, not loading final/first because of dimensions")
 
-
         if kp_detector is not None:
             print("loading everything in kp detector as is")
             kp_detector.load_state_dict(checkpoint['kp_detector'])
