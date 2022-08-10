@@ -42,18 +42,17 @@ class FirstOrderModel(KeypointBasedFaceModels):
         # generator
         generator_params = config['model_params']['generator_params']
         generator_type = generator_params.get('generator_type', 'occlusion_aware')
-        if generator_type not in ['vpx', 'bicubic']:
-            if generator_type in ['occlusion_aware', 'split_hf_lf']:
-                self.generator = OcclusionAwareGenerator(**config['model_params']['generator_params'],
-                                                **config['model_params']['common_params'])
-            elif generator_type == 'super_resolution':
-                self.generator = SuperResolutionGenerator(**config['model_params']['generator_params'],
-                                                **config['model_params']['common_params'])
- 
-            if torch.cuda.is_available():
-                self.generator.to(device)
+        if generator_type in ['occlusion_aware', 'split_hf_lf']:
+            self.generator = OcclusionAwareGenerator(**config['model_params']['generator_params'],
+                                            **config['model_params']['common_params'])
+        elif generator_type == 'super_resolution':
+            self.generator = SuperResolutionGenerator(**config['model_params']['generator_params'],
+                                            **config['model_params']['common_params'])
         else: # VPX/Bicubic
             self.generator = None
+
+        if torch.cuda.is_available() and self.generator is not None:
+            self.generator.to(device)
 
         # keypoint detector
         if generator_type in ['occlusion_aware', 'split_hf_lf']:
