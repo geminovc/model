@@ -3,16 +3,16 @@ from tqdm import tqdm
 import torch
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
-from logger import Logger, Visualizer
+from first_order_model.logger import Logger, Visualizer
 import numpy as np
 import imageio
-from sync_batchnorm import DataParallelWithCallback
+from first_order_model.sync_batchnorm import DataParallelWithCallback
 from skimage.metrics import peak_signal_noise_ratio
 from skimage import img_as_float32
 from skimage.transform import resize
 from skimage.metrics import structural_similarity
-from frames_dataset import get_num_frames, get_frame
-from modules.model import Vgg19
+from first_order_model.frames_dataset import get_num_frames, get_frame
+from first_order_model.modules.model import Vgg19
 import piq
 import subprocess
 import av

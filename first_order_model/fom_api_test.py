@@ -100,6 +100,7 @@ for frame in reader:
     lpips_list.append(lpips_num)
     psnr_list.append(psnr)
     ssim_list.append(ssim)
+    i += 1
 
 
 print(f"Average prediction time per frame is {sum(times)/len(times)}s.")
