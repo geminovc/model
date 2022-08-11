@@ -103,6 +103,8 @@ if __name__ == "__main__":
         kp_detector = None
 
     config['dataset_params']['person_id'] = opt.person_id
+    if 'metrics_params' in config:
+        config['metrics_params']['person_id'] = opt.person_id
     if "voxceleb2" in config['dataset_params']['root_dir']:
         dataset = Voxceleb2Dataset(is_train=(opt.mode == 'train'), **config['dataset_params'])
     else:
