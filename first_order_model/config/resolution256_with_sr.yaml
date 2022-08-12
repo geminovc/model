@@ -11,8 +11,9 @@ dataset_params:
       saturation: 0.1
       hue: 0.1
 
-checkpoint_params:
-    checkpoint_path: '/video-conf/scratch/vibhaa_mm_arjun_directory/needle_drop_with_hr_skip_connections 11_04_22_16.54.29/00000069-checkpoint.pth.tar'
+metrics_params:
+  root_dir: /video-conf/scratch/vibhaa_tardy/dataset_256/ 
+  frame_shape: [256, 256, 3]
 
 model_params:
   common_params:
@@ -69,8 +70,8 @@ train_params:
     sigma_tps: 0.005
     points_tps: 5
   loss_weights:
-    generator_gan: 0
-    discriminator_gan: 0
+    generator_gan: 1
+    discriminator_gan: 1
     feature_matching: [10, 10, 10, 10]
     perceptual: [10, 10, 10, 10, 10]
     pixelwise: 10

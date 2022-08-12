@@ -343,7 +343,7 @@ class GeneratorFullModel(torch.nn.Module):
                 loss_values['equivariance_value'] = self.loss_weights['equivariance_value'] * value
 
             ## jacobian loss part
-            if self.loss_weights['equivariance_jacobian'] != 0:
+            if self.loss_weights['equivariance_jacobian'] != 0 and transformed_kp['value'].requires_grad:
                 jacobian_transformed = torch.matmul(transform.jacobian(transformed_kp['value']),
                                                     transformed_kp['jacobian'])
 

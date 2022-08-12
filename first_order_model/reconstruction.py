@@ -326,7 +326,7 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
                 out['prediction'] = torch.clamp(out['prediction'], min=0, max=1)
                 
                 ssim = piq.ssim(driving, out['prediction'], data_range=1.).data.cpu().numpy().flatten()[0]
-                if use_same_tgt_ref_quality:
+                if use_same_tgt_ref_quality and (generator_type in ['occlusion_aware', 'split_hf_lf']):
                     ref_ssim = piq.ssim(driving, ref_out['prediction'], data_range=1.).data.cpu().numpy().flatten()[0]
                     if ssim < ref_ssim:
                         source = driving

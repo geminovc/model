@@ -169,7 +169,7 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
     if 'metrics_params' in config:
         metrics_dataset = MetricsDataset(**config['metrics_params'])
         metrics_dataloader = DataLoader(metrics_dataset, batch_size=train_params['batch_size'], shuffle=False, 
-                num_workers=6, drop_last=False)
+                num_workers=6, drop_last=True)
 
     generator_full = GeneratorFullModel(kp_detector, generator, discriminator, train_params)
     discriminator_full = DiscriminatorFullModel(kp_detector, generator, discriminator, train_params)
@@ -242,7 +242,6 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
                                 y['driving_lr'] = get_frame_from_video_codec(lr_frame, quantizer) 
                             else:
                                 y['driving_lr'] = lr_frame
-
 
                         _, metrics_generated = generator_full(y, generator_type)
                         logger.log_metrics_images(i, y, metrics_generated, loss_fn_vgg)

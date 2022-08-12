@@ -194,12 +194,12 @@ class MetricsDataset(Dataset):
 
     def __init__(self, root_dir, frame_shape, person_id=None):
         self.root_dir = root_dir
-        self.videos = os.listdir(root_dir)
-        self.frame_shape = tuple(frame_shape)
-        
         if person_id is not None:
             root_dir = os.path.join(root_dir, person_id, "validation")
             self.root_dir = root_dir
+        
+        self.frame_shape = tuple(frame_shape)
+        self.videos = os.listdir(root_dir)
 
     def __len__(self):
         return len(self.videos)

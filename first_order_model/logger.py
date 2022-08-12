@@ -68,7 +68,7 @@ class Logger:
                 for name, values in self.metrics_averages.items():
                     average = np.mean(values)
                     self.writer.add_scalar(f'metrics/{name}', average, self.epoch)
-            self.metrics_averages = {'psnr': [], 'ssim': [], 'lpips': []}
+            self.metrics_averages = {'psnr': [], 'ssim': [], 'lpips': [], 'ssim_db': []}
 
         image = self.visualizer.visualize(input_data['driving'], input_data['source'], output)
         self.writer.add_image(f'metrics{iteration}', image, self.epoch, dataformats='HWC')
