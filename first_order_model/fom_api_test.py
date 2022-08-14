@@ -5,9 +5,11 @@ import time
 from argparse import ArgumentParser
 from frames_dataset import get_num_frames, get_frame
 import torch
+import torch.nn.functional as F
 import piq
 from skimage import img_as_float32
 from first_order_model.modules.model import Vgg19
+from first_order_model.reconstruction import frame_to_tensor
 timing_enabled = True
 
 
@@ -25,7 +27,7 @@ parser.add_argument("--output-fps",
                     default=30,
                     help="fps of the final video")
 parser.add_argument("--source-update-frequency",
-                    default=1800,
+                    default=1800, type=int,
                     help="source update frequency")
 parser.set_defaults(verbose=False)
 opt = parser.parse_args()
@@ -61,7 +63,7 @@ video_name = opt.video_path
 source = np.random.rand(model.get_shape()[0], model.get_shape()[1], model.get_shape()[2])
 source_kp, _= model.extract_keypoints(source)
 model.update_source(0, source, source_kp)
-
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 predictions = []
 times = []
 lpips_list = []
@@ -71,13 +73,13 @@ ssim_list = []
 vgg_model = Vgg19()
 if torch.cuda.is_available():
     vgg_model = vgg_model.cuda()
-
+'''
 # warm-up
 for _ in range(100):
     source_kp['source_index'] = 0
     _ = model.predict(source_kp)
 model.reset()
-
+'''
 reader = imageio.get_reader(video_name, "ffmpeg")
 
 i = 0
@@ -92,7 +94,15 @@ for frame in reader:
     target_kp['source_index'] = source_index
 
     start = time.perf_counter()
-    prediction = model.predict(target_kp)
+    #TODO: fix this 
+    #prediction = model.predict(target_kp)
+    #array = np.expand_dims(frame, 0).transpose(0, 3, 1, 2)
+    driving_lr = frame_to_tensor(img_as_float32(frame), device)
+    driving_lr = F.interpolate(driving_lr, 64).data.cpu().numpy()
+    driving_lr = np.transpose(driving_lr, [0, 2, 3, 1])[0]
+    driving_lr *= 255
+    driving_lr = driving_lr.astype(np.uint8)
+    prediction = model.predict_with_lr_video(driving_lr)
     predictions.append(prediction)
     times.append(time.perf_counter() - start)
     
@@ -101,6 +111,8 @@ for frame in reader:
     psnr_list.append(psnr)
     ssim_list.append(ssim)
     i += 1
+    if i % 100 == 0:
+        print(i)
 
 
 print(f"Average prediction time per frame is {sum(times)/len(times)}s.")
