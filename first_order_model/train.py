@@ -186,7 +186,7 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
                 if use_lr_video:
                     lr_frame = F.interpolate(x['driving'], lr_size)
                     if train_params.get('encode_video_for_training', False):
-                        quantizer = random.randint(0, 63)
+                        quantizer = train_params.get('quantizer_level', 32)
                         nr = x.get('time_base_nr', torch.ones(lr_frame.size(dim=0)))
                         dr = x.get('time_base_dr', 30000 * torch.ones(lr_frame.size(dim=0)))
                         x['driving_lr'] = get_frame_from_video_codec(lr_frame, nr, dr, quantizer) 

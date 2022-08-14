@@ -163,8 +163,10 @@ class FramesDataset(Dataset):
             except:
                 print("Couldn't get indices", frame_idx, "of video", path, "with", num_frames, "total frames")
         else:
-            frame = read_single_frame(path)
-            video_array = [frame, frame] if self.is_train else [frame]
+            src_frame = read_single_frame(path)
+            tgt_frame_path = os.path.join(self.root_dir, np.random.choice(os.listdir(self.root_dir)))
+            tgt_frame = read_single_frame(tgt_frame_path)
+            video_array = [src_frame, tgt_frame] if self.is_train else [frame]
 
         if self.transform is not None:
             video_array = self.transform(video_array)
@@ -209,8 +211,8 @@ class MetricsDataset(Dataset):
         path = os.path.join(self.root_dir, file_name)
         assert os.path.isdir(path)
 
-        driving = img_as_float32(io.imread(os.path.join(path, "target.jpg")))
-        source = img_as_float32(io.imread(os.path.join(path, "source.jpg")))
+        driving = img_as_float32(io.imread(os.path.join(path, "target.png")))
+        source = img_as_float32(io.imread(os.path.join(path, "source.png")))
         
         out = {}
         out['driving'] = driving.transpose((2, 0, 1))

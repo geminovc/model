@@ -62,6 +62,7 @@ train_params:
   train_only_generator: False
   train_only_upsample_layers: False
   encode_video_for_training: False
+  quantizer_level: 45
   num_epochs: 100
   num_repeats: 15
   epoch_milestones: [60, 90]
