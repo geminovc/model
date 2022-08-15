@@ -65,6 +65,8 @@ class FirstOrderModel(KeypointBasedFaceModels):
             self.kp_detector = None
 
         self.shape = config['dataset_params']['frame_shape']
+        self.use_lr_video = generator_params.get('use_lr_video', False)
+        self.lr_size = generator_params.get('lr_size', 64)
 
         # initialize weights
         if checkpoint == 'None':
@@ -90,6 +92,10 @@ class FirstOrderModel(KeypointBasedFaceModels):
 
     def get_shape(self):
         return tuple(self.shape)
+
+
+    def get_lr_video_info(self):
+        return self.use_lr_video, self.lr_size
 
 
     def reset(self):

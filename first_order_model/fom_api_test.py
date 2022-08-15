@@ -59,11 +59,19 @@ def visual_metrics(driving, prediction):
     return lpips_val, ssim, psnr
 
 model = FirstOrderModel(opt.config)
+use_lr_video, lr_size = model.get_lr_video_info()
 video_name = opt.video_path
 source = np.random.rand(model.get_shape()[0], model.get_shape()[1], model.get_shape()[2])
 source_kp, _= model.extract_keypoints(source)
 model.update_source(0, source, source_kp)
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+if use_lr_video:
+    source_lr = frame_to_tensor(img_as_float32(source), device)
+    source_lr = F.interpolate(source_lr, lr_size).data.cpu().numpy()
+    source_lr = np.transpose(source_lr, [0, 2, 3, 1])[0]
+    source_lr *= 255
+    source_lr = source_lr.astype(np.uint8)
+
 predictions = []
 times = []
 lpips_list = []
@@ -73,13 +81,16 @@ ssim_list = []
 vgg_model = Vgg19()
 if torch.cuda.is_available():
     vgg_model = vgg_model.cuda()
-'''
+
 # warm-up
 for _ in range(100):
-    source_kp['source_index'] = 0
-    _ = model.predict(source_kp)
+    if use_lr_video:
+        _ = model.predict_with_lr_video(source_lr)
+    else:
+        source_kp['source_index'] = 0
+        _ = model.predict(source_kp)
 model.reset()
-'''
+
 reader = imageio.get_reader(video_name, "ffmpeg")
 
 i = 0
@@ -89,20 +100,20 @@ for frame in reader:
         source_kp, _= model.extract_keypoints(source)
         model.update_source(len(model.source_frames), source, source_kp) 
 
-    driving = frame 
-    target_kp, source_index = model.extract_keypoints(driving)
-    target_kp['source_index'] = source_index
-
+    driving = frame
     start = time.perf_counter()
-    #TODO: fix this 
-    #prediction = model.predict(target_kp)
-    #array = np.expand_dims(frame, 0).transpose(0, 3, 1, 2)
-    driving_lr = frame_to_tensor(img_as_float32(frame), device)
-    driving_lr = F.interpolate(driving_lr, 64).data.cpu().numpy()
-    driving_lr = np.transpose(driving_lr, [0, 2, 3, 1])[0]
-    driving_lr *= 255
-    driving_lr = driving_lr.astype(np.uint8)
-    prediction = model.predict_with_lr_video(driving_lr)
+    if use_lr_video:
+        driving_lr = frame_to_tensor(img_as_float32(driving), device)
+        driving_lr = F.interpolate(driving_lr, lr_size).data.cpu().numpy()
+        driving_lr = np.transpose(driving_lr, [0, 2, 3, 1])[0]
+        driving_lr *= 255
+        driving_lr = driving_lr.astype(np.uint8)
+        prediction = model.predict_with_lr_video(driving_lr)
+    else:
+        target_kp, source_index = model.extract_keypoints(driving)
+        target_kp['source_index'] = source_index
+        prediction = model.predict(target_kp)
+
     predictions.append(prediction)
     times.append(time.perf_counter() - start)
     
@@ -112,7 +123,7 @@ for frame in reader:
     ssim_list.append(ssim)
     i += 1
     if i % 100 == 0:
-        print(i)
+        print("Predicted ", i)
 
 
 print(f"Average prediction time per frame is {sum(times)/len(times)}s.")
