@@ -390,7 +390,8 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
                     frame_name = x['name'][0] + '_frame' + str(frame_idx - len(visualizations) + i) + '.png'
                     imageio.imsave(os.path.join(visualization_dir, frame_name), v)
             image_name = f"{x['name'][0]}_{frame_idx}_{config['reconstruction_params']['format']}"
-            imageio.mimsave(os.path.join(log_dir, image_name), visualizations)
+            if len(visualizations) != 0:
+                imageio.mimsave(os.path.join(log_dir, image_name), visualizations)
             visualizations = []
             
             if timing_enabled:
