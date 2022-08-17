@@ -3,6 +3,7 @@ from torch import nn
 import torch.nn.functional as F
 from first_order_model.modules.util import ResBlock2d, SameBlock2d, UpBlock2d, DownBlock2d
 from first_order_model.modules.dense_motion import DenseMotionNetwork
+from first_order_model.modules.RIFE import RIFEModel
 import math
 
 class OcclusionAwareGenerator(nn.Module):
@@ -37,6 +38,11 @@ class OcclusionAwareGenerator(nn.Module):
         self.lr_size = lr_size
         self.common_decoder_for_3_paths = False
         
+        self.rife = RIFEModel()
+        self.rife.load_model('/video-conf/scratch/vibhaa_tardy/RIFE_m_train_log')
+        self.rife.eval()
+        self.rife.device()
+
         if dense_motion_params.get('concatenate_lr_frame_to_hourglass_input', False) \
                 or dense_motion_params.get('concatenate_lr_frame_to_hourglass_output', False):
             self.concat_lr_video_in_decoder = False
@@ -204,6 +210,9 @@ class OcclusionAwareGenerator(nn.Module):
         if self.use_lr_video:
             lr_encoded_features = self.lr_first(driving_lr)
 
+        lr_occlusion_map = None
+        hr_bgnd_map = None
+        
         # Transforming feature representation according to deformation and occlusion
         output_dict = {}
         if self.dense_motion_network is not None:
@@ -225,9 +234,6 @@ class OcclusionAwareGenerator(nn.Module):
                 output_dict['lr_occlusion_map'] = lr_occlusion_map
                 hr_bgnd_map = dense_motion['hr_background_mask']
                 output_dict['hr_background_mask'] = hr_bgnd_map
-            else:
-                lr_occlusion_map = None
-                hr_bgnd_map = None
             
             if occlusion_map is not None:
                 if out.shape[2] != occlusion_map.shape[2] or out.shape[3] != occlusion_map.shape[3]:
@@ -262,6 +268,15 @@ class OcclusionAwareGenerator(nn.Module):
         if hr_bgnd_map is not None and lr_occlusion_map is not None:
             out = torch.cat([out, lr_encoded_features, hr_encoded_features], dim=1)
         
+        if self.rife is not None:
+            source_lr = F.interpolate(source_image, self.lr_size)
+            imgs = torch.cat((source_lr, driving_lr), 1)
+            deformation = self.rife.flownet(imgs, timestep=0.0, scale=[1], returnflow=True)[:, 2:4] # will get flow 0->1
+            deformation = deformation.permute(0, 2, 3, 1)
+            out, _ = self.deform_input(self.encoder_output, deformation)
+            output_dict["deformed"], deformation = self.deform_input(source_image, deformation)
+            output_dict["deformation"] = deformation
+
         # Decoding part
         out = self.bottleneck(out)
         for i, block in enumerate(self.up_blocks):

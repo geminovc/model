@@ -5,21 +5,21 @@ from torch.optim import AdamW
 import torch.optim as optim
 import torch.nn.functional as F
 import itertools
-from model.warplayer import warp
+from first_order_model.modules.warplayer import warp
 from torch.nn.parallel import DistributedDataParallel as DDP
 from first_order_model.modules.IFNet_m import *
 from first_order_model.modules.refine import *
 
 device = torch.device("cuda")
     
-class Model:
-    def __init__(self, local_rank=-1, arbitrary=False):
+class RIFEModel:
+    def __init__(self):
         self.flownet = IFNet_m()
         self.device()
         
         # use large weight decay may avoid NaN loss
-        self.optimG = AdamW(self.flownet.parameters(), lr=1e-6, weight_decay=1e-3)
-        
+        self.optimG = AdamW(self.flownet.parameters(), lr=1e-6, weight_decay=1e-3) 
+    
     def train(self):
         self.flownet.train()
 
@@ -71,7 +71,7 @@ class Model:
         
         if training:
             self.optimG.zero_grad()
-            loss_G = 0 # TODO: what's the right loss?
+            loss_G = 0 # need to figure out what this is for us
             loss_G.backward()
             self.optimG.step()
         else:
@@ -82,7 +82,4 @@ class Model:
             'mask_tea': mask,
             'flow': flow[2][:, :2],
             'flow_tea': flow_teacher,
-            'loss_l1': loss_l1,
-            'loss_tea': loss_tea,
-            'loss_distill': loss_distill,
             }
