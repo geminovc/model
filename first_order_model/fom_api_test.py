@@ -58,6 +58,14 @@ def visual_metrics(driving, prediction):
     curr_time = start.elapsed_time(end)
     return lpips_val, ssim, psnr
 
+def get_lr_array(input_array, lr_size, device):
+    lr_array = frame_to_tensor(img_as_float32(input_array), device)
+    lr_array = F.interpolate(lr_array, lr_size).data.cpu().numpy()
+    lr_array = np.transpose(lr_array, [0, 2, 3, 1])[0]
+    lr_array *= 255
+    lr_array = lr_array.astype(np.uint8)
+    return lr_array
+
 model = FirstOrderModel(opt.config)
 use_lr_video, lr_size = model.get_lr_video_info()
 video_name = opt.video_path
@@ -66,11 +74,7 @@ source_kp, _= model.extract_keypoints(source)
 model.update_source(0, source, source_kp)
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 if use_lr_video:
-    source_lr = frame_to_tensor(img_as_float32(source), device)
-    source_lr = F.interpolate(source_lr, lr_size).data.cpu().numpy()
-    source_lr = np.transpose(source_lr, [0, 2, 3, 1])[0]
-    source_lr *= 255
-    source_lr = source_lr.astype(np.uint8)
+    source_lr = get_lr_array(source, lr_size, device)
 
 predictions = []
 times = []
@@ -103,11 +107,7 @@ for frame in reader:
     driving = frame
     start = time.perf_counter()
     if use_lr_video:
-        driving_lr = frame_to_tensor(img_as_float32(driving), device)
-        driving_lr = F.interpolate(driving_lr, lr_size).data.cpu().numpy()
-        driving_lr = np.transpose(driving_lr, [0, 2, 3, 1])[0]
-        driving_lr *= 255
-        driving_lr = driving_lr.astype(np.uint8)
+        driving_lr = get_lr_array(driving, lr_size, device)
         prediction = model.predict_with_lr_video(driving_lr)
     else:
         target_kp, source_index = model.extract_keypoints(driving)
