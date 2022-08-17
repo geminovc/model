@@ -68,7 +68,7 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
             lr_video_locations = ['hourglass_input']
     elif dense_motion_params.get('concatenate_lr_frame_to_hourglass_output', False):
         lr_video_locations = ['hourglass_output']
-    
+
     if config['model_params']['discriminator_params'].get('conditional_gan', False):
         train_params['conditional_gan'] = True
         assert(train_params['skip_generator_loading'])
@@ -81,6 +81,9 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
     else:
         optimizer_kp_detector = None
 
+    if dense_motion_params.get('use_RIFE', False):
+        use_RIFE = True
+    
     if checkpoint is not None and generator_type in ["occlusion_aware", "split_hf_lf"]:
         if train_params.get('skip_generator_loading', False):
             # set optimizers and discriminator to None to avoid bogus values and to start training from scratch
@@ -106,10 +109,12 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
                                       generator_type=generator_type)
         else:
             start_epoch = Logger.load_cpk(checkpoint, generator, discriminator, kp_detector,
-                                      optimizer_generator, optimizer_discriminator,
+                                      None if use_RIFE else optimizer_generator, optimizer_discriminator,
                                       None if train_params['lr_kp_detector'] == 0 else optimizer_kp_detector, 
                                       dense_motion_network=generator.dense_motion_network,
                                       generator_type=generator_type)
+            if use_RIFE:
+                start_epoch = 0
 
     elif checkpoint is not None and generator_type == "super_resolution":
             start_epoch = Logger.load_cpk(checkpoint, generator, discriminator, None,
@@ -183,7 +188,7 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
     with Logger(log_dir=log_dir, visualizer_params=config['visualizer_params'], checkpoint_freq=train_params['checkpoint_freq']) as logger:
         for epoch in trange(start_epoch, train_params['num_epochs']):
             for x in dataloader:
-                if use_lr_video:
+                if use_lr_video or use_RIFE:
                     lr_frame = F.interpolate(x['driving'], lr_size)
                     if train_params.get('encode_video_for_training', False):
                         quantizer = train_params.get('quantizer_level', 32)
@@ -235,7 +240,7 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
             if metrics_dataloader is not None:
                 with torch.no_grad():
                     for i, y in enumerate(metrics_dataloader):
-                        if use_lr_video:
+                        if use_lr_video or use_RIFE:
                             lr_frame = F.interpolate(y['driving'], lr_size)
                             if train_params.get('encode_video_for_training', False):
                                 quantizer = random.randint(0, 63)

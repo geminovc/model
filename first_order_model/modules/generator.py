@@ -22,14 +22,24 @@ class OcclusionAwareGenerator(nn.Module):
         super(OcclusionAwareGenerator, self).__init__()
 
         if dense_motion_params is not None:
-            self.dense_motion_network = DenseMotionNetwork(num_kp=num_kp, num_channels=num_channels,
-                    lr_features=lr_features,
-                    estimate_residual=predict_pixel_features,
-                    num_pixel_features=num_pixel_features,
-                    estimate_occlusion_map=estimate_occlusion_map, 
-                    **dense_motion_params)
+            if not dense_motion_params.get('use_RIFE', False):
+                self.dense_motion_network = DenseMotionNetwork(num_kp=num_kp, num_channels=num_channels,
+                        lr_features=lr_features,
+                        estimate_residual=predict_pixel_features,
+                        num_pixel_features=num_pixel_features,
+                        estimate_occlusion_map=estimate_occlusion_map, 
+                        **dense_motion_params)
+                self.rife = None
+            else:
+                self.rife = RIFEModel()
+                self.rife.load_model(dense_motion_params['RIFE_checkpoint'])
+                self.rife.eval()
+                self.rife.device()
+                self.scales = dense_motion_params.get('scales', [1])
+                self.dense_motion_network = None
         else:
             self.dense_motion_network = None
+            self.rife = None
 
         self.run_at_256 = run_at_256
         self.use_hr_skip_connections = use_hr_skip_connections
@@ -38,10 +48,6 @@ class OcclusionAwareGenerator(nn.Module):
         self.lr_size = lr_size
         self.common_decoder_for_3_paths = False
         
-        self.rife = RIFEModel()
-        self.rife.load_model('/video-conf/scratch/vibhaa_tardy/RIFE_m_train_log')
-        self.rife.eval()
-        self.rife.device()
 
         if dense_motion_params.get('concatenate_lr_frame_to_hourglass_input', False) \
                 or dense_motion_params.get('concatenate_lr_frame_to_hourglass_output', False):
@@ -271,7 +277,7 @@ class OcclusionAwareGenerator(nn.Module):
         if self.rife is not None:
             source_lr = F.interpolate(source_image, self.lr_size)
             imgs = torch.cat((source_lr, driving_lr), 1)
-            deformation = self.rife.flownet(imgs, timestep=0.0, scale=[1], returnflow=True)[:, 2:4] # will get flow 0->1
+            deformation = self.rife.flownet(imgs, timestep=0.0, scale=self.scales, returnflow=True)[:, 2:4] 
             deformation = deformation.permute(0, 2, 3, 1)
             out, _ = self.deform_input(self.encoder_output, deformation)
             output_dict["deformed"], deformation = self.deform_input(source_image, deformation)
