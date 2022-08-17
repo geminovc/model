@@ -57,7 +57,7 @@ class Logger:
         lpips_val = loss_fn_vgg(original, prediction).data.cpu().numpy().flatten()[0]
         
         ssim = piq.ssim(original, prediction, data_range=1.).data.cpu().numpy().flatten()[0]
-        ssim_db = -20 * math.log10(ssim)
+        ssim_db = -20 * math.log10(1 - ssim)
         psnr = piq.psnr(original, prediction, data_range=1., reduction='none').data.cpu().numpy()
         
         return {'psnr': psnr, 'ssim': ssim, 'lpips': lpips_val, 'ssim_db': ssim_db}
