@@ -4,6 +4,7 @@ import numpy as np
 from skimage import img_as_float32
 from first_order_model.logger import Logger
 from first_order_model.modules.generator import OcclusionAwareGenerator
+from first_order_model.modules.sr_generator import SuperResolutionGenerator
 from first_order_model.modules.keypoint_detector import KPDetector
 
 import sys
@@ -39,20 +40,33 @@ class FirstOrderModel(KeypointBasedFaceModels):
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
        
         # generator
-        self.generator = OcclusionAwareGenerator(
-                **config['model_params']['generator_params'],
-                **config['model_params']['common_params'])
-        if torch.cuda.is_available():
+        generator_params = config['model_params']['generator_params']
+        generator_type = generator_params.get('generator_type', 'occlusion_aware')
+        if generator_type in ['occlusion_aware', 'split_hf_lf']:
+            self.generator = OcclusionAwareGenerator(**config['model_params']['generator_params'],
+                                            **config['model_params']['common_params'])
+        elif generator_type == 'super_resolution':
+            self.generator = SuperResolutionGenerator(**config['model_params']['generator_params'],
+                                            **config['model_params']['common_params'])
+        else: # VPX/Bicubic
+            self.generator = None
+
+        if torch.cuda.is_available() and self.generator is not None:
             self.generator.to(device)
 
         # keypoint detector
-        self.kp_detector = KPDetector(
-                **config['model_params']['kp_detector_params'],
-                **config['model_params']['common_params'])
-        if torch.cuda.is_available():
-            self.kp_detector.to(device)
+        if generator_type in ['occlusion_aware', 'split_hf_lf']:
+            self.kp_detector = KPDetector(
+                    **config['model_params']['kp_detector_params'],
+                    **config['model_params']['common_params'])
+            if torch.cuda.is_available():
+                self.kp_detector.to(device)
+        else:
+            self.kp_detector = None
 
         self.shape = config['dataset_params']['frame_shape']
+        self.use_lr_video = generator_params.get('use_lr_video', False)
+        self.lr_size = generator_params.get('lr_size', 64)
 
         # initialize weights
         if checkpoint == 'None':
@@ -78,6 +92,10 @@ class FirstOrderModel(KeypointBasedFaceModels):
 
     def get_shape(self):
         return tuple(self.shape)
+
+
+    def get_lr_video_info(self):
+        return self.use_lr_video, self.lr_size
 
 
     def reset(self):
@@ -163,7 +181,7 @@ class FirstOrderModel(KeypointBasedFaceModels):
         return transformed_image
 
 
-    def predict(self, target_keypoints, target_64x64=None):
+    def predict(self, target_keypoints, target_lr=None):
         """ takes target keypoints and returns an RGB image for the prediction """
         source_index = target_keypoints['source_index']
         assert(source_index in self.source_keypoints)
@@ -176,7 +194,7 @@ class FirstOrderModel(KeypointBasedFaceModels):
         target_kp_tensors = self.convert_kp_dict_to_tensors(target_keypoints)
         out = self.generator(self.source_frames[source_index], \
             kp_source=source_kp_tensors, kp_driving=target_kp_tensors, \
-            update_source=update_source, driving_64x64=target_64x64)
+            update_source=update_source, driving_lr=target_lr)
 
 
         prediction = torch.mul(out['prediction'][0], 255).to(torch.uint8)
@@ -185,7 +203,7 @@ class FirstOrderModel(KeypointBasedFaceModels):
         return final_prediction
 
 
-    def predict_with_source(self, target_keypoints, source_frame, source_keypoints, target_64x64=None):
+    def predict_with_source(self, target_keypoints, source_frame, source_keypoints, target_lr=None):
         """ takes target keypoints and returns an RGB image for the prediction 
             using the source passed in
         """
@@ -198,7 +216,7 @@ class FirstOrderModel(KeypointBasedFaceModels):
         transformed_source = self.convert_image_to_tensor(source_frame)
         out = self.generator(transformed_source, \
                 kp_source=source_kp_tensors, kp_driving=target_kp_tensors,\
-                update_source=update_source, driving_64x64=target_64x64)
+                update_source=update_source, driving_lr=target_lr)
 
         prediction = torch.mul(out['prediction'][0], 255).to(torch.uint8)
         prediction_cpu = prediction.data.cpu().numpy()
@@ -206,22 +224,22 @@ class FirstOrderModel(KeypointBasedFaceModels):
         return final_prediction
 
 
-    def predict_with_lr_video(self, target_64x64):
+    def predict_with_lr_video(self, target_lr):
         """ predict and return the target RGB frame 
             from a low-res version of it. 
         """
-        target_64x64_tensor = self.convert_image_to_tensor(target_64x64)
-        target_keypoints, best_source_index = self.extract_keypoints(target_64x64_tensor)
+        target_lr_tensor = self.convert_image_to_tensor(target_lr)
+        target_keypoints, best_source_index = self.extract_keypoints(target_lr_tensor)
         target_keypoints['source_index'] = best_source_index
 
-        return self.predict(target_keypoints, target_64x64_tensor)
+        return self.predict(target_keypoints, target_lr_tensor)
 
 
-    def predict_with_lr_video_and_source(self, target_64x64, source_frame, source_keypoints):
+    def predict_with_lr_video_and_source(self, target_lr, source_frame, source_keypoints):
         """ predict and return the target RGB frame 
             from a low-res version of it. 
         """
-        target_64x64_tensor = self.convert_image_to_tensor(target_64x64_tensor)
-        target_keypoints, _ = self.extract_keypoints(target_64x64_tensor)
-        return self.predict_with_source(target_keypoints, source_frame, source_keypoints, target_64x64_tensor)
+        target_lr_tensor = self.convert_image_to_tensor(target_lr_tensor)
+        target_keypoints, _ = self.extract_keypoints(target_lr_tensor)
+        return self.predict_with_source(target_keypoints, source_frame, source_keypoints, target_lr_tensor)
 

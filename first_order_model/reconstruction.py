@@ -3,16 +3,16 @@ from tqdm import tqdm
 import torch
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
-from logger import Logger, Visualizer
+from first_order_model.logger import Logger, Visualizer
 import numpy as np
 import imageio
-from sync_batchnorm import DataParallelWithCallback
+from first_order_model.sync_batchnorm import DataParallelWithCallback
 from skimage.metrics import peak_signal_noise_ratio
 from skimage import img_as_float32
 from skimage.transform import resize
 from skimage.metrics import structural_similarity
-from frames_dataset import get_num_frames, get_frame
-from modules.model import Vgg19
+from first_order_model.frames_dataset import get_num_frames, get_frame
+from first_order_model.modules.model import Vgg19
 import piq
 import subprocess
 import av
@@ -390,7 +390,8 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
                     frame_name = x['name'][0] + '_frame' + str(frame_idx - len(visualizations) + i) + '.png'
                     imageio.imsave(os.path.join(visualization_dir, frame_name), v)
             image_name = f"{x['name'][0]}_{frame_idx}_{config['reconstruction_params']['format']}"
-            imageio.mimsave(os.path.join(log_dir, image_name), visualizations)
+            if len(visualizations) != 0:
+                imageio.mimsave(os.path.join(log_dir, image_name), visualizations)
             visualizations = []
             
             if timing_enabled:
