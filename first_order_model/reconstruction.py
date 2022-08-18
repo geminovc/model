@@ -155,6 +155,7 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     generator_params = config['model_params']['generator_params']
     generator_type = generator_params.get('generator_type', 'occlusion_aware')
+    print("reference_frame_update_freq", reference_frame_update_freq)
     
     choose_reference_frame = False
     use_same_tgt_ref_quality = False
@@ -242,7 +243,7 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
                 driving = frame_to_tensor(img_as_float32(frame), device)
                 
                 # get LR video frame
-                driving_lr = F.interpolate(driving, 64).data.cpu().numpy()
+                driving_lr = F.interpolate(driving, 256).data.cpu().numpy()
                 driving_lr = np.transpose(driving_lr, [0, 2, 3, 1])[0]
                 driving_lr *= 255
                 driving_lr = driving_lr.astype(np.uint8)
@@ -251,11 +252,11 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
                 driving_lr_av.pts = av_frame.pts
                 driving_lr_av.time_base = av_frame.time_base
                 
-                driving_lr, compressed_tgt = get_frame_from_video_codec(driving_lr_av, lr_encoder, lr_decoder, 5)
+                driving_lr, compressed_tgt = get_frame_from_video_codec(driving_lr_av, lr_encoder, lr_decoder, 48)
                 driving_lr = frame_to_tensor(img_as_float32(driving_lr), device)
                 
                 # for use as source frame
-                decoded_frame, compressed_src = get_frame_from_video_codec(av_frame, hr_encoder, hr_decoder, 32)
+                decoded_frame, compressed_src = get_frame_from_video_codec(av_frame, hr_encoder, hr_decoder, 48)
                 decoded_frame = img_as_float32(decoded_frame)
                 decoded_tensor = frame_to_tensor(decoded_frame, device)
                 update_source = False if not use_same_tgt_ref_quality else True
@@ -279,6 +280,7 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
                             reference_stream.append(compressed_src)
 
                     elif choose_reference_frame:
+                        print("here!")
                         # runs at sender, so use frame prior to encode/decode pipeline
                         cur_frame = frame_to_tensor(frame, device) 
                         cur_kp = kp_detector(cur_frame)
