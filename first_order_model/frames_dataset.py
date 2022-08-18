@@ -166,7 +166,7 @@ class FramesDataset(Dataset):
             src_frame = read_single_frame(path)
             tgt_frame_path = os.path.join(self.root_dir, np.random.choice(os.listdir(self.root_dir)))
             tgt_frame = read_single_frame(tgt_frame_path)
-            video_array = [src_frame, tgt_frame] if self.is_train else [frame]
+            video_array = [src_frame, tgt_frame] if self.is_train else [src_frame]
 
         if self.transform is not None:
             video_array = self.transform(video_array)

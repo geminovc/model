@@ -83,6 +83,8 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
 
     if dense_motion_params.get('use_RIFE', False):
         use_RIFE = True
+    else:
+        use_RIFE = False
     
     if checkpoint is not None and generator_type in ["occlusion_aware", "split_hf_lf"]:
         if train_params.get('skip_generator_loading', False):
