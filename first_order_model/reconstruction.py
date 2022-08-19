@@ -13,6 +13,7 @@ from skimage.transform import resize
 from skimage.metrics import structural_similarity
 from first_order_model.frames_dataset import get_num_frames, get_frame
 from first_order_model.modules.model import Vgg19
+from first_order_model.utils import frame_to_tensor
 import piq
 import subprocess
 import av
@@ -56,6 +57,7 @@ def get_model_info(log_dir, kp_detector, generator):
                 model_file.write('%s %s: %s\n' % (name, 'number_of_trainable_parameters',
                         str(number_of_trainable_parameters)))
 
+
 def get_avg_visual_metrics(visual_metrics):
     """ get average of visual metrics across all frames """
     psnrs = [m['psnr'] for m in visual_metrics]
@@ -64,12 +66,6 @@ def get_avg_visual_metrics(visual_metrics):
     lpips_list = [m['lpips'] for m in visual_metrics]
     return np.mean(psnrs), np.mean(ssims), np.mean(lpips_list), np.mean(ssim_dbs)
 
-
-def frame_to_tensor(frame, device):
-    """ convert numpy arrays to tensors for reconstruction pipeline """
-    array = np.expand_dims(frame, 0).transpose(0, 3, 1, 2)
-    array = torch.from_numpy(array)
-    return array.float().to(device)
 
 ssim_correlation_file = open('ssim_data_threshold_approach.txt', 'w+')
 ssim_correlation_file.write('video,frame,dist,ssim\n')

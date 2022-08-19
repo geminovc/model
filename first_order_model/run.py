@@ -10,12 +10,7 @@ from shutil import copy
 
 from frames_dataset import FramesDataset
 from voxceleb2_dataset import Voxceleb2Dataset
-
-from modules.generator import OcclusionAwareGenerator
-from modules.sr_generator import SuperResolutionGenerator
-from modules.discriminator import MultiScaleDiscriminator
-from modules.keypoint_detector import KPDetector
-
+from first_order_model.utils import configure_fom_modules
 import torch
 
 from train import train
@@ -52,56 +47,12 @@ if __name__ == "__main__":
         log_dir = os.path.join(opt.log_dir, opt.experiment_name)
         log_dir += ' ' + strftime("%d_%m_%y_%H.%M.%S", gmtime())
 
-    """ Generator can be of the following types:
-        1. VPX: (not model based) just runs through the regular VPX 
-           decoder to decode the frame at its highest resolution
-        2. Bicubic - does a simple bicubic-based upsampling from low-resolution
-           to high-resolution frames
-        3. Super-resolution: does a simple super-resolution using upsampling
-           learnt blocks to generate the high-resolution image
-        4. OcclusionAware: uses the standard FOM model with/without an additional
-           low-resolution video in the decoder/hourglass to produce the high-resolution
-           warped image in the desired orientation from a reference frame
-        5. Split HF/LF: Generator that uses the Occlusion aware pipeline for
-           High-frequency (HF) content and simple super-resolution for the 
-           low-frequency (LF) content
-    """
-    generator_params = config['model_params']['generator_params']
-    generator_type = generator_params.get('generator_type', 'occlusion_aware')
-    if generator_type not in ['vpx', 'bicubic']:
-        if generator_type in ['occlusion_aware', 'split_hf_lf']:
-            generator = OcclusionAwareGenerator(**config['model_params']['generator_params'],
-                                            **config['model_params']['common_params'])
-        elif generator_type == 'super_resolution':
-            generator = SuperResolutionGenerator(**config['model_params']['generator_params'],
-                                            **config['model_params']['common_params'])
-
-        if torch.cuda.is_available():
-            generator.to(opt.device_ids[0])
-        if opt.verbose:
-            print(generator)
-
-        discriminator = MultiScaleDiscriminator(**config['model_params']['discriminator_params'],
-                                                **config['model_params']['common_params'])
-        if torch.cuda.is_available():
-            discriminator.to(opt.device_ids[0])
-        if opt.verbose:
-            print(discriminator)
+    generator, discriminator, kp_detector = configure_fom_modules(config, opt.device_ids[0])
+    if opt.verbose:
+        print(generator)
+        print(discriminator)
+        print(kp_detector)
     
-    else: # VPX/Bicubic
-        generator = None
-
-    if generator_type in ['occlusion_aware', 'split_hf_lf']:
-        kp_detector = KPDetector(**config['model_params']['kp_detector_params'],
-                             **config['model_params']['common_params'])
-        if torch.cuda.is_available():
-            kp_detector.to(opt.device_ids[0])
-
-        if opt.verbose:
-            print(kp_detector)
-    else:
-        kp_detector = None
-
     config['dataset_params']['person_id'] = opt.person_id
     if 'metrics_params' in config:
         config['metrics_params']['person_id'] = opt.person_id

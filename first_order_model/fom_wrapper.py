@@ -3,10 +3,7 @@ import yaml
 import numpy as np
 from skimage import img_as_float32
 from first_order_model.logger import Logger
-from first_order_model.modules.generator import OcclusionAwareGenerator
-from first_order_model.modules.sr_generator import SuperResolutionGenerator
-from first_order_model.modules.keypoint_detector import KPDetector
-
+from first_order_model.utils import configure_fom_modules, frame_to_tensor
 import sys
 sys.path.append("..")
 from keypoint_based_face_models import KeypointBasedFaceModels
@@ -37,42 +34,21 @@ class FirstOrderModel(KeypointBasedFaceModels):
         with open(config_path) as f:
             config = yaml.safe_load(f)
 
-        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-       
-        # generator
+        # config parameters
+        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         generator_params = config['model_params']['generator_params']
-        generator_type = generator_params.get('generator_type', 'occlusion_aware')
-        if generator_type in ['occlusion_aware', 'split_hf_lf']:
-            self.generator = OcclusionAwareGenerator(**config['model_params']['generator_params'],
-                                            **config['model_params']['common_params'])
-        elif generator_type == 'super_resolution':
-            self.generator = SuperResolutionGenerator(**config['model_params']['generator_params'],
-                                            **config['model_params']['common_params'])
-        else: # VPX/Bicubic
-            self.generator = None
-
-        if torch.cuda.is_available() and self.generator is not None:
-            self.generator.to(device)
-
-        # keypoint detector
-        if generator_type in ['occlusion_aware', 'split_hf_lf']:
-            self.kp_detector = KPDetector(
-                    **config['model_params']['kp_detector_params'],
-                    **config['model_params']['common_params'])
-            if torch.cuda.is_available():
-                self.kp_detector.to(device)
-        else:
-            self.kp_detector = None
-
         self.shape = config['dataset_params']['frame_shape']
         self.use_lr_video = generator_params.get('use_lr_video', False)
         self.lr_size = generator_params.get('lr_size', 64)
+        self.generator_type = generator_params.get('generator_type', 'occlusion_aware')
 
+        # configure modules
+        self.generator, _, self.kp_detector = configure_fom_modules(config, self.device)
         # initialize weights
         if checkpoint == 'None':
             checkpoint = config['checkpoint_params']['checkpoint_path']
         Logger.load_cpk(checkpoint, generator=self.generator, 
-                kp_detector=self.kp_detector, device=device, 
+                kp_detector=self.kp_detector, device=self.device,
                 dense_motion_network=self.generator.dense_motion_network)
 
         # set to test mode
@@ -167,16 +143,9 @@ class FirstOrderModel(KeypointBasedFaceModels):
 
 
     def convert_image_to_tensor(self, image):
-        """ takes an RGB image in 0-255 range and converts it into a float tensor """
-        transformed_image = image.transpose((2, 0, 1))
-        transformed_image = torch.from_numpy(transformed_image).to(torch.uint8)
-        if torch.cuda.is_available():
-            transformed_image = transformed_image.cuda()
-
-        # convert to float
-        transformed_image = transformed_image.to(torch.float32)
-        transformed_image = torch.div(transformed_image, 255)
-        transformed_image = torch.unsqueeze(transformed_image, 0)
+        """ takes an RGB image in 0-255 range and converts it
+            into a float tensor in 0.0-1.0 range """
+        transformed_image = frame_to_tensor(img_as_float32(image), self.device)
 
         return transformed_image
 
