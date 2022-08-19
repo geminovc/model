@@ -1,9 +1,9 @@
 import torch
 import numpy as np
-from modules.generator import OcclusionAwareGenerator
-from modules.sr_generator import SuperResolutionGenerator
-from modules.discriminator import MultiScaleDiscriminator
-from modules.keypoint_detector import KPDetector
+from first_order_model.modules.generator import OcclusionAwareGenerator
+from first_order_model.modules.sr_generator import SuperResolutionGenerator
+from first_order_model.modules.discriminator import MultiScaleDiscriminator
+from first_order_model.modules.keypoint_detector import KPDetector
 
 
 def frame_to_tensor(frame, device):
