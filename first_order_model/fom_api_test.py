@@ -9,13 +9,14 @@ import piq
 from skimage import img_as_float32
 from first_order_model.modules.model import Vgg19
 from reconstruction import *
+from utils import get_main_config_params
 
 parser = ArgumentParser()
 parser.add_argument("--config", 
                     default="config/paper_configs/resolution512_with_hr_skip_connections.yaml",
                     help="path to config")
 parser.add_argument("--checkpoint",
-                    required=True,
+                    default=None,
                     help="path to the checkpoints")
 parser.add_argument("--video-path",
                     default="512_kayleigh_10_second_0_1.mp4",
@@ -47,14 +48,17 @@ parser.add_argument("--encode-lr",
 parser.set_defaults(verbose=False)
 args = parser.parse_args()
 
+main_configs = get_main_config_params(args.config)
+generator_type = main_configs['generator_type']
+use_lr_video = main_configs['use_lr_video']
+lr_size = main_configs['lr_size']
 
-model = FirstOrderModel(args.config, args.checkpoint)
-use_lr_video, lr_size = model.get_lr_video_info()
 video_duration = get_video_duration(args.video_path)
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 # model initialization and warm-up
-if model.generator_type not in ['vpx', 'bicubic']:
+if generator_type not in ['vpx', 'bicubic']:
+    model = FirstOrderModel(args.config, args.checkpoint)
     source = np.random.rand(model.get_shape()[0], model.get_shape()[1], model.get_shape()[2])
     source_kp, _= model.extract_keypoints(source)
     if use_lr_video:
@@ -69,13 +73,14 @@ if model.generator_type not in ['vpx', 'bicubic']:
             source_kp['source_index'] = 0
             _ = model.predict(source_kp)
     model.reset()
+    get_model_info(args.log_dir, model.kp_detector, model.generator)
 
 if not os.path.exists(args.log_dir):
     os.makedirs(args.log_dir)
 
 choose_reference_frame = False #TODO
 use_same_tgt_ref_quality = False #TODO
-timing_enabled = False if model.generator_type in ['vpx', 'bicubic'] else True
+timing_enabled = False if generator_type in ['vpx', 'bicubic'] else True
 reference_frame_list = []
 predictions = []
 visual_metrics = []
@@ -86,7 +91,6 @@ lr_stream = []
 metrics_file = open(os.path.join(args.log_dir, args.output_name + '_metrics_summary.txt'), 'wt')
 frame_metrics_file = open(os.path.join(args.log_dir, args.output_name + '_per_frame_metrics.txt'), 'wt')
 write_in_file(frame_metrics_file, 'frame,psnr,ssim,ssim_db,lpips\n')
-get_model_info(args.log_dir, model.kp_detector, model.generator)
 vgg_model = Vgg19()
 
 if torch.cuda.is_available():
@@ -126,7 +130,7 @@ with torch.no_grad():
         else:
             decoded_array = driving
 
-        if model.generator_type in ['occlusion_aware', 'split_hf_lf']:
+        if generator_type in ['occlusion_aware', 'split_hf_lf']:
             update_source = False if not use_same_tgt_ref_quality else True
             # keypoint detector
             if model.kp_detector is not None:
@@ -182,13 +186,13 @@ with torch.no_grad():
                 ref_out = model.generator(driving, kp_source=kp_driving, \
                     kp_driving=kp_driving, update_source=True, driving_lr=driving_lr)
 
-        elif model.generator_type == "bicubic":
+        elif generator_type == "bicubic":
             driving_lr_tensor = frame_to_tensor(img_as_float32(driving_lr), device)
             prediction = resize_tensor_to_array(driving_lr_tensor, driving.shape[1], device, mode='bicubic')
             if args.encode_lr:
                 lr_stream.append(compressed_tgt)
 
-        elif model.generator_type == "vpx":
+        elif generator_type == "vpx":
             prediction = decoded_array
             if args.encode_hr:
                 reference_stream.append(compressed_src)
