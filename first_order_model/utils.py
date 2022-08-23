@@ -1,3 +1,4 @@
+import yaml
 import torch
 import numpy as np
 from first_order_model.modules.generator import OcclusionAwareGenerator
@@ -11,6 +12,33 @@ def frame_to_tensor(frame, device):
     array = np.expand_dims(frame, 0).transpose(0, 3, 1, 2)
     array = torch.from_numpy(array)
     return array.float().to(device)
+
+
+def safe_read(config, first_key, second_key, default):
+    try:
+        return config[first_key][second_key]
+    except Exception as e:
+        print(e)
+        return default
+
+def get_main_config_params(config_path):
+    try:
+        with open(config_path) as f:
+            config = yaml.safe_load(f)
+    except:
+        config = None
+
+    frame_shape = safe_read(config, 'dataset_params', 'frame_shape', [1024, 1024, 3])
+    generator_params = safe_read(config, 'model_params', 'generator_params', {})
+    use_lr_video = generator_params.get('use_lr_video', False)
+    lr_size = generator_params.get('lr_size', 64)
+    generator_type = generator_params.get('generator_type', 'occlusion_aware')
+
+    return {'frame_shape': frame_shape,
+            'use_lr_video': use_lr_video,
+            'lr_size': lr_size,
+            'generator_type': generator_type
+            }
 
 
 def configure_fom_modules(config, device):
