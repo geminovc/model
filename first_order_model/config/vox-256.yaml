@@ -1,8 +1,6 @@
 dataset_params:
-  root_dir: /video-conf/scratch/vibhaa/voxceleb_original 
+  root_dir: /video-conf/scratch/vibhaa_tardy/dataset_256/ 
   frame_shape: [256, 256, 3]
-  id_sampling: True
-  pairs_list: data/vox256.csv
   augmentation_params:
     flip_param:
       horizontal_flip: True
@@ -12,6 +10,10 @@ dataset_params:
       contrast: 0.1
       saturation: 0.1
       hue: 0.1
+
+metrics_params:
+  root_dir: /video-conf/scratch/vibhaa_tardy/dataset_256/ 
+  frame_shape: [256, 256, 3]
 
 
 model_params:

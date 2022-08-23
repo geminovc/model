@@ -54,7 +54,9 @@ class OcclusionAwareGenerator(nn.Module):
             self.concat_lr_video_in_decoder = False
             if dense_motion_params.get('estimate_additional_masks_for_lr_and_hr_bckgnd', False): 
                 self.use_lr_video = True
-            self.common_decoder_for_3_paths = True
+                self.common_decoder_for_3_paths = True
+            else:
+                self.use_lr_video = False
         else:
             self.concat_lr_video_in_decoder = use_lr_video
             self.use_lr_video = use_lr_video
@@ -235,9 +237,11 @@ class OcclusionAwareGenerator(nn.Module):
             deformation = dense_motion['deformation']
             out, _ = self.deform_input(self.encoder_output, deformation)
 
-            if 'lr_occlusion_mask' in dense_motion and 'hr_background_mask' in dense_motion:
+            if 'lr_occlusion_mask' in dense_motion:
                 lr_occlusion_map = dense_motion['lr_occlusion_mask']
                 output_dict['lr_occlusion_map'] = lr_occlusion_map
+            
+            if 'hr_background_mask' in dense_motion:
                 hr_bgnd_map = dense_motion['hr_background_mask']
                 output_dict['hr_background_mask'] = hr_bgnd_map
             
@@ -271,8 +275,11 @@ class OcclusionAwareGenerator(nn.Module):
         
         # concatenate all pieces of info before decoding if you
         # want to use LR + static HR background
-        if hr_bgnd_map is not None and lr_occlusion_map is not None:
-            out = torch.cat([out, lr_encoded_features, hr_encoded_features], dim=1)
+        if lr_occlusion_map is not None:
+            out = torch.cat([out, lr_encoded_features], dim=1)
+        
+        if hr_bgnd_map is not None:
+            out = torch.cat([out, hr_encoded_features], dim=1)
         
         if self.rife is not None:
             source_lr = F.interpolate(source_image, self.lr_size)

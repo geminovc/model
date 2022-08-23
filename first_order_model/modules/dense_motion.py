@@ -203,7 +203,7 @@ class DenseMotionNetwork(nn.Module):
         
         if self.lr_occlusion:
             lr_occlusion_map = torch.sigmoid(self.lr_occlusion(prediction))
-            out_dict['lr_occlusion_mask'] = occlusion_map
+            out_dict['lr_occlusion_mask'] = lr_occlusion_map
 
         if self.hr_background_occlusion:
             hr_background_mask = torch.sigmoid(self.hr_background_occlusion(prediction))
