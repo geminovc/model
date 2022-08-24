@@ -52,9 +52,13 @@ main_configs = get_main_config_params(args.config)
 generator_type = main_configs['generator_type']
 use_lr_video = main_configs['use_lr_video']
 lr_size = main_configs['lr_size']
+print(main_configs)
 
 video_duration = get_video_duration(args.video_path)
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
+if not os.path.exists(args.log_dir):
+    os.makedirs(args.log_dir)
 
 # model initialization and warm-up
 if generator_type not in ['vpx', 'bicubic']:
@@ -74,9 +78,6 @@ if generator_type not in ['vpx', 'bicubic']:
             _ = model.predict(source_kp)
     model.reset()
     get_model_info(args.log_dir, model.kp_detector, model.generator)
-
-if not os.path.exists(args.log_dir):
-    os.makedirs(args.log_dir)
 
 choose_reference_frame = False #TODO
 use_same_tgt_ref_quality = False #TODO
