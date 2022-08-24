@@ -50,7 +50,8 @@ class OcclusionAwareGenerator(nn.Module):
         
 
         if dense_motion_params.get('concatenate_lr_frame_to_hourglass_input', False) \
-                or dense_motion_params.get('concatenate_lr_frame_to_hourglass_output', False):
+                or dense_motion_params.get('concatenate_lr_frame_to_hourglass_output', False) \
+                or dense_motion_params.get('use_only_src_tgt_for_motion', False):
             self.concat_lr_video_in_decoder = False
             if dense_motion_params.get('estimate_additional_masks_for_lr_and_hr_bckgnd', False): 
                 self.use_lr_video = True
@@ -226,8 +227,9 @@ class OcclusionAwareGenerator(nn.Module):
         if self.dense_motion_network is not None:
             dense_motion = self.dense_motion_network(source_image=source_image, kp_driving=kp_driving,
                                                      kp_source=kp_source, lr_frame=driving_lr)
-            output_dict['mask'] = dense_motion['mask']
-            output_dict['sparse_deformed'] = dense_motion['sparse_deformed']
+            if 'mask' in dense_motion and 'sparse_deformed' in dense_motion:
+                output_dict['mask'] = dense_motion['mask']
+                output_dict['sparse_deformed'] = dense_motion['sparse_deformed']
 
             if 'occlusion_map' in dense_motion:
                 occlusion_map = dense_motion['occlusion_map']

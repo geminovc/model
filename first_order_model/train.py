@@ -61,7 +61,8 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
     lr_size = generator_params.get('lr_size', 64)
 
     dense_motion_params = generator_params.get('dense_motion_params', {})
-    if dense_motion_params.get('concatenate_lr_frame_to_hourglass_input', False):
+    if dense_motion_params.get('concatenate_lr_frame_to_hourglass_input', False) or \
+            dense_motion_params.get('use_only_src_tgt_for_motion', False) :
         if dense_motion_params.get('estimate_additional_masks_for_lr_and_hr_bckgnd', False):
             lr_video_locations.append('hourglass_input')
         else:
