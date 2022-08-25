@@ -16,7 +16,7 @@ parser.add_argument("--config",
                     default="config/paper_configs/resolution512_with_hr_skip_connections.yaml",
                     help="path to config")
 parser.add_argument("--checkpoint",
-                    default=None,
+                    default='None',
                     help="path to the checkpoints")
 parser.add_argument("--video-path",
                     default="512_kayleigh_10_second_0_1.mp4",
@@ -200,6 +200,9 @@ with torch.no_grad():
 
         else:
             out = model.generator(driving_lr)
+            prediction_device = torch.mul(out['prediction'][0], 255).to(torch.uint8)
+            prediction_cpu = prediction_device.data.cpu().numpy()
+            prediction = np.transpose(prediction_cpu, [1, 2, 0])
             if args.encode_lr:
                 lr_stream.append(compressed_tgt)
 
