@@ -16,6 +16,8 @@ model_params:
     num_channels: 3
   generator_params:
     generator_type: 'bicubic'
+    use_lr_video: True
+    lr_size: 256
 
 reconstruction_params:
   num_videos: 1000
