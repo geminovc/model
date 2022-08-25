@@ -49,6 +49,7 @@ model_params:
       concatenate_lr_frame_to_hourglass_input: False
       concatenate_lr_frame_to_hourglass_output: False
       estimate_additional_masks_for_lr_and_hr_bckgnd: False
+      use_only_src_tgt_for_motion: False
   discriminator_params:
     scales: [1]
     block_expansion: 32

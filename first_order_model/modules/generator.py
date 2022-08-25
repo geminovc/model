@@ -56,6 +56,7 @@ class OcclusionAwareGenerator(nn.Module):
             if dense_motion_params.get('estimate_additional_masks_for_lr_and_hr_bckgnd', False): 
                 self.use_lr_video = True
                 self.common_decoder_for_3_paths = True
+                self.concat_lr_video_in_decoder = True
             else:
                 self.use_lr_video = False
         else:
@@ -104,13 +105,11 @@ class OcclusionAwareGenerator(nn.Module):
 
         # increase decoder feature sizes if you're getting multiple inputus
         if self.common_decoder_for_3_paths:
-            adjusted_block_expansion = block_expansion * 2 + lr_features // (2 ** num_down_blocks)
+            adjusted_block_expansion = block_expansion * 2 
             if upsample_levels > 0:
-                adjusted_hr_depth = hr_starting_depth * 2 + \
-                    lr_features // (2 ** (upsample_levels + num_down_blocks))
+                adjusted_hr_depth = hr_starting_depth * 2 
             else:
-                adjusted_hr_depth = block_expansion * 2 + \
-                    lr_features // (2 ** num_down_blocks)
+                adjusted_hr_depth = block_expansion * 2 
         else:
             adjusted_block_expansion = block_expansion
             adjusted_hr_depth = hr_starting_depth if upsample_levels > 0 else block_expansion
@@ -277,9 +276,8 @@ class OcclusionAwareGenerator(nn.Module):
         
         # concatenate all pieces of info before decoding if you
         # want to use LR + static HR background
-        if lr_occlusion_map is not None:
-            out = torch.cat([out, lr_encoded_features], dim=1)
-        
+        # LR will get incorporated at the appropriate place below
+        # in upblocks
         if hr_bgnd_map is not None:
             out = torch.cat([out, hr_encoded_features], dim=1)
         
@@ -295,8 +293,8 @@ class OcclusionAwareGenerator(nn.Module):
         # Decoding part
         out = self.bottleneck(out)
         for i, block in enumerate(self.up_blocks):
-            if i == math.log(self.lr_size / 64, 2) \
-                    and self.concat_lr_video_in_decoder and self.generator_type == "occlusion_aware":
+            if i == math.log(self.lr_size / 64, 2) and self.concat_lr_video_in_decoder \
+                    and self.generator_type == "occlusion_aware":
                 out_shape = list(out.shape)
                 out_shape.pop(1)
                 lr_shape = list(lr_encoded_features.shape)

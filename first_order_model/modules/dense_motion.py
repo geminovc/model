@@ -186,11 +186,13 @@ class DenseMotionNetwork(nn.Module):
             input = input.view(bs, -1, h, w)
             if self.concatenate_lr_frame_to_hourglass_input:
                 lr_frame_features = lr_frame
+                if lr_frame_features.shape[2] != input.shape[2]:
+                    lr_frame_features = F.interpolate(lr_frame_features, input.shape[2])
                 input = torch.cat([input, lr_frame_features], dim = 1)
         
         # only use source and target 
         else:
-            source_frame_lr = F.interpolate(source_image, 64)
+            source_frame_lr = F.interpolate(source_image, lr_frame.shape[2])
             input = torch.cat([source_frame_lr, lr_frame], dim = 1)
 
         prediction = self.hourglass(input)
