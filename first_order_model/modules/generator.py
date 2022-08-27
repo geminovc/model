@@ -17,7 +17,7 @@ class OcclusionAwareGenerator(nn.Module):
                  predict_pixel_features=False, num_pixel_features=0, 
                  run_at_256=False, upsample_factor=1, use_hr_skip_connections=False,
                  dense_motion_params=None, estimate_jacobian=False, encode_hr_input_with_additional_blocks=False,
-                 use_lr_video=False, lr_features=32, lr_size=64,
+                 use_lr_video=False, lr_features=32, lr_size=64, disable_occlusions=False,
                  hr_features=16, generator_type='occlusion_aware'):
         super(OcclusionAwareGenerator, self).__init__()
 
@@ -47,6 +47,7 @@ class OcclusionAwareGenerator(nn.Module):
         self.generator_type = generator_type
         self.lr_size = lr_size
         self.common_decoder_for_3_paths = False
+        self.disable_occlusions = disable_occlusions
         
 
         if dense_motion_params.get('concatenate_lr_frame_to_hourglass_input', False) \
@@ -249,7 +250,8 @@ class OcclusionAwareGenerator(nn.Module):
             if occlusion_map is not None:
                 if out.shape[2] != occlusion_map.shape[2] or out.shape[3] != occlusion_map.shape[3]:
                     occlusion_map = F.interpolate(occlusion_map, size=out.shape[2:], mode='bilinear')
-                out = out * occlusion_map
+                if not self.disable_occlusions:
+                    out = out * occlusion_map
 
             if lr_occlusion_map is not None:
                 if lr_encoded_features.shape[2] != lr_occlusion_map.shape[2] \
@@ -257,7 +259,8 @@ class OcclusionAwareGenerator(nn.Module):
                     lr_occlusion_map = F.interpolate(lr_occlusion_map, 
                                                      size=lr_encoded_features.shape[2:], 
                                                      mode='bilinear')
-                lr_encoded_features = lr_encoded_features * lr_occlusion_map
+                if not self.disable_occlusions:
+                    lr_encoded_features = lr_encoded_features * lr_occlusion_map
 
             if hr_bgnd_map is not None:
                 hr_encoded_features = self.encoder_output
@@ -266,7 +269,8 @@ class OcclusionAwareGenerator(nn.Module):
                     hr_bgnd_map = F.interpolate(hr_bgnd_map, 
                                                 size=hr_encoded_features.shape[2:], 
                                                 mode='bilinear')
-                hr_encoded_features = hr_encoded_features * hr_bgnd_map
+                if not self.disable_occlusions:
+                    hr_encoded_features = hr_encoded_features * hr_bgnd_map
 
             if 'residual' in dense_motion:
                 out += dense_motion['residual']
