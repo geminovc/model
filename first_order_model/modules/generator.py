@@ -17,7 +17,7 @@ class OcclusionAwareGenerator(nn.Module):
                  predict_pixel_features=False, num_pixel_features=0, 
                  run_at_256=False, upsample_factor=1, use_hr_skip_connections=False,
                  dense_motion_params=None, estimate_jacobian=False, encode_hr_input_with_additional_blocks=False,
-                 use_lr_video=False, lr_features=32, lr_size=64, disable_occlusions=False,
+                 use_lr_video=False, lr_features=32, lr_size=64, use_3_pathways=False, concat_lr_video_in_decoder=False,
                  hr_features=16, generator_type='occlusion_aware'):
         super(OcclusionAwareGenerator, self).__init__()
 
@@ -46,23 +46,16 @@ class OcclusionAwareGenerator(nn.Module):
         self.encode_hr_input_with_additional_blocks = encode_hr_input_with_additional_blocks
         self.generator_type = generator_type
         self.lr_size = lr_size
-        self.common_decoder_for_3_paths = False
-        self.disable_occlusions = disable_occlusions
-        
+        self.common_decoder_for_3_paths = use_3_pathways
+        self.disable_occlusions = False
+        self.use_lr_video = use_lr_video
+        self.concat_lr_video_in_decoder = concat_lr_video_in_decoder
 
-        if dense_motion_params.get('concatenate_lr_frame_to_hourglass_input', False) \
-                or dense_motion_params.get('concatenate_lr_frame_to_hourglass_output', False) \
-                or dense_motion_params.get('use_only_src_tgt_for_motion', False):
-            self.concat_lr_video_in_decoder = False
-            if dense_motion_params.get('estimate_additional_masks_for_lr_and_hr_bckgnd', False): 
-                self.use_lr_video = True
-                self.common_decoder_for_3_paths = True
-                self.concat_lr_video_in_decoder = True
-            else:
-                self.use_lr_video = False
-        else:
-            self.concat_lr_video_in_decoder = use_lr_video
-            self.use_lr_video = use_lr_video
+        if self.common_decoder_for_3_paths:
+            self.use_lr_video = True
+            self.concat_lr_video_in_decoder = True
+            if not dense_motion_params.get('estimate_additional_masks_for_lr_and_hr_bckgnd', False): 
+                self.disable_occlusions = True
 
         if use_hr_skip_connections:
             assert run_at_256, "Skip connections require parallel 256 FOM pipeline"
@@ -133,7 +126,9 @@ class OcclusionAwareGenerator(nn.Module):
         for i in range(upsample_levels):
             in_features = min(max_features, adjusted_hr_depth * (2 ** (upsample_levels - i)))
             if use_hr_skip_connections:
-                in_features += min(max_features, hr_starting_depth * (2 ** (upsample_levels - i)))
+                extra_offset = 2 if self.common_decoder_for_3_paths else 1
+                in_features += min(max_features, \
+                        extra_offset * hr_starting_depth * (2 ** (upsample_levels - i)))
             if i == (math.log(self.lr_size / 64, 2) - len(self.up_blocks)) \
                     and self.concat_lr_video_in_decoder and self.generator_type == 'occlusion_aware':
                 in_features += lr_features
@@ -221,6 +216,7 @@ class OcclusionAwareGenerator(nn.Module):
 
         lr_occlusion_map = None
         hr_bgnd_map = None
+        hr_encoded_features = self.encoder_output
         
         # Transforming feature representation according to deformation and occlusion
         output_dict = {}
@@ -263,7 +259,6 @@ class OcclusionAwareGenerator(nn.Module):
                     lr_encoded_features = lr_encoded_features * lr_occlusion_map
 
             if hr_bgnd_map is not None:
-                hr_encoded_features = self.encoder_output
                 if hr_encoded_features.shape[2] != hr_bgnd_map.shape[2] \
                         or hr_encoded_features.shape[3] != hr_bgnd_map.shape[3]:
                     hr_bgnd_map = F.interpolate(hr_bgnd_map, 
@@ -282,7 +277,7 @@ class OcclusionAwareGenerator(nn.Module):
         # want to use LR + static HR background
         # LR will get incorporated at the appropriate place below
         # in upblocks
-        if hr_bgnd_map is not None:
+        if self.common_decoder_for_3_paths:
             out = torch.cat([out, hr_encoded_features], dim=1)
         
         if self.rife is not None:
@@ -319,8 +314,10 @@ class OcclusionAwareGenerator(nn.Module):
                 out = torch.cat([out, lr_encoded_features], dim=1)
             if self.use_hr_skip_connections:
                 skip = self.skip_connections[len(self.skip_connections) - 1 - i]
-                skip, _ = self.deform_input(skip, deformation)
-                out = torch.cat([out, skip], dim=1)
+                skip_deformed, _ = self.deform_input(skip, deformation)
+                out = torch.cat([out, skip_deformed], dim=1)
+                if self.common_decoder_for_3_paths: # if you have non-warped features also
+                    out = torch.cat([out, skip], dim=1)
             out = block(out)
 
         out = self.final(out)
