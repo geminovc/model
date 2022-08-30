@@ -50,29 +50,34 @@ class Logger:
 
     """ get visual metrics for the model's reconstruction """
     @staticmethod
-    def get_visual_metrics(prediction, original, loss_fn_vgg):
+    def get_visual_metrics(prediction, original, loss_fn_vgg, original_lpips, face_lpips):
         if torch.cuda.is_available():
             original = original.cuda()
             prediction = prediction.cuda()
         lpips_val = loss_fn_vgg(original, prediction).data.cpu().numpy().flatten()[0]
+        face_lpips_val = face_lpips(original, prediction).data.cpu().numpy().flatten()[0]
+        original_lpips_val = original_lpips(original, prediction).data.cpu().numpy().flatten()[0]
         
         ssim = piq.ssim(original, prediction, data_range=1.).data.cpu().numpy().flatten()[0]
         ssim_db = -20 * math.log10(1 - ssim)
         psnr = piq.psnr(original, prediction, data_range=1., reduction='none').data.cpu().numpy()
         
-        return {'psnr': psnr, 'ssim': ssim, 'lpips': lpips_val, 'ssim_db': ssim_db}
+        return {'psnr': psnr, 'ssim': ssim, 'lpips': lpips_val, 'ssim_db': ssim_db, \
+                'orig_lpips': original_lpips_val, 'face_lpips': face_lpips_val}
 
-    def log_metrics_images(self, iteration, input_data, output, loss_fn_vgg):
+    def log_metrics_images(self, iteration, input_data, output, loss_fn_vgg, original_lpips, face_lpips):
         if iteration == 0:
             if self.metrics_averages is not None:
                 for name, values in self.metrics_averages.items():
                     average = np.mean(values)
                     self.writer.add_scalar(f'metrics/{name}', average, self.epoch)
-            self.metrics_averages = {'psnr': [], 'ssim': [], 'lpips': [], 'ssim_db': []}
+            self.metrics_averages = {'psnr': [], 'ssim': [], 'lpips': [], 'ssim_db': [], \
+                    'orig_lpips': [], 'face_lpips':[]}
 
         image = self.visualizer.visualize(input_data['driving'], input_data['source'], output)
         self.writer.add_image(f'metrics{iteration}', image, self.epoch, dataformats='HWC')
-        metrics = Logger.get_visual_metrics(output['prediction'], input_data['driving'], loss_fn_vgg)
+        metrics = Logger.get_visual_metrics(output['prediction'], input_data['driving'],\
+                loss_fn_vgg, original_lpips, face_lpips)
         for name, value in metrics.items():
             self.metrics_averages[name].append(value)
 

@@ -2,6 +2,7 @@ from tqdm import trange
 import torch
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
+from first_order_model.modules.model import Vgg19, VggFace16
 
 from logger import Logger
 from modules.model import GeneratorFullModel, DiscriminatorFullModel
@@ -181,12 +182,20 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
 
     generator_full = GeneratorFullModel(kp_detector, generator, discriminator, train_params)
     discriminator_full = DiscriminatorFullModel(kp_detector, generator, discriminator, train_params)
-    loss_fn_vgg = lpips.LPIPS(net='vgg')
+    
+    vgg_model = Vgg19()
+    original_lpips = lpips.LPIPS(net='vgg')
+    vgg_face_model = VggFace16()
 
     if torch.cuda.is_available():
         generator_full = DataParallelWithCallback(generator_full, device_ids=device_ids)
         discriminator_full = DataParallelWithCallback(discriminator_full, device_ids=device_ids)
-        loss_fn_vgg = loss_fn_vgg.cuda()
+        original_lpips = original_lpips.cuda()
+        vgg_model = vgg_model.cuda()
+        vgg_face_model = vgg_face_model.cuda()
+    
+    loss_fn_vgg = vgg_model.compute_loss
+    face_lpips = vgg_face_model.compute_loss
 
     with Logger(log_dir=log_dir, visualizer_params=config['visualizer_params'], checkpoint_freq=train_params['checkpoint_freq']) as logger:
         for epoch in trange(start_epoch, train_params['num_epochs']):
@@ -252,7 +261,7 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
                                 y['driving_lr'] = lr_frame
 
                         _, metrics_generated = generator_full(y, generator_type)
-                        logger.log_metrics_images(i, y, metrics_generated, loss_fn_vgg)
+                        logger.log_metrics_images(i, y, metrics_generated, loss_fn_vgg, original_lpips, face_lpips)
 
             logger.log_epoch(epoch, {'generator': generator,
                                      'discriminator': discriminator,

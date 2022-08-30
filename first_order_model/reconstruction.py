@@ -12,7 +12,7 @@ from skimage import img_as_float32
 from skimage.transform import resize
 from skimage.metrics import structural_similarity
 from first_order_model.frames_dataset import get_num_frames, get_frame
-from first_order_model.modules.model import Vgg19
+from first_order_model.modules.model import Vgg19, VggFace16
 import piq
 import subprocess
 import av
@@ -62,7 +62,10 @@ def get_avg_visual_metrics(visual_metrics):
     ssims = [m['ssim'] for m in visual_metrics]
     ssim_dbs = [m['ssim_db'] for m in visual_metrics]
     lpips_list = [m['lpips'] for m in visual_metrics]
-    return np.mean(psnrs), np.mean(ssims), np.mean(lpips_list), np.mean(ssim_dbs)
+    orig_lpips_list = [m['orig_lpips'] for m in visual_metrics]
+    face_lpips_list = [m['face_lpips'] for m in visual_metrics]
+    return np.mean(psnrs), np.mean(ssims), np.mean(lpips_list), np.mean(ssim_dbs), \
+            np.mean(orig_lpips_list), np.mean(face_lpips_list)
 
 
 def frame_to_tensor(frame, device):
@@ -181,14 +184,20 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
     frame_metrics_file = open(os.path.join(log_dir, experiment_name + '_per_frame_metrics.txt'), 'wt')
     loss_list = []
     vgg_model = Vgg19()
+    vgg_face_model = VggFace16()
+    original_lpips = lpips.LPIPS(net='vgg')
     if torch.cuda.is_available():
         if generator is not None:
             generator = DataParallelWithCallback(generator)
         if kp_detector is not None:
             kp_detector = DataParallelWithCallback(kp_detector)
         vgg_model = vgg_model.cuda()
+        vgg_face_model = vgg_face_model.cuda()
+        original_lpips = original_lpips.cuda()
  
     loss_fn_vgg = vgg_model.compute_loss
+    face_lpips = vgg_face_model.compute_loss
+
     if generator is not None:
         generator.eval()
     if kp_detector is not None:
@@ -368,22 +377,26 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
                     visualizations = []
 
                 loss_list.append(torch.abs(out['prediction'] - driving).mean().cpu().numpy())
-                visual_metrics.append(Logger.get_visual_metrics(out['prediction'], driving, loss_fn_vgg))
+                visual_metrics.append(Logger.get_visual_metrics(out['prediction'], driving, \
+                        loss_fn_vgg, original_lpips, face_lpips))
                 
             container.close()
             print('total frames', frame_idx, 'updated src', updated_src)
             ref_br = get_bitrate(reference_stream, video_duration)
             lr_br = get_bitrate(lr_stream, video_duration)
             
-            psnr, ssim, lpips_val, ssim_db = get_avg_visual_metrics(visual_metrics)
+            psnr, ssim, lpips_val, ssim_db, orig_lpips, face_lpips_val = \
+                    get_avg_visual_metrics(visual_metrics)
             metrics_file.write(f'{x["name"][0]} PSNR: {psnr}, SSIM: {ssim}, SSIM_DB: {ssim_db}, LPIPS: {lpips_val}, ' +
+                    f'Standard LPIPS: {orig_lpips}, Face LPIPS: {face_lpips_val}, ' + 
                     f'Reference: {ref_br:.3f}Kbps, LR: {lr_br:.3f}Kbps \n')
             metrics_file.flush()
 
             if it == 0:
-                frame_metrics_file.write('video_num,frame,psnr,ssim,ssim_db,lpips\n')
+                frame_metrics_file.write('video_num,frame,psnr,ssim,ssim_db,lpips,orig_lpips,face_lpips\n')
             for i, m in enumerate(visual_metrics):
-                frame_metrics_file.write(f'{it + 1},{i},{m["psnr"][0]},{m["ssim"]},{m["ssim_db"]},{m["lpips"]}\n')
+                frame_metrics_file.write(f'{it + 1},{i},{m["psnr"][0]},{m["ssim"]},{m["ssim_db"]},{m["lpips"]}' + 
+                                         f'{m["orig_lpips"]},{m["face_lpips"]}\n')
             frame_metrics_file.flush()
 
             if save_visualizations_as_images:
