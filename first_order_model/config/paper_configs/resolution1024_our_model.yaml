@@ -70,7 +70,7 @@ train_params:
   train_only_upsample_layers: False
   encode_video_for_training: False
   quantizer_level: 55
-  num_epochs: 100
+  num_epochs: 70
   num_repeats: 15
   epoch_milestones: [60, 90]
   lr_generator: 2.0e-4

@@ -65,7 +65,7 @@ class VggFace16(torch.nn.Module):
     Vgg16 network for face perceptual loss. Was added by Vibhaa.
     """
     def __init__(self, requires_grad=False):
-        super(Vgg16, self).__init__()
+        super(VggFace16, self).__init__()
         vgg_pretrained_features = models.vgg19(pretrained=True).features
         self.slice1 = torch.nn.Sequential()
         self.slice2 = torch.nn.Sequential()

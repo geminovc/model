@@ -58,18 +58,19 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
     generator_params = config['model_params']['generator_params']
     generator_type = generator_params.get('generator_type', 'occlusion_aware')
     use_lr_video = generator_params.get('use_lr_video', False) or generator_type == 'super_resolution'
-    lr_video_locations = ['decoder'] if use_lr_video else []
     lr_size = generator_params.get('lr_size', 64)
 
+    lr_video_locations = []
     dense_motion_params = generator_params.get('dense_motion_params', {})
     if dense_motion_params.get('concatenate_lr_frame_to_hourglass_input', False) or \
             dense_motion_params.get('use_only_src_tgt_for_motion', False) :
-        if dense_motion_params.get('estimate_additional_masks_for_lr_and_hr_bckgnd', False):
-            lr_video_locations.append('hourglass_input')
-        else:
-            lr_video_locations = ['hourglass_input']
-    elif dense_motion_params.get('concatenate_lr_frame_to_hourglass_output', False):
-        lr_video_locations = ['hourglass_output']
+        lr_video_locations.append('hourglass_input')
+    if dense_motion_params.get('concatenate_lr_frame_to_hourglass_output', False):
+        lr_video_locations.append('hourglass_output')
+    if generator_params.get('use_3_pathways', False) or \
+            generator_params.get('concat_lr_video_in_decoder', False) or \
+            generator_type == 'just_upsampler':
+        lr_video_locations.append('decoder')
 
     if config['model_params']['discriminator_params'].get('conditional_gan', False):
         train_params['conditional_gan'] = True
