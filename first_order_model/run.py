@@ -72,7 +72,7 @@ if __name__ == "__main__":
         if generator_type in ['occlusion_aware', 'split_hf_lf']:
             generator = OcclusionAwareGenerator(**config['model_params']['generator_params'],
                                             **config['model_params']['common_params'])
-        elif generator_type == 'super_resolution':
+        elif generator_type == 'just_upsampler':
             generator = SuperResolutionGenerator(**config['model_params']['generator_params'],
                                             **config['model_params']['common_params'])
 

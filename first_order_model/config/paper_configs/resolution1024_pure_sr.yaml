@@ -22,7 +22,7 @@ model_params:
   common_params:
     num_channels: 3
   generator_params:
-    generator_type: 'super_resolution'
+    generator_type: 'just_upsampler'
     max_features: 512
     num_down_blocks: 2
     num_bottleneck_blocks: 6

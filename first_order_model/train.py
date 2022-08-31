@@ -57,7 +57,7 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
     train_params = config['train_params'] 
     generator_params = config['model_params']['generator_params']
     generator_type = generator_params.get('generator_type', 'occlusion_aware')
-    use_lr_video = generator_params.get('use_lr_video', False) or generator_type == 'super_resolution'
+    use_lr_video = generator_params.get('use_lr_video', False) or generator_type == 'just_upsampler'
     lr_size = generator_params.get('lr_size', 64)
 
     lr_video_locations = []
@@ -121,7 +121,7 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
             if use_RIFE:
                 start_epoch = 0
 
-    elif checkpoint is not None and generator_type == "super_resolution":
+    elif checkpoint is not None and generator_type == "just_upsampler":
             start_epoch = Logger.load_cpk(checkpoint, generator, discriminator, None,
                                       None, optimizer_discriminator,
                                       None, dense_motion_network=None, 
