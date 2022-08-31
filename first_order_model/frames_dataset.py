@@ -52,6 +52,12 @@ def read_video(name, frame_shape):
     return video_array
 
 
+def read_single_frame(filename):
+    """ read a single png file into a numpy array """
+    image = io.imread(filename)
+    return img_as_float32(image)
+
+
 def get_num_frames(filename):
     cmd = f"ffprobe -v error -select_streams v:0 -count_frames -show_entries stream=nb_read_frames -print_format csv {filename}"
     num_frames = os.popen(cmd).read()
@@ -147,7 +153,7 @@ class FramesDataset(Dataset):
             num_frames = len(frames)
             frame_idx = np.sort(np.random.choice(num_frames, replace=True, size=2))
             video_array = [img_as_float32(io.imread(os.path.join(path, frames[idx]))) for idx in frame_idx]
-        else:
+        elif path.split('.')[-1] == 'mp4':
             num_frames = get_num_frames(path)
             frame_idx = np.sort(np.random.choice(num_frames - 1, replace=True, size=2)) if self.is_train else range(
             num_frames)
@@ -156,6 +162,11 @@ class FramesDataset(Dataset):
                 fps, time_base_nr, time_base_dr = get_video_details(path)
             except:
                 print("Couldn't get indices", frame_idx, "of video", path, "with", num_frames, "total frames")
+        else:
+            src_frame = read_single_frame(path)
+            tgt_frame_path = os.path.join(self.root_dir, np.random.choice(os.listdir(self.root_dir)))
+            tgt_frame = read_single_frame(tgt_frame_path)
+            video_array = [src_frame, tgt_frame] if self.is_train else [src_frame]
 
         if self.transform is not None:
             video_array = self.transform(video_array)
@@ -183,10 +194,14 @@ class MetricsDataset(Dataset):
         Load a select set of frames for computing consistent metrics/visuals on
     """
 
-    def __init__(self, root_dir, frame_shape):
+    def __init__(self, root_dir, frame_shape, person_id=None):
         self.root_dir = root_dir
-        self.videos = os.listdir(root_dir)
+        if person_id is not None:
+            root_dir = os.path.join(root_dir, person_id, "validation")
+            self.root_dir = root_dir
+        
         self.frame_shape = tuple(frame_shape)
+        self.videos = os.listdir(root_dir)
 
     def __len__(self):
         return len(self.videos)
@@ -196,8 +211,8 @@ class MetricsDataset(Dataset):
         path = os.path.join(self.root_dir, file_name)
         assert os.path.isdir(path)
 
-        driving = img_as_float32(io.imread(os.path.join(path, "target.jpg")))
-        source = img_as_float32(io.imread(os.path.join(path, "source.jpg")))
+        driving = img_as_float32(io.imread(os.path.join(path, "target.png")))
+        source = img_as_float32(io.imread(os.path.join(path, "source.png")))
         
         out = {}
         out['driving'] = driving.transpose((2, 0, 1))

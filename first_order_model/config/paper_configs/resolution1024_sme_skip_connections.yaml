@@ -14,6 +14,10 @@ dataset_params:
 checkpoint_params:
     checkpoint_path: '/video-conf/scratch/vibhaa_mm_arjun_directory/needle_drop_with_hr_skip_connections 11_04_22_16.54.29/00000069-checkpoint.pth.tar'
 
+metrics_params:
+  root_dir: /video-conf/scratch/pantea/fom_personalized_1024
+  frame_shape: [1024, 1024, 3]
+
 model_params:
   common_params:
     num_kp: 10
@@ -29,7 +33,7 @@ model_params:
      run_at_256: True
   generator_params:
     block_expansion: 64
-    max_features: 512
+    max_features: 1024
     num_down_blocks: 2
     num_bottleneck_blocks: 6
     estimate_occlusion_map: True
@@ -48,6 +52,8 @@ model_params:
       run_at_256: True
       concatenate_lr_frame_to_hourglass_input: False
       concatenate_lr_frame_to_hourglass_output: False
+      estimate_additional_masks_for_lr_and_hr_bckgnd: False
+      use_only_src_tgt_for_motion: True
   discriminator_params:
     scales: [1]
     block_expansion: 32
@@ -60,8 +66,9 @@ train_params:
   skip_generator_loading: False
   train_only_generator: False
   train_only_upsample_layers: False
-  encode_video_for_training: True
-  num_epochs: 100
+  encode_video_for_training: False
+  quantizer_level: 55
+  num_epochs: 70
   num_repeats: 15
   epoch_milestones: [60, 90]
   lr_generator: 2.0e-4

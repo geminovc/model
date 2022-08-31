@@ -1,0 +1,28 @@
+dataset_params:
+  root_dir: /video-conf/scratch/vibhaa_tardy/dataset_256/
+  frame_shape: [256, 256, 3]
+  augmentation_params:
+    flip_param:
+      horizontal_flip: True
+      time_flip: True
+    jitter_param:
+      brightness: 0.1
+      contrast: 0.1
+      saturation: 0.1
+      hue: 0.1
+
+model_params:
+  common_params:
+    num_channels: 3
+  generator_params:
+    generator_type: 'vpx'
+    use_lr_video: False
+
+reconstruction_params:
+  num_videos: 1000
+  format: '.mp4'
+
+visualizer_params:
+  kp_size: 5
+  draw_border: True
+  colormap: 'gist_rainbow'

@@ -13,6 +13,7 @@ import flow_vis
 from skimage.metrics import peak_signal_noise_ratio
 from skimage.metrics import structural_similarity
 import piq
+import math
 
 
 class Logger:
@@ -49,28 +50,34 @@ class Logger:
 
     """ get visual metrics for the model's reconstruction """
     @staticmethod
-    def get_visual_metrics(prediction, original, loss_fn_vgg):
+    def get_visual_metrics(prediction, original, loss_fn_vgg, original_lpips, face_lpips):
         if torch.cuda.is_available():
             original = original.cuda()
             prediction = prediction.cuda()
         lpips_val = loss_fn_vgg(original, prediction).data.cpu().numpy().flatten()[0]
+        face_lpips_val = face_lpips(original, prediction).data.cpu().numpy().flatten()[0]
+        original_lpips_val = original_lpips(original, prediction).data.cpu().numpy().flatten()[0]
         
         ssim = piq.ssim(original, prediction, data_range=1.).data.cpu().numpy().flatten()[0]
+        ssim_db = -20 * math.log10(1 - ssim)
         psnr = piq.psnr(original, prediction, data_range=1., reduction='none').data.cpu().numpy()
         
-        return {'psnr': psnr, 'ssim': ssim, 'lpips': lpips_val}
+        return {'psnr': psnr, 'ssim': ssim, 'lpips': lpips_val, 'ssim_db': ssim_db, \
+                'orig_lpips': original_lpips_val, 'face_lpips': face_lpips_val}
 
-    def log_metrics_images(self, iteration, input_data, output, loss_fn_vgg):
+    def log_metrics_images(self, iteration, input_data, output, loss_fn_vgg, original_lpips, face_lpips):
         if iteration == 0:
             if self.metrics_averages is not None:
                 for name, values in self.metrics_averages.items():
                     average = np.mean(values)
                     self.writer.add_scalar(f'metrics/{name}', average, self.epoch)
-            self.metrics_averages = {'psnr': [], 'ssim': [], 'lpips': []}
+            self.metrics_averages = {'psnr': [], 'ssim': [], 'lpips': [], 'ssim_db': [], \
+                    'orig_lpips': [], 'face_lpips':[]}
 
         image = self.visualizer.visualize(input_data['driving'], input_data['source'], output)
         self.writer.add_image(f'metrics{iteration}', image, self.epoch, dataformats='HWC')
-        metrics = Logger.get_visual_metrics(output['prediction'], input_data['driving'], loss_fn_vgg)
+        metrics = Logger.get_visual_metrics(output['prediction'], input_data['driving'],\
+                loss_fn_vgg, original_lpips, face_lpips)
         for name, value in metrics.items():
             self.metrics_averages[name].append(value)
 
@@ -90,7 +97,7 @@ class Logger:
     @staticmethod
     def load_cpk(checkpoint_path, generator=None, discriminator=None, kp_detector=None,
                  optimizer_generator=None, optimizer_discriminator=None, optimizer_kp_detector=None, 
-                 device='gpu', dense_motion_network=None, upsampling_enabled=False, use_lr_video=False, 
+                 device='gpu', dense_motion_network=None, upsampling_enabled=False, use_lr_video=[], 
                  hr_skip_connections=False, run_at_256=True, generator_type='occlusion_aware', reconstruction=False):
 
         if device == torch.device('cpu'):
@@ -119,18 +126,32 @@ class Logger:
                     if not (k.startswith("final") or k.startswith("sigmoid") or k.startswith('first'))}
                 print("loading everything in generator except final and sigmoid and first")
 
-            if use_lr_video and generator_type == 'occlusion_aware':
-                modified_generator_params = {k: v for k, v in modified_generator_params.items() \
-                    if not k.startswith("up_blocks")}
-                print("not loading upblocks in generator")
-                """
-                modified_generator_params = {k: v for k, v in modified_generator_params.items() \
-                    if not (k.startswith("dense_motion_network.hourglass") or \
-                    k.startswith("dense_motion_network.mask") or \
-                    k.startswith("dense_motion_network.occlusion"))}
-                print("not loading hourglass or mask or occlusion blocks")
-                """
+            if len(use_lr_video) > 0 and generator_type == 'occlusion_aware':
+                if 'decoder' in use_lr_video:
+                    modified_generator_params = {k: v for k, v in modified_generator_params.items() \
+                        if not k.startswith("up_blocks")}
+                    print("not loading upblocks in generator")
+                
+                if 'hourglass_input' in use_lr_video:
+                    modified_generator_params = {k: v for k, v in modified_generator_params.items() \
+                        if not (k.startswith("dense_motion_network.hourglass") or \
+                        k.startswith("dense_motion_network.mask") or \
+                        k.startswith("dense_motion_network.occlusion"))}
+                    print("not loading hourglass or mask or occlusion blocks")
+                
+                if 'hourglass_output' in use_lr_video:
+                    modified_generator_params = {k: v for k, v in modified_generator_params.items() \
+                        if not (k.startswith("dense_motion_network.mask") or \
+                        k.startswith("dense_motion_network.occlusion"))}
+                    print("not loading hourglass or mask or occlusion blocks")
+
+                if 'hourglass_input' in use_lr_video and 'decoder' in use_lr_video:
+                    modified_generator_params = {k: v for k, v in modified_generator_params.items() \
+                        if not k.startswith("bottleneck")}
+                    print("not loading bottleneck")
+
             generator.load_state_dict(modified_generator_params, strict=False)
+        
         elif generator is not None and dense_motion_network is None and generator_type == 'occlusion_aware':
             gen_params = checkpoint['generator']
             gen_params_but_dense_motion_params = {k: gen_params[k] for k in gen_params.keys() if not k.startswith('dense_motion_network')}
@@ -139,12 +160,11 @@ class Logger:
         elif generator is not None and generator_type in ['occlusion_aware', 'split_hf_lf']:
             print("loading everything in generator as is")
             generator.load_state_dict(checkpoint['generator'])
-        elif generator is not None and generator_type == "super_resolution":
+        elif generator is not None and generator_type == "just_upsampler":
             modified_generator_params = {k: v for k, v in checkpoint['generator'].items() \
                 if (k.startswith("bottleneck") or k.startswith("up"))}
             generator.load_state_dict(modified_generator_params, strict=False)
             print("SR: loading bottleneck and upblocks, not loading final/first because of dimensions")
-
 
         if kp_detector is not None:
             print("loading everything in kp detector as is")
@@ -326,6 +346,18 @@ class Visualizer:
         # Occlusion map
         if 'occlusion_map' in out:
             occlusion_map = out['occlusion_map'].data.cpu().repeat(1, 3, 1, 1)
+            occlusion_map = F.interpolate(occlusion_map, size=source.shape[1:3]).numpy()
+            occlusion_map = np.transpose(occlusion_map, [0, 2, 3, 1])
+            images.append(occlusion_map)
+        
+        if 'lr_occlusion_map' in out:
+            occlusion_map = out['lr_occlusion_map'].data.cpu().repeat(1, 3, 1, 1)
+            occlusion_map = F.interpolate(occlusion_map, size=source.shape[1:3]).numpy()
+            occlusion_map = np.transpose(occlusion_map, [0, 2, 3, 1])
+            images.append(occlusion_map)
+        
+        if 'hr_background_mask' in out:
+            occlusion_map = out['hr_background_mask'].data.cpu().repeat(1, 3, 1, 1)
             occlusion_map = F.interpolate(occlusion_map, size=source.shape[1:3]).numpy()
             occlusion_map = np.transpose(occlusion_map, [0, 2, 3, 1])
             images.append(occlusion_map)

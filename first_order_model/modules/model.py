@@ -65,7 +65,7 @@ class VggFace16(torch.nn.Module):
     Vgg16 network for face perceptual loss. Was added by Vibhaa.
     """
     def __init__(self, requires_grad=False):
-        super(Vgg16, self).__init__()
+        super(VggFace16, self).__init__()
         vgg_pretrained_features = models.vgg19(pretrained=True).features
         self.slice1 = torch.nn.Sequential()
         self.slice2 = torch.nn.Sequential()
@@ -253,7 +253,6 @@ class GeneratorFullModel(torch.nn.Module):
         pyramide_real = self.pyramid(real_input)
         pyramide_generated = self.pyramid(generated_input)
         
-        
         # pyramides for conditional gan if need be to be used by discriminator
         if self.train_params.get('conditional_gan', False):
             concatenated_real_input = torch.cat([real_input, x['source']], dim=1)
@@ -344,7 +343,7 @@ class GeneratorFullModel(torch.nn.Module):
                 loss_values['equivariance_value'] = self.loss_weights['equivariance_value'] * value
 
             ## jacobian loss part
-            if self.loss_weights['equivariance_jacobian'] != 0:
+            if self.loss_weights['equivariance_jacobian'] != 0 and transformed_kp['value'].requires_grad:
                 jacobian_transformed = torch.matmul(transform.jacobian(transformed_kp['value']),
                                                     transformed_kp['jacobian'])
 
