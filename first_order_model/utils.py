@@ -10,8 +10,8 @@ from first_order_model.modules.keypoint_detector import KPDetector
 def frame_to_tensor(frame, device):
     """ convert numpy arrays to tensors for reconstruction pipeline """
     array = np.expand_dims(frame, 0).transpose(0, 3, 1, 2)
-    array = torch.from_numpy(array)
-    return array.float().to(device)
+    tensor = torch.from_numpy(array)
+    return tensor.float().to(device)
 
 
 def safe_read(config, first_key, second_key, default):
