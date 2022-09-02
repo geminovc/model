@@ -92,7 +92,7 @@ reference_stream = []
 lr_stream = []
 metrics_file = open(os.path.join(args.log_dir, args.output_name + '_metrics_summary.txt'), 'wt')
 frame_metrics_file = open(os.path.join(args.log_dir, args.output_name + '_per_frame_metrics.txt'), 'wt')
-write_in_file(frame_metrics_file, 'frame,psnr,ssim,ssim_db,lpips\n')
+write_in_file(frame_metrics_file, 'frame,psnr,ssim,ssim_db,lpips,orig_lpips,face_lpips\n')
 
 vgg_model = Vgg19()
 vgg_face_model = VggFace16()
@@ -206,6 +206,7 @@ with torch.no_grad():
                 reference_stream.append(compressed_src)
 
         else:
+            # generator_type could be "only_upsampler"
             out = model.generator(driving_lr)
             prediction_device = torch.mul(out['prediction'][0], 255).to(torch.uint8)
             prediction_cpu = prediction_device.data.cpu().numpy()
@@ -219,24 +220,6 @@ with torch.no_grad():
             generator_times.append(start.elapsed_time(end))
 
         prediction_tensor = frame_to_tensor(img_as_float32(prediction), device)
-        '''
-        ssim = piq.ssim(driving, out['prediction'], data_range=1.).data.cpu().numpy().flatten()[0]
-        if use_same_tgt_ref_quality and (model.generator_type in ['occlusion_aware', 'split_hf_lf']):
-            ref_ssim = piq.ssim(driving, ref_out['prediction'], data_range=1.).data.cpu().numpy().flatten()[0]
-            if ssim < ref_ssim:
-                source = driving
-                kp_source = kp_driving
-                out = ref_out
-                reference_frame_list = [(source, kp_source)]
-                updated_src += 1
-                reference_stream.append(compressed_src)
-                ssim = ref_ssim
-
-        if choose_reference_frame:
-            ssim_correlation_file.write(f'{ssim:.4f}\n')
-        else:
-            ssim_correlation_file.write(f'{it+1},{frame_idx},{ssim:.4f}\n')
-        '''
         loss_list.append(torch.abs(prediction_tensor - driving_tensor).mean().cpu().numpy())
         visual_metrics.append(Logger.get_visual_metrics(prediction_tensor, driving_tensor, loss_fn_vgg, original_lpips, face_lpips))
         predictions.append(prediction)
