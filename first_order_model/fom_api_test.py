@@ -207,10 +207,7 @@ with torch.no_grad():
 
         else:
             # generator_type could be "only_upsampler"
-            out = model.generator(driving_lr)
-            prediction_device = torch.mul(out['prediction'][0], 255).to(torch.uint8)
-            prediction_cpu = prediction_device.data.cpu().numpy()
-            prediction = np.transpose(prediction_cpu, [1, 2, 0])
+            prediction = model.predict_with_lr_video(driving_lr)
             if args.encode_lr:
                 lr_stream.append(compressed_tgt)
 
