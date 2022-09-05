@@ -13,6 +13,7 @@ from skimage.transform import resize
 from skimage.metrics import structural_similarity
 from first_order_model.frames_dataset import get_num_frames, get_frame
 from first_order_model.modules.model import Vgg19, VggFace16
+from first_order_model.utils import frame_to_tensor
 import piq
 import subprocess
 import av
@@ -56,6 +57,7 @@ def get_model_info(log_dir, kp_detector, generator):
                 model_file.write('%s %s: %s\n' % (name, 'number_of_trainable_parameters',
                         str(number_of_trainable_parameters)))
 
+
 def get_avg_visual_metrics(visual_metrics):
     """ get average of visual metrics across all frames """
     psnrs = [m['psnr'] for m in visual_metrics]
@@ -67,12 +69,6 @@ def get_avg_visual_metrics(visual_metrics):
     return np.mean(psnrs), np.mean(ssims), np.mean(lpips_list), np.mean(ssim_dbs), \
             np.mean(orig_lpips_list), np.mean(face_lpips_list)
 
-
-def frame_to_tensor(frame, device):
-    """ convert numpy arrays to tensors for reconstruction pipeline """
-    array = np.expand_dims(frame, 0).transpose(0, 3, 1, 2)
-    array = torch.from_numpy(array)
-    return array.float().to(device)
 
 ssim_correlation_file = open('ssim_data_threshold_approach.txt', 'w+')
 ssim_correlation_file.write('video,frame,dist,ssim\n')
@@ -142,6 +138,22 @@ def get_video_duration(filename):
     return float(result.stdout)
 
 
+def resize_tensor_to_array(input_tensor, output_size, device, mode='nearest'):
+    """ resizes a float tensor of range 0.0-1.0 to an int numpy array
+        of output_size
+    """
+    output_array = F.interpolate(input_tensor, output_size, mode=mode).data.cpu().numpy()
+    output_array = np.transpose(output_array, [0, 2, 3, 1])[0]
+    output_array *= 255
+    output_array = output_array.astype(np.uint8)
+    return output_array
+
+
+def write_in_file(input_file, info):
+    input_file.write(info)
+    input_file.flush()
+
+
 def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset, timing_enabled, 
         save_visualizations_as_images, experiment_name, reference_frame_update_freq=None):
     """ reconstruct driving frames for each video in the dataset using the first frame
@@ -155,6 +167,8 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     generator_params = config['model_params']['generator_params']
     generator_type = generator_params.get('generator_type', 'occlusion_aware')
+    lr_size = generator_params.get('lr_size', 64)
+    print("reference_frame_update_freq", reference_frame_update_freq)
     
     choose_reference_frame = False
     use_same_tgt_ref_quality = False
@@ -227,11 +241,10 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
             print('doing video', video_name)
             video_duration = get_video_duration(video_name)
 
-            device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
             if timing_enabled:
                 source_time = start.elapsed_time(end)
                 driving_times, generator_times, visualization_times = [], [], []
-            
+
             container = av.open(file=video_name, format=None, mode='r')
             stream = container.streams.video[0]
 
@@ -242,20 +255,17 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
                 driving = frame_to_tensor(img_as_float32(frame), device)
                 
                 # get LR video frame
-                driving_lr = F.interpolate(driving, 64).data.cpu().numpy()
-                driving_lr = np.transpose(driving_lr, [0, 2, 3, 1])[0]
-                driving_lr *= 255
-                driving_lr = driving_lr.astype(np.uint8)
+                driving_lr = resize_tensor_to_array(driving, lr_size, device)
                 
                 driving_lr_av = av.VideoFrame.from_ndarray(driving_lr)
                 driving_lr_av.pts = av_frame.pts
                 driving_lr_av.time_base = av_frame.time_base
                 
-                driving_lr, compressed_tgt = get_frame_from_video_codec(driving_lr_av, lr_encoder, lr_decoder, 5)
+                driving_lr, compressed_tgt = get_frame_from_video_codec(driving_lr_av, lr_encoder, lr_decoder, 48)
                 driving_lr = frame_to_tensor(img_as_float32(driving_lr), device)
                 
                 # for use as source frame
-                decoded_frame, compressed_src = get_frame_from_video_codec(av_frame, hr_encoder, hr_decoder, 32)
+                decoded_frame, compressed_src = get_frame_from_video_codec(av_frame, hr_encoder, hr_decoder, 48)
                 decoded_frame = img_as_float32(decoded_frame)
                 decoded_tensor = frame_to_tensor(decoded_frame, device)
                 update_source = False if not use_same_tgt_ref_quality else True
