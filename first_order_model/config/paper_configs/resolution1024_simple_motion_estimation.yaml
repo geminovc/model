@@ -39,7 +39,7 @@ model_params:
     estimate_occlusion_map: True
     run_at_256: True
     upsample_factor: 4
-    use_hr_skip_connections: False
+    use_hr_skip_connections: True
     hr_features: 16
     encode_hr_input_with_additional_blocks: False
     use_lr_video: True

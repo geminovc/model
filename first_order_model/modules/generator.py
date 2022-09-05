@@ -57,6 +57,16 @@ class OcclusionAwareGenerator(nn.Module):
             if not dense_motion_params.get('estimate_additional_masks_for_lr_and_hr_bckgnd', False): 
                 self.disable_occlusions = True
 
+        if self.disable_occlusions:
+            print("occlusions disabled")
+        else:
+            print("occlusions enabled")
+
+        if self.common_decoder_for_3_paths:
+            print("using 3 pathways")
+        if self.concat_lr_video_in_decoder:
+            print("concatenating lr video in decoder")
+
         if use_hr_skip_connections:
             assert run_at_256, "Skip connections require parallel 256 FOM pipeline"
         else:

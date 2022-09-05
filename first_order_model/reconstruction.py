@@ -17,6 +17,7 @@ from first_order_model.utils import frame_to_tensor
 import piq
 import subprocess
 import av
+import lpips
 
 import matplotlib
 import matplotlib.pyplot as plt
@@ -364,7 +365,8 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
                 if kp_detector is not None:
                     out['kp_source'] = kp_source
                     out['kp_driving'] = kp_driving
-                    del out['sparse_deformed']
+                    if 'sparse_deformed' in out:
+                        del out['sparse_deformed']
                 
                 start.record()
                 visualization = Visualizer(**config['visualizer_params']).visualize(source=source,
@@ -383,7 +385,8 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
                             imageio.imsave(os.path.join(visualization_dir, frame_name), v)
                     image_name = f"{x['name'][0]}_{frame_idx}_{config['reconstruction_params']['format']}"
                     print(f'saving {frame_idx} frames: updated src {updated_src}')
-                    imageio.mimsave(os.path.join(log_dir, image_name), visualizations)
+                    if frame_idx % 1000 == 0:
+                        imageio.mimsave(os.path.join(log_dir, image_name), visualizations)
                     visualizations = []
 
                 loss_list.append(torch.abs(out['prediction'] - driving).mean().cpu().numpy())

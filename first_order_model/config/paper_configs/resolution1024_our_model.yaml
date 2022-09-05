@@ -52,10 +52,10 @@ model_params:
       num_blocks: 5
       scale_factor: 0.25
       run_at_256: True
-      concatenate_lr_frame_to_hourglass_input: False
+      concatenate_lr_frame_to_hourglass_input: True
       concatenate_lr_frame_to_hourglass_output: False
-      estimate_additional_masks_for_lr_and_hr_bckgnd: False
-      use_only_src_tgt_for_motion: True
+      estimate_additional_masks_for_lr_and_hr_bckgnd: True
+      use_only_src_tgt_for_motion: False
   discriminator_params:
     scales: [1]
     block_expansion: 32
