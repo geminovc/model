@@ -190,10 +190,6 @@ with torch.no_grad():
                 target_kp['source_index'] = source_index
                 prediction = model.predict(target_kp)
 
-            if use_same_tgt_ref_quality:
-                ref_out = model.generator(driving, kp_source=kp_driving, \
-                    kp_driving=kp_driving, update_source=True, driving_lr=driving_lr)
-
         elif generator_type == "bicubic":
             driving_lr_tensor = frame_to_tensor(img_as_float32(driving_lr), device)
             prediction = resize_tensor_to_array(driving_lr_tensor, driving.shape[1], device, mode='bicubic')
