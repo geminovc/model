@@ -23,6 +23,7 @@ import matplotlib
 import matplotlib.pyplot as plt
 
 reference_frame_list = []
+encode_using_vpx = False
 
 from aiortc.codecs.vpx import Vp8Encoder, Vp8Decoder, vp8_depayload
 from aiortc.jitterbuffer import JitterFrame
@@ -246,7 +247,6 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
             video_duration = get_video_duration(video_name)
 
             if timing_enabled:
-                source_time = start.elapsed_time(end)
                 driving_times, generator_times, visualization_times = [], [], []
 
             container = av.open(file=video_name, format=None, mode='r')
@@ -265,11 +265,18 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
                 driving_lr_av.pts = av_frame.pts
                 driving_lr_av.time_base = av_frame.time_base
                 
-                driving_lr, compressed_tgt = get_frame_from_video_codec(driving_lr_av, lr_encoder, lr_decoder, 48)
+                if encode_using_vpx:
+                    driving_lr, compressed_tgt = get_frame_from_video_codec(driving_lr_av, lr_encoder, lr_decoder, 48)
+                else:
+                    compressed_tgt = 0
                 driving_lr = frame_to_tensor(img_as_float32(driving_lr), device)
                 
                 # for use as source frame
-                decoded_frame, compressed_src = get_frame_from_video_codec(av_frame, hr_encoder, hr_decoder, 48)
+                if encode_using_vpx:
+                    decoded_frame, compressed_src = get_frame_from_video_codec(av_frame, hr_encoder, hr_decoder, 48)
+                else:
+                    decoded_frame = frame
+                    compressed_src = 0
                 decoded_frame = img_as_float32(decoded_frame)
                 decoded_tensor = frame_to_tensor(decoded_frame, device)
                 update_source = False if not use_same_tgt_ref_quality else True
@@ -284,6 +291,8 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
                         update_source = True
                         reference_frame_list.append((source, kp_source))
                         reference_stream.append(compressed_src)
+                        if timing_enabled:
+                            source_time = start.elapsed_time(end)
 
                     if reference_frame_update_freq is not None:
                         if frame_idx % reference_frame_update_freq == 0:
@@ -417,7 +426,7 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
             if it == 0:
                 frame_metrics_file.write('video_num,frame,psnr,ssim,ssim_db,lpips,orig_lpips,face_lpips,' + \
                         'kp_time,gen_time\n')
-            for i, m, d, g in enumerate(zip(visual_metrics, driving_times, generator_times)):
+            for i, (m, d, g) in enumerate(zip(visual_metrics, driving_times, generator_times)):
                 frame_metrics_file.write(f'{it + 1},{i},{m["psnr"][0]},{m["ssim"]},{m["ssim_db"]},' + \
                             f'{m["lpips"]},{m["orig_lpips"]},{m["face_lpips"]},{d},{g}\n')
             frame_metrics_file.flush()
