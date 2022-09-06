@@ -27,6 +27,9 @@ reference_frame_list = []
 from aiortc.codecs.vpx import Vp8Encoder, Vp8Decoder, vp8_depayload
 from aiortc.jitterbuffer import JitterFrame
 KEYPOINT_FIXED_PAYLOAD_SIZE = 125 # bytes
+special_frames_list = [1322, 574, 140, 1786, 1048, 839, 761, 2253, 637, 375, \
+        1155, 2309, 1524, 1486, 1207, 315, 1952, 2111, 2148, 1530, \
+        112, 939, 1211, 403, 2225, 1900, 207, 1634, 2006, 28]  
 
 
 def get_size_of_nested_list(list_of_elem):
@@ -381,8 +384,11 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
                     #print(f'finished {frame_idx} frames')
                     if save_visualizations_as_images:
                         for i, v in enumerate(visualizations):
-                            frame_name = x['name'][0] + '_frame' + str(frame_idx - 50 + i) + '.png'
-                            imageio.imsave(os.path.join(visualization_dir, frame_name), v)
+                            if (frame_idx - 50 + i) in special_frames_list:
+                                frame_name = f'{x["name"][0]}_frame{frame_idx - 50 + i}.npy'
+                                frame_file = open(os.path.join(visualization_dir, frame_name), 'wb')
+                                np.save(frame_file, v)
+                                frame_file.close()
                     image_name = f"{x['name'][0]}_{frame_idx}_{config['reconstruction_params']['format']}"
                     print(f'saving {frame_idx} frames: updated src {updated_src}')
                     if frame_idx % 1000 == 0:
@@ -400,22 +406,29 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
             
             psnr, ssim, lpips_val, ssim_db, orig_lpips, face_lpips_val = \
                     get_avg_visual_metrics(visual_metrics)
-            metrics_file.write(f'{x["name"][0]} PSNR: {psnr}, SSIM: {ssim}, SSIM_DB: {ssim_db}, LPIPS: {lpips_val}, ' +
+            metrics_file.write(f'{x["name"][0]} PSNR: {psnr}, SSIM: {ssim}, SSIM_DB: {ssim_db}, ' + \
+                    f'LPIPS: {lpips_val}, ' +
                     f'Standard LPIPS: {orig_lpips}, Face LPIPS: {face_lpips_val}, ' + 
-                    f'Reference: {ref_br:.3f}Kbps, LR: {lr_br:.3f}Kbps \n')
+                    f'Reference: {ref_br:.3f}Kbps, LR: {lr_br:.3f}Kbps, ' + 
+                    f'KP extraction: {np.average(driving_times)}ms, ' +
+                    f'Generator: {np.average(generator_times)}ms \n')
             metrics_file.flush()
 
             if it == 0:
-                frame_metrics_file.write('video_num,frame,psnr,ssim,ssim_db,lpips,orig_lpips,face_lpips\n')
-            for i, m in enumerate(visual_metrics):
-                frame_metrics_file.write(f'{it + 1},{i},{m["psnr"][0]},{m["ssim"]},{m["ssim_db"]},{m["lpips"]}' + 
-                                         f'{m["orig_lpips"]},{m["face_lpips"]}\n')
+                frame_metrics_file.write('video_num,frame,psnr,ssim,ssim_db,lpips,orig_lpips,face_lpips,' + \
+                        'kp_time,gen_time\n')
+            for i, m, d, g in enumerate(zip(visual_metrics, driving_times, generator_times)):
+                frame_metrics_file.write(f'{it + 1},{i},{m["psnr"][0]},{m["ssim"]},{m["ssim_db"]},' + \
+                            f'{m["lpips"]},{m["orig_lpips"]},{m["face_lpips"]},{d},{g}\n')
             frame_metrics_file.flush()
 
             if save_visualizations_as_images:
                 for i, v in enumerate(visualizations):
-                    frame_name = x['name'][0] + '_frame' + str(frame_idx - len(visualizations) + i) + '.png'
-                    imageio.imsave(os.path.join(visualization_dir, frame_name), v)
+                    if (frame_idx - len(visualizations) + i) in special_frames_list:
+                        frame_name = f'{x["name"][0]}_frame{frame_idx - len(visualizations) + i}.npy'
+                        frame_file = open(os.path.join(visualization_dir, frame_name), 'wb')
+                        np.save(frame_file, v)
+                        frame_file.close()
             image_name = f"{x['name'][0]}_{frame_idx}_{config['reconstruction_params']['format']}"
             if len(visualizations) != 0:
                 imageio.mimsave(os.path.join(log_dir, image_name), visualizations)
