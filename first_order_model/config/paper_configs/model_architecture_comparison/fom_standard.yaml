@@ -11,9 +11,6 @@ dataset_params:
       saturation: 0.1
       hue: 0.1
 
-checkpoint_params:
-    checkpoint_path: '/video-conf/scratch/vibhaa_tardy/jen_psaki_512 28_03_22_21.45.03/00000099-checkpoint.pth.tar'
-
 metrics_params:
   root_dir: /video-conf/scratch/pantea/fom_personalized_1024
   frame_shape: [1024, 1024, 3]
@@ -60,7 +57,8 @@ train_params:
   skip_generator_loading: False
   train_only_generator: False
   train_only_upsample_layers: False
-  num_epochs: 170
+  encode_video_for_training: False
+  num_epochs: 130
   num_repeats: 15
   epoch_milestones: [60, 90]
   lr_generator: 2.0e-4
@@ -68,7 +66,7 @@ train_params:
   lr_kp_detector: 2.0e-4
   batch_size: 2
   scales: [1, 0.5, 0.25, 0.125]
-  checkpoint_freq: 10
+  checkpoint_freq: 15
   transform_params:
     sigma_affine: 0.05
     sigma_tps: 0.005
