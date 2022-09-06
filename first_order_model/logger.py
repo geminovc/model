@@ -54,8 +54,8 @@ class Logger:
         if torch.cuda.is_available():
             original = original.cuda()
             prediction = prediction.cuda()
-        lpips_val = loss_fn_vgg(original, prediction).data.cpu().numpy().flatten()[0]
-        face_lpips_val = face_lpips(original, prediction).data.cpu().numpy().flatten()[0]
+        lpips_val = 0 #loss_fn_vgg(original, prediction).data.cpu().numpy().flatten()[0]
+        face_lpips_val = 0 #face_lpips(original, prediction).data.cpu().numpy().flatten()[0]
         original_lpips_val = original_lpips(original, prediction).data.cpu().numpy().flatten()[0]
         
         ssim = piq.ssim(original, prediction, data_range=1.).data.cpu().numpy().flatten()[0]
