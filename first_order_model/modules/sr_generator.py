@@ -9,7 +9,8 @@ class SuperResolutionGenerator(nn.Module):
     Generator that given low resolution target image, generates high resolution prediction
     """
     def __init__(self, num_channels, max_features, num_down_blocks,
-                 num_bottleneck_blocks, upsample_factor=1, lr_features=32, generator_type='just_upsampler'):
+                 num_bottleneck_blocks, upsample_factor=1, lr_size=64,
+                 lr_features=32, generator_type='just_upsampler'):
         super(SuperResolutionGenerator, self).__init__()
         
         self.upsample_factor = upsample_factor

@@ -40,7 +40,7 @@ model_params:
     hr_features: 16
     encode_hr_input_with_additional_blocks: False
     use_lr_video: False
-    lr_size: 64
+    lr_size: 128
     concat_lr_video_in_decoder: False
     dense_motion_params:
       block_expansion: 64

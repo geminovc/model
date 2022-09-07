@@ -161,10 +161,7 @@ class Logger:
             print("loading everything in generator as is")
             generator.load_state_dict(checkpoint['generator'])
         elif generator is not None and generator_type == "just_upsampler":
-            modified_generator_params = {k: v for k, v in checkpoint['generator'].items() \
-                if (k.startswith("bottleneck") or k.startswith("up"))}
-            generator.load_state_dict(modified_generator_params, strict=False)
-            print("SR: loading bottleneck and upblocks, not loading final/first because of dimensions")
+            print("SR: not loading bottleneck and upblocks, not loading final/first because of dimensions")
 
         if kp_detector is not None:
             print("loading everything in kp detector as is")

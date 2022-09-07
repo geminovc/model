@@ -21,10 +21,11 @@ model_params:
   generator_params:
     generator_type: 'just_upsampler'
     max_features: 512
-    num_down_blocks: 2
+    num_down_blocks: 1
     num_bottleneck_blocks: 6
     upsample_factor: 4
-    lr_features: 256
+    lr_size: 128
+    lr_features: 128
   discriminator_params:
     scales: [1]
     block_expansion: 32
