@@ -247,7 +247,7 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
             video_duration = get_video_duration(video_name)
 
             if timing_enabled:
-                driving_times, generator_times, visualization_times = [], [], []
+                driving_times, generator_times = [], []
 
             container = av.open(file=video_name, format=None, mode='r')
             stream = container.streams.video[0]
@@ -357,6 +357,7 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
 
                 out['prediction'] = torch.clamp(out['prediction'], min=0, max=1)
                 
+                """
                 ssim = piq.ssim(driving, out['prediction'], data_range=1.).data.cpu().numpy().flatten()[0]
                 if use_same_tgt_ref_quality and (generator_type in ['occlusion_aware', 'split_hf_lf']):
                     ref_ssim = piq.ssim(driving, ref_out['prediction'], data_range=1.).data.cpu().numpy().flatten()[0]
@@ -373,37 +374,25 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
                     ssim_correlation_file.write(f'{ssim:.4f}\n')
                 else:
                     ssim_correlation_file.write(f'{it+1},{frame_idx},{ssim:.4f}\n')
+                """
                                 
                 if kp_detector is not None:
                     out['kp_source'] = kp_source
                     out['kp_driving'] = kp_driving
                     if 'sparse_deformed' in out:
                         del out['sparse_deformed']
+
+                if frame_idx % 200 == 0:
+                    print(f'finished {frame_idx} frames, updated src: {updated_src}')
                 
-                start.record()
-                visualization = Visualizer(**config['visualizer_params']).visualize(source=source,
-                                                                                    driving=driving, out=out)
-                end.record()
-                torch.cuda.synchronize()
-                if timing_enabled:
-                    visualization_times.append(start.elapsed_time(end))
-                visualizations.append(visualization)
-
-                if frame_idx % 50 == 0:
-                    #print(f'finished {frame_idx} frames')
-                    if save_visualizations_as_images:
-                        for i, v in enumerate(visualizations):
-                            if (frame_idx - 50 + i) in special_frames_list:
-                                frame_name = f'{x["name"][0]}_frame{frame_idx - 50 + i}.npy'
-                                frame_file = open(os.path.join(visualization_dir, frame_name), 'wb')
-                                np.save(frame_file, v)
-                                frame_file.close()
-                    image_name = f"{x['name'][0]}_{frame_idx}_{config['reconstruction_params']['format']}"
-                    print(f'saving {frame_idx} frames: updated src {updated_src}')
-                    if frame_idx % 1000 == 0:
-                        imageio.mimsave(os.path.join(log_dir, image_name), visualizations)
-                    visualizations = []
-
+                if frame_idx in special_frames_list:
+                    v = Visualizer(**config['visualizer_params']).visualize(source=source,
+                                                                                driving=driving, out=out)
+                    frame_name = f'{x["name"][0]}_frame{frame_idx}.npy'
+                    frame_file = open(os.path.join(visualization_dir, frame_name), 'wb')
+                    np.save(frame_file, v)
+                    frame_file.close()
+                
                 loss_list.append(torch.abs(out['prediction'] - driving).mean().cpu().numpy())
                 visual_metrics.append(Logger.get_visual_metrics(out['prediction'], driving, \
                         loss_fn_vgg, original_lpips, face_lpips))
@@ -430,22 +419,10 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
                 frame_metrics_file.write(f'{it + 1},{i},{m["psnr"][0]},{m["ssim"]},{m["ssim_db"]},' + \
                             f'{m["lpips"]},{m["orig_lpips"]},{m["face_lpips"]},{d},{g}\n')
             frame_metrics_file.flush()
-
-            if save_visualizations_as_images:
-                for i, v in enumerate(visualizations):
-                    if (frame_idx - len(visualizations) + i) in special_frames_list:
-                        frame_name = f'{x["name"][0]}_frame{frame_idx - len(visualizations) + i}.npy'
-                        frame_file = open(os.path.join(visualization_dir, frame_name), 'wb')
-                        np.save(frame_file, v)
-                        frame_file.close()
-            image_name = f"{x['name'][0]}_{frame_idx}_{config['reconstruction_params']['format']}"
-            if len(visualizations) != 0:
-                imageio.mimsave(os.path.join(log_dir, image_name), visualizations)
-            visualizations = []
             
             if timing_enabled:
                 print('source keypoints:', source_time, 'driving:', np.average(driving_times), \
-                    'generator:', np.average(generator_times),'visualization:', np.average(visualization_times))
+                    'generator:', np.average(generator_times))
 
     print('Reconstruction loss: %s' % np.mean(loss_list))
     metrics_file.write('Reconstruction loss: %s\n' % np.mean(loss_list))
