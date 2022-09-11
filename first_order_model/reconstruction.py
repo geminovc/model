@@ -241,8 +241,8 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
 
     # get number of model parameters and timing stats
     get_model_info(log_dir, kp_detector, generator)
-    start = torch.cuda.Event(enable_timing=timing_enabled)
-    end = torch.cuda.Event(enable_timing=timing_enabled)
+    start = torch.cuda.Event(enable_timing=True)
+    end = torch.cuda.Event(enable_timing=True)
     for it, x in tqdm(enumerate(dataloader)):
         updated_src = 0
         reference_stream = []
@@ -262,14 +262,14 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
             driving_times, generator_times = [], []
             source_time = 0
 
-            if generator_type in ['vpx', 'bicubic']:
+            #if generator_type in ['vpx', 'bicubic']:
                 # ffmpeg encode
-                resolution = 1024 if generator_type == 'vpx' else lr_size
-                vp9_video_name = f'{x["name"][0]}_{generator_type}_res{resolution}_{target_bitrate}_temp.mp4'
-                os.system(f'/usr/bin/ffmpeg -y -i {video_name} -s {resolution}x{resolution} -quality realtime ' + \
-                        f'-speed 8 -b:v {target_bitrate/1000}K -c:v vp9 {vp9_video_name}')
-                vp9_container = av.open(file=vp9_video_name, format=None, mode='r')
-                vp9_stream = vp9_container.streams.video[0]
+            resolution = 1024 if generator_type == 'vpx' else lr_size
+            vp9_video_name = f'{x["name"][0]}_{generator_type}_res{resolution}_{target_bitrate}_temp.webm'
+            os.system(f'/usr/bin/ffmpeg -y -i {video_name} -s {resolution}x{resolution} -quality realtime ' + \
+                    f'-speed 8 -threads 1 -b:v {target_bitrate/1000}K -c:v vp9 {vp9_video_name}')
+            vp9_container = av.open(file=vp9_video_name, format=None, mode='r')
+            vp9_stream = vp9_container.streams.video[0]
 
 
             container = av.open(file=video_name, format=None, mode='r')
@@ -277,17 +277,21 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
 
             frame_idx = 0
             if generator_type not in ['vpx', 'bicubic']:    
-                for av_frame in container.decode(stream):
+                for av_frame, decoded_frame in \
+                        zip(container.decode(stream), vp9_container.decode(vp9_stream)):
                     # ground-truth
                     frame = av_frame.to_rgb().to_ndarray()
                     driving = frame_to_tensor(img_as_float32(frame), device)
                 
                     # get LR video frame
+                    """
                     driving_lr = resize_tensor_to_array(driving, lr_size, device)
                     
                     driving_lr_av = av.VideoFrame.from_ndarray(driving_lr)
                     driving_lr_av.pts = av_frame.pts
-                    driving_lr_av.time_base = av_frame.time_base
+                    driving_lr_av.time_base = av_frame.time_base"""
+                    driving_lr_av = decoded_frame
+                    driving_lr = driving_lr_av.to_rgb().to_ndarray()
                     
                     if encode_using_vpx:
                         driving_lr, compressed_tgt = get_frame_from_video_codec(driving_lr_av, lr_encoder, \
@@ -443,10 +447,10 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
                     driving_times.append(0)
                     generator_times.append(0)
                     
-                vp9_container.close()
-                lr_br = get_bitrate_from_file(vp9_video_name)
-                ref_br = 0 
-                os.system(f'rm {vp9_video_name}')
+            vp9_container.close()
+            lr_br = 0 #get_bitrate_from_file(vp9_video_name)
+            ref_br = 0 
+            os.system(f'rm {vp9_video_name}')
 
             container.close()
             print('total frames', frame_idx, 'updated src', updated_src)
