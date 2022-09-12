@@ -1,0 +1,11 @@
+dataset_params:
+  root_dir: /video-conf/scratch/vibhaa_tardy/y4m_dataset_1024
+  frame_shape: [1024, 1024, 3]
+
+model_params:
+  generator_params:
+    generator_type: 'bicubic'
+    use_lr_video: True
+    lr_size: 256
+train_params:
+  target_bitrate: 75000
