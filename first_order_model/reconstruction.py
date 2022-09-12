@@ -113,10 +113,13 @@ def find_best_reference_frame(cur_frame, cur_kp, video_num=1, frame_idx=0):
     return False, cur_frame, cur_kp
 
 
-def get_frame_from_video_codec(av_frame, encoder, decoder, quantizer=-1, bitrate=None):
+def get_frame_from_video_codec(av_frame, av_frame_index, encoder, decoder, quantizer=-1, bitrate=None):
     """ go through the encoder/decoder pipeline to get a 
         representative decoded frame
     """
+    # stamp the frame
+    av_frame = stamp_frame(av_frame, av_frame_index, av_frame.pts, av_frame.time_base)
+
     if bitrate == None:
         payloads, timestamp = encoder.encode(av_frame, quantizer=quantizer, enable_gcc=False)
     else:
@@ -125,7 +128,8 @@ def get_frame_from_video_codec(av_frame, encoder, decoder, quantizer=-1, bitrate
     payload_data = [vp8_depayload(p) for p in payloads]
     jitter_frame = JitterFrame(data=b"".join(payload_data), timestamp=timestamp)
     decoded_frames = decoder.decode(jitter_frame)
-    decoded_frame = decoded_frames[0].to_rgb().to_ndarray()
+    decoded_frame, video_frame_index = destamp_frame(decoded_frames[0])
+    decoded_frame = decoded_frame.to_rgb().to_ndarray()
     return decoded_frame, sum([len(p) for p in payloads])
 
 
@@ -161,6 +165,62 @@ def resize_tensor_to_array(input_tensor, output_size, device, mode='nearest'):
 def write_in_file(input_file, info):
     input_file.write(info)
     input_file.flush()
+
+NUM_ROWS = 10
+NUMBER_OF_BITS = 16
+
+def stamp_frame(frame, frame_index, frame_pts, frame_time_base):
+    """ stamp frame with barcode for frame index before transmission
+    """
+    frame_array = frame.to_rgb().to_ndarray()
+    stamped_frame = np.zeros((frame_array.shape[0] + NUM_ROWS,
+                            frame_array.shape[1], frame_array.shape[2]))
+    k = frame_array.shape[1] // NUMBER_OF_BITS
+    stamped_frame[:-NUM_ROWS, :, :] = frame_array
+    id_str = f'{frame_index+1:0{NUMBER_OF_BITS}b}'
+
+    for i in range(len(id_str)):
+        if id_str[i] == '0':
+            for j in range(k):
+                for s in range(NUM_ROWS):
+                    stamped_frame[-s-1, i * k + j, 0] = 0
+                    stamped_frame[-s-1, i * k + j, 1] = 0
+                    stamped_frame[-s-1, i * k + j, 2] = 0
+        elif id_str[i] == '1':
+            for j in range(k):
+                for s in range(NUM_ROWS):
+                    stamped_frame[-s-1, i * k + j, 0] = 255
+                    stamped_frame[-s-1, i * k + j, 1] = 255
+                    stamped_frame[-s-1, i * k + j, 2] = 255
+
+    stamped_frame = np.uint8(stamped_frame)
+    final_frame = av.VideoFrame.from_ndarray(stamped_frame)
+    final_frame.pts = frame_pts
+    final_frame.time_base = frame_time_base
+    return final_frame
+
+
+def destamp_frame(frame):
+    """ retrieve frame index and original frame from barcoded frame
+    """
+    frame_array = frame.to_rgb().to_ndarray()
+    k = frame_array.shape[1] // NUMBER_OF_BITS
+    destamped_frame = frame_array[:-NUM_ROWS]
+
+    frame_id = frame_array[-NUM_ROWS:, :, :]
+    frame_id = frame_id.mean(0)
+    frame_id = frame_id[frame_array.shape[1] - k*NUMBER_OF_BITS:, :]
+
+    frame_id = np.reshape(frame_id, [NUMBER_OF_BITS, k, 3])
+    frame_id = frame_id.mean(axis=(1,2))
+
+    frame_id = (frame_id > (frame_id.max() + frame_id.min()) / 2 * 1.2 ).astype(int)
+    frame_id = ((2 ** (NUMBER_OF_BITS - 1 - np.arange(NUMBER_OF_BITS))) * frame_id).sum()
+    frame_id = frame_id - 1
+
+    destamped_frame = np.uint8(destamped_frame)
+    final_frame = av.VideoFrame.from_ndarray(destamped_frame)
+    return final_frame, frame_id
 
 
 def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset, timing_enabled, 
@@ -273,8 +333,8 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
                 driving_lr_av.time_base = av_frame.time_base
                 
                 if encoder_in_training:
-                    driving_lr, compressed_tgt = get_frame_from_video_codec(driving_lr_av, lr_encoder, lr_decoder, \
-                            quantizer_level, target_bitrate)
+                    driving_lr, compressed_tgt = get_frame_from_video_codec(driving_lr_av, 
+                            av_frame.index, lr_encoder, lr_decoder, quantizer_level, target_bitrate)
                 else:
                     compressed_tgt = 0
 
@@ -283,10 +343,11 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
                 
                 # for use as source frame
                 if generator_type == 'vpx':
-                    decoded_frame, compressed_src = get_frame_from_video_codec(av_frame, hr_encoder, hr_decoder, \
-                            quantizer_level, target_bitrate)
+                    decoded_frame, compressed_src = get_frame_from_video_codec(av_frame,
+                            av_frame.index, hr_encoder, hr_decoder, quantizer_level, target_bitrate)
                 elif encoder_in_training:
-                    decoded_frame, compressed_src = get_frame_from_video_codec(av_frame, hr_encoder, hr_decoder, 32)
+                    decoded_frame, compressed_src = get_frame_from_video_codec(av_frame,
+                            av_frame.index, hr_encoder, hr_decoder, 32)
                 else:
                     decoded_frame = frame
                     compressed_src = 0
