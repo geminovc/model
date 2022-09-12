@@ -275,6 +275,7 @@ class Visualizer:
         if 'kp_source' in out:
             kp_source = out['kp_source']['value'].data.cpu().numpy()
             images.append((source, kp_source))
+        images.append(source)
 
         # Equivariance visualization
         if 'transformed_frame' in out:
