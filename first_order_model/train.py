@@ -210,6 +210,8 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
                     if train_params.get('encode_video_for_training', False):
                         target_bitrate = train_params.get('target_bitrate', None)
                         quantizer_level = train_params.get('quantizer_level', -1)
+                        if target_bitrate == 'random':
+                            target_bitrate = np.random.randint(15, 75) * 1000
                         nr = x.get('time_base_nr', torch.ones(lr_frame.size(dim=0), dtype=int))
                         dr = x.get('time_base_dr', 30000 * torch.ones(lr_frame.size(dim=0), dtype=int))
                         x['driving_lr'] = get_frame_from_video_codec(lr_frame, nr, \
@@ -264,6 +266,8 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
                             if train_params.get('encode_video_for_training', False):
                                 target_bitrate = train_params.get('target_bitrate', None)
                                 quantizer_level = train_params.get('quantizer_level', -1)
+                                if target_bitrate == 'random':
+                                    target_bitrate = np.random.randint(15, 75) * 1000
                                 nr = y.get('time_base_nr', torch.ones(lr_frame.size(dim=0), dtype=int))
                                 dr = y.get('time_base_dr', 30000 * torch.ones(lr_frame.size(dim=0), dtype=int))
                                 y['driving_lr'] = get_frame_from_video_codec(lr_frame, nr, \
