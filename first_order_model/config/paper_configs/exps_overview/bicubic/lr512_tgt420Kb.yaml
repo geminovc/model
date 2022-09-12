@@ -1,9 +1,9 @@
 dataset_params:
-  root_dir: /video-conf/scratch/pantea/fom_personalized_1024
+  root_dir: /video-conf/scratch/vibhaa_tardy/y4m_dataset_1024
   frame_shape: [1024, 1024, 3]
 
 metrics_params:
-  root_dir: /video-conf/scratch/pantea/fom_personalized_1024
+  root_dir: /video-conf/scratch/vibhaa_tardy/y4m_dataset_1024
   frame_shape: [1024, 1024, 3]
 
 model_params:
