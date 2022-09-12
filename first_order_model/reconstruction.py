@@ -236,8 +236,8 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
     end = torch.cuda.Event(enable_timing=True)
     for it, x in tqdm(enumerate(dataloader)):
         updated_src = 0
-        reference_stream = []
-        lr_stream = []
+        reference_stream = [0]
+        lr_stream = [0]
         
         hr_encoder, lr_encoder = Vp8Encoder(), Vp8Encoder()
         hr_decoder, lr_decoder = Vp8Decoder(), Vp8Decoder()
@@ -334,6 +334,8 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
                     end.record()
                     torch.cuda.synchronize()
                     driving_times.append(start.elapsed_time(end))
+                else:
+                    driving_times.append(0)
                 
                 start.record()
                 if generator_type in ['occlusion_aware', 'split_hf_lf']:
@@ -350,9 +352,11 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
                             interpolation='BICUBIC').to_rgb().to_ndarray()
                     out = {'prediction': frame_to_tensor(img_as_float32(upsampled_frame), device)}
                     lr_stream.append(compressed_tgt)
+                    reference_stream.append(0)
                 
                 elif generator_type == "vpx":
                     out = {'prediction': decoded_tensor}
+                    lr_stream.append(0)
                     reference_stream.append(compressed_src)
 
                 else:

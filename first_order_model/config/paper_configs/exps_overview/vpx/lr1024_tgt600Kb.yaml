@@ -14,7 +14,7 @@ model_params:
 
 train_params:
   encode_video_for_training: True
-  target_bitrate: 75000
+  target_bitrate: 600000
   batch_size: 2
 
 reconstruction_params:
