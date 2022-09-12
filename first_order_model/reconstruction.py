@@ -386,7 +386,7 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
                     source = decoded_tensor
 
                 frame_idx += 1
-                
+ 
                 if kp_detector is not None:
                     start.record()
                     if generator_params.get('use_lr_video', False):
