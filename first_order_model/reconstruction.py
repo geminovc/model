@@ -31,7 +31,7 @@ KEYPOINT_FIXED_PAYLOAD_SIZE = 125 # bytes
 special_frames_list = [1322, 574, 140, 1786, 1048, 839, 761, 2253, 637, 375, \
         1155, 2309, 1524, 1486, 1207, 315, 1952, 2111, 2148, 1530, \
         112, 939, 1211, 403, 2225, 1900, 207, 1634, 2006, 28]  
-
+SAVE_LR_FRAMES = True
 
 def get_size_of_nested_list(list_of_elem):
     """ helper to get size of nested parameter list """ 
@@ -128,9 +128,9 @@ def get_frame_from_video_codec(av_frame, av_frame_index, encoder, decoder, quant
     payload_data = [vp8_depayload(p) for p in payloads]
     jitter_frame = JitterFrame(data=b"".join(payload_data), timestamp=timestamp)
     decoded_frames = decoder.decode(jitter_frame)
-    decoded_frame, video_frame_index = destamp_frame(decoded_frames[0])
-    decoded_frame = decoded_frame.to_rgb().to_ndarray()
-    return decoded_frame, sum([len(p) for p in payloads])
+    decoded_frame_av, video_frame_index = destamp_frame(decoded_frames[0])
+    decoded_frame = decoded_frame_av.to_rgb().to_ndarray()
+    return decoded_frame_av, decoded_frame, sum([len(p) for p in payloads])
 
 
 def get_bitrate(stream, video_duration):
@@ -327,30 +327,40 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
                 
                 # get LR video frame
                 driving_lr = resize_tensor_to_array(driving, lr_size, device)
-                
+
+                if frame_idx in special_frames_list and SAVE_LR_FRAMES and generator_type != 'vpx':
+                    np.save(os.path.join(visualization_dir,
+                        'sender_lr_frame_%05d.npy' % av_frame.index), driving_lr)
+
                 driving_lr_av = av.VideoFrame.from_ndarray(driving_lr)
                 driving_lr_av.pts = av_frame.pts
                 driving_lr_av.time_base = av_frame.time_base
                 
                 if encoder_in_training:
-                    driving_lr, compressed_tgt = get_frame_from_video_codec(driving_lr_av, 
+                    driving_lr_av, driving_lr, compressed_tgt = get_frame_from_video_codec(driving_lr_av,
                             av_frame.index, lr_encoder, lr_decoder, quantizer_level, target_bitrate)
                 else:
                     compressed_tgt = 0
 
                 driving_lr_array = driving_lr
+                if frame_idx in special_frames_list and SAVE_LR_FRAMES and generator_type != 'vpx':
+                    np.save(os.path.join(visualization_dir,
+                        'receiver_lr_frame_%05d.npy' % av_frame.index), driving_lr_array)
+
                 driving_lr = frame_to_tensor(img_as_float32(driving_lr), device)
                 
                 # for use as source frame
                 if generator_type == 'vpx':
-                    decoded_frame, compressed_src = get_frame_from_video_codec(av_frame,
+                    decoded_frame_av, decoded_frame, compressed_src = get_frame_from_video_codec(av_frame,
                             av_frame.index, hr_encoder, hr_decoder, quantizer_level, target_bitrate)
                 elif encoder_in_training:
-                    decoded_frame, compressed_src = get_frame_from_video_codec(av_frame,
+                    decoded_frame_av, decoded_frame, compressed_src = get_frame_from_video_codec(av_frame,
                             av_frame.index, hr_encoder, hr_decoder, 32)
                 else:
+                    decoded_frame_av = av_frame
                     decoded_frame = frame
                     compressed_src = 0
+
                 decoded_frame = img_as_float32(decoded_frame)
                 decoded_tensor = frame_to_tensor(decoded_frame, device)
                 update_source = False if not use_same_tgt_ref_quality else True
@@ -413,10 +423,6 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
                     else:
                         lr_stream.append(KEYPOINT_FIXED_PAYLOAD_SIZE)
 
-                    if generator_params.get('use_lr_video', False):
-                        lr_stream.append(compressed_tgt)
-                    else:
-                        lr_stream.append(KEYPOINT_FIXED_PAYLOAD_SIZE)
                 elif generator_type == "bicubic":
                     upsampled_frame = driving_lr_av.reformat(width=driving.shape[2], \
                             height=driving.shape[3],\
