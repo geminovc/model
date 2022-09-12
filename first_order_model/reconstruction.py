@@ -170,7 +170,6 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
         determines whether to time the functions on a gpu or not """
     global ssim_correlation_file
     global reference_frame_list
-    log_dir = os.path.join(log_dir, 'reconstruction' + '_' + experiment_name)
     png_dir = os.path.join(log_dir, 'png')
     visualization_dir = os.path.join(log_dir, 'visualization')
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -346,7 +345,10 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
                             kp_driving=kp_driving, update_source=True, driving_lr=driving_lr)
 
                 elif generator_type == "bicubic":
-                    out = {'prediction': F.interpolate(driving_lr, source.shape[2], mode='bicubic')}
+                    upsampled_frame = driving_lr_av.reformat(width=driving.shape[2], \
+                            height=driving.shape[3],\
+                            interpolation='BICUBIC').to_rgb().to_ndarray()
+                    out = {'prediction': frame_to_tensor(img_as_float32(upsampled_frame), device)}
                     lr_stream.append(compressed_tgt)
                 
                 elif generator_type == "vpx":
@@ -423,10 +425,10 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
 
             if it == 0:
                 frame_metrics_file.write('video_num,frame,psnr,ssim,ssim_db,lpips,orig_lpips,face_lpips,' + \
-                        'kp_time,gen_time\n')
+                        'kp_time,gen_time,reference_kbps,lr_kbps\n')
             for i, (m, d, g) in enumerate(zip(visual_metrics, driving_times, generator_times)):
                 frame_metrics_file.write(f'{it + 1},{i},{m["psnr"][0]},{m["ssim"]},{m["ssim_db"]},' + \
-                            f'{m["lpips"]},{m["orig_lpips"]},{m["face_lpips"]},{d},{g}\n')
+                            f'{m["lpips"]},{m["orig_lpips"]},{m["face_lpips"]},{d},{g},{ref_br},{lr_br}\n')
             frame_metrics_file.flush()
             
             print('source keypoints:', source_time, 'driving:', np.average(driving_times), \
