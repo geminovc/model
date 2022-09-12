@@ -259,8 +259,7 @@ CHROMIUM_COMMAND = {
         "{input}"
     ]
 }
-def vpx_encode(input_filename, output_name, res, target_bitrate):
-    mode = 'vp8'
+def vpx_encode(input_filename, output_name, res, target_bitrate, mode):
     if res != 1024:
         resized_y4m = f'{input_filename}_{res}.y4m'
         os.system(f'ffmpeg -i {input_filename} -vf scale={res}:{res} -sws_flags bilinear {resized_y4m}')
@@ -282,7 +281,7 @@ def vpx_encode(input_filename, output_name, res, target_bitrate):
 
 
 def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset, timing_enabled, 
-        save_visualizations_as_images, experiment_name, reference_frame_update_freq=None):
+        save_visualizations_as_images, experiment_name, reference_frame_update_freq=None, mode='vp9'):
     """ reconstruct driving frames for each video in the dataset using the first frame
         as a source frame. Config specifies configuration details, while timing 
         determines whether to time the functions on a gpu or not """
@@ -373,9 +372,9 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
             full_res_bitrate = 1500000 if generator_type != 'vpx' else target_bitrate
             lr_video_name = f'{x["name"][0]}_{generator_type}_res{resolution}_{target_bitrate}_temp.webm'
             compressed_filename = f'{x["name"][0]}_{generator_type}_res{full_res}_{target_bitrate}_temp.webm'
-            vpx_encode(video_name, compressed_filename, full_res, full_res_bitrate)
+            vpx_encode(video_name, compressed_filename, full_res, full_res_bitrate, mode)
             if generator_type != 'vpx':
-                vpx_encode(video_name, lr_video_name, resolution, target_bitrate)
+                vpx_encode(video_name, lr_video_name, resolution, target_bitrate, mode)
  
             gt_reader = imageio.get_reader(video_name, "ffmpeg")
             compressed_reader = imageio.get_reader(compressed_filename, "ffmpeg")
