@@ -346,6 +346,11 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
                     if use_same_tgt_ref_quality:
                         ref_out = generator(driving, kp_source=kp_driving, \
                             kp_driving=kp_driving, update_source=True, driving_lr=driving_lr)
+                    
+                    if generator_params.get('use_lr_video', False):
+                        lr_stream.append(compressed_tgt)
+                    else:
+                        lr_stream.append(KEYPOINT_FIXED_PAYLOAD_SIZE)
 
                     if generator_params.get('use_lr_video', False):
                         lr_stream.append(compressed_tgt)
