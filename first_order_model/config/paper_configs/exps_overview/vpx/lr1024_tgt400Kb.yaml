@@ -12,7 +12,7 @@ model_params:
     use_lr_video: False
 
 train_params:
-  encode_video_for_training: True
+  encode_video_for_training: False
   target_bitrate: 400000
   batch_size: 2
 
