@@ -370,8 +370,8 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
             resolution = 1024 if generator_type == 'vpx' else lr_size
             full_res = 1024
             full_res_bitrate = 1500000 if generator_type != 'vpx' else target_bitrate
-            lr_video_name = f'{x["name"][0]}_{generator_type}_res{resolution}_{target_bitrate}_temp.webm'
-            compressed_filename = f'{x["name"][0]}_{generator_type}_res{full_res}_{target_bitrate}_temp.webm'
+            lr_video_name = f'{x["name"][0]}_{generator_type}_res{resolution}_{target_bitrate}_temp_{mode}.webm'
+            compressed_filename = f'{x["name"][0]}_{generator_type}_res{full_res}_{target_bitrate}_temp_{mode}.webm'
             vpx_encode(video_name, compressed_filename, full_res, full_res_bitrate, mode)
             if generator_type != 'vpx':
                 vpx_encode(video_name, lr_video_name, resolution, target_bitrate, mode)
