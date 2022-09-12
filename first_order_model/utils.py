@@ -5,7 +5,7 @@ from first_order_model.modules.generator import OcclusionAwareGenerator
 from first_order_model.modules.sr_generator import SuperResolutionGenerator
 from first_order_model.modules.discriminator import MultiScaleDiscriminator
 from first_order_model.modules.keypoint_detector import KPDetector
-
+from swinir_wrapper import SuperResolutionModel
 
 def frame_to_tensor(frame, device):
     """ convert numpy arrays to tensors for reconstruction pipeline """
@@ -55,10 +55,14 @@ def configure_fom_modules(config, device):
         5. Split HF/LF: Generator that uses the Occlusion aware pipeline for
            High-frequency (HF) content and simple super-resolution for the 
            low-frequency (LF) content
+        6. SwinIR
     """
     generator_params = config['model_params']['generator_params']
     generator_type = generator_params.get('generator_type', 'occlusion_aware')
-    if generator_type not in ['vpx', 'bicubic']:
+    if generator_type == 'swinir':
+        generator = SuperResolutionModel(config)
+        discriminator = None
+    elif generator_type not in ['vpx', 'bicubic']:
         if generator_type in ['occlusion_aware', 'split_hf_lf']:
             generator = OcclusionAwareGenerator(**config['model_params']['generator_params'],
                                             **config['model_params']['common_params'])

@@ -186,7 +186,7 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
     choose_reference_frame = False
     use_same_tgt_ref_quality = False
     
-    if generator_type not in ['vpx', 'bicubic']:
+    if generator_type not in ['vpx', 'bicubic', 'swinir']:
         if checkpoint is not None:
             dense_motion = generator.dense_motion_network if generator_type == 'occlusion_aware' else None
             Logger.load_cpk(checkpoint, generator=generator, 
@@ -214,7 +214,7 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
     vgg_face_model = VggFace16()
     original_lpips = lpips.LPIPS(net='vgg')
     if torch.cuda.is_available():
-        if generator is not None:
+        if generator is not None and generator_type != 'swinir':
             generator = DataParallelWithCallback(generator)
         if kp_detector is not None:
             kp_detector = DataParallelWithCallback(kp_detector)
@@ -225,13 +225,16 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
     loss_fn_vgg = vgg_model.compute_loss
     face_lpips = vgg_face_model.compute_loss
 
-    if generator is not None:
+    if generator is not None and generator_type != 'swinir':
         generator.eval()
     if kp_detector is not None:
         kp_detector.eval()
 
     # get number of model parameters and timing stats
-    get_model_info(log_dir, kp_detector, generator)
+    if generator_type == 'swinir':
+        get_model_info(log_dir, kp_detector, generator.model)
+    else:
+        get_model_info(log_dir, kp_detector, generator)
     start = torch.cuda.Event(enable_timing=True)
     end = torch.cuda.Event(enable_timing=True)
     for it, x in tqdm(enumerate(dataloader)):
@@ -274,6 +277,8 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
                             quantizer_level, target_bitrate)
                 else:
                     compressed_tgt = 0
+
+                driving_lr_array = driving_lr
                 driving_lr = frame_to_tensor(img_as_float32(driving_lr), device)
                 
                 # for use as source frame
@@ -320,10 +325,6 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
                     source = decoded_tensor
 
                 frame_idx += 1
-                if generator_params.get('use_lr_video', False):
-                    lr_stream.append(compressed_tgt)
-                else:
-                    lr_stream.append(KEYPOINT_FIXED_PAYLOAD_SIZE)
                 
                 if kp_detector is not None:
                     start.record()
@@ -346,6 +347,10 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
                         ref_out = generator(driving, kp_source=kp_driving, \
                             kp_driving=kp_driving, update_source=True, driving_lr=driving_lr)
 
+                    if generator_params.get('use_lr_video', False):
+                        lr_stream.append(compressed_tgt)
+                    else:
+                        lr_stream.append(KEYPOINT_FIXED_PAYLOAD_SIZE)
                 elif generator_type == "bicubic":
                     upsampled_frame = driving_lr_av.reformat(width=driving.shape[2], \
                             height=driving.shape[3],\
@@ -359,6 +364,11 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
                     lr_stream.append(0)
                     reference_stream.append(compressed_src)
 
+                elif generator_type == "swinir":
+                    predicted_array = generator.predict_with_lr_video(driving_lr_array)
+                    out = {'prediction': frame_to_tensor(img_as_float32(predicted_array), device)}
+                    lr_stream.append(compressed_tgt)
+                    reference_stream.append(0)
                 else:
                     out = generator(driving_lr)
                     lr_stream.append(compressed_tgt)
