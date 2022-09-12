@@ -166,10 +166,119 @@ def write_in_file(input_file, info):
 def get_bitrate_from_file(filename):
     """ uses ffprobe to get bitrate from file in Kbps
     """
-    output_bytes = subprocess.check_output('ffprobe -v quiet -select_streams v:0 ' + \
-            f'-show_entries stream=bit_rate -of default=noprint_wrappers=1 {filename}', shell=True)
-    bitrate_str = str(output_bytes).split('=')[-1][:-3]
+    output_bytes = subprocess.check_output(f'ffprobe {filename}', stderr=subprocess.STDOUT, shell=True)
+    output_bytes = output_bytes.decode('utf-8')
+    for line in output_bytes.split('\n'):
+        if 'bitrate' in line:
+            bitrate_str = str(line).split(' ')[-2]
     return float(bitrate_str)/1000.0
+
+
+def get_reference_bitrate(reference_frames, filename, duration):
+    size = 0
+    frame_sizes = str(subprocess.check_output('ffprobe -v error -select_streams V:0 -show_entries' + \
+            f' "frame=pict_type,pkt_size" -of csv=p=0 {filename}', shell=True))
+    lines = frame_sizes.split('\n')
+    for i in reference_frames:
+        size += float(lines[i].split(",")[0])
+    return size * 8 / duration / 1000.0
+
+CHROMIUM_COMMAND = {
+    'vp8': [
+        "vpxenc",
+        "--webm",
+        "--codec=vp8",
+        "--rt",
+        "--passes=1",
+        "--threads=1",
+        "--cpu-used=-6",
+        "--end-usage=cbr",
+        "--target-bitrate={bitrate}",
+        "--disable-kf",
+        "--buf-initial-sz=500",
+        "--buf-optimal-sz=600",
+        "--buf-sz=1000",
+        "--lag-in-frames=0",
+        "--static-thresh=0",
+        "--min-q=2",
+        "--max-q=63",
+        "--resize-allowed=0",
+        "--undershoot-pct=100",
+        "--overshoot-pct=15",
+        "-o", "{output}",
+        "{input}"
+    ],
+
+    'vp8_chromium': [
+        "vpxenc",
+        "--webm",
+        "--codec=vp8",
+        "--rt",
+        "--passes=1",
+        "--threads=2",
+        "--cpu-used=-6",
+        "--end-usage=cbr",
+        "--target-bitrate={bitrate}",
+        "--disable-kf",
+        "--buf-initial-sz=500",
+        "--buf-optimal-sz=600",
+        "--buf-sz=1000",
+        "--lag-in-frames=0",
+        "--static-thresh=0",
+        "--min-q=2",
+        "--max-q=63",
+        "--resize-allowed=0",
+        "--undershoot-pct=100",
+        "--overshoot-pct=15",
+        "-o", "{output}",
+        "{input}"
+    ],
+
+    'vp9': [
+        "vpxenc",
+        "--webm",
+        "--codec=vp9",
+        "--rt",
+        "--passes=1",
+        "--threads=2",
+        "--cpu-used=7",
+        "--end-usage=cbr",
+        "--target-bitrate={bitrate}",
+        "--buf-initial-sz=500",
+        "--buf-optimal-sz=600",
+        "--buf-sz=1000",
+        "--lag-in-frames=0",
+        "--disable-kf",
+        "--static-thresh=0",
+        "--min-q=2",
+        "--max-q=52",
+        "--resize-allowed=0",
+        "--undershoot-pct=50",
+        "--overshoot-pct=50",
+        "-o", "{output}",
+        "{input}"
+    ]
+}
+def vpx_encode(input_filename, output_name, res, target_bitrate):
+    mode = 'vp8'
+    if res != 1024:
+        resized_y4m = f'{input_filename}_{res}.y4m'
+        os.system(f'ffmpeg -i {input_filename} -vf scale={res}:{res} -sws_flags bilinear {resized_y4m}')
+    else:
+        resized_y4m = input_filename
+    
+    options = {
+        'input': resized_y4m,
+        'output': output_name, 
+        'bitrate': int(target_bitrate/1000)
+    }
+
+    command = [x.format(**options) for x in CHROMIUM_COMMAND[mode]]
+    print(" ".join(command))
+    subprocess.check_call(command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    
+    if res != 1024:
+        os.system(f'rm {resized_y4m}')
 
 
 def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset, timing_enabled, 
@@ -248,9 +357,6 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
         reference_stream = []
         lr_stream = []
         
-        hr_encoder, lr_encoder = Vp8Encoder(), Vp8Encoder()
-        hr_decoder, lr_decoder = Vp8Decoder(), Vp8Decoder()
-        
         with torch.no_grad():
             predictions = []
             visualizations = []
@@ -262,197 +368,154 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
             driving_times, generator_times = [], []
             source_time = 0
 
-            #if generator_type in ['vpx', 'bicubic']:
-                # ffmpeg encode
             resolution = 1024 if generator_type == 'vpx' else lr_size
-            vp9_video_name = f'{x["name"][0]}_{generator_type}_res{resolution}_{target_bitrate}_temp.webm'
-            os.system(f'/usr/bin/ffmpeg -y -i {video_name} -s {resolution}x{resolution} -quality realtime ' + \
-                    f'-speed 8 -threads 1 -b:v {target_bitrate/1000}K -c:v vp9 {vp9_video_name}')
-            vp9_container = av.open(file=vp9_video_name, format=None, mode='r')
-            vp9_stream = vp9_container.streams.video[0]
-
-
-            container = av.open(file=video_name, format=None, mode='r')
-            stream = container.streams.video[0]
+            full_res = 1024
+            full_res_bitrate = 1500000 if generator_type != 'vpx' else target_bitrate
+            lr_video_name = f'{x["name"][0]}_{generator_type}_res{resolution}_{target_bitrate}_temp.webm'
+            compressed_filename = f'{x["name"][0]}_{generator_type}_res{full_res}_{target_bitrate}_temp.webm'
+            vpx_encode(video_name, compressed_filename, full_res, full_res_bitrate)
+            if generator_type != 'vpx':
+                vpx_encode(video_name, lr_video_name, resolution, target_bitrate)
+ 
+            gt_reader = imageio.get_reader(video_name, "ffmpeg")
+            compressed_reader = imageio.get_reader(compressed_filename, "ffmpeg")
+            lr_reader = imageio.get_reader(lr_video_name, "ffmpeg")
 
             frame_idx = 0
-            if generator_type not in ['vpx', 'bicubic']:    
-                for av_frame, decoded_frame in \
-                        zip(container.decode(stream), vp9_container.decode(vp9_stream)):
-                    # ground-truth
-                    frame = av_frame.to_rgb().to_ndarray()
-                    driving = frame_to_tensor(img_as_float32(frame), device)
+            for frame, compressed_frame, lr_frame in zip(gt_reader, compressed_reader, lr_reader):
+                # ground-truth
+                driving = frame_to_tensor(img_as_float32(frame), device)
                 
-                    # get LR video frame
-                    """
-                    driving_lr = resize_tensor_to_array(driving, lr_size, device)
+                # get LR video frame
+                driving_lr = frame_to_tensor(img_as_float32(lr_frame), device)
                     
-                    driving_lr_av = av.VideoFrame.from_ndarray(driving_lr)
-                    driving_lr_av.pts = av_frame.pts
-                    driving_lr_av.time_base = av_frame.time_base"""
-                    driving_lr_av = decoded_frame
-                    driving_lr = driving_lr_av.to_rgb().to_ndarray()
-                    
-                    if encode_using_vpx:
-                        driving_lr, compressed_tgt = get_frame_from_video_codec(driving_lr_av, lr_encoder, \
-                                lr_decoder, quantizer, target_bitrate)
-                    else:
-                        compressed_tgt = 0
-                    driving_lr = frame_to_tensor(img_as_float32(driving_lr), device)
-                    
-                    # for use as source frame
-                    if encode_using_vpx:
-                        decoded_frame, compressed_src = get_frame_from_video_codec(av_frame, hr_encoder, \
-                                hr_decoder, quantizer, target_bitrate)
-                    else:
-                        decoded_frame = frame
-                        compressed_src = 0
-                    decoded_frame = img_as_float32(decoded_frame)
-                    decoded_tensor = frame_to_tensor(decoded_frame, device)
-                    update_source = False if not use_same_tgt_ref_quality else True
-                
-                    if kp_detector is not None:
-                        if frame_idx == 0: 
-                            source = decoded_tensor
-                            start.record()
-                            kp_source = kp_detector(source)
-                            end.record()
-                            torch.cuda.synchronize()
-                            update_source = True
-                            reference_frame_list.append((source, kp_source))
-                            reference_stream.append(compressed_src)
-                            source_time = start.elapsed_time(end)
-
-                        if reference_frame_update_freq is not None:
-                            if frame_idx % reference_frame_update_freq == 0:
-                                source = decoded_tensor
-                                kp_source = kp_detector(source)
-                                update_source = True
-                                reference_stream.append(compressed_src)
-
-                        elif choose_reference_frame:
-                            # runs at sender, so use frame prior to encode/decode pipeline
-                            cur_frame = frame_to_tensor(frame, device) 
-                            cur_kp = kp_detector(cur_frame)
-
-                            frame_reuse, source, kp_source = find_best_reference_frame(cur_frame, cur_kp, \
-                                video_num=it+1, frame_idx=frame_idx)
-                    else:
-                        # default if there's no KP based method
-                        source = decoded_tensor
-
-                    frame_idx += 1
-                    if generator_params.get('use_lr_video', False):
-                        lr_stream.append(compressed_tgt)
-                    else:
-                        lr_stream.append(KEYPOINT_FIXED_PAYLOAD_SIZE)
-                    
-                    if kp_detector is not None:
+                # for use as encoded source frame
+                encoded_frame = frame_to_tensor(img_as_float32(compressed_frame), device)
+                update_source = False if not use_same_tgt_ref_quality else True
+            
+                if kp_detector is not None:
+                    if frame_idx == 0: 
+                        source = encoded_frame
                         start.record()
-                        if generator_params.get('use_lr_video', False):
-                            kp_driving = kp_detector(driving_lr)
-                        else:
-                            kp_driving = kp_detector(driving)
+                        kp_source = kp_detector(source)
                         end.record()
                         torch.cuda.synchronize()
-                        driving_times.append(start.elapsed_time(end))
-                
+                        update_source = True
+                        reference_frame_list.append((source, kp_source))
+                        reference_stream.append(frame_index)
+                        source_time = start.elapsed_time(end)
+
+                    if reference_frame_update_freq is not None:
+                        if frame_idx % reference_frame_update_freq == 0:
+                            source = encoded_frame
+                            kp_source = kp_detector(source)
+                            update_source = True
+                            reference_stream.append(frame_index)
+
+                    elif choose_reference_frame:
+                        # runs at sender, so use frame prior to encode/decode pipeline
+                        cur_frame = frame_to_tensor(frame, device) 
+                        cur_kp = kp_detector(cur_frame)
+
+                        frame_reuse, source, kp_source = find_best_reference_frame(cur_frame, cur_kp, \
+                            video_num=it+1, frame_idx=frame_idx)
+                else:
+                    # default if there's no KP based method
+                    source = encoded_frame
+
+                frame_idx += 1    
+                if kp_detector is not None:
                     start.record()
-                    if generator_type in ['occlusion_aware', 'split_hf_lf']:
-                        out = generator(source, kp_source=kp_source, \
-                                kp_driving=kp_driving, update_source=update_source, driving_lr=driving_lr)
-
-                        if use_same_tgt_ref_quality:
-                            ref_out = generator(driving, kp_source=kp_driving, \
-                                kp_driving=kp_driving, update_source=True, driving_lr=driving_lr)
-
+                    if generator_params.get('use_lr_video', False):
+                        kp_driving = kp_detector(driving_lr)
                     else:
-                        out = generator(driving_lr)
-                        lr_stream.append(compressed_tgt)
-                
+                        kp_driving = kp_detector(driving)
                     end.record()
                     torch.cuda.synchronize()
-                    generator_times.append(start.elapsed_time(end))
+                    driving_times.append(start.elapsed_time(end))
+            
+                start.record()
+                if generator_type in ['occlusion_aware', 'split_hf_lf']:
+                    out = generator(source, kp_source=kp_source, \
+                            kp_driving=kp_driving, update_source=update_source, \
+                            driving_lr=driving_lr)
 
-                    out['prediction'] = torch.clamp(out['prediction'], min=0, max=1)
+                    if use_same_tgt_ref_quality:
+                        ref_out = generator(driving, kp_source=kp_driving, \
+                            kp_driving=kp_driving, update_source=True, driving_lr=driving_lr)
+
+                elif generator_type == "vpx":
+                    out = {'prediction': encoded_frame}
+
+                elif generator_type == "bicubic":
+                    driving_lr_av = av.VideoFrame.from_ndarray(lr_frame)
+                    upsampled_frame = driving_lr_av.reformat(width=driving.shape[2], \
+                                height=driving.shape[3],\
+                                interpolation='BICUBIC').to_rgb().to_ndarray()
+                    prediction = frame_to_tensor(img_as_float32(upsampled_frame), device)
+                    out = {'prediction': prediction}
+
+                else:
+                    out = generator(driving_lr)
+                    lr_stream.append(compressed_tgt)
+            
+                end.record()
+                torch.cuda.synchronize()
+                generator_times.append(start.elapsed_time(end))
+
+                out['prediction'] = torch.clamp(out['prediction'], min=0, max=1)
                     
-                    """
-                    ssim = piq.ssim(driving, out['prediction'], data_range=1.).data.cpu().numpy().flatten()[0]
-                    if use_same_tgt_ref_quality and (generator_type in ['occlusion_aware', 'split_hf_lf']):
-                        ref_ssim = piq.ssim(driving, ref_out['prediction'], data_range=1.).data.cpu().numpy().flatten()[0]
-                        if ssim < ref_ssim:
-                            source = driving
-                            kp_source = kp_driving
-                            out = ref_out
-                            reference_frame_list = [(source, kp_source)]
-                            updated_src += 1
-                            reference_stream.append(compressed_src)
-                            ssim = ref_ssim
-                    
-                    if choose_reference_frame:
-                        ssim_correlation_file.write(f'{ssim:.4f}\n')
-                    else:
-                        ssim_correlation_file.write(f'{it+1},{frame_idx},{ssim:.4f}\n')
-                    """
-                                    
-                    if kp_detector is not None:
-                        out['kp_source'] = kp_source
-                        out['kp_driving'] = kp_driving
-                        if 'sparse_deformed' in out:
-                            del out['sparse_deformed']
-                    
-                    if frame_idx % 200 == 0:
-                        print(f'finished {frame_idx} frames, updated src: {updated_src}')
-                    
-                    if frame_idx in special_frames_list:
+                """
+                ssim = piq.ssim(driving, out['prediction'], data_range=1.).data.cpu().numpy().flatten()[0]
+                if use_same_tgt_ref_quality and (generator_type in ['occlusion_aware', 'split_hf_lf']):
+                    ref_ssim = piq.ssim(driving, ref_out['prediction'], data_range=1.).data.cpu().numpy().flatten()[0]
+                    if ssim < ref_ssim:
+                        source = driving
+                        kp_source = kp_driving
+                        out = ref_out
+                        reference_frame_list = [(source, kp_source)]
+                        updated_src += 1
+                        reference_stream.append(compressed_src)
+                        ssim = ref_ssim
+                
+                if choose_reference_frame:
+                    ssim_correlation_file.write(f'{ssim:.4f}\n')
+                else:
+                    ssim_correlation_file.write(f'{it+1},{frame_idx},{ssim:.4f}\n')
+                """
+                                
+                if kp_detector is not None:
+                    out['kp_source'] = kp_source
+                    out['kp_driving'] = kp_driving
+                    if 'sparse_deformed' in out:
+                        del out['sparse_deformed']
+                
+                if frame_idx % 200 == 0:
+                    print(f'finished {frame_idx} frames, updated src: {updated_src}')
+                
+                if frame_idx in special_frames_list:
+                    frame_name = f'{x["name"][0]}_frame{frame_idx}.npy'
+                    frame_file = open(os.path.join(visualization_dir, frame_name), 'wb')
+                    if generator_type not in ['vpx', 'bicubic']:
                         v = Visualizer(**config['visualizer_params']).visualize(source=source,
                                                                                     driving=driving, out=out)
-                        frame_name = f'{x["name"][0]}_frame{frame_idx}.npy'
-                        frame_file = open(os.path.join(visualization_dir, frame_name), 'wb')
-                        np.save(frame_file, v)
-                        frame_file.close()
-                    
-                    loss_list.append(torch.abs(out['prediction'] - driving).mean().cpu().numpy())
-                    visual_metrics.append(Logger.get_visual_metrics(out['prediction'], driving, \
-                            loss_fn_vgg, original_lpips, face_lpips))
-                ref_br = get_bitrate(reference_stream, video_duration)
-                lr_br = get_bitrate(lr_stream, video_duration)
+                    else:
+                        v = out['prediction'].data.cpu().numpy().transpose(0, 2, 3, 1)[0]
+                    np.save(frame_file, v)
+                    frame_file.close()
 
-            else:
-                for original_frame, decoded_frame in \
-                        zip(container.decode(stream), vp9_container.decode(vp9_stream)):
-                    frame = original_frame.to_rgb().to_ndarray()
-                    driving = frame_to_tensor(img_as_float32(frame), device)
-
-                    if generator_type == 'vpx':
-                        prediction = decoded_frame.to_rgb().to_ndarray()
-                        prediction = frame_to_tensor(img_as_float32(prediction), device)
-                    elif generator_type == 'bicubic':
-                        upsampled_frame = decoded_frame.reformat(width=driving.shape[2], \
-                                    height=driving.shape[3],\
-                                    interpolation='BICUBIC').to_rgb().to_ndarray()
-                        prediction = frame_to_tensor(img_as_float32(upsampled_frame), device)
                 
-                    frame_idx += 1
-                    if frame_idx in special_frames_list:
-                        frame_name = f'{x["name"][0]}_frame{frame_idx}.npy'
-                        frame_file = open(os.path.join(visualization_dir, frame_name), 'wb')
-                        prediction_numpy = prediction.data.cpu().numpy().transpose(0, 2, 3, 1)[0]
-                        np.save(frame_file, prediction_numpy)
-                        frame_file.close()
-                    
-                    loss_list.append((prediction - driving).mean().cpu().numpy())
-                    visual_metrics.append(Logger.get_visual_metrics(prediction, driving, \
-                            loss_fn_vgg, original_lpips, face_lpips))
-                    driving_times.append(0)
-                    generator_times.append(0)
-                    
-            vp9_container.close()
-            lr_br = 0 #get_bitrate_from_file(vp9_video_name)
-            ref_br = 0 
-            os.system(f'rm {vp9_video_name}')
+                loss_list.append(torch.abs(out['prediction'] - driving).mean().cpu().numpy())
+                visual_metrics.append(Logger.get_visual_metrics(out['prediction'], driving, \
+                        loss_fn_vgg, original_lpips, face_lpips))
+            
+            ref_br = get_reference_bitrate(reference_stream, compressed_filename, video_duration)
+            lr_br = get_bitrate_from_file(lr_video_name)
 
-            container.close()
+            os.system(f'rm {compressed_filename}')
+            if generator_type != 'vpx':
+                os.system(f'rm {lr_video_name}')
+
             print('total frames', frame_idx, 'updated src', updated_src)
             
             psnr, ssim, lpips_val, ssim_db, orig_lpips, face_lpips_val = \
@@ -481,4 +544,7 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
     metrics_file.close()
     frame_metrics_file.close()
     ssim_correlation_file.close()
+    gt_reader.close()
+    lr_reader.close()
+    compressed_reader.close()
 
