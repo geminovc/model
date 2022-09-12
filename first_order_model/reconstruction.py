@@ -113,11 +113,15 @@ def find_best_reference_frame(cur_frame, cur_kp, video_num=1, frame_idx=0):
     return False, cur_frame, cur_kp
 
 
-def get_frame_from_video_codec(av_frame, encoder, decoder, quantizer):
+def get_frame_from_video_codec(av_frame, encoder, decoder, quantizer=-1, bitrate=None):
     """ go through the encoder/decoder pipeline to get a 
         representative decoded frame
     """
-    payloads, timestamp = encoder.encode(av_frame, quantizer=quantizer)
+    if bitrate == None:
+        payloads, timestamp = encoder.encode(av_frame, quantizer=quantizer, enable_gcc=False)
+    else:
+        payloads, timestamp = encoder.encode(av_frame, quantizer=-1, \
+                target_bitrate=bitrate, enable_gcc=False)
     payload_data = [vp8_depayload(p) for p in payloads]
     jitter_frame = JitterFrame(data=b"".join(payload_data), timestamp=timestamp)
     decoded_frames = decoder.decode(jitter_frame)
@@ -174,6 +178,11 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
     generator_type = generator_params.get('generator_type', 'occlusion_aware')
     lr_size = generator_params.get('lr_size', 64)
     print("reference_frame_update_freq", reference_frame_update_freq)
+
+    train_params = config['train_params']
+    target_bitrate = train_params.get('target_bitrate', 1000000)
+    quantizer_level = train_params.get('quantizer_level', -1)
+    encoder_in_training = train_params.get('encode_video_for_training', False)
     
     choose_reference_frame = False
     use_same_tgt_ref_quality = False
@@ -224,8 +233,8 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
 
     # get number of model parameters and timing stats
     get_model_info(log_dir, kp_detector, generator)
-    start = torch.cuda.Event(enable_timing=timing_enabled)
-    end = torch.cuda.Event(enable_timing=timing_enabled)
+    start = torch.cuda.Event(enable_timing=True)
+    end = torch.cuda.Event(enable_timing=True)
     for it, x in tqdm(enumerate(dataloader)):
         updated_src = 0
         reference_stream = []
@@ -233,10 +242,6 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
         
         hr_encoder, lr_encoder = Vp8Encoder(), Vp8Encoder()
         hr_decoder, lr_decoder = Vp8Decoder(), Vp8Decoder()
-        
-        if config['reconstruction_params']['num_videos'] is not None:
-            if it > config['reconstruction_params']['num_videos']:
-                break
 
         with torch.no_grad():
             predictions = []
@@ -246,8 +251,8 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
             print('doing video', video_name)
             video_duration = get_video_duration(video_name)
 
-            if timing_enabled:
-                driving_times, generator_times = [], []
+            driving_times, generator_times = [], []
+            source_time = 0
 
             container = av.open(file=video_name, format=None, mode='r')
             stream = container.streams.video[0]
@@ -265,15 +270,19 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
                 driving_lr_av.pts = av_frame.pts
                 driving_lr_av.time_base = av_frame.time_base
                 
-                if encode_using_vpx:
-                    driving_lr, compressed_tgt = get_frame_from_video_codec(driving_lr_av, lr_encoder, lr_decoder, 48)
+                if encoder_in_training:
+                    driving_lr, compressed_tgt = get_frame_from_video_codec(driving_lr_av, lr_encoder, lr_decoder, \
+                            quantizer_level, target_bitrate)
                 else:
                     compressed_tgt = 0
                 driving_lr = frame_to_tensor(img_as_float32(driving_lr), device)
                 
                 # for use as source frame
-                if encode_using_vpx:
-                    decoded_frame, compressed_src = get_frame_from_video_codec(av_frame, hr_encoder, hr_decoder, 48)
+                if generator_type == 'vpx':
+                    decoded_frame, compressed_src = get_frame_from_video_codec(av_frame, hr_encoder, hr_decoder, \
+                            quantizer_level, target_bitrate)
+                elif encoder_in_training:
+                    decoded_frame, compressed_src = get_frame_from_video_codec(av_frame, hr_encoder, hr_decoder, 32)
                 else:
                     decoded_frame = frame
                     compressed_src = 0
@@ -291,8 +300,7 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
                         update_source = True
                         reference_frame_list.append((source, kp_source))
                         reference_stream.append(compressed_src)
-                        if timing_enabled:
-                            source_time = start.elapsed_time(end)
+                        source_time = start.elapsed_time(end)
 
                     if reference_frame_update_freq is not None:
                         if frame_idx % reference_frame_update_freq == 0:
@@ -326,8 +334,7 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
                         kp_driving = kp_detector(driving)
                     end.record()
                     torch.cuda.synchronize()
-                    if timing_enabled:
-                        driving_times.append(start.elapsed_time(end))
+                    driving_times.append(start.elapsed_time(end))
                 
                 start.record()
                 if generator_type in ['occlusion_aware', 'split_hf_lf']:
@@ -352,8 +359,7 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
                 
                 end.record()
                 torch.cuda.synchronize()
-                if timing_enabled:
-                    generator_times.append(start.elapsed_time(end))
+                generator_times.append(start.elapsed_time(end))
 
                 out['prediction'] = torch.clamp(out['prediction'], min=0, max=1)
                 
@@ -386,8 +392,11 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
                     print(f'finished {frame_idx} frames, updated src: {updated_src}')
                 
                 if frame_idx in special_frames_list:
-                    v = Visualizer(**config['visualizer_params']).visualize(source=source,
+                    if generator_type not in ['vpx', 'bicubic']:
+                        v = Visualizer(**config['visualizer_params']).visualize(source=source,
                                                                                 driving=driving, out=out)
+                    else:
+                        v = out['prediction'].data.cpu().numpy().transpose(0, 2, 3, 1)[0]
                     frame_name = f'{x["name"][0]}_frame{frame_idx}.npy'
                     frame_file = open(os.path.join(visualization_dir, frame_name), 'wb')
                     np.save(frame_file, v)
@@ -420,9 +429,8 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
                             f'{m["lpips"]},{m["orig_lpips"]},{m["face_lpips"]},{d},{g}\n')
             frame_metrics_file.flush()
             
-            if timing_enabled:
-                print('source keypoints:', source_time, 'driving:', np.average(driving_times), \
-                    'generator:', np.average(generator_times))
+            print('source keypoints:', source_time, 'driving:', np.average(driving_times), \
+                'generator:', np.average(generator_times))
 
     print('Reconstruction loss: %s' % np.mean(loss_list))
     metrics_file.write('Reconstruction loss: %s\n' % np.mean(loss_list))
