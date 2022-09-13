@@ -118,7 +118,7 @@ def get_frame_from_video_codec(av_frame, av_frame_index, encoder, decoder, quant
         representative decoded frame
     """
     # stamp the frame
-    av_frame = stamp_frame(av_frame, av_frame_index, av_frame.pts, av_frame.time_base)
+    #av_frame = stamp_frame(av_frame, av_frame_index, av_frame.pts, av_frame.time_base)
 
     if bitrate == None:
         payloads, timestamp = encoder.encode(av_frame, quantizer=quantizer, enable_gcc=False)
@@ -128,7 +128,8 @@ def get_frame_from_video_codec(av_frame, av_frame_index, encoder, decoder, quant
     payload_data = [vp8_depayload(p) for p in payloads]
     jitter_frame = JitterFrame(data=b"".join(payload_data), timestamp=timestamp)
     decoded_frames = decoder.decode(jitter_frame)
-    decoded_frame_av, video_frame_index = destamp_frame(decoded_frames[0])
+    decoded_frame_av = decoded_frames[0]
+    #decoded_frame_av, video_frame_index = destamp_frame(decoded_frames[0])
     decoded_frame = decoded_frame_av.to_rgb().to_ndarray()
     return decoded_frame_av, decoded_frame, sum([len(p) for p in payloads])
 
