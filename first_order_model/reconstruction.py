@@ -171,7 +171,7 @@ def get_bitrate_from_file(filename):
     for line in output_bytes.split('\n'):
         if 'bitrate' in line:
             bitrate_str = str(line).split(' ')[-2]
-    return float(bitrate_str)/1000.0
+    return float(bitrate_str)
 
 
 def get_reference_bitrate(reference_frames, filename, duration):
