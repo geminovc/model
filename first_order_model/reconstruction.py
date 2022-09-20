@@ -33,30 +33,16 @@ special_frames_list = [1322, 574, 140, 1786, 1048, 839, 761, 2253, 637, 375, \
         112, 939, 1211, 403, 2225, 1900, 207, 1634, 2006, 28]  
 SAVE_LR_FRAMES = True
 
-def get_size_of_nested_list(list_of_elem):
-    """ helper to get size of nested parameter list """ 
-    count = 0
-    for elem in list_of_elem:
-        if type(elem) == list:  
-            count += get_size_of_nested_list(elem)
-        else:
-            count += 1    
-    return count
-
-
 def get_model_info(log_dir, kp_detector, generator):
     """ get model summary information for the passed-in keypoint detector and 
         generator in a text file in the log directory """
+    
     with open(os.path.join(log_dir, 'model_summary.txt'), 'wt') as model_file:
         for model, name in zip([kp_detector, generator], ['kp', 'generator']):
-            number_of_trainable_parameters = 0
-            total_number_of_parameters = 0
             if model is not None:
-                for param in model.parameters():
-                    total_number_of_parameters += get_size_of_nested_list(list(param))
-                    if param.requires_grad:
-                        number_of_trainable_parameters += get_size_of_nested_list(list(param))
-
+                number_of_trainable_parameters = sum(p.numel() for p in model.parameters() if p.requires_grad) 
+                total_number_of_parameters = sum(p.numel() for p in model.parameters())
+  
                 model_file.write('%s %s: %s\n' % (name, 'total_number_of_parameters',
                         str(total_number_of_parameters)))
                 model_file.write('%s %s: %s\n' % (name, 'number_of_trainable_parameters',
