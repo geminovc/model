@@ -18,6 +18,7 @@ class OcclusionAwareGenerator(nn.Module):
                  run_at_256=False, upsample_factor=1, use_hr_skip_connections=False,
                  dense_motion_params=None, estimate_jacobian=False, encode_hr_input_with_additional_blocks=False,
                  use_lr_video=False, lr_features=32, lr_size=64, use_3_pathways=False, concat_lr_video_in_decoder=False,
+                 use_dropout=False, dropout_rate=0,
                  hr_features=16, generator_type='occlusion_aware'):
         super(OcclusionAwareGenerator, self).__init__()
 
@@ -49,6 +50,7 @@ class OcclusionAwareGenerator(nn.Module):
         self.common_decoder_for_3_paths = use_3_pathways
         self.disable_occlusions = False
         self.use_lr_video = use_lr_video
+        self.use_dropout = use_dropout
         self.concat_lr_video_in_decoder = concat_lr_video_in_decoder
 
         if self.common_decoder_for_3_paths:
@@ -89,6 +91,9 @@ class OcclusionAwareGenerator(nn.Module):
         # first layer for LR input
         if self.use_lr_video:
             self.lr_first = SameBlock2d(num_channels, lr_features, kernel_size=(7, 7), padding=(3, 3))
+
+            if self.use_dropout:
+                self.dropout = nn.Dropout(p=dropout_rate)
 
         # enabling extra blocks for bringing higher resolution down
         hr_down_blocks = []
@@ -223,6 +228,9 @@ class OcclusionAwareGenerator(nn.Module):
         # lr target image encoding
         if self.use_lr_video:
             lr_encoded_features = self.lr_first(driving_lr)
+            
+            if self.use_dropout:
+                lr_encoded_features = self.dropout(lr_encoded_features)
 
         lr_occlusion_map = None
         hr_bgnd_map = None
