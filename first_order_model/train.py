@@ -94,7 +94,13 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
         use_RIFE = False
     
     if checkpoint is not None and generator_type in ["occlusion_aware", "split_hf_lf"]:
-        if train_params.get('skip_generator_loading', False):
+        if train_params.get('fine_tune_entire_model', False):
+            start_epoch = Logger.load_cpk(checkpoint, generator, discriminator, kp_detector,
+                                      None if use_RIFE else optimizer_generator, optimizer_discriminator,
+                                      None if train_params['lr_kp_detector'] == 0 else optimizer_kp_detector, 
+                                      dense_motion_network=generator.dense_motion_network,
+                                      generator_type=generator_type)
+        elif train_params.get('skip_generator_loading', False):
             # set optimizers and discriminator to None to avoid bogus values and to start training from scratch
             start_epoch = Logger.load_cpk(checkpoint, None, None, kp_detector,
                                       None, None, None, dense_motion_network=generator.dense_motion_network,
@@ -126,6 +132,13 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
                 start_epoch = 0
 
     elif checkpoint is not None and generator_type == "just_upsampler":
+        if train_params.get('fine_tune_entire_model', False):
+            start_epoch = Logger.load_cpk(checkpoint, generator, discriminator, None,
+                                      optimizer_generator, optimizer_discriminator,
+                                      None, dense_motion_network=None, 
+                                      generator_type=generator_type)
+
+        else:
             start_epoch = Logger.load_cpk(checkpoint, generator, discriminator, None,
                                       None, optimizer_discriminator,
                                       None, dense_motion_network=None, 
