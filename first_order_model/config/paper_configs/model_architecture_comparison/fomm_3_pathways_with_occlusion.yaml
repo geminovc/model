@@ -65,8 +65,9 @@ train_params:
   skip_generator_loading: False
   train_only_generator: False
   train_only_upsample_layers: False
-  encode_video_for_training: False
-  quantizer_level: 55
+  encode_video_for_training: True
+  target_bitrate: 15000
+  quantizer_level: -1
   num_epochs: 30
   num_repeats: 15
   epoch_milestones: [60, 90]
