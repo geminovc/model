@@ -181,4 +181,28 @@ if main_configs['use_lr_video'] == True:
 else:
     LR_SIZE = None
 generator, _, _ = configure_fom_modules(config, torch.device('cuda' if torch.cuda.is_available() else 'cpu'))
-time_generator(generator)
+
+for sparsity in [0, 0.9, 0.5, 0.25]:
+    generator = OcclusionAwareGenerator(**config['model_params']['generator_params'],**config['model_params']['common_params'])
+
+    #generator = AlexNet(dropout=0)#torch.hub.load('pytorch/vision:v0.10.0', 'alexnet', pretrained=True)
+    gen_state_dict = generator.state_dict()
+    if sparsity ==0:
+        print('skip')
+    else:
+        for name in gen_state_dict.keys():
+            gsdl = gen_state_dict[name]
+            z = torch.rand(gsdl.shape)
+            z = z < (1-sparsity )
+            gen_state_dict[name] = gsdl * z
+    generator.load_state_dict(gen_state_dict)
+    x0, x1, x2, x3, x4 = get_random_inputs('generator')
+
+    model_inputs = (x0, {'value':x1, 'jacobian':x2}, {'value':x3, 'jacobian':x4})
+    # print sparsities of each layer
+    for (name, layer) in get_prunable_layers(generator):
+        print("{}.weight: {:.4f}".format(name, tensor_sparsity(layer.weight).item()))
+    #model_inputs = torch.randn(1, 3, 224, 224)
+    exporter = ModuleExporter(generator, output_dir = '/video-conf/scratch/vedantha')
+    print(f"sparsity6-{sparsity}.onnx")
+    exporter.export_onnx(model_inputs, name = f"sparsity12-{sparsity}.onnx")

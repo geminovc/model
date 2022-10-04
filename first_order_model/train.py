@@ -3,6 +3,7 @@ import torch
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
 from first_order_model.modules.model import Vgg19, VggFace16
+import torch.nn.utils.prune as prune
 
 from logger import Logger
 from modules.model import GeneratorFullModel, DiscriminatorFullModel
@@ -264,6 +265,33 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
                 losses = {key: value.mean().detach().data.cpu().numpy() for key, value in losses_generator.items()}
                 logger.log_iter(losses=losses)
 
+            for name, module in generator.named_modules():
+                if isinstance(module, torch.nn.Conv2d):
+                    prune.l1_unstructured(module, name='weight', amount=0.8)
+                    prune.remove(module, name='weight')
+                # prune 40% of connections in all linear layers
+                elif isinstance(module, torch.nn.Linear):
+                    prune.l1_unstructured(module, name='weight', amount=0.8)
+                    prune.remove(module, name='weight')
+                else:
+                    pass
+            inputs = []
+            generator_full.eval()
+            generator_full(x,generator_type, inputs)
+            inputs.append({})
+            inputs[0] = inputs[0].detach()
+            for key in inputs[1].keys():
+                inputs[1][key] = inputs[1][key].detach()
+            for key in inputs[2].keys():
+                inputs[2][key] = inputs[2][key].detach()
+
+            generator.eval()
+            breakpoint()
+            with torch.no_grad():
+                torch.onnx.export(generator, tuple(inputs), 'log/trial1.onnx', export_params=True, opset_version=16)
+            print("SAVED")
+
+
             if epoch > 0:
                 scheduler_generator.step()
                 scheduler_discriminator.step()
@@ -290,6 +318,7 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
 
                         _, metrics_generated = generator_full(y, generator_type)
                         logger.log_metrics_images(i, y, metrics_generated, loss_fn_vgg, original_lpips, face_lpips)
+
 
             logger.log_epoch(epoch, {'generator': generator,
                                      'discriminator': discriminator,
