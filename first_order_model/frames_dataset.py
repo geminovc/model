@@ -147,7 +147,10 @@ class FramesDataset(Dataset):
             path_suffix = name.split("_")[-1]
 
             # get a different clip of the same larger video to pull target frame from
-            path_tgt = np.random.choice(glob.glob(os.path.join(self.root_dir, "*_" + path_suffix)))
+            if self.person_id != 'generic':
+                path_tgt = np.random.choice(glob.glob(os.path.join(self.root_dir, "*_" + path_suffix)))
+            else:
+                path_tgt = path
         else:
             name = self.videos[idx]
             path = os.path.join(self.root_dir, name)
