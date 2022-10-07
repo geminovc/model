@@ -7,7 +7,7 @@ import imageio
 import numpy as np
 from torch.utils.data import Dataset
 import pandas as pd
-#from augmentation import AllAugmentationTransform
+from first_order_model.augmentation import AllAugmentationTransform
 import glob
 import av
 
@@ -141,6 +141,16 @@ class FramesDataset(Dataset):
         if (self.is_train and self.id_sampling):
             name = self.videos[idx]
             path = np.random.choice(glob.glob(os.path.join(self.root_dir, name + '*.mp4')))
+        elif self.is_train:
+            name = self.videos[idx]
+            path = os.path.join(self.root_dir, name)
+            path_suffix = name.split("_")[-1]
+
+            # get a different clip of the same larger video to pull target frame from
+            if self.person_id != 'generic':
+                path_tgt = np.random.choice(glob.glob(os.path.join(self.root_dir, "*_" + path_suffix)))
+            else:
+                path_tgt = path
         else:
             name = self.videos[idx]
             path = os.path.join(self.root_dir, name)
@@ -148,25 +158,28 @@ class FramesDataset(Dataset):
         video_name = os.path.basename(path)
         av_video_array = []
 
-        if self.is_train and os.path.isdir(path):
-            frames = os.listdir(path)
-            num_frames = len(frames)
-            frame_idx = np.sort(np.random.choice(num_frames, replace=True, size=2))
-            video_array = [img_as_float32(io.imread(os.path.join(path, frames[idx]))) for idx in frame_idx]
-        elif path.split('.')[-1] == 'mp4':
-            num_frames = get_num_frames(path)
-            frame_idx = np.sort(np.random.choice(num_frames - 1, replace=True, size=2)) if self.is_train else range(
-            num_frames)
-            try:
-                video_array = np.array([get_frame(path, frame_idx[0]), get_frame(path, frame_idx[1])])
-                fps, time_base_nr, time_base_dr = get_video_details(path)
-            except:
-                print("Couldn't get indices", frame_idx, "of video", path, "with", num_frames, "total frames")
-        else:
-            src_frame = read_single_frame(path)
-            tgt_frame_path = os.path.join(self.root_dir, np.random.choice(os.listdir(self.root_dir)))
-            tgt_frame = read_single_frame(tgt_frame_path)
-            video_array = [src_frame, tgt_frame] if self.is_train else [src_frame]
+        if self.is_train:
+            if  os.path.isdir(path):
+                frames = os.listdir(path)
+                num_frames = len(frames)
+                frame_idx = np.sort(np.random.choice(num_frames, replace=True, size=2))
+                video_array = [img_as_float32(io.imread(os.path.join(path, frames[idx]))) for idx in frame_idx]
+            elif path.split('.')[-1] == 'mp4':
+                num_frames_src = get_num_frames(path)
+                frame_idx_src = np.random.choice(num_frames_src - 1, replace=True) 
+                
+                num_frames_tgt = get_num_frames(path_tgt)
+                frame_idx_tgt = np.random.choice(num_frames_tgt - 1, replace=True) 
+                try:
+                    video_array = np.array([get_frame(path, frame_idx_src), get_frame(path_tgt, frame_idx_tgt)])
+                    fps, time_base_nr, time_base_dr = get_video_details(path_tgt)
+                except:
+                    print("Couldn't get indices", frame_idx, "of video", path, "with", num_frames, "total frames")
+            else:
+                src_frame = read_single_frame(path)
+                tgt_frame_path = os.path.join(self.root_dir, np.random.choice(os.listdir(self.root_dir)))
+                tgt_frame = read_single_frame(tgt_frame_path)
+                video_array = [src_frame, tgt_frame] if self.is_train else [src_frame]
 
         if self.transform is not None:
             video_array = self.transform(video_array)
@@ -181,8 +194,6 @@ class FramesDataset(Dataset):
             out['time_base_nr'] = time_base_nr
             out['time_base_dr'] = time_base_dr
         else:
-            video = video_array
-            out['video'] = video
             out['video_path'] = str(path)
         
         out['name'] = video_name

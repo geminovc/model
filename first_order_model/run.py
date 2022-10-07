@@ -43,6 +43,7 @@ if __name__ == "__main__":
 
     if opt.mode == "reconstruction":
         log_dir = os.path.dirname(opt.checkpoint)
+        log_dir = os.path.join(log_dir, 'reconstruction' + '_' + opt.experiment_name)
     else:
         log_dir = os.path.join(opt.log_dir, opt.experiment_name)
         log_dir += ' ' + strftime("%d_%m_%y_%H.%M.%S", gmtime())
@@ -63,7 +64,9 @@ if __name__ == "__main__":
 
     if not os.path.exists(log_dir):
         os.makedirs(log_dir)
-    if not os.path.exists(os.path.join(log_dir, os.path.basename(opt.config))):
+    if opt.mode != "reconstruction" and not os.path.exists(os.path.join(log_dir, os.path.basename(opt.config))):
+        copy(opt.config, log_dir)
+    elif opt.mode == "reconstruction":
         copy(opt.config, log_dir)
 
     if opt.mode == 'train':

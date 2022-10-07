@@ -43,17 +43,19 @@ model_params:
     hr_features: 16
     encode_hr_input_with_additional_blocks: False
     use_lr_video: True
-    lr_size: 64
+    lr_size: 128
+    concat_lr_video_in_decoder: False
+    use_3_pathways: True
     dense_motion_params:
       block_expansion: 64
       max_features: 1024
       num_blocks: 5
       scale_factor: 0.25
       run_at_256: True
-      concatenate_lr_frame_to_hourglass_input: False
+      concatenate_lr_frame_to_hourglass_input: True
       concatenate_lr_frame_to_hourglass_output: False
-      estimate_additional_masks_for_lr_and_hr_bckgnd: False
-      use_only_src_tgt_for_motion: True
+      estimate_additional_masks_for_lr_and_hr_bckgnd: True
+      use_only_src_tgt_for_motion: False
   discriminator_params:
     scales: [1]
     block_expansion: 32
@@ -66,9 +68,9 @@ train_params:
   skip_generator_loading: False
   train_only_generator: False
   train_only_upsample_layers: False
-  encode_video_for_training: False
-  quantizer_level: 55
-  num_epochs: 70
+  encode_video_for_training: True
+  target_bitrate: 45000
+  num_epochs: 30
   num_repeats: 15
   epoch_milestones: [60, 90]
   lr_generator: 2.0e-4
@@ -76,7 +78,7 @@ train_params:
   lr_kp_detector: 2.0e-4
   batch_size: 2
   scales: [1, 0.5, 0.25, 0.125]
-  checkpoint_freq: 20
+  checkpoint_freq: 15
   transform_params:
     sigma_affine: 0.05
     sigma_tps: 0.005

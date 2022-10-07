@@ -54,12 +54,12 @@ class Logger:
         if torch.cuda.is_available():
             original = original.cuda()
             prediction = prediction.cuda()
-        lpips_val = loss_fn_vgg(original, prediction).data.cpu().numpy().flatten()[0]
-        face_lpips_val = face_lpips(original, prediction).data.cpu().numpy().flatten()[0]
+        lpips_val = 0 #loss_fn_vgg(original, prediction).data.cpu().numpy().flatten()[0]
+        face_lpips_val = 0 #face_lpips(original, prediction).data.cpu().numpy().flatten()[0]
         original_lpips_val = original_lpips(original, prediction).data.cpu().numpy().flatten()[0]
         
         ssim = piq.ssim(original, prediction, data_range=1.).data.cpu().numpy().flatten()[0]
-        ssim_db = -20 * math.log10(1 - ssim)
+        ssim_db = -10 * math.log10(1 - ssim)
         psnr = piq.psnr(original, prediction, data_range=1., reduction='none').data.cpu().numpy()
         
         return {'psnr': psnr, 'ssim': ssim, 'lpips': lpips_val, 'ssim_db': ssim_db, \
@@ -161,10 +161,7 @@ class Logger:
             print("loading everything in generator as is")
             generator.load_state_dict(checkpoint['generator'])
         elif generator is not None and generator_type == "just_upsampler":
-            modified_generator_params = {k: v for k, v in checkpoint['generator'].items() \
-                if (k.startswith("bottleneck") or k.startswith("up"))}
-            generator.load_state_dict(modified_generator_params, strict=False)
-            print("SR: loading bottleneck and upblocks, not loading final/first because of dimensions")
+            print("SR: not loading bottleneck and upblocks, not loading final/first because of dimensions")
 
         if kp_detector is not None:
             print("loading everything in kp detector as is")
@@ -278,6 +275,7 @@ class Visualizer:
         if 'kp_source' in out:
             kp_source = out['kp_source']['value'].data.cpu().numpy()
             images.append((source, kp_source))
+        images.append(source)
 
         # Equivariance visualization
         if 'transformed_frame' in out:

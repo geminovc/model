@@ -23,7 +23,7 @@ import numpy as np
 from aiortc.codecs.vpx import Vp8Encoder, Vp8Decoder, vp8_depayload
 from aiortc.jitterbuffer import JitterFrame
 
-def get_frame_from_video_codec(frame_tensor, nr_list, dr_list, quantizer):
+def get_frame_from_video_codec(frame_tensor, nr_list, dr_list, quantizer, bitrate):
     """ go through the encoder/decoder pipeline to get a 
         representative decoded frame
     """
@@ -43,7 +43,11 @@ def get_frame_from_video_codec(frame_tensor, nr_list, dr_list, quantizer):
         av_frame.pts = 0
         av_frame.time_base = Fraction(nr, dr)
         encoder, decoder = Vp8Encoder(), Vp8Decoder()
-        payloads, timestamp = encoder.encode(av_frame, quantizer=quantizer)
+        if bitrate == None:
+            payloads, timestamp = encoder.encode(av_frame, quantizer=quantizer, enable_gcc=False)
+        else:
+            payloads, timestamp = encoder.encode(av_frame, quantizer=-1, \
+                    target_bitrate=bitrate, enable_gcc=False)
         payload_data = [vp8_depayload(p) for p in payloads]
         
         jitter_frame = JitterFrame(data=b"".join(payload_data), timestamp=timestamp)
@@ -90,7 +94,13 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
         use_RIFE = False
     
     if checkpoint is not None and generator_type in ["occlusion_aware", "split_hf_lf"]:
-        if train_params.get('skip_generator_loading', False):
+        if train_params.get('fine_tune_entire_model', False):
+            start_epoch = Logger.load_cpk(checkpoint, generator, discriminator, kp_detector,
+                                      None if use_RIFE else optimizer_generator, optimizer_discriminator,
+                                      None if train_params['lr_kp_detector'] == 0 else optimizer_kp_detector, 
+                                      dense_motion_network=generator.dense_motion_network,
+                                      generator_type=generator_type)
+        elif train_params.get('skip_generator_loading', False):
             # set optimizers and discriminator to None to avoid bogus values and to start training from scratch
             start_epoch = Logger.load_cpk(checkpoint, None, None, kp_detector,
                                       None, None, None, dense_motion_network=generator.dense_motion_network,
@@ -122,6 +132,13 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
                 start_epoch = 0
 
     elif checkpoint is not None and generator_type == "just_upsampler":
+        if train_params.get('fine_tune_entire_model', False):
+            start_epoch = Logger.load_cpk(checkpoint, generator, discriminator, None,
+                                      optimizer_generator, optimizer_discriminator,
+                                      None, dense_motion_network=None, 
+                                      generator_type=generator_type)
+
+        else:
             start_epoch = Logger.load_cpk(checkpoint, generator, discriminator, None,
                                       None, optimizer_discriminator,
                                       None, dense_motion_network=None, 
@@ -204,10 +221,14 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
                 if use_lr_video or use_RIFE:
                     lr_frame = F.interpolate(x['driving'], lr_size)
                     if train_params.get('encode_video_for_training', False):
-                        quantizer = train_params.get('quantizer_level', -1)
-                        nr = x.get('time_base_nr', torch.ones(lr_frame.size(dim=0)))
-                        dr = x.get('time_base_dr', 30000 * torch.ones(lr_frame.size(dim=0)))
-                        x['driving_lr'] = get_frame_from_video_codec(lr_frame, nr, dr, quantizer) 
+                        target_bitrate = train_params.get('target_bitrate', None)
+                        quantizer_level = train_params.get('quantizer_level', -1)
+                        if target_bitrate == 'random':
+                            target_bitrate = np.random.randint(15, 75) * 1000
+                        nr = x.get('time_base_nr', torch.ones(lr_frame.size(dim=0), dtype=int))
+                        dr = x.get('time_base_dr', 30000 * torch.ones(lr_frame.size(dim=0), dtype=int))
+                        x['driving_lr'] = get_frame_from_video_codec(lr_frame, nr, \
+                                dr, quantizer_level, target_bitrate) 
                     else:
                         x['driving_lr'] = lr_frame
 
@@ -256,8 +277,14 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
                         if use_lr_video or use_RIFE:
                             lr_frame = F.interpolate(y['driving'], lr_size)
                             if train_params.get('encode_video_for_training', False):
-                                quantizer = train_params.get('quantizer_level', -1)
-                                y['driving_lr'] = get_frame_from_video_codec(lr_frame, quantizer) 
+                                target_bitrate = train_params.get('target_bitrate', None)
+                                quantizer_level = train_params.get('quantizer_level', -1)
+                                if target_bitrate == 'random':
+                                    target_bitrate = np.random.randint(15, 75) * 1000
+                                nr = y.get('time_base_nr', torch.ones(lr_frame.size(dim=0), dtype=int))
+                                dr = y.get('time_base_dr', 30000 * torch.ones(lr_frame.size(dim=0), dtype=int))
+                                y['driving_lr'] = get_frame_from_video_codec(lr_frame, nr, \
+                                        dr, quantizer_level, target_bitrate) 
                             else:
                                 y['driving_lr'] = lr_frame
 
