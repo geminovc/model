@@ -23,6 +23,31 @@ import numpy as np
 
 from aiortc.codecs.vpx import Vp8Encoder, Vp8Decoder, vp8_depayload
 from aiortc.jitterbuffer import JitterFrame
+from matplotlib import pyplot as plt
+def plot_weight_distribution(model, file_name, bins=256, count_nonzero_only=False):
+    fig, axes = plt.subplots(3,3, figsize=(10, 6))
+    axes = axes.ravel()
+    plot_index = 0
+    for name, param in model.named_parameters():
+        if param.dim() > 1:
+            ax = axes[plot_index]
+            if count_nonzero_only:
+                param_cpu = param.detach().view(-1).cpu()
+                param_cpu = param_cpu[param_cpu != 0].view(-1)
+                ax.hist(param_cpu, bins=bins, density=True, 
+                        alpha = 0.5, histtype='step')
+            else:
+                ax.hist(param.detach().view(-1).cpu(), bins=bins, density=True, 
+                        alpha = 0.5, histtype='step')
+            ax.set_xlabel(name)
+            ax.set_ylabel('density')
+            plot_index += 1
+            if plot_index > -1:
+                break
+    fig.suptitle('Histogram of Weights')
+    fig.tight_layout()
+    fig.subplots_adjust(top=0.925)
+    plt.savefig(file_name)
 
 def get_frame_from_video_codec(frame_tensor, nr_list, dr_list, quantizer, bitrate):
     """ go through the encoder/decoder pipeline to get a 
@@ -265,6 +290,9 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
                 losses = {key: value.mean().detach().data.cpu().numpy() for key, value in losses_generator.items()}
                 logger.log_iter(losses=losses)
 
+            breakpoint()
+            plot_weight_distribution(generator, 'unpruned.png')
+
             for name, module in generator.named_modules():
                 if isinstance(module, torch.nn.Conv2d):
                     prune.l1_unstructured(module, name='weight', amount=0.8)
@@ -275,6 +303,7 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
                     prune.remove(module, name='weight')
                 else:
                     pass
+            plot_weight_distribution(generator, 'pruned.png')
             inputs = []
             generator_full.eval()
             generator_full(x,generator_type, inputs)

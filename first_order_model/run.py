@@ -35,6 +35,7 @@ if __name__ == "__main__":
     parser.add_argument("--save_visualizations_as_images", action="store_true", help="Save visuals as raw images for residual")
     parser.add_argument("--reference_frame_update_freq", type=int, help="how frequently to update reference frame")
     parser.add_argument("--person_id", dest="person_id", type=str, default=None, help="train on specific person")
+    parser.add_argument("--pruning_rate", dest="pruning_rate", default = 0.01)
     parser.set_defaults(verbose=False)
 
     opt = parser.parse_args()
