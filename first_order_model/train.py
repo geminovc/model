@@ -278,15 +278,14 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
             inputs = []
             generator_full.eval()
             generator_full(x,generator_type, inputs)
-            inputs.append({})
+
             inputs[0] = inputs[0].detach()
             for key in inputs[1].keys():
-                inputs[1][key] = inputs[1][key].detach()
-            for key in inputs[2].keys():
-                inputs[2][key] = inputs[2][key].detach()
+                if type(inputs[1][key]) is dict:
+                    for key_ in inputs[1][key].keys():
+                        inputs[1][key][key_] = inputs[1][key][key_].detach()
 
             generator.eval()
-            breakpoint()
             with torch.no_grad():
                 torch.onnx.export(generator, tuple(inputs), 'log/trial1.onnx', export_params=True, opset_version=16)
             print("SAVED")

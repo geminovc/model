@@ -225,7 +225,7 @@ class GeneratorFullModel(torch.nn.Module):
                 self.vgg_face = self.vgg_face.cuda()
 
 
-    def forward(self, x, generator_type='occlusion_aware'):
+    def forward(self, x, generator_type='occlusion_aware', model_inputs = []):
         driving_lr =  x.get('driving_lr', None)
 
         if generator_type in ['occlusion_aware', 'split_hf_lf']:
@@ -235,6 +235,9 @@ class GeneratorFullModel(torch.nn.Module):
                 kp_driving = self.kp_extractor(driving_lr)
             else:
                 kp_driving = self.kp_extractor(x['driving'])
+
+            model_inputs.append(x['source'])
+            model_inputs.append({'kp_source': kp_source, 'kp_driving': kp_driving, 'update_source': True, 'driving_lr': driving_lr})
 
             generated = self.generator(x['source'], kp_source=kp_source, 
                     kp_driving=kp_driving, update_source=True, 

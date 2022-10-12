@@ -87,8 +87,8 @@ class DenseMotionNetwork(nn.Module):
         spatial_size = source_image.shape[2:]
         pixel_heatmap = None
         gaussian_driving = kp2gaussian(kp_driving, spatial_size=spatial_size, kp_variance=self.kp_variance)
-        if self.update_source or self.gaussian_source == None:
-            self.gaussian_source = kp2gaussian(kp_source, spatial_size=spatial_size, kp_variance=self.kp_variance)
+        #if self.update_source or self.gaussian_source == None:
+        self.gaussian_source = kp2gaussian(kp_source, spatial_size=spatial_size, kp_variance=self.kp_variance)
 
         heatmap = gaussian_driving - self.gaussian_source
 

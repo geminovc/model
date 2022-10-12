@@ -187,7 +187,6 @@ class OcclusionAwareGenerator(nn.Module):
 
     def deform_input(self, inp, deformation):
         _, h_old, w_old, _ = deformation.shape
-        print(inp.requires_grad, 'inpreqgrad')
         _, _, h, w = inp.shape
         if not (h_old == h and w_old == w):
             deformation = deformation.permute(0, 3, 1, 2)
@@ -205,7 +204,6 @@ class OcclusionAwareGenerator(nn.Module):
             self.source_image = source_image
         
         # Encoding (downsampling) part
-        breakpoint()
         if self.encoder_output is None or self.update_source:
             if self.run_at_256:
                 resized_source_image = F.interpolate(source_image, 256)
