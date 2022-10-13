@@ -445,6 +445,7 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
 
                 elif generator_type == "vpx":
                     out = {'prediction': encoded_frame}
+                    driving_times.append(0)
 
                 elif generator_type == "bicubic":
                     driving_lr_av = av.VideoFrame.from_ndarray(lr_frame)
@@ -453,6 +454,7 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
                                 interpolation='BICUBIC').to_rgb().to_ndarray()
                     prediction = frame_to_tensor(img_as_float32(upsampled_frame), device)
                     out = {'prediction': prediction}
+                    driving_times.append(0)
 
                 else:
                     out = generator(driving_lr)
