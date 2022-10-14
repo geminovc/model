@@ -1,6 +1,8 @@
 from tqdm import trange
 import torch
 import torch.nn.functional as F
+import first_order_model
+import sys
 from torch.utils.data import DataLoader
 from first_order_model.modules.model import Vgg19, VggFace16
 import torch.nn.utils.prune as prune
@@ -12,7 +14,7 @@ from torch.optim.lr_scheduler import MultiStepLR
 
 from sync_batchnorm import DataParallelWithCallback
 from skimage import img_as_float32
-
+import copy
 from frames_dataset import DatasetRepeater
 from frames_dataset import MetricsDataset
 from fractions import Fraction
@@ -20,6 +22,7 @@ import lpips
 import random
 import av
 import numpy as np
+import torch.nn as nn
 
 from aiortc.codecs.vpx import Vp8Encoder, Vp8Decoder, vp8_depayload
 from aiortc.jitterbuffer import JitterFrame
@@ -35,10 +38,10 @@ def plot_weight_distribution(model, file_name, bins=256, count_nonzero_only=Fals
                 param_cpu = param.detach().view(-1).cpu()
                 param_cpu = param_cpu[param_cpu != 0].view(-1)
                 ax.hist(param_cpu, bins=bins, density=True, 
-                        alpha = 0.5, histtype='step')
+                        alpha = 0.5)
             else:
-                ax.hist(param.detach().view(-1).cpu(), bins=bins, density=True, 
-                        alpha = 0.5, histtype='step')
+                ax.hist(param.detach().view(-1).cpu()[:1000], bins=bins, density=True, 
+                        alpha = 0.5)
             ax.set_xlabel(name)
             ax.set_ylabel('density')
             plot_index += 1
@@ -48,6 +51,143 @@ def plot_weight_distribution(model, file_name, bins=256, count_nonzero_only=Fals
     fig.tight_layout()
     fig.subplots_adjust(top=0.925)
     plt.savefig(file_name)
+
+def fine_grained_prune(tensor, sparsity):
+    prune.l1_unstructured(module, name='weight', amount=sparsity)
+
+def calculate_importance(weight):
+    in_channels = weight.shape[1]
+    importances = []
+    # compute the importance for each input channel
+    for i_c in range(weight.shape[1]):
+        channel_weight = weight.detach()[:, i_c]
+        ##################### YOUR CODE STARTS HERE #####################
+        importance = torch.norm(channel_weight, 'fro')
+
+        ##################### YOUR CODE ENDS HERE #####################
+        importances.append(importance.view(1))
+    return torch.cat(importances)
+
+@torch.no_grad()
+def apply_channel_sorting(model):
+    model = copy.deepcopy(model)  # do not modify the original model
+    # fetch all the conv and bn layers from the backbone
+    all_convs = [m for m in model.modules() if isinstance(m, nn.Conv2d)]
+    all_convs = all_convs[:10] + all_convs[14:]
+    all_bns = [m for m in model.modules() if isinstance(m, first_order_model.sync_batchnorm.SynchronizedBatchNorm2d)]
+    # iterate through conv layers
+    for i_conv in range(len(all_convs) - 1):
+        # each channel sorting index, we need to apply it to:
+        # - the output dimension of the previous conv
+        # - the previous BN layer
+        # - the input dimension of the next conv (we compute importance here)
+        prev_conv = all_convs[i_conv]
+        prev_bn = all_bns[i_conv]
+        next_conv = all_convs[i_conv + 1]
+        # note that we always compute the importance according to input channels
+        importance = get_input_channel_importance(next_conv.weight)
+        # sorting from large to small
+        sort_idx = torch.argsort(importance, descending=True) 
+
+        # apply to previous conv and its following bn
+        prev_conv.weight.copy_(torch.index_select(
+            prev_conv.weight.detach(), 0, sort_idx))
+        prev_conv.bias.copy_(torch.index_select(
+            prev_conv.bias.detach(), 0, sort_idx))
+        for tensor_name in ['weight', 'bias', 'running_mean', 'running_var']:
+            tensor_to_apply = getattr(prev_bn, tensor_name)
+            tensor_to_apply.copy_(
+                torch.index_select(tensor_to_apply.detach(), 0, sort_idx)
+            )
+        
+        # apply to the next conv input (hint: one line of code)
+        breakpoint() # To select 0 or 1 or something else
+        next_conv.weight.copy_(torch.index_select(
+            next_conv.weight.detach(), 0, sort_idx))
+        next_conv.bias.copy_(torch.index_select(
+            next_conv.bias.detach(), 0, sort_idx))
+
+    return model
+
+def get_num_channels_to_keep(channels: int, prune_ratio: float) -> int:
+    """A function to calculate the number of layers to PRESERVE after pruning
+    Note that preserve_rate = 1. - prune_ratio
+    """
+    return int(round(channels * (1-prune_ratio)))
+
+@torch.no_grad()
+def channel_prune(model, prune_ratio):
+    """Apply channel pruning to each of the conv layer in the backbone
+    Note that for prune_ratio, we can either provide a floating-point number,
+    indicating that we use a uniform pruning rate for all layers, or a list of
+    numbers to indicate per-layer pruning rate.
+    """
+    breakpoint()
+    print("START")
+    # sanity check of provided prune_ratio
+    assert isinstance(prune_ratio, (float, list))
+
+    # we prune the convs in the backbone with a uniform ratio
+    model = copy.deepcopy(model)  # prevent overwrite
+    # we only apply pruning to the backbone features
+    all_convs = [m for m in model.modules() if isinstance(m, nn.Conv2d)]
+    all_convs = all_convs[:10] + all_convs[14:-1]
+    n_conv = len(all_convs)
+    # note that for the ratios, it affects the previous conv output and next
+    # conv input, i.e., conv0 - ratio0 - conv1 - ratio1-...
+    if isinstance(prune_ratio, list):
+        assert len(prune_ratio) == n_conv - 1
+    else:  # convert float to list
+        prune_ratio = [prune_ratio] * (n_conv - 1)
+    all_bns = [m for m in model.modules() if isinstance(m, first_order_model.sync_batchnorm.SynchronizedBatchNorm2d)]
+    # apply pruning. we naively keep the first k channels
+    assert len(all_convs) == len(all_bns)
+    for i_ratio, p_ratio in enumerate(prune_ratio):
+        prev_conv = all_convs[i_ratio]
+        prev_bn = all_bns[i_ratio]
+        next_conv = all_convs[i_ratio + 1]
+        original_channels = prev_conv.out_channels  # same as next_conv.in_channels
+        n_keep = get_num_channels_to_keep(original_channels, p_ratio)
+
+        # prune the output of the previous conv and bn
+        prev_conv.weight.set_(prev_conv.weight.detach()[:n_keep])
+        prev_conv.bias.set_(prev_conv.bias.detach()[:n_keep])
+        prev_bn.weight.set_(prev_bn.weight.detach()[:n_keep])
+        prev_bn.bias.set_(prev_bn.bias.detach()[:n_keep])
+        prev_bn.running_mean.set_(prev_bn.running_mean.detach()[:n_keep])
+        prev_bn.running_var.set_(prev_bn.running_var.detach()[:n_keep])
+
+        # prune the input of the next conv (hint: just one line of code)
+        next_conv.weight.set_(next_conv.weight.detach()[:,:n_keep])
+
+
+    breakpoint()
+    print("end")
+    return model
+
+
+@torch.no_grad()
+def sensitivity_scan(model, dataloader, scan_step=0.1, scan_start=0.4, scan_end=1.0, verbose=True):
+    sparsities = np.arange(start=scan_start, stop=scan_end, step=scan_step)
+    accuracies = []
+    named_conv_weights = [(name, param) for (name, param) \
+                          in model.named_parameters() if param.dim() > 1]
+    for i_layer, (name, param) in enumerate(named_conv_weights):
+        param_clone = param.detach().clone()
+        accuracy = []
+        for sparsity in tqdm(sparsities, desc=f'scanning {i_layer}/{len(named_conv_weights)} weight - {name}'):
+            prune.l1_unstructured(param, name='weight', amount=sparsity)
+            fine_grained_prune(param.detach(), sparsity=sparsity)
+            acc = evaluate(model, dataloader, verbose=False)
+            if verbose:
+                print(f'\r    sparsity={sparsity:.2f}: accuracy={acc:.2f}%', end='')
+            # restore
+            param.copy_(param_clone)
+            accuracy.append(acc)
+        if verbose:
+            print(f'\r    sparsity=[{",".join(["{:.2f}".format(x) for x in sparsities])}]: accuracy=[{", ".join(["{:.2f}%".format(x) for x in accuracy])}]', end='')
+        accuracies.append(accuracy)
+    return sparsities, accuracies
 
 def get_frame_from_video_codec(frame_tensor, nr_list, dr_list, quantizer, bitrate):
     """ go through the encoder/decoder pipeline to get a 
@@ -223,6 +363,7 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
         metrics_dataset = MetricsDataset(**config['metrics_params'])
         metrics_dataloader = DataLoader(metrics_dataset, batch_size=train_params['batch_size'], shuffle=False, 
                 num_workers=6, drop_last=True)
+    generator = channel_prune(generator, 0.5)
 
     generator_full = GeneratorFullModel(kp_detector, generator, discriminator, train_params)
     discriminator_full = DiscriminatorFullModel(kp_detector, generator, discriminator, train_params)
@@ -290,8 +431,7 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
                 losses = {key: value.mean().detach().data.cpu().numpy() for key, value in losses_generator.items()}
                 logger.log_iter(losses=losses)
 
-            breakpoint()
-            plot_weight_distribution(generator, 'unpruned.png')
+            #plot_weight_distribution(generator, 'unpruned.png')
 
             for name, module in generator.named_modules():
                 if isinstance(module, torch.nn.Conv2d):
@@ -303,7 +443,7 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
                     prune.remove(module, name='weight')
                 else:
                     pass
-            plot_weight_distribution(generator, 'pruned.png')
+            #plot_weight_distribution(generator, 'pruned.png')
             inputs = []
             generator_full.eval()
             generator_full(x,generator_type, inputs)
