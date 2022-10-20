@@ -55,7 +55,7 @@ def plot_weight_distribution(model, file_name, bins=256, count_nonzero_only=Fals
 def fine_grained_prune(tensor, sparsity):
     prune.l1_unstructured(module, name='weight', amount=sparsity)
 
-def calculate_importance(weight):
+def get_input_channel_importance(weight):
     in_channels = weight.shape[1]
     importances = []
     # compute the importance for each input channel
@@ -68,21 +68,110 @@ def calculate_importance(weight):
         importances.append(importance.view(1))
     return torch.cat(importances)
 
+class Node:
+    def __init__(self, index, t):
+        self.index = index
+        self.type = t
+        self.before = []
+        self.after = []
+    def add_before(self, index):
+        self.before.append(index)
+    def add_after(self, index):
+        self.after.append(index)
+
+def build_graph(all_layers):
+    # For the sake of getting this working we are going to hardcode each layer
+    graph = {}
+    for index in range(len(all_layers)):
+        graph[index] = Node(index)
+    
+    # Go through this manually
+
+    return graph
+
 @torch.no_grad()
 def apply_channel_sorting(model):
     model = copy.deepcopy(model)  # do not modify the original model
     # fetch all the conv and bn layers from the backbone
+    breakpoint()
     all_convs = [m for m in model.modules() if isinstance(m, nn.Conv2d)]
     all_convs = all_convs[:10] + all_convs[14:]
     all_bns = [m for m in model.modules() if isinstance(m, first_order_model.sync_batchnorm.SynchronizedBatchNorm2d)]
+    all_layers = [m for m in model.modules() if (isinstance(m, nn.Conv2d) or isinstance(m, first_order_model.sync_batchnorm.SynchronizedBatchNorm2d))]
+
+    layer_graph = build_graph(all_layers)
+
+    def is_valid_helper(node, layer_graph):
+        if len(node.after) > 1 or len(node.after) == 0:
+            return False, None
+        if node.type == 'conv':
+            return True, node
+        return is_valid_helper(node.after[0])
+
+    def is_valid(node, layer_graph):
+        if len(node.after) > 1 or len(node.after) == 0:
+            return False, None
+        return is_valid_helper(node.after[0])
+
+    for node in layer_graph:
+        if node.type == 'conv':
+            valid, end = is_valid(node, layer_graph)
+            if not valid:
+                continue
+
+            importance = get_input_channel_importance(layer_graph[end.index].weight)
+            # sorting from large to small
+            sort_idx = torch.argsort(importance, descending=True) 
+
+            temp = node
+            layer_graph[temp.index].weight.copy_(torch.index_select(
+                layer_graph[temp.index].weight.detach(), 0, sort_idx))
+            layer_graph[temp.index].bias.copy_(torch.index_select(
+                layer_graph[temp.index].bias.detach(), 0, sort_idx))
+            temp=temp.after[0]
+
+            while temp.type != 'conv':
+
+                bn = layer_graph[temp.index]
+                for tensor_name in ['weight', 'bias', 'running_mean', 'running_var']:
+                    tensor_to_apply = getattr(bn, tensor_name)
+                    tensor_to_apply.copy_(
+                        torch.index_select(tensor_to_apply.detach(), 0, sort_idx)
+                    )
+                temp = temp.after[0]
+
+            layer_graph[temp.index].weight.copy_(torch.index_select(
+                layer_graph[temp.index].weight.detach(), 1, sort_idx))
+        # Go through the following nodes till you find the end
+        # Generate the ordering
+        # Sort the previous nodes
+        new_node = node.after[0]
+        while new_node
+        if len(node.after) != 0:
+            # Adjust the outputs of this node
+            if node.type == 'conv':
+                conv = all_layers[node.index]
+                conv.weight.copy_(torch.index_select(
+                    prev_conv.weight.detach(), 0, sort_idx))
+                conv.bias.copy_(torch.index_select(
+                    prev_conv.bias.detach(), 0, sort_idx))
+            if node.type == 'batchnorm':
+                bn = all_layers[node.index]
+                for tensor_name in ['weight', 'bias', 'running_mean', 'running_var']:
+                    tensor_to_apply = getattr(bn, tensor_name)
+                    tensor_to_apply.copy_(
+                        torch.index_select(tensor_to_apply.detach(), 0, sort_idx)
+                    )
+
+
     # iterate through conv layers
-    for i_conv in range(len(all_convs) - 1):
+    for i_conv in range(len(all_layers) - 1):
         # each channel sorting index, we need to apply it to:
         # - the output dimension of the previous conv
         # - the previous BN layer
         # - the input dimension of the next conv (we compute importance here)
-        prev_conv = all_convs[i_conv]
-        prev_bn = all_bns[i_conv]
+        prev_layer = all_layers[i_conv]
+        next_layer = all_layers[i_conv]
         next_conv = all_convs[i_conv + 1]
         # note that we always compute the importance according to input channels
         importance = get_input_channel_importance(next_conv.weight)
@@ -101,11 +190,8 @@ def apply_channel_sorting(model):
             )
         
         # apply to the next conv input (hint: one line of code)
-        breakpoint() # To select 0 or 1 or something else
         next_conv.weight.copy_(torch.index_select(
-            next_conv.weight.detach(), 0, sort_idx))
-        next_conv.bias.copy_(torch.index_select(
-            next_conv.bias.detach(), 0, sort_idx))
+            next_conv.weight.detach(), 1, sort_idx))
 
     return model
 
@@ -140,6 +226,30 @@ def channel_prune(model, prune_ratio):
     else:  # convert float to list
         prune_ratio = [prune_ratio] * (n_conv - 1)
     all_bns = [m for m in model.modules() if isinstance(m, first_order_model.sync_batchnorm.SynchronizedBatchNorm2d)]
+    all_layers = [m for m in model.modules() if (isinstance(m, nn.Conv2d) or isinstance(m, first_order_model.sync_batchnorm.SynchronizedBatchNorm2d))]
+
+    layer_graph = build_graph(all_layers)
+
+    for node in layer_graph:
+        if len(node.before) != 0:
+            if node.type == 'conv':
+                conv = all_layers[node.index]
+                n_keep = get_num_channels_to_keep(conv.in_channels, p_ratio)
+                conv.weight.set_(next_conv.weight.detach()[:,:n_keep])
+
+        if len(node.after) != 0:
+            if node.type == 'conv':
+                conv = all_layers[node.index]
+                n_keep = get_num_channels_to_keep(conv.out_channels, p_ratio)
+                conv.weight.set_(next_conv.weight.detach()[:n_keep])
+            if node.type == 'batchnorm':
+                bn = all_layers[node.index]
+                n_keep = get_num_channels_to_keep(bn.weight.shape[0], p_ratio)
+
+                bn.weight.set_(bn.weight.detach()[:n_keep])
+                bn.bias.set_(bn.bias.detach()[:n_keep])
+                bn.running_mean.set_(bn.running_mean.detach()[:n_keep])
+                bn.running_var.set_(bn.running_var.detach()[:n_keep])
     # apply pruning. we naively keep the first k channels
     assert len(all_convs) == len(all_bns)
     for i_ratio, p_ratio in enumerate(prune_ratio):
@@ -152,12 +262,16 @@ def channel_prune(model, prune_ratio):
         # prune the output of the previous conv and bn
         prev_conv.weight.set_(prev_conv.weight.detach()[:n_keep])
         prev_conv.bias.set_(prev_conv.bias.detach()[:n_keep])
+
+        n_keep = get_num_channels_to_keep(prev_bn.weight.shape[0], p_ratio)
+
         prev_bn.weight.set_(prev_bn.weight.detach()[:n_keep])
         prev_bn.bias.set_(prev_bn.bias.detach()[:n_keep])
         prev_bn.running_mean.set_(prev_bn.running_mean.detach()[:n_keep])
         prev_bn.running_var.set_(prev_bn.running_var.detach()[:n_keep])
 
         # prune the input of the next conv (hint: just one line of code)
+        n_keep = get_num_channels_to_keep(next_conv.weight.shape[1], p_ratio)
         next_conv.weight.set_(next_conv.weight.detach()[:,:n_keep])
 
 
@@ -363,6 +477,7 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
         metrics_dataset = MetricsDataset(**config['metrics_params'])
         metrics_dataloader = DataLoader(metrics_dataset, batch_size=train_params['batch_size'], shuffle=False, 
                 num_workers=6, drop_last=True)
+    generator = apply_channel_sorting(generator)
     generator = channel_prune(generator, 0.5)
 
     generator_full = GeneratorFullModel(kp_detector, generator, discriminator, train_params)
