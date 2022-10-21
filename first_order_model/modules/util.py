@@ -141,6 +141,8 @@ class SameBlock2d(nn.Module):
         self.norm = BatchNorm2d(out_features, affine=True)
 
     def forward(self, x):
+        print("SB in shape", x.shape)
+        print("SB conv shape", self.conv.weight.shape)
         out = self.conv(x)
         out = self.norm(out)
         out = F.relu(out)

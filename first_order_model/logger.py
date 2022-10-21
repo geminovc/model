@@ -165,7 +165,7 @@ class Logger:
 
         if kp_detector is not None:
             print("loading everything in kp detector as is")
-            kp_detector.load_state_dict(checkpoint['kp_detector'])
+            kp_detector.load_state_dict(checkpoint['kp_detector'], strict=False)
 
         if discriminator is not None: 
             try:

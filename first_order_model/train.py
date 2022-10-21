@@ -27,26 +27,53 @@ import torch.nn as nn
 from aiortc.codecs.vpx import Vp8Encoder, Vp8Decoder, vp8_depayload
 from aiortc.jitterbuffer import JitterFrame
 from matplotlib import pyplot as plt
-def plot_weight_distribution(model, file_name, bins=256, count_nonzero_only=False):
-    fig, axes = plt.subplots(3,3, figsize=(10, 6))
+def plot_weight_distribution(model, file_name, bins=128, count_nonzero_only=False):
+    fig, axes = plt.subplots(8,10, figsize=(100, 60))
     axes = axes.ravel()
     plot_index = 0
     for name, param in model.named_parameters():
+        if not name.endswith('weight'):
+            continue
         if param.dim() > 1:
             ax = axes[plot_index]
             if count_nonzero_only:
                 param_cpu = param.detach().view(-1).cpu()
+                param_cpu = torch.norm(param_cpu, 'fro')
                 param_cpu = param_cpu[param_cpu != 0].view(-1)
                 ax.hist(param_cpu, bins=bins, density=True, 
                         alpha = 0.5)
             else:
-                ax.hist(param.detach().view(-1).cpu()[:1000], bins=bins, density=True, 
-                        alpha = 0.5)
+                breakpoint()
+                ax.hist(param.detach().view(-1).cpu().numpy(), bins=bins, density=True, 
+                        color = 'blue', alpha = 0.5)
             ax.set_xlabel(name)
             ax.set_ylabel('density')
             plot_index += 1
-            if plot_index > -1:
-                break
+    fig.suptitle('Histogram of Weights')
+    fig.tight_layout()
+    fig.subplots_adjust(top=0.925)
+    plt.savefig(file_name)
+def plot_norm_distribution(model, file_name, bins=128, count_nonzero_only=False):
+    fig, axes = plt.subplots(8,10, figsize=(100, 60))
+    axes = axes.ravel()
+    plot_index = 0
+    for name, param in model.named_parameters():
+        if not name.endswith('weight'):
+            continue
+        if param.dim() > 1:
+            ax = axes[plot_index]
+            if count_nonzero_only:
+                param_cpu = param.detach().view(-1).cpu()
+                param_cpu = torch.norm(param_cpu, 'fro')
+                param_cpu = param_cpu[param_cpu != 0].view(-1)
+                ax.hist(param_cpu, bins=bins, density=True, 
+                        alpha = 0.5)
+            else:
+                ax.hist(param.detach().view(-1).cpu().numpy(), bins=bins, density=True, 
+                        color = 'blue', alpha = 0.5)
+            ax.set_xlabel(name)
+            ax.set_ylabel('density')
+            plot_index += 1
     fig.suptitle('Histogram of Weights')
     fig.tight_layout()
     fig.subplots_adjust(top=0.925)
@@ -69,24 +96,36 @@ def get_input_channel_importance(weight):
     return torch.cat(importances)
 
 class Node:
-    def __init__(self, index, t):
+    def __init__(self, index, t, i, o):
         self.index = index
         self.type = t
+        self.i = i
+        self.o = o
         self.before = []
         self.after = []
-    def add_before(self, index):
+    def add_before(self, node):
         self.before.append(index)
-    def add_after(self, index):
+    def add_after(self, node):
         self.after.append(index)
 
 def build_graph(all_layers):
     # For the sake of getting this working we are going to hardcode each layer
     graph = {}
     for index in range(len(all_layers)):
-        graph[index] = Node(index)
+        if isinstance(all_layers[index], nn.Conv2d):
+
+            graph[index] = Node(index, 'conv', all_layers[index].in_channels, all_layers[index].out_channels)
+        elif isinstance(all_layers[index], first_order_model.sync_batchnorm.SynchronizedBatchNorm2d):
+            graph[index] = Node(index, 'batchnorm', all_layers[index].num_features, all_layers[index].num_features)
+        else:
+            graph[index] = Node(index)
+            
     
     # Go through this manually
-
+    for index in graph.keys():
+        if index + 1 in graph.keys():
+            if graph[index].o != graph[index+1].i:
+                print('index', index)
     return graph
 
 @torch.no_grad()
@@ -95,6 +134,7 @@ def apply_channel_sorting(model):
     # fetch all the conv and bn layers from the backbone
     breakpoint()
     all_convs = [m for m in model.modules() if isinstance(m, nn.Conv2d)]
+
     all_convs = all_convs[:10] + all_convs[14:]
     all_bns = [m for m in model.modules() if isinstance(m, first_order_model.sync_batchnorm.SynchronizedBatchNorm2d)]
     all_layers = [m for m in model.modules() if (isinstance(m, nn.Conv2d) or isinstance(m, first_order_model.sync_batchnorm.SynchronizedBatchNorm2d))]
@@ -142,57 +182,6 @@ def apply_channel_sorting(model):
 
             layer_graph[temp.index].weight.copy_(torch.index_select(
                 layer_graph[temp.index].weight.detach(), 1, sort_idx))
-        # Go through the following nodes till you find the end
-        # Generate the ordering
-        # Sort the previous nodes
-        new_node = node.after[0]
-        while new_node
-        if len(node.after) != 0:
-            # Adjust the outputs of this node
-            if node.type == 'conv':
-                conv = all_layers[node.index]
-                conv.weight.copy_(torch.index_select(
-                    prev_conv.weight.detach(), 0, sort_idx))
-                conv.bias.copy_(torch.index_select(
-                    prev_conv.bias.detach(), 0, sort_idx))
-            if node.type == 'batchnorm':
-                bn = all_layers[node.index]
-                for tensor_name in ['weight', 'bias', 'running_mean', 'running_var']:
-                    tensor_to_apply = getattr(bn, tensor_name)
-                    tensor_to_apply.copy_(
-                        torch.index_select(tensor_to_apply.detach(), 0, sort_idx)
-                    )
-
-
-    # iterate through conv layers
-    for i_conv in range(len(all_layers) - 1):
-        # each channel sorting index, we need to apply it to:
-        # - the output dimension of the previous conv
-        # - the previous BN layer
-        # - the input dimension of the next conv (we compute importance here)
-        prev_layer = all_layers[i_conv]
-        next_layer = all_layers[i_conv]
-        next_conv = all_convs[i_conv + 1]
-        # note that we always compute the importance according to input channels
-        importance = get_input_channel_importance(next_conv.weight)
-        # sorting from large to small
-        sort_idx = torch.argsort(importance, descending=True) 
-
-        # apply to previous conv and its following bn
-        prev_conv.weight.copy_(torch.index_select(
-            prev_conv.weight.detach(), 0, sort_idx))
-        prev_conv.bias.copy_(torch.index_select(
-            prev_conv.bias.detach(), 0, sort_idx))
-        for tensor_name in ['weight', 'bias', 'running_mean', 'running_var']:
-            tensor_to_apply = getattr(prev_bn, tensor_name)
-            tensor_to_apply.copy_(
-                torch.index_select(tensor_to_apply.detach(), 0, sort_idx)
-            )
-        
-        # apply to the next conv input (hint: one line of code)
-        next_conv.weight.copy_(torch.index_select(
-            next_conv.weight.detach(), 1, sort_idx))
-
     return model
 
 def get_num_channels_to_keep(channels: int, prune_ratio: float) -> int:
@@ -228,6 +217,7 @@ def channel_prune(model, prune_ratio):
     all_bns = [m for m in model.modules() if isinstance(m, first_order_model.sync_batchnorm.SynchronizedBatchNorm2d)]
     all_layers = [m for m in model.modules() if (isinstance(m, nn.Conv2d) or isinstance(m, first_order_model.sync_batchnorm.SynchronizedBatchNorm2d))]
 
+    breakpoint()
     layer_graph = build_graph(all_layers)
 
     for node in layer_graph:
@@ -250,30 +240,6 @@ def channel_prune(model, prune_ratio):
                 bn.bias.set_(bn.bias.detach()[:n_keep])
                 bn.running_mean.set_(bn.running_mean.detach()[:n_keep])
                 bn.running_var.set_(bn.running_var.detach()[:n_keep])
-    # apply pruning. we naively keep the first k channels
-    assert len(all_convs) == len(all_bns)
-    for i_ratio, p_ratio in enumerate(prune_ratio):
-        prev_conv = all_convs[i_ratio]
-        prev_bn = all_bns[i_ratio]
-        next_conv = all_convs[i_ratio + 1]
-        original_channels = prev_conv.out_channels  # same as next_conv.in_channels
-        n_keep = get_num_channels_to_keep(original_channels, p_ratio)
-
-        # prune the output of the previous conv and bn
-        prev_conv.weight.set_(prev_conv.weight.detach()[:n_keep])
-        prev_conv.bias.set_(prev_conv.bias.detach()[:n_keep])
-
-        n_keep = get_num_channels_to_keep(prev_bn.weight.shape[0], p_ratio)
-
-        prev_bn.weight.set_(prev_bn.weight.detach()[:n_keep])
-        prev_bn.bias.set_(prev_bn.bias.detach()[:n_keep])
-        prev_bn.running_mean.set_(prev_bn.running_mean.detach()[:n_keep])
-        prev_bn.running_var.set_(prev_bn.running_var.detach()[:n_keep])
-
-        # prune the input of the next conv (hint: just one line of code)
-        n_keep = get_num_channels_to_keep(next_conv.weight.shape[1], p_ratio)
-        next_conv.weight.set_(next_conv.weight.detach()[:,:n_keep])
-
 
     breakpoint()
     print("end")
@@ -372,7 +338,11 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
         use_RIFE = True
     else:
         use_RIFE = False
+
+
     
+    plot_weight_distribution(generator, 'before_load.png')
+    breakpoint()
     if checkpoint is not None and generator_type in ["occlusion_aware", "split_hf_lf"]:
         if train_params.get('fine_tune_entire_model', False):
             start_epoch = Logger.load_cpk(checkpoint, generator, discriminator, kp_detector,
@@ -477,8 +447,8 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
         metrics_dataset = MetricsDataset(**config['metrics_params'])
         metrics_dataloader = DataLoader(metrics_dataset, batch_size=train_params['batch_size'], shuffle=False, 
                 num_workers=6, drop_last=True)
-    generator = apply_channel_sorting(generator)
-    generator = channel_prune(generator, 0.5)
+    #generator = apply_channel_sorting(generator)
+    #generator = channel_prune(generator, 0.5)
 
     generator_full = GeneratorFullModel(kp_detector, generator, discriminator, train_params)
     discriminator_full = DiscriminatorFullModel(kp_detector, generator, discriminator, train_params)
@@ -546,7 +516,7 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
                 losses = {key: value.mean().detach().data.cpu().numpy() for key, value in losses_generator.items()}
                 logger.log_iter(losses=losses)
 
-            #plot_weight_distribution(generator, 'unpruned.png')
+            plot_weight_distribution(generator, 'unpruned.png')
 
             for name, module in generator.named_modules():
                 if isinstance(module, torch.nn.Conv2d):
@@ -558,7 +528,7 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
                     prune.remove(module, name='weight')
                 else:
                     pass
-            #plot_weight_distribution(generator, 'pruned.png')
+            plot_weight_distribution(generator, 'pruned.png')
             inputs = []
             generator_full.eval()
             generator_full(x,generator_type, inputs)

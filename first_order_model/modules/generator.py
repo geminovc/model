@@ -212,10 +212,10 @@ class OcclusionAwareGenerator(nn.Module):
             
             hr_out = None
             if self.use_hr_skip_connections or self.encode_hr_input_with_additional_blocks:
+                print("SOURCE IMAGE SHAPE", source_image.shape)
                 hr_out = self.hr_first(source_image)
                 self.skip_connections = [hr_out] if self.use_hr_skip_connections else []
                 for block in self.hr_down_blocks:
-                    breakpoint()
                     hr_out = block(hr_out)
                     if self.use_hr_skip_connections:
                         self.skip_connections.append(hr_out)
