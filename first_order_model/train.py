@@ -1,7 +1,12 @@
 from tqdm import trange
 import torch
+import torchvision.models as models
+from torch.profiler import profile, record_function, ProfilerActivity
+import torch
 import torch.nn.functional as F
 import first_order_model
+from torchprofile import profile_macs
+
 import sys
 from torch.utils.data import DataLoader
 from first_order_model.modules.model import Vgg19, VggFace16
@@ -43,8 +48,7 @@ def plot_weight_distribution(model, file_name, bins=128, count_nonzero_only=Fals
                 ax.hist(param_cpu, bins=bins, density=True, 
                         alpha = 0.5)
             else:
-                breakpoint()
-                ax.hist(param.detach().view(-1).cpu().numpy(), bins=bins, density=True, 
+                ax.hist(param.detach().reshape(-1).cpu().numpy(), bins=bins, density=True, 
                         color = 'blue', alpha = 0.5)
             ax.set_xlabel(name)
             ax.set_ylabel('density')
@@ -53,6 +57,24 @@ def plot_weight_distribution(model, file_name, bins=128, count_nonzero_only=Fals
     fig.tight_layout()
     fig.subplots_adjust(top=0.925)
     plt.savefig(file_name)
+
+def plot_layer_parameters(model, file_name):
+
+    fig, axes = plt.subplots(1, 1, figsize=(100,60))
+    names = [n for n, m in model.named_parameters()]
+    def mul(x):
+        prod = 1
+        for a in x:
+            prod = prod * a
+        return prod
+    parameter_size = [mul(m.shape) for n, m in model.named_parameters()]
+    axes.set_yscale("log")
+    axes.bar(names, parameter_size)
+    axes.set_xticklabels(names, rotation=90)
+
+    fig.suptitle("Number of weights")
+    fig.savefig(file_name)
+
 def plot_norm_distribution(model, file_name, bins=128, count_nonzero_only=False):
     fig, axes = plt.subplots(8,10, figsize=(100, 60))
     axes = axes.ravel()
@@ -69,7 +91,11 @@ def plot_norm_distribution(model, file_name, bins=128, count_nonzero_only=False)
                 ax.hist(param_cpu, bins=bins, density=True, 
                         alpha = 0.5)
             else:
-                ax.hist(param.detach().view(-1).cpu().numpy(), bins=bins, density=True, 
+                op = []
+                for i in range(param.shape[1]):
+                    op.append(torch.norm(param[:, i]).detach().cpu().numpy())
+                op = np.asarray(op)
+                ax.hist(op, bins=bins, density=True, 
                         color = 'blue', alpha = 0.5)
             ax.set_xlabel(name)
             ax.set_ylabel('density')
@@ -96,43 +122,84 @@ def get_input_channel_importance(weight):
     return torch.cat(importances)
 
 class Node:
-    def __init__(self, index, t, i, o):
+    def __init__(self, index, t, i, o, value):
         self.index = index
         self.type = t
         self.i = i
         self.o = o
+        self.value = value
         self.before = []
-        self.after = []
+        self.after = set()
     def add_before(self, node):
-        self.before.append(index)
+        self.before.append(node)
     def add_after(self, node):
-        self.after.append(index)
+        self.after.add(node)
 
-def build_graph(all_layers):
+def build_graph(all_layers, names):
     # For the sake of getting this working we are going to hardcode each layer
     graph = {}
     for index in range(len(all_layers)):
         if isinstance(all_layers[index], nn.Conv2d):
 
-            graph[index] = Node(index, 'conv', all_layers[index].in_channels, all_layers[index].out_channels)
+            graph[index] = Node(index, 'conv', all_layers[index].in_channels, all_layers[index].out_channels, all_layers[index])
         elif isinstance(all_layers[index], first_order_model.sync_batchnorm.SynchronizedBatchNorm2d):
-            graph[index] = Node(index, 'batchnorm', all_layers[index].num_features, all_layers[index].num_features)
+            graph[index] = Node(index, 'bn', all_layers[index].num_features, all_layers[index].num_features, all_layers[index])
         else:
             graph[index] = Node(index)
-            
-    
-    # Go through this manually
-    for index in graph.keys():
-        if index + 1 in graph.keys():
-            if graph[index].o != graph[index+1].i:
-                print('index', index)
+
+    def get_index(name):
+        return names.index(name)
+
+    def add(name1, name2):
+        index1 = get_index(name1)
+        index2 = get_index(name2)
+        graph[index1].add_after(index2)
+        graph[index2].add_before(index1)
+
+    def add_names(names):
+        index = 1
+        while index < len(names):
+            add(names[index-1], names[index])
+            index += 1
+
+    # Build graph
+    add_names( ['dense_motion_network.hourglass.encoder.down_blocks.0.conv', 'dense_motion_network.hourglass.encoder.down_blocks.0.norm', 'dense_motion_network.hourglass.encoder.down_blocks.1.conv', 'dense_motion_network.hourglass.encoder.down_blocks.1.norm', 'dense_motion_network.hourglass.encoder.down_blocks.2.conv', 'dense_motion_network.hourglass.encoder.down_blocks.2.norm', 'dense_motion_network.hourglass.encoder.down_blocks.3.conv', 'dense_motion_network.hourglass.encoder.down_blocks.3.norm', 'dense_motion_network.hourglass.encoder.down_blocks.4.conv', 'dense_motion_network.hourglass.encoder.down_blocks.4.norm', 'dense_motion_network.hourglass.decoder.up_blocks.0.conv', 'dense_motion_network.hourglass.decoder.up_blocks.0.norm', 'dense_motion_network.hourglass.decoder.up_blocks.1.conv', 'dense_motion_network.hourglass.decoder.up_blocks.1.norm', 'dense_motion_network.hourglass.decoder.up_blocks.2.conv', 'dense_motion_network.hourglass.decoder.up_blocks.2.norm', 'dense_motion_network.hourglass.decoder.up_blocks.3.conv', 'dense_motion_network.hourglass.decoder.up_blocks.3.norm', 'dense_motion_network.hourglass.decoder.up_blocks.4.conv', 'dense_motion_network.hourglass.decoder.up_blocks.4.norm'] )
+
+    # Add the dense motion skip connections
+    add('dense_motion_network.hourglass.encoder.down_blocks.3.norm', 'dense_motion_network.hourglass.decoder.up_blocks.1.conv')
+    add('dense_motion_network.hourglass.encoder.down_blocks.2.norm', 'dense_motion_network.hourglass.decoder.up_blocks.2.conv')
+    add('dense_motion_network.hourglass.encoder.down_blocks.1.norm', 'dense_motion_network.hourglass.decoder.up_blocks.3.conv')
+    add('dense_motion_network.hourglass.encoder.down_blocks.0.norm', 'dense_motion_network.hourglass.decoder.up_blocks.4.conv')
+
+    # Add the dense motion outputs partly (First part)
+    add('dense_motion_network.hourglass.decoder.up_blocks.4.norm', 'dense_motion_network.mask')
+    add('dense_motion_network.hourglass.decoder.up_blocks.4.norm', 'dense_motion_network.occlusion')
+    add('dense_motion_network.hourglass.decoder.up_blocks.4.norm', 'dense_motion_network.lr_occlusion')
+    add('dense_motion_network.hourglass.decoder.up_blocks.4.norm', 'dense_motion_network.hr_background_occlusion')
+
+    add('lr_first.conv', 'lr_first.norm')
+    add_names(['hr_first.conv', 'hr_first.norm', 'hr_down_blocks.0.conv', 'hr_down_blocks.0.norm', 'hr_down_blocks.1.conv', 'hr_down_blocks.1.norm'])
+    add_names(['first.conv', 'first.norm', 'down_blocks.0.conv', 'down_blocks.0.norm', 'down_blocks.1.conv', 'down_blocks.1.norm', 'bottleneck.r0.norm1', 'bottleneck.r0.conv1', 'bottleneck.r0.norm2', 'bottleneck.r0.conv2', 'bottleneck.r1.norm1', 'bottleneck.r1.conv1', 'bottleneck.r1.norm2', 'bottleneck.r1.conv2', 'bottleneck.r2.norm1', 'bottleneck.r2.conv1', 'bottleneck.r2.norm2', 'bottleneck.r2.conv2', 'bottleneck.r3.norm1', 'bottleneck.r3.conv1', 'bottleneck.r3.norm2', 'bottleneck.r3.conv2', 'bottleneck.r4.norm1', 'bottleneck.r4.conv1', 'bottleneck.r4.norm2', 'bottleneck.r4.conv2', 'bottleneck.r5.norm1', 'bottleneck.r5.conv1', 'bottleneck.r5.norm2', 'bottleneck.r5.conv2', 'up_blocks.0.conv','up_blocks.0.norm', 'up_blocks.1.conv', 'up_blocks.1.norm', 'hr_up_blocks.0.conv', 'hr_up_blocks.0.norm','hr_up_blocks.1.conv','hr_up_blocks.1.norm' , 'final'])
+
+    # Features get concatted into down block
+    add('down_blocks.1.norm', 'bottleneck.r0.norm1')
+
+    # Second up block has 32 lr features added
+    add('lr_first.norm', 'up_blocks.1.conv')
+
+    # Add 2x hr down outputs to first hr up
+    add('hr_down_blocks.1.norm', 'hr_up_blocks.0.conv')
+    add('hr_down_blocks.1.norm', 'hr_up_blocks.0.conv')
+
+    add('hr_down_blocks.0.norm', 'hr_up_blocks.1.conv')
+    add('hr_down_blocks.0.norm', 'hr_up_blocks.1.conv')
+
     return graph
 
 @torch.no_grad()
 def apply_channel_sorting(model):
     model = copy.deepcopy(model)  # do not modify the original model
     # fetch all the conv and bn layers from the backbone
-    breakpoint()
     all_convs = [m for m in model.modules() if isinstance(m, nn.Conv2d)]
 
     all_convs = all_convs[:10] + all_convs[14:]
@@ -197,51 +264,43 @@ def channel_prune(model, prune_ratio):
     indicating that we use a uniform pruning rate for all layers, or a list of
     numbers to indicate per-layer pruning rate.
     """
-    breakpoint()
     print("START")
     # sanity check of provided prune_ratio
-    assert isinstance(prune_ratio, (float, list))
 
-    # we prune the convs in the backbone with a uniform ratio
-    model = copy.deepcopy(model)  # prevent overwrite
-    # we only apply pruning to the backbone features
-    all_convs = [m for m in model.modules() if isinstance(m, nn.Conv2d)]
-    all_convs = all_convs[:10] + all_convs[14:-1]
-    n_conv = len(all_convs)
-    # note that for the ratios, it affects the previous conv output and next
-    # conv input, i.e., conv0 - ratio0 - conv1 - ratio1-...
-    if isinstance(prune_ratio, list):
-        assert len(prune_ratio) == n_conv - 1
-    else:  # convert float to list
-        prune_ratio = [prune_ratio] * (n_conv - 1)
-    all_bns = [m for m in model.modules() if isinstance(m, first_order_model.sync_batchnorm.SynchronizedBatchNorm2d)]
-    all_layers = [m for m in model.modules() if (isinstance(m, nn.Conv2d) or isinstance(m, first_order_model.sync_batchnorm.SynchronizedBatchNorm2d))]
+    all_layers = [m for n, m in model.named_modules() if (isinstance(m, nn.Conv2d) or isinstance(m, first_order_model.sync_batchnorm.SynchronizedBatchNorm2d))]
+    layer_graph = build_graph(all_layers, [n for n, m in model.named_modules() if (isinstance(m, nn.Conv2d) or isinstance(m, first_order_model.sync_batchnorm.SynchronizedBatchNorm2d))])
 
-    breakpoint()
-    layer_graph = build_graph(all_layers)
 
-    for node in layer_graph:
-        if len(node.before) != 0:
-            if node.type == 'conv':
-                conv = all_layers[node.index]
-                n_keep = get_num_channels_to_keep(conv.in_channels, p_ratio)
-                conv.weight.set_(next_conv.weight.detach()[:,:n_keep])
+    for base_index in layer_graph:
+        node = layer_graph[base_index]
+        total_rows = 0
+        counter = 0
+        for node_index in node.before:
+            total_rows += int(prune_ratio * layer_graph[node_index].o)
+            counter += layer_graph[node_index].o
 
-        if len(node.after) != 0:
-            if node.type == 'conv':
-                conv = all_layers[node.index]
-                n_keep = get_num_channels_to_keep(conv.out_channels, p_ratio)
-                conv.weight.set_(next_conv.weight.detach()[:n_keep])
-            if node.type == 'batchnorm':
-                bn = all_layers[node.index]
-                n_keep = get_num_channels_to_keep(bn.weight.shape[0], p_ratio)
+        to_delete = total_rows
+        if counter != node.i:
+            print(to_delete, node.i, counter, base_index, node.before)
+        # Prune the inputs
+        if node.type == 'conv':
+            node.value.weight.set_(node.value.weight.detach()[:,to_delete:])
+            print(node.value.weight.shape)
 
-                bn.weight.set_(bn.weight.detach()[:n_keep])
-                bn.bias.set_(bn.bias.detach()[:n_keep])
-                bn.running_mean.set_(bn.running_mean.detach()[:n_keep])
-                bn.running_var.set_(bn.running_var.detach()[:n_keep])
+        if node.type == 'bn':
+            node.value.weight.set_(node.value.weight.detach()[to_delete:])
+            node.value.bias.set_(node.value.bias.detach()[to_delete:])
+            node.value.running_mean.set_(node.value.running_mean.detach()[to_delete:])
+            node.value.running_var.set_(node.value.running_var.detach()[to_delete:])
+            
+        op_delete =int(prune_ratio* node.o)
+        if  node.type == 'conv':
+            if len(node.after) != 0:
+                # Prune the outupts
+                node.value.weight.set_(node.value.weight.detach()[op_delete:])
+                node.value.bias.set_(node.value.bias.detach()[op_delete:])
 
-    breakpoint()
+
     print("end")
     return model
 
@@ -341,8 +400,9 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
 
 
     
+    plot_norm_distribution(generator, 'before_load_norm.png')
     plot_weight_distribution(generator, 'before_load.png')
-    breakpoint()
+    plot_layer_parameters(generator, 'before_load_params.png')
     if checkpoint is not None and generator_type in ["occlusion_aware", "split_hf_lf"]:
         if train_params.get('fine_tune_entire_model', False):
             start_epoch = Logger.load_cpk(checkpoint, generator, discriminator, kp_detector,
@@ -397,6 +457,8 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
     else:
         start_epoch = 0
 
+    plot_norm_distribution(generator, 'after_load_norm.png')
+    plot_weight_distribution(generator, 'after_load.png')
     scheduler_generator = MultiStepLR(optimizer_generator, train_params['epoch_milestones'], gamma=0.1,
                                       last_epoch=start_epoch - 1)
     scheduler_discriminator = MultiStepLR(optimizer_discriminator, train_params['epoch_milestones'], gamma=0.1,
@@ -448,7 +510,7 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
         metrics_dataloader = DataLoader(metrics_dataset, batch_size=train_params['batch_size'], shuffle=False, 
                 num_workers=6, drop_last=True)
     #generator = apply_channel_sorting(generator)
-    #generator = channel_prune(generator, 0.5)
+    generator = channel_prune(generator, 0.5)
 
     generator_full = GeneratorFullModel(kp_detector, generator, discriminator, train_params)
     discriminator_full = DiscriminatorFullModel(kp_detector, generator, discriminator, train_params)
@@ -470,6 +532,7 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
     with Logger(log_dir=log_dir, visualizer_params=config['visualizer_params'], checkpoint_freq=train_params['checkpoint_freq']) as logger:
         for epoch in trange(start_epoch, train_params['num_epochs']):
             for x in dataloader:
+                print(x['driving'].shape, "input shape")
                 if use_lr_video or use_RIFE:
                     lr_frame = F.interpolate(x['driving'], lr_size)
                     if train_params.get('encode_video_for_training', False):
@@ -486,7 +549,7 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
 
                 losses_generator, generated = generator_full(x, generator_type)
 
-                if epoch == 0:
+                if epoch == 0 or True:
                     break
 
                 loss_values = [val.mean() for val in losses_generator.values()]
@@ -532,6 +595,14 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
             inputs = []
             generator_full.eval()
             generator_full(x,generator_type, inputs)
+            i = 0
+            with profile(activities=[ProfilerActivity.CPU], profile_memory=True, record_shapes=True, with_stack=True) as prof:
+                generator(inputs[0], **inputs[1])
+            prof.export_stacks("profiler_stacks.txt", "self_cpu_time_total")
+            print("DONE PROFILING")
+
+            
+
 
             inputs[0] = inputs[0].detach()
             for key in inputs[1].keys():
@@ -539,6 +610,11 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
                     for key_ in inputs[1][key].keys():
                         inputs[1][key][key_] = inputs[1][key][key_].detach()
 
+            all_layers = [m for m in generator.modules() if (isinstance(m, nn.Conv2d) or isinstance(m, first_order_model.sync_batchnorm.SynchronizedBatchNorm2d))]
+            print(len(all_layers))
+            print("len^")
+            positional_inputs = (inputs[0], inputs[1]['kp_driving'], inputs[1]['kp_source'])
+            breakpoint()
             generator.eval()
             with torch.no_grad():
                 torch.onnx.export(generator, tuple(inputs), 'log/trial1.onnx', export_params=True, opset_version=16)

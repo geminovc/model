@@ -120,8 +120,8 @@ class DownBlock2d(nn.Module):
         self.pool = nn.AvgPool2d(kernel_size=(2, 2))
 
     def forward(self, x):
-        print("X shape", x.shape)
-        print("Y shape", self.conv.weight.shape)
+        print('x', x.shape)
+        print('w', self.conv.weight.shape)
         out = self.conv(x)
         out = self.norm(out)
         out = F.relu(out)
