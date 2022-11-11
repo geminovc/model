@@ -129,11 +129,11 @@ class Node:
         self.o = o
         self.value = value
         self.before = []
-        self.after = set()
+        self.after = []
     def add_before(self, node):
         self.before.append(node)
     def add_after(self, node):
-        self.after.add(node)
+        self.after.append(node)
 
 def build_graph(all_layers, names):
     # For the sake of getting this working we are going to hardcode each layer
@@ -206,49 +206,139 @@ def apply_channel_sorting(model):
     all_bns = [m for m in model.modules() if isinstance(m, first_order_model.sync_batchnorm.SynchronizedBatchNorm2d)]
     all_layers = [m for m in model.modules() if (isinstance(m, nn.Conv2d) or isinstance(m, first_order_model.sync_batchnorm.SynchronizedBatchNorm2d))]
 
-    layer_graph = build_graph(all_layers)
+    layer_graph = build_graph(all_layers, [n for n, m in model.named_modules() if (isinstance(m, nn.Conv2d) or isinstance(m, first_order_model.sync_batchnorm.SynchronizedBatchNorm2d))])
 
-    def is_valid_helper(node, layer_graph):
-        if len(node.after) > 1 or len(node.after) == 0:
-            return False, None
+
+    for base_index in layer_graph.keys():
+        node = layer_graph[base_index]
         if node.type == 'conv':
-            return True, node
-        return is_valid_helper(node.after[0])
-
-    def is_valid(node, layer_graph):
-        if len(node.after) > 1 or len(node.after) == 0:
-            return False, None
-        return is_valid_helper(node.after[0])
-
-    for node in layer_graph:
-        if node.type == 'conv':
-            valid, end = is_valid(node, layer_graph)
-            if not valid:
+            # Find the first following conv.
+            if len(node.after) == 0:
                 continue
 
-            importance = get_input_channel_importance(layer_graph[end.index].weight)
+            prev = node.index
+            curr_node_index = node.after[0]
+            curr_node = layer_graph[curr_node_index]
+            found = True
+            target = (0, node.o)
+            while curr_node.type != 'conv':
+                if len(curr_node.after) == 0:
+                    found = False
+                    break
+                prev = curr_node.index
+                curr_node_index=curr_node.after[0]
+                curr_node = layer_graph[curr_node_index]
+                counter = 0
+
+                for prev_node in curr_node.before:
+                    if prev_node == prev:
+                        target = (counter, counter+(target[1]-target[0]))
+                        break
+                    counter += layer_graph[prev_node].o
+
+            if not found:
+                continue
+
+            # Now curr_node points to the first conv input node for this
+            # Find the actual elements you care about
+            counter = 0
+            
+            # Possible flip here
+            important_elements = curr_node.value.weight[:,target[0]:target[1]]
+            importance = get_input_channel_importance(important_elements)
             # sorting from large to small
             sort_idx = torch.argsort(importance, descending=True) 
 
-            temp = node
-            layer_graph[temp.index].weight.copy_(torch.index_select(
-                layer_graph[temp.index].weight.detach(), 0, sort_idx))
-            layer_graph[temp.index].bias.copy_(torch.index_select(
-                layer_graph[temp.index].bias.detach(), 0, sort_idx))
-            temp=temp.after[0]
+            # Sort the outputs of the actual node
+            prev_conv  = node
+            prev_conv.value.weight.copy_(torch.index_select(
+                prev_conv.value.weight.detach(), 0, sort_idx))
+            prev_conv.value.bias.copy_(torch.index_select(
+                prev_conv.value.bias.detach(), 0, sort_idx))
+            # layer_graph[temp.index].value.weight.copy_(torch.index_select(
+            #     layer_graph[temp.index].value.weight.detach(), 0, sort_idx))
+            # layer_graph[temp.index].value.bias.copy_(torch.index_select(
+            #     layer_graph[temp.index].bias.detach(), 0, sort_idx))
 
-            while temp.type != 'conv':
+            def follow(node, layer_graph, previous, p_indices):
+                # Find the elements corresponding to this node
 
-                bn = layer_graph[temp.index]
-                for tensor_name in ['weight', 'bias', 'running_mean', 'running_var']:
-                    tensor_to_apply = getattr(bn, tensor_name)
+                print("Following into", node.index)
+                indices = []
+                counter = 0
+                for b in node.before:
+                    if b == previous:
+                        for p_index in p_indices:
+                            indices.append((counter+p_index[0], counter + p_index[1]))
+
+                    counter += layer_graph[b].o
+                def shrink_bn(bn, tensor_name):
+                    thing_you_are_changing = []
+                    for index in indices:
+                        nvd = getattr(node.value, tensor_name).detach()
+                        nvd = nvd[index[0]:index[1]]
+                        nvd.set_(torch.index_select(nvd, 0, sort_idx))
+                        thing_you_are_changing.append(nvd)
+
+                    if len(thing_you_are_changing) == 0:
+                        print("Somehow we didnt change anything")
+
+                    starter = [getattr(node.value, tensor_name).detach()[:indices[0][0]]]
+                    for index in range(len(indices)):
+                        starter.append(thing_you_are_changing[index])
+                        if len(thing_you_are_changing) > index + 1:
+                            starter.append(getattr(node.value, tensor_name).detach()[indices[index][1]:indices[index+1][0]])
+                        else:
+                            starter.append(getattr(node.value, tensor_name).detach()[indices[index][1]:])
+
+                    tensor_to_apply = getattr(bn.value, tensor_name)
                     tensor_to_apply.copy_(
-                        torch.index_select(tensor_to_apply.detach(), 0, sort_idx)
+                        torch.cat(starter).clone().detach()
                     )
-                temp = temp.after[0]
+                    #node.value.weight.set_(torch.cat(starter).clone().detach())
 
-            layer_graph[temp.index].weight.copy_(torch.index_select(
-                layer_graph[temp.index].weight.detach(), 1, sort_idx))
+                if node.type == 'conv':
+                    thing_you_are_changing = []
+                    for index in indices:
+                        nvd = node.value.weight.detach()
+                        nvd = nvd[:, index[0]:index[1]]
+                        nvd.set_(torch.index_select(nvd, 1, sort_idx))
+                        thing_you_are_changing.append(nvd)
+
+                    if len(thing_you_are_changing) == 0:
+                        print("Somehow we didnt change anything")
+
+                    starter = [node.value.weight.detach()[:,:indices[0][0]]]
+                    for index in range(len(indices)):
+                        starter.append(thing_you_are_changing[index])
+                        if len(thing_you_are_changing) > index + 1:
+                            starter.append(node.value.weight.detach()[:,indices[index][1]:indices[index+1][0]])
+                        else:
+                            starter.append(node.value.weight.detach()[:,indices[index][1]:])
+
+
+                    tensor_to_apply = getattr(node.value, 'weight')
+                    tensor_to_apply.copy_(
+                        torch.cat(starter, dim=1).clone().detach()
+                    )
+                    #layer_graph[node.index].value.weight.set_(tensor_to_apply)
+
+                    return
+
+                else:
+
+
+                    for tensor_name in ['weight', 'bias', 'running_mean', 'running_var']:
+                        shrink_bn(node, tensor_name)
+
+                for next_layer in set(node.after):
+                    follow(layer_graph[next_layer], layer_graph, node.index, indices)
+
+
+            for node_after in set(node.after):
+                follow(layer_graph[node_after], layer_graph, node.index, [(0, node.o)])
+
+
     return model
 
 def get_num_channels_to_keep(channels: int, prune_ratio: float) -> int:
@@ -275,26 +365,41 @@ def channel_prune(model, prune_ratio):
         node = layer_graph[base_index]
         total_rows = 0
         counter = 0
+        pruners = []
+        curr_index = 0
         for node_index in node.before:
-            total_rows += int(prune_ratio * layer_graph[node_index].o)
+            pruners.append((int(counter + (layer_graph[node_index].o * prune_ratio)), counter + (layer_graph[node_index].o)))
             counter += layer_graph[node_index].o
 
         to_delete = total_rows
         if counter != node.i:
             print(to_delete, node.i, counter, base_index, node.before)
+
+        for i in range(len(pruners)):
+            prune_indices = pruners[len(pruners)-i-1]
+
+            if node.type == 'conv':
+                nvd = node.value.weight.detach()
+                nvd = torch.cat([nvd[:,:prune_indices[0]], nvd[:, prune_indices[1]:]], dim=1)
+                node.value.weight.set_(nvd.clone().detach())
+            if node.type == 'bn':
+                def f_set(nvd, w, prune_indices):
+                    nvd = torch.cat([nvd[:prune_indices[0]], nvd[prune_indices[1]:]])
+                    w.set_(nvd.clone().detach())
+
+                f_set(node.value.weight.detach(), node.value.weight, prune_indices)
+                f_set(node.value.bias.detach(), node.value.bias, prune_indices)
+                f_set(node.value.running_mean.detach(), node.value.running_mean, prune_indices)
+                f_set(node.value.running_var.detach(), node.value.running_var, prune_indices)
+
         # Prune the inputs
         if node.type == 'conv':
             node.value.weight.set_(node.value.weight.detach()[:,to_delete:])
             print(node.value.weight.shape)
 
-        if node.type == 'bn':
-            node.value.weight.set_(node.value.weight.detach()[to_delete:])
-            node.value.bias.set_(node.value.bias.detach()[to_delete:])
-            node.value.running_mean.set_(node.value.running_mean.detach()[to_delete:])
-            node.value.running_var.set_(node.value.running_var.detach()[to_delete:])
             
         op_delete =int(prune_ratio* node.o)
-        if  node.type == 'conv':
+        if node.type == 'conv':
             if len(node.after) != 0:
                 # Prune the outupts
                 node.value.weight.set_(node.value.weight.detach()[op_delete:])
@@ -363,6 +468,7 @@ def get_frame_from_video_codec(frame_tensor, nr_list, dr_list, quantizer, bitrat
 
 
 def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, dataset, device_ids):
+    torch.manual_seed(10)
     train_params = config['train_params'] 
     generator_params = config['model_params']['generator_params']
     generator_type = generator_params.get('generator_type', 'occlusion_aware')
@@ -509,8 +615,12 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
         metrics_dataset = MetricsDataset(**config['metrics_params'])
         metrics_dataloader = DataLoader(metrics_dataset, batch_size=train_params['batch_size'], shuffle=False, 
                 num_workers=6, drop_last=True)
-    #generator = apply_channel_sorting(generator)
-    generator = channel_prune(generator, 0.5)
+    breakpoint()
+    before_channel = 1
+    generator = apply_channel_sorting(generator)
+    breakpoint()
+    after_channel=1
+    #generator = channel_prune(generator, 0.5)
 
     generator_full = GeneratorFullModel(kp_detector, generator, discriminator, train_params)
     discriminator_full = DiscriminatorFullModel(kp_detector, generator, discriminator, train_params)
@@ -596,6 +706,12 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
             generator_full.eval()
             generator_full(x,generator_type, inputs)
             i = 0
+            import pickle
+            with open('filename.pickle', 'rb') as handle:
+                inputs = pickle.load(handle)
+            print("Done exporting")
+            breakpoint()
+            print(generator(inputs[0], **inputs[1]))
             with profile(activities=[ProfilerActivity.CPU], profile_memory=True, record_shapes=True, with_stack=True) as prof:
                 generator(inputs[0], **inputs[1])
             prof.export_stacks("profiler_stacks.txt", "self_cpu_time_total")
