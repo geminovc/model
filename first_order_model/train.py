@@ -1,4 +1,5 @@
 from tqdm import trange
+from tqdm import tqdm
 import torch
 import torchvision.models as models
 from torch.profiler import profile, record_function, ProfilerActivity
@@ -347,6 +348,47 @@ def get_num_channels_to_keep(channels: int, prune_ratio: float) -> int:
     """
     return int(round(channels * (1-prune_ratio)))
 
+def calculate_macs(model, file_name):
+    
+
+    all_layers = [m for n, m in model.named_modules() if (isinstance(m, nn.Conv2d) or isinstance(m, first_order_model.sync_batchnorm.SynchronizedBatchNorm2d))]
+    layer_graph = build_graph(all_layers, [n for n, m in model.named_modules() if (isinstance(m, nn.Conv2d) or isinstance(m, first_order_model.sync_batchnorm.SynchronizedBatchNorm2d))])
+    starting_shape = (1024, 1024)
+    def convert_shape(shape, layer):
+        if layer.type == 'conv':
+            f = layer.value.kernel_size
+            s = layer.value.stride
+            new_shape = [0,0]
+            new_shape[0] = (int((shape[0] - f[0])/s[0]))+1
+            new_shape[1] = (int((shape[1] - f[1])/s[1]))+1
+            return tuple(new_shape)
+        return shape
+    def calc_flops(out_shape, node):
+        if node.type == 'conv':
+            return (node.value.kernel_size[0]**2) * node.value.weight.shape[0] * node.value.weight.shape[1] * out_shape[0] * out_shape[1]
+        else:
+            return node.o
+    def follow(node, results, shape):
+        new_shape_ = convert_shape(shape, node)
+        results[node.index] = calc_flops(new_shape_, node)
+        for node_index in node.after:
+            follow(layer_graph[node_index], results, new_shape_)
+    t_results = {}
+    for i in [0, 24, 25, 26, 28, 30]:
+        follow(layer_graph[i], t_results, starting_shape)
+
+    fig, axes = plt.subplots(1, 1, figsize=(100,60))
+    names = [n for n, m in model.named_modules() if (isinstance(m, nn.Conv2d) or isinstance(m, first_order_model.sync_batchnorm.SynchronizedBatchNorm2d))]
+    parameter_size = [t_results[i] for i in range(len(names))]
+    axes.set_yscale("log")
+    axes.bar(names, parameter_size)
+    axes.set_xticklabels(names, rotation=90)
+
+    fig.suptitle("Number of flops")
+    fig.savefig(file_name)
+    return sum(parameter_size)
+
+
 @torch.no_grad()
 def channel_prune(model, prune_ratio):
     """Apply channel pruning to each of the conv layer in the backbone
@@ -356,6 +398,7 @@ def channel_prune(model, prune_ratio):
     """
     print("START")
     # sanity check of provided prune_ratio
+    model = copy.deepcopy(model)
 
     all_layers = [m for n, m in model.named_modules() if (isinstance(m, nn.Conv2d) or isinstance(m, first_order_model.sync_batchnorm.SynchronizedBatchNorm2d))]
     layer_graph = build_graph(all_layers, [n for n, m in model.named_modules() if (isinstance(m, nn.Conv2d) or isinstance(m, first_order_model.sync_batchnorm.SynchronizedBatchNorm2d))])
@@ -368,12 +411,13 @@ def channel_prune(model, prune_ratio):
         pruners = []
         curr_index = 0
         for node_index in node.before:
+            total_rows += int(prune_ratio * layer_graph[node_index].o)
+            
             pruners.append((int(counter + (layer_graph[node_index].o * prune_ratio)), counter + (layer_graph[node_index].o)))
             counter += layer_graph[node_index].o
 
+
         to_delete = total_rows
-        if counter != node.i:
-            print(to_delete, node.i, counter, base_index, node.before)
 
         for i in range(len(pruners)):
             prune_indices = pruners[len(pruners)-i-1]
@@ -392,21 +436,14 @@ def channel_prune(model, prune_ratio):
                 f_set(node.value.running_mean.detach(), node.value.running_mean, prune_indices)
                 f_set(node.value.running_var.detach(), node.value.running_var, prune_indices)
 
-        # Prune the inputs
-        if node.type == 'conv':
-            node.value.weight.set_(node.value.weight.detach()[:,to_delete:])
-            print(node.value.weight.shape)
-
-            
-        op_delete =int(prune_ratio* node.o)
+        op_delete =int((prune_ratio)* node.o)
         if node.type == 'conv':
             if len(node.after) != 0:
                 # Prune the outupts
-                node.value.weight.set_(node.value.weight.detach()[op_delete:])
-                node.value.bias.set_(node.value.bias.detach()[op_delete:])
+                node.value.weight.set_(node.value.weight.detach()[:op_delete])
+                node.value.bias.set_(node.value.bias.detach()[:op_delete])
 
 
-    print("end")
     return model
 
 
@@ -549,7 +586,7 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
 
     elif checkpoint is not None and generator_type == "just_upsampler":
         if train_params.get('fine_tune_entire_model', False):
-            start_epoch = Logger.load_cpk(checkpoint, generator, discriminator, None,
+           start_epoch = Logger.load_cpk(checkpoint, generator, discriminator, None,
                                       optimizer_generator, optimizer_discriminator,
                                       None, dense_motion_network=None, 
                                       generator_type=generator_type)
@@ -608,19 +645,18 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
 
     if 'num_repeats' in train_params or train_params['num_repeats'] != 1:
         dataset = DatasetRepeater(dataset, train_params['num_repeats'])
-    dataloader = DataLoader(dataset, batch_size=train_params['batch_size'], shuffle=True, num_workers=6, drop_last=True)
+    dataloader = DataLoader(dataset, batch_size=train_params['batch_size'], shuffle=True, drop_last=True, num_workers=1)
    
     metrics_dataloader = None
     if 'metrics_params' in config:
         metrics_dataset = MetricsDataset(**config['metrics_params'])
         metrics_dataloader = DataLoader(metrics_dataset, batch_size=train_params['batch_size'], shuffle=False, 
                 num_workers=6, drop_last=True)
-    breakpoint()
-    before_channel = 1
-    generator = apply_channel_sorting(generator)
-    breakpoint()
-    after_channel=1
-    #generator = channel_prune(generator, 0.5)
+    #generator = apply_channel_sorting(generator)
+    print("MACAROON", calculate_macs(generator, 'macs.png'))
+    generator = channel_prune(generator, 0.5)
+    print("MACAROON", calculate_macs(generator, 'macs.png'))
+    optimizer_generator = torch.optim.Adam(generator.parameters(), lr=train_params['lr_generator'], betas=(0.5, 0.999))
 
     generator_full = GeneratorFullModel(kp_detector, generator, discriminator, train_params)
     discriminator_full = DiscriminatorFullModel(kp_detector, generator, discriminator, train_params)
@@ -640,9 +676,14 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
     face_lpips = vgg_face_model.compute_loss
 
     with Logger(log_dir=log_dir, visualizer_params=config['visualizer_params'], checkpoint_freq=train_params['checkpoint_freq']) as logger:
-        for epoch in trange(start_epoch, train_params['num_epochs']):
-            for x in dataloader:
-                print(x['driving'].shape, "input shape")
+        for epoch in trange(start_epoch, train_params['num_epochs'] + 1):
+            print(epoch)
+            counter = 0
+            for x in tqdm(dataloader):
+                #breakpoint()
+                counter += 1
+                if counter > 1000:
+                    break
                 if use_lr_video or use_RIFE:
                     lr_frame = F.interpolate(x['driving'], lr_size)
                     if train_params.get('encode_video_for_training', False):
@@ -659,7 +700,7 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
 
                 losses_generator, generated = generator_full(x, generator_type)
 
-                if epoch == 0 or True:
+                if epoch == 0:
                     break
 
                 loss_values = [val.mean() for val in losses_generator.values()]
@@ -689,54 +730,6 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
                 losses = {key: value.mean().detach().data.cpu().numpy() for key, value in losses_generator.items()}
                 logger.log_iter(losses=losses)
 
-            plot_weight_distribution(generator, 'unpruned.png')
-
-            for name, module in generator.named_modules():
-                if isinstance(module, torch.nn.Conv2d):
-                    prune.l1_unstructured(module, name='weight', amount=0.8)
-                    prune.remove(module, name='weight')
-                # prune 40% of connections in all linear layers
-                elif isinstance(module, torch.nn.Linear):
-                    prune.l1_unstructured(module, name='weight', amount=0.8)
-                    prune.remove(module, name='weight')
-                else:
-                    pass
-            plot_weight_distribution(generator, 'pruned.png')
-            inputs = []
-            generator_full.eval()
-            generator_full(x,generator_type, inputs)
-            i = 0
-            import pickle
-            with open('filename.pickle', 'rb') as handle:
-                inputs = pickle.load(handle)
-            print("Done exporting")
-            breakpoint()
-            print(generator(inputs[0], **inputs[1]))
-            with profile(activities=[ProfilerActivity.CPU], profile_memory=True, record_shapes=True, with_stack=True) as prof:
-                generator(inputs[0], **inputs[1])
-            prof.export_stacks("profiler_stacks.txt", "self_cpu_time_total")
-            print("DONE PROFILING")
-
-            
-
-
-            inputs[0] = inputs[0].detach()
-            for key in inputs[1].keys():
-                if type(inputs[1][key]) is dict:
-                    for key_ in inputs[1][key].keys():
-                        inputs[1][key][key_] = inputs[1][key][key_].detach()
-
-            all_layers = [m for m in generator.modules() if (isinstance(m, nn.Conv2d) or isinstance(m, first_order_model.sync_batchnorm.SynchronizedBatchNorm2d))]
-            print(len(all_layers))
-            print("len^")
-            positional_inputs = (inputs[0], inputs[1]['kp_driving'], inputs[1]['kp_source'])
-            breakpoint()
-            generator.eval()
-            with torch.no_grad():
-                torch.onnx.export(generator, tuple(inputs), 'log/trial1.onnx', export_params=True, opset_version=16)
-            print("SAVED")
-
-
             if epoch > 0:
                 scheduler_generator.step()
                 scheduler_discriminator.step()
@@ -765,9 +758,4 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
                         logger.log_metrics_images(i, y, metrics_generated, loss_fn_vgg, original_lpips, face_lpips)
 
 
-            logger.log_epoch(epoch, {'generator': generator,
-                                     'discriminator': discriminator,
-                                     'kp_detector': kp_detector,
-                                     'optimizer_generator': optimizer_generator,
-                                     'optimizer_discriminator': optimizer_discriminator,
-                                     'optimizer_kp_detector': optimizer_kp_detector}, inp=x, out=generated)
+            logger.log_epoch(epoch, {}, inp=x, out=generated)
