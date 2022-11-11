@@ -1,5 +1,7 @@
 import torch
 from torch import nn
+# from torch.nn import Conv2d
+from first_order_model.modules.custom_conv import Conv2d
 import torch.nn.functional as F
 from first_order_model.modules.util import ResBlock2d, SameBlock2d, UpBlock2d, DownBlock2d
 from first_order_model.modules.dense_motion import DenseMotionNetwork
@@ -157,7 +159,7 @@ class OcclusionAwareGenerator(nn.Module):
             self.bottleneck.add_module('r' + str(i), ResBlock2d(in_features, kernel_size=(3, 3), \
                     padding=(1, 1)))
         final_input_features = adjusted_hr_depth
-        self.final = nn.Conv2d(final_input_features, num_channels, kernel_size=(7, 7), padding=(3, 3))
+        self.final = Conv2d(final_input_features, num_channels, kernel_size=(7, 7), padding=(3, 3))
         self.estimate_occlusion_map = estimate_occlusion_map
 
         # upsampling blocks for LF superresolution if using it
@@ -177,7 +179,7 @@ class OcclusionAwareGenerator(nn.Module):
                         ResBlock2d(in_features, kernel_size=(3, 3), padding=(1, 1)))
 
             sr_final_input_features = out_features
-            self.sr_final = nn.Conv2d(sr_final_input_features, num_channels, kernel_size=(7, 7), padding=(3, 3))
+            self.sr_final = Conv2d(sr_final_input_features, num_channels, kernel_size=(7, 7), padding=(3, 3))
 
         self.num_channels = num_channels
         self.source_image = None

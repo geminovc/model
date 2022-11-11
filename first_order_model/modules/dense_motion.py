@@ -1,6 +1,8 @@
 from torch import nn
 import torch.nn.functional as F
 import torch
+#from torch.nn import Conv2d
+from first_order_model.modules.custom_conv import Conv2d
 from first_order_model.modules.util import Hourglass, AntiAliasInterpolation2d, make_coordinate_grid, kp2gaussian
 from first_order_model.modules.util import SameBlock2d 
 import time
@@ -32,11 +34,11 @@ class DenseMotionNetwork(nn.Module):
         use_lr_frame = concatenate_lr_frame_to_hourglass_input or concatenate_lr_frame_to_hourglass_output
         additional_features = lr_features if concatenate_lr_frame_to_hourglass_output else 0
         mask_output_features = 2 if use_only_src_tgt_for_motion else num_kp + 1
-        self.mask = nn.Conv2d(self.hourglass.out_filters + additional_features, 
+        self.mask = Conv2d(self.hourglass.out_filters + additional_features, 
                               mask_output_features, kernel_size=(7, 7), padding=(3, 3))
 
         if estimate_occlusion_map:
-            self.occlusion = nn.Conv2d(self.hourglass.out_filters + additional_features, \
+            self.occlusion = Conv2d(self.hourglass.out_filters + additional_features, \
                     1, kernel_size=(7, 7), padding=(3, 3))
         else:
             self.occlusion = None
@@ -44,16 +46,16 @@ class DenseMotionNetwork(nn.Module):
         if estimate_additional_masks_for_lr_and_hr_bckgnd:
             assert concatenate_lr_frame_to_hourglass_input or use_only_src_tgt_for_motion, \
                     "Need LR in hourglass input to get additional masks"
-            self.lr_occlusion = nn.Conv2d(self.hourglass.out_filters + additional_features, \
+            self.lr_occlusion = Conv2d(self.hourglass.out_filters + additional_features, \
                     1, kernel_size=(7, 7), padding=(3, 3))
-            self.hr_background_occlusion = nn.Conv2d(self.hourglass.out_filters + additional_features, \
+            self.hr_background_occlusion = Conv2d(self.hourglass.out_filters + additional_features, \
                     1, kernel_size=(7, 7), padding=(3, 3))
         else:
             self.lr_occlusion = None
             self.hr_background_occlusion = None
         
         if estimate_residual:
-            self.residual = nn.Conv2d(self.hourglass.out_filters + additional_features, \
+            self.residual = Conv2d(self.hourglass.out_filters + additional_features, \
                     1, kernel_size=(7, 7), padding=(3, 3))
             self.num_pixel_features = num_pixel_features
         else:

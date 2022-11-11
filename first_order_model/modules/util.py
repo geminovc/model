@@ -1,6 +1,6 @@
 from torch import nn
-from torch.nn import Conv2d
-# from first_order_model.modules.custom import Conv2d
+#from torch.nn import Conv2d
+from first_order_model.modules.custom_conv import Conv2d
 import torch.nn.functional as F
 import torch
 
