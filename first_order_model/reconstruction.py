@@ -13,7 +13,7 @@ from skimage.transform import resize
 from skimage.metrics import structural_similarity
 from first_order_model.frames_dataset import get_num_frames, get_frame
 from first_order_model.modules.model import Vgg19, VggFace16
-from first_order_model.utils import frame_to_tensor
+from first_order_model.utils import frame_to_tensor, get_model_macs, get_model_info
 import piq
 import subprocess
 import av
@@ -33,21 +33,6 @@ special_frames_list = [1322, 574, 140, 1786, 1048, 839, 761, 2253, 637, 375, \
         112, 939, 1211, 403, 2225, 1900, 207, 1634, 2006, 28]  
 SAVE_LR_FRAMES = True
 generate_video_visualizations = True
-
-def get_model_info(log_dir, kp_detector, generator):
-    """ get model summary information for the passed-in keypoint detector and 
-        generator in a text file in the log directory """
-    
-    with open(os.path.join(log_dir, 'model_summary.txt'), 'wt') as model_file:
-        for model, name in zip([kp_detector, generator], ['kp', 'generator']):
-            if model is not None:
-                number_of_trainable_parameters = sum(p.numel() for p in model.parameters() if p.requires_grad) 
-                total_number_of_parameters = sum(p.numel() for p in model.parameters())
-  
-                model_file.write('%s %s: %s\n' % (name, 'total_number_of_parameters',
-                        str(total_number_of_parameters)))
-                model_file.write('%s %s: %s\n' % (name, 'number_of_trainable_parameters',
-                        str(number_of_trainable_parameters)))
 
 
 def get_avg_visual_metrics(visual_metrics):
@@ -212,7 +197,7 @@ def destamp_frame(frame):
 
 
 def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset, timing_enabled, 
-        save_visualizations_as_images, experiment_name, reference_frame_update_freq=None):
+        save_visualizations_as_images, experiment_name, reference_frame_update_freq=None, profile=False):
     """ reconstruct driving frames for each video in the dataset using the first frame
         as a source frame. Config specifies configuration details, while timing 
         determines whether to time the functions on a gpu or not """
@@ -242,9 +227,17 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
                     dense_motion_network=dense_motion, generator_type=generator_type, reconstruction=True)
         else:
             raise AttributeError('Checkpoint should be specified for reconstruction')
-    
-    dataloader = DataLoader(dataset, batch_size=1, shuffle=False, num_workers=1)
 
+    # get number of model parameters and mac stats
+    if profile:
+        if generator_type == 'swinir':
+            get_model_info(log_dir, kp_detector, generator.model)
+        else:
+            get_model_info(log_dir, kp_detector, generator)
+
+        get_model_macs(log_dir, generator, kp_detector, device)
+        return
+    
     if not os.path.exists(log_dir):
         os.makedirs(log_dir)
 
@@ -253,7 +246,6 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
 
     if not os.path.exists(visualization_dir):
         os.makedirs(visualization_dir)
-    
     
     metrics_file = open(os.path.join(log_dir, experiment_name + '_metrics_summary.txt'), 'wt')
     frame_metrics_file = open(os.path.join(log_dir, experiment_name + '_per_frame_metrics.txt'), 'wt')
@@ -278,13 +270,10 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
     if kp_detector is not None:
         kp_detector.eval()
 
-    # get number of model parameters and timing stats
-    if generator_type == 'swinir':
-        get_model_info(log_dir, kp_detector, generator.model)
-    else:
-        get_model_info(log_dir, kp_detector, generator)
     start = torch.cuda.Event(enable_timing=True)
     end = torch.cuda.Event(enable_timing=True)
+    
+    dataloader = DataLoader(dataset, batch_size=1, shuffle=False, num_workers=1)
     for it, x in tqdm(enumerate(dataloader)):
         updated_src = 0
         reference_stream = [0]

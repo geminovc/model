@@ -6,6 +6,8 @@ from first_order_model.modules.sr_generator import SuperResolutionGenerator
 from first_order_model.modules.discriminator import MultiScaleDiscriminator
 from first_order_model.modules.keypoint_detector import KPDetector
 from swinir_wrapper import SuperResolutionModel
+from torchprofile import profile_macs
+import os
 
 def frame_to_tensor(frame, device):
     """ convert numpy arrays to tensors for reconstruction pipeline """
@@ -91,4 +93,47 @@ def configure_fom_modules(config, device):
         kp_detector = None
     
     return generator, discriminator, kp_detector
+
+
+def get_model_macs(log_dir, generator, kp_detector, device):
+    BATCH_SIZE = 1 # reconstruction
+
+    source_image = torch.randn(BATCH_SIZE, 3, 512, 512, requires_grad=False, device=device)
+    driving_lr = torch.randn(BATCH_SIZE, 3, 64, 64, requires_grad = False, device=device)
+    update_source = True
+    kp_val1 = torch.randn(BATCH_SIZE, 10, 2, requires_grad=False, device=device)
+    kp_jac1 = torch.randn(BATCH_SIZE, 10, 2, 2, requires_grad=False, device=device)
+    kp_val2 = torch.randn(BATCH_SIZE, 10, 2, requires_grad=False, device=device)
+    kp_jac2 = torch.randn(BATCH_SIZE, 10, 2, 2, requires_grad=False, device=device)
+    model_inputs = (source_image, 
+                    {'value':kp_val1, 'jacobian':kp_jac1}, 
+                    {'value':kp_val2, 'jacobian':kp_jac2}, 
+                    update_source,
+                    driving_lr)
+
+    with open(os.path.join(log_dir, 'model_macs.txt'), 'wt') as model_file:
+        kp_macs = profile_macs(kp_detector, source_image)
+        print('{}: {:.4g} G'.format('kp_detector macs', kp_macs / 1e9))
+        model_file.write('{}: {:.4g} G'.format('kp_detector macs', kp_macs / 1e9))
+    
+        generator_macs = profile_macs(generator, model_inputs)
+        print('{}: {:.4g} G'.format('generator macs', generator_macs / 1e9))
+        model_file.write('{}: {:.4g} G'.format('generator macs', generator_macs / 1e9))
+
+
+def get_model_info(log_dir, kp_detector, generator):
+    """ get model summary information for the passed-in keypoint detector and 
+        generator in a text file in the log directory """
+    
+    with open(os.path.join(log_dir, 'model_summary.txt'), 'wt') as model_file:
+        for model, name in zip([kp_detector, generator], ['kp', 'generator']):
+            if model is not None:
+                number_of_trainable_parameters = sum(p.numel() for p in model.parameters() if p.requires_grad) 
+                total_number_of_parameters = sum(p.numel() for p in model.parameters())
+  
+                model_file.write('%s %s: %s\n' % (name, 'total_number_of_parameters',
+                        str(total_number_of_parameters)))
+                model_file.write('%s %s: %s\n' % (name, 'number_of_trainable_parameters',
+                        str(number_of_trainable_parameters)))
+
 
