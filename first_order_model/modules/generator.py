@@ -1,12 +1,15 @@
 import torch
 from torch import nn
-# from torch.nn import Conv2d
-from first_order_model.modules.custom_conv import Conv2d
+import os
 import torch.nn.functional as F
 from first_order_model.modules.util import ResBlock2d, SameBlock2d, UpBlock2d, DownBlock2d
 from first_order_model.modules.dense_motion import DenseMotionNetwork
 from first_order_model.modules.RIFE import RIFEModel
 import math
+if os.environ.get('CONV_TYPE', 'regular') == 'regular':
+    from torch.nn import Conv2d
+else:
+    from first_order_model.modules.custom_conv import Conv2d
 
 class OcclusionAwareGenerator(nn.Module):
     """

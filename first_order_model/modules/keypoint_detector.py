@@ -1,9 +1,12 @@
 from torch import nn
-#from torch.nn import Conv2d
-from first_order_model.modules.custom_conv import Conv2d
+import os
 import torch
 import torch.nn.functional as F
 from first_order_model.modules.util import Hourglass, make_coordinate_grid, AntiAliasInterpolation2d
+if os.environ.get('CONV_TYPE', 'regular') == 'regular':
+    from torch.nn import Conv2d
+else:
+    from first_order_model.modules.custom_conv import Conv2d
 
 class KPDetector(nn.Module):
     """
@@ -29,10 +32,12 @@ class KPDetector(nn.Module):
             self.num_jacobian_maps = 1 if single_jacobian_map else num_kp
             self.jacobian = Conv2d(in_channels=self.predictor.out_filters,
                                       out_channels=4 * self.num_jacobian_maps, kernel_size=(7, 7), padding=pad)
-            self.jacobian.zero_out_weight()
-            self.jacobian.adjust_bias(self.predictor.out_filters, self.num_jacobian_maps)
-            #self.jacobian.weight.data.zero_()
-            #self.jacobian.bias.data.copy_(torch.tensor([1, 0, 0, 1] * self.num_jacobian_maps, dtype=torch.float))
+            if os.environ.get('CONV_TYPE', 'regular') == 'regular':
+                self.jacobian.weight.data.zero_()
+                self.jacobian.bias.data.copy_(torch.tensor([1, 0, 0, 1] * self.num_jacobian_maps, dtype=torch.float))
+            else:
+                self.jacobian.zero_out_weight()
+                self.jacobian.adjust_bias(self.predictor.out_filters, self.num_jacobian_maps)
         else:
             self.jacobian = None
 
