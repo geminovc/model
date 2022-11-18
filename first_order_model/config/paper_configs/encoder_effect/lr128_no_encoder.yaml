@@ -19,7 +19,7 @@ model_params:
   common_params:
     num_kp: 10
     num_channels: 3
-    estimate_jacobian: False
+    estimate_jacobian: True
     lr_features: 32
   kp_detector_params:
      temperature: 0.1
@@ -65,6 +65,7 @@ train_params:
   skip_generator_loading: False
   train_only_generator: False
   train_only_upsample_layers: False
+  fine_tune_entire_model: True
   encode_video_for_training: False
   quantizer_level: 55
   num_epochs: 30
@@ -87,7 +88,7 @@ train_params:
     perceptual: [10, 10, 10, 10, 10]
     pixelwise: 10
     equivariance_value: 10
-    equivariance_jacobian: 0
+    equivariance_jacobian: 10
 
 reconstruction_params:
   num_videos: 1000
@@ -99,7 +100,7 @@ animate_params:
   normalization_params:
     adapt_movement_scale: False
     use_relative_movement: True
-    use_relative_jacobian: False
+    use_relative_jacobian: True
 
 visualizer_params:
   kp_size: 5
