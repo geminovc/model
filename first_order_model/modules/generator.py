@@ -195,7 +195,6 @@ class OcclusionAwareGenerator(nn.Module):
         return F.grid_sample(inp, deformation), deformation
 
     def forward(self, source_image, kp_driving, kp_source, update_source=False, driving_lr=None):
-        print("SOURCE SHAPE", source_image.shape)
         if self.source_image is None:
             self.update_source = True
         else:
@@ -213,11 +212,9 @@ class OcclusionAwareGenerator(nn.Module):
             
             hr_out = None
             if self.use_hr_skip_connections or self.encode_hr_input_with_additional_blocks:
-                print("SOURCE IMAGE SHAPE", source_image.shape)
                 hr_out = self.hr_first(source_image)
                 self.skip_connections = [hr_out] if self.use_hr_skip_connections else []
                 for block in self.hr_down_blocks:
-                    print(hr_out.shape)
                     hr_out = block(hr_out)
                     if self.use_hr_skip_connections:
                         self.skip_connections.append(hr_out)
@@ -313,28 +310,19 @@ class OcclusionAwareGenerator(nn.Module):
         # Decoding part
         out = self.bottleneck(out)
         for i, block in enumerate(self.up_blocks):
-            print("FIRST DECODE SHAPE")
-            print(out.shape)
             if i == math.log(self.lr_size / 64, 2) and self.concat_lr_video_in_decoder \
                     and self.generator_type == "occlusion_aware":
-                print("Made it in here")
                 out_shape = list(out.shape)
                 out_shape.pop(1)
                 lr_shape = list(lr_encoded_features.shape)
                 lr_shape.pop(1)
-                print("LR SHAPE", lr_encoded_features.shape)
                 assert out_shape == lr_shape, "Dimensions mismatch in LR video input and rest of pipeline"
                 out = torch.cat([out, lr_encoded_features], dim=1)
 
-            print(out.shape)
             out = block(out)
-            print(out.shape)
-            print("DONE")
 
         for i in range(len(self.hr_up_blocks)):
             block = self.hr_up_blocks[i]
-            print("FIRST HR SHAPE")
-            print(out.shape)
             if i == (math.log(self.lr_size / 64, 2) - len(self.up_blocks)) \
                     and self.concat_lr_video_in_decoder and self.generator_type == "occlusion_aware":
                 out_shape = list(out.shape)
@@ -343,16 +331,12 @@ class OcclusionAwareGenerator(nn.Module):
                 lr_shape.pop(1)
                 assert out_shape == lr_shape, "Dimensions mismatch in LR video input and rest of pipeline"
                 out = torch.cat([out, lr_encoded_features], dim=1)
-            print(out.shape)
             if self.use_hr_skip_connections:
                 skip = self.skip_connections[len(self.skip_connections) - 1 - i]
                 skip_deformed, _ = self.deform_input(skip, deformation)
-                print(out.shape)
                 out = torch.cat([out, skip_deformed], dim=1)
-                print(out.shape)
                 if self.common_decoder_for_3_paths: # if you have non-warped features also
                     out = torch.cat([out, skip], dim=1)
-                print(out.shape)
             out = block(out)
 
         out = self.final(out)

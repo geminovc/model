@@ -120,8 +120,6 @@ class DownBlock2d(nn.Module):
         self.pool = nn.AvgPool2d(kernel_size=(2, 2))
 
     def forward(self, x):
-        print('x', x.shape)
-        print('w', self.conv.weight.shape)
         out = self.conv(x)
         out = self.norm(out)
         out = F.relu(out)
@@ -141,8 +139,6 @@ class SameBlock2d(nn.Module):
         self.norm = BatchNorm2d(out_features, affine=True)
 
     def forward(self, x):
-        print("SB in shape", x.shape)
-        print("SB conv shape", self.conv.weight.shape)
         out = self.conv(x)
         out = self.norm(out)
         out = F.relu(out)

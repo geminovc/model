@@ -173,7 +173,6 @@ class DenseMotionNetwork(nn.Module):
         out_dict = dict()
 
         if not self.use_only_src_tgt_for_motion:
-            print("using the mini shrinker")
             heatmap_representation, pixel_representations = self.create_heatmap_representations(
                     source_image, kp_driving, kp_source)
             sparse_motion = self.create_sparse_motions(source_image, kp_driving, kp_source)
@@ -195,16 +194,11 @@ class DenseMotionNetwork(nn.Module):
         # only use source and target 
         else:
             source_frame_lr = F.interpolate(source_image, lr_frame.shape[2])
-            print('-=======- source image shape', source_image.shape)
-            print('-========- source frame lr shape', source_frame_lr.shape)
             input = torch.cat([source_frame_lr, lr_frame], dim = 1)
 
-        print('-======- input shape', input.shape)
         prediction = self.hourglass(input)
-        print("-====- prediction shape", prediction.shape)
         if self.concatenate_lr_frame_to_hourglass_output:
             lr_frame_features = lr_frame
-            print("-========- lrframe shape", lr_frame.shape)
             prediction = torch.cat([prediction, lr_frame_features], dim = 1)
 
         # either use sparse deformed sources or just src/tgt for motion
