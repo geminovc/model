@@ -1,18 +1,9 @@
 from tqdm import trange
-from shrink_util import *
-from tqdm import tqdm
-import torch
-import torchvision.models as models
-from torch.profiler import profile, record_function, ProfilerActivity
+
 import torch
 import torch.nn.functional as F
-import first_order_model
-from torchprofile import profile_macs
-
-import sys
 from torch.utils.data import DataLoader
 from first_order_model.modules.model import Vgg19, VggFace16
-import torch.nn.utils.prune as prune
 
 from logger import Logger
 from modules.model import GeneratorFullModel, DiscriminatorFullModel
@@ -21,7 +12,7 @@ from torch.optim.lr_scheduler import MultiStepLR
 
 from sync_batchnorm import DataParallelWithCallback
 from skimage import img_as_float32
-import copy
+
 from frames_dataset import DatasetRepeater
 from frames_dataset import MetricsDataset
 from fractions import Fraction
@@ -29,14 +20,11 @@ import lpips
 import random
 import av
 import numpy as np
-import torch.nn as nn
 
 from aiortc.codecs.vpx import Vp8Encoder, Vp8Decoder, vp8_depayload
 from aiortc.jitterbuffer import JitterFrame
-from matplotlib import pyplot as plt
-import matplotlib
-
-matplotlib.rcParams.update({'font.size': 40})
+from shrink_util import *
+from tqdm import tqdm
 
 
 def get_frame_from_video_codec(frame_tensor, nr_list, dr_list, quantizer,
@@ -228,8 +216,6 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir,
     else:
         start_epoch = 0
 
-    plot_norm_distribution(generator, 'after_load_norm.png')
-    plot_weight_distribution(generator, 'after_load.png')
     scheduler_generator = MultiStepLR(optimizer_generator,
                                       train_params['epoch_milestones'],
                                       gamma=0.1,
@@ -288,8 +274,8 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir,
     dataloader = DataLoader(dataset,
                             batch_size=train_params['batch_size'],
                             shuffle=True,
-                            drop_last=True,
-                            num_workers=6)
+                            num_workers=6,
+                            drop_last=True)
 
     metrics_dataloader = None
     if 'metrics_params' in config:
@@ -297,15 +283,9 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir,
         metrics_dataloader = DataLoader(metrics_dataset,
                                         batch_size=train_params['batch_size'],
                                         shuffle=False,
-                                        num_workers=1,
+                                        num_workers=6,
                                         drop_last=True)
-    optimizer_generator = torch.optim.Adam(generator.parameters(),
-                                           lr=train_params['lr_generator'],
-                                           betas=(0.5, 0.999))
 
-    
-    #generator = reduce_macs(generator, 10, 11, kp_detector, discriminator,
-    #                                    train_params, dataloader, metrics_dataloader, generator_type, optimizer_generator, lr_size)
     generator_full = GeneratorFullModel(kp_detector, generator, discriminator,
                                         train_params)
     discriminator_full = DiscriminatorFullModel(kp_detector, generator,
@@ -330,31 +310,13 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir,
     with Logger(log_dir=log_dir,
                 visualizer_params=config['visualizer_params'],
                 checkpoint_freq=train_params['checkpoint_freq']) as logger:
-        for epoch in trange(start_epoch, train_params['num_epochs'] + 4):
-            print(epoch)
-            counter = 0
-            temp_dataset = []
-            for x in tqdm(dataloader):
-                counter += 1
-                # Convert to cpu
-                if counter == 11:
-
-                    current_macs = sum([val for i, val in calculate_macs(generator).items()])
-                    print(current_macs)
-                    generator = reduce_macs(generator, current_macs - 1000, current_macs, kp_detector, discriminator,
+        for epoch in trange(start_epoch, train_params['num_epochs']):
+            for x in dataloader:
+                generator = reduce_macs(generator, 10, 11, kp_detector, discriminator,
                                                         train_params, dataloader, metrics_dataloader, generator_type, optimizer_generator, lr_size)
-                    generator_full = GeneratorFullModel(kp_detector, generator, discriminator,
-                                                        train_params)
-                if counter < 12:
-                    continue
-                if counter > 1000:
-                    break
-                for j in x:
-                    try:
-                        temp = x[j].cuda()
-                        x[j] = temp
-                    except:
-                        continue
+                generator_full = GeneratorFullModel(kp_detector, generator, discriminator,
+                                        train_params)
+                print("Did an epoch")
                 if use_lr_video or use_RIFE:
                     lr_frame = F.interpolate(x['driving'], lr_size)
                     if train_params.get('encode_video_for_training', False):
@@ -421,12 +383,6 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir,
             if metrics_dataloader is not None:
                 with torch.no_grad():
                     for i, y in enumerate(metrics_dataloader):
-                        for j in y:
-                            try:
-                                temp = y[j].cuda()
-                                y[j] = temp
-                            except:
-                                continue
                         if use_lr_video or use_RIFE:
                             lr_frame = F.interpolate(y['driving'], lr_size)
                             if train_params.get('encode_video_for_training',
@@ -457,4 +413,13 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir,
                                                   loss_fn_vgg, original_lpips,
                                                   face_lpips)
 
-            logger.log_epoch(epoch, {}, inp=x, out=generated)
+            logger.log_epoch(epoch, {
+                'generator': generator,
+                'discriminator': discriminator,
+                'kp_detector': kp_detector,
+                'optimizer_generator': optimizer_generator,
+                'optimizer_discriminator': optimizer_discriminator,
+                'optimizer_kp_detector': optimizer_kp_detector
+            },
+                             inp=x,
+                             out=generated)

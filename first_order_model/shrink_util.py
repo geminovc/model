@@ -837,6 +837,8 @@ def reduce_macs(model, target, current, kp_detector, discriminator,
         # Train
         generator_full = GeneratorFullModel(kp_detector, model_copy, discriminator,
                                         train_params)
+        generator_full = DataParallelWithCallback(generator_full,
+                                                  device_ids=[0])
         breakpoint()
 
         counter = 0
@@ -844,11 +846,6 @@ def reduce_macs(model, target, current, kp_detector, discriminator,
             counter += 1
             if counter > 10:
                 break
-            for j in x:
-                try:
-                    x[j] = x[j].cuda()
-                except:
-                    continue
             x['driving_lr'] = F.interpolate(x['driving'], lr_size)
             losses_generator, generated = generator_full(x, generator_type)
             loss_values = [val.mean() for val in losses_generator.values()]
@@ -857,37 +854,32 @@ def reduce_macs(model, target, current, kp_detector, discriminator,
             optimizer_generator.step()
             optimizer_generator.zero_grad()
 
-        #total_loss = 0
-        #for y in tqdm(metrics_dataloader):
-        #    for j in y:
-        #        try:
-        #            temp = y[j].cuda()
-        #            y[j] = temp
-        #        except:
-        #            continue
-        #    y['driving_lr'] = F.interpolate(y['driving'], lr_size)
-        #    losses_generator, metrics_generated = generator_full(
-        #        y, generator_type)
-        #    loss_values = [val.mean() for val in losses_generator.values()]
-        #    loss = sum(loss_values)
-        #    total_loss += loss.item()
+        total_loss = 0
+        for y in tqdm(metrics_dataloader):
+            y['driving_lr'] = F.interpolate(y['driving'], lr_size)
+            losses_generator, metrics_generated = generator_full(
+                y, generator_type)
+            loss_values = [val.mean() for val in losses_generator.values()]
+            loss = sum(loss_values)
+            total_loss += loss.item()
 
-        ## Store the best module
-        ##if curr_loss == None or total_loss < curr_loss:
-        ##    curr_loss = total_loss
-        ##    del curr_model
-        ##    curr_model = model_copy
-        ##else:
-        ##    del model_copy
-        #del x
-        #del generated
-        #del metrics_generated
-        #del loss_values
-        #del y
-        #del total_loss
-        #del loss
-        #del losses_generator
-        #del j
+        # Store the best module
+        if curr_loss == None or total_loss < curr_loss:
+            curr_loss = total_loss
+            del curr_model
+            curr_model = model_copy
+            print("saved")
+        else:
+            del model_copy
+            print("Unsaved")
+        del x
+        del generated
+        del metrics_generated
+        del loss_values
+        del y
+        del total_loss
+        del loss
+        del losses_generator
 
         q = []
         for k in locals():
