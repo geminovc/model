@@ -48,7 +48,6 @@ if __name__ == "__main__":
     else:
         log_dir = os.path.join(opt.log_dir, opt.experiment_name)
         log_dir += ' ' + strftime("%d_%m_%y_%H.%M.%S", gmtime())
-
     generator, discriminator, kp_detector = configure_fom_modules(config, opt.device_ids[0])
     if opt.verbose:
         print(generator)

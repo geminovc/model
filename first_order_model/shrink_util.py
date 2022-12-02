@@ -1,3 +1,40 @@
+from tqdm import trange
+from tqdm import tqdm
+import torch
+import torchvision.models as models
+from torch.profiler import profile, record_function, ProfilerActivity
+import torch
+import torch.nn.functional as F
+import first_order_model
+from torchprofile import profile_macs
+
+import sys
+from torch.utils.data import DataLoader
+from first_order_model.modules.model import Vgg19, VggFace16
+import torch.nn.utils.prune as prune
+
+from logger import Logger
+from modules.model import GeneratorFullModel, DiscriminatorFullModel
+
+from torch.optim.lr_scheduler import MultiStepLR
+
+from sync_batchnorm import DataParallelWithCallback
+from skimage import img_as_float32
+import copy
+from frames_dataset import DatasetRepeater
+from frames_dataset import MetricsDataset
+from fractions import Fraction
+import lpips
+import random
+import av
+import numpy as np
+import torch.nn as nn
+
+from aiortc.codecs.vpx import Vp8Encoder, Vp8Decoder, vp8_depayload
+from aiortc.jitterbuffer import JitterFrame
+from matplotlib import pyplot as plt
+import matplotlib
+
 def plot_weight_distribution(model,
                              file_name,
                              bins=128,
@@ -424,7 +461,7 @@ def select_convs(model, params):
     return new_params
 
 
-def calculate_macs(model, file_name):
+def calculate_macs(model, file_name = None):
 
     all_layers = [
         m for n, m in model.named_modules()
@@ -462,13 +499,16 @@ def calculate_macs(model, file_name):
         new_shape_ = convert_shape(shape, node)
         results[node.index] = calc_flops(new_shape_, node)
 
-        if node.type == 'conv':
-            temp_input_cpu = torch.rand(1, node.value.weight.shape[1],
-                                        new_shape_[0], new_shape_[1])
-        else:
-            temp_input_cpu = torch.rand(1, node.value.weight.shape[0],
-                                        new_shape_[0], new_shape_[1])
-        if torch.cuda.is_available():
+        #if node.type == 'conv':
+        #    temp_input_cpu = torch.rand(1, node.value.weight.shape[1],
+        #                                new_shape_[0], new_shape_[1])
+        #else:
+        #    temp_input_cpu = torch.rand(1, node.value.weight.shape[0],
+        #                                new_shape_[0], new_shape_[1])
+        start = None
+        end = None
+        temp_input = None
+        if torch.cuda.is_available() and False:
             with torch.no_grad():
                 temp_input = temp_input_cpu.cuda()
                 start = torch.cuda.Event(enable_timing=True)
@@ -484,7 +524,7 @@ def calculate_macs(model, file_name):
                 times[node.index] = start.elapsed_time(end)
 
         del temp_input
-        del temp_input_cpu
+        #del temp_input_cpu
         del start
         del end
         torch.cuda.empty_cache()
@@ -505,17 +545,17 @@ def calculate_macs(model, file_name):
     ]
     parameter_size = [t_results[i] for i in range(len(names))]
     parameter_size = select_convs(model, parameter_size)
-    parameter_time = [times[i] for i in range(len(names))]
-    parameter_time = select_convs(model, parameter_time)
-    axes.set_yscale("log")
-    names = select_convs(model, names)
-    axes.bar(names, parameter_size)
-    axes.bar(names, parameter_time)
-    axes.set_xticklabels(names, rotation=90)
+    #parameter_time = [times[i] for i in range(len(names))]
+    #parameter_time = select_convs(model, parameter_time)
+    #axes.set_yscale("log")
+    #names = select_convs(model, names)
+    #axes.bar(names, parameter_size)
+    #axes.bar(names, parameter_time)
+    #axes.set_xticklabels(names, rotation=90)
 
-    fig.suptitle("Number of flops")
-    fig.savefig(file_name)
-    return sum(parameter_size)
+    #fig.suptitle("Number of flops")
+    #fig.savefig(file_name)
+    return t_results
 
 
 @torch.no_grad()
@@ -525,7 +565,6 @@ def channel_prune(model, prune_ratio, deletions=None):
     indicating that we use a uniform pruning rate for all layers, or a list of
     numbers to indicate per-layer pruning rate.
     """
-    print("START")
     # sanity check of provided prune_ratio
     model = copy.deepcopy(model)
 
@@ -591,9 +630,9 @@ def channel_prune(model, prune_ratio, deletions=None):
                     node.value.bias.set_(node.value.bias.detach()[:op_delete])
         return model
     else:
-        for pruners in deletions:
+        for index, pruners in deletions.items():
+            node = layer_graph[index]
             if pruners[0] == 'first':
-                op_delete = int((prune_ratios[base_index]) * node.o)
                 if node.type == 'conv' and len(node.after) != 0:
                     # Prune the outupts
                     node.value.weight.set_(
@@ -609,8 +648,7 @@ def channel_prune(model, prune_ratio, deletions=None):
                     if node.type == 'conv':
                         nvd = node.value.weight.detach()
                         nvd = torch.cat([
-                            nvd[:, :prune_indices[0]], nvd[:,
-                                                           prune_indices[1]:]
+                            nvd[:, :prune_indices[0]], nvd[:, prune_indices[1]:]
                         ],
                                         dim=1)
                         node.value.weight.set_(nvd.clone().detach())
@@ -631,21 +669,21 @@ def channel_prune(model, prune_ratio, deletions=None):
                         f_set(node.value.running_var.detach(),
                               node.value.running_var, prune_indices)
 
-        for base_index in layer_graph:
-            node = layer_graph[base_index]
-            total_rows = 0
-            counter = 0
-            pruners = []
-            curr_index = 0
-            for node_index in node.before:
-                total_rows += int(prune_ratios[node_index] *
-                                  layer_graph[node_index].o)
-                pruners.append((int(counter + (layer_graph[node_index].o *
-                                               prune_ratios[node_index])),
-                                counter + (layer_graph[node_index].o)))
-                counter += layer_graph[node_index].o
+        #for base_index in layer_graph:
+        #    node = layer_graph[base_index]
+        #    total_rows = 0
+        #    counter = 0
+        #    pruners = []
+        #    curr_index = 0
+        #    for node_index in node.before:
+        #        total_rows += int(prune_ratios[node_index] *
+        #                          layer_graph[node_index].o)
+        #        pruners.append((int(counter + (layer_graph[node_index].o *
+        #                                       prune_ratios[node_index])),
+        #                        counter + (layer_graph[node_index].o)))
+        #        counter += layer_graph[node_index].o
 
-            to_delete = total_rows
+        #    to_delete = total_rows
 
         return model
 
@@ -686,7 +724,8 @@ def sensitivity_scan(model,
     return sparsities, accuracies
 
 
-def reduce_macs(model, target, current):
+def reduce_macs(model, target, current, kp_detector, discriminator,
+                                        train_params, dataloader, metrics_dataloader, generator_type, optimizer_generator, lr_size):
     # Take each layer and reduce its macs
     all_layers = [
         m for n, m in model.named_modules()
@@ -700,7 +739,16 @@ def reduce_macs(model, target, current):
     ])
     per_layer_macs = calculate_macs(model)
     deletions = []
+    curr_model = None
+    curr_loss = None
     for layer in layer_graph:
+        curr_set = []
+        for l in locals():
+            curr_set.append(l)
+
+        curr_set = set(curr_set)
+        if layer_graph[layer].type != 'conv':
+            continue
         # Reduct its output
         curr_output = layer_graph[layer].o
 
@@ -719,9 +767,17 @@ def reduce_macs(model, target, current):
 
         def edit_macs(following_layers, layer, k):
             temp = current
-            temp -= per_layer_macs[layer.index] * k / layer.o
+            actual_layer = None
+            for t_layer in layer_graph:
+                if layer_graph[t_layer].index == layer:
+                    actual_layer = layer_graph[t_layer]
+            temp -= per_layer_macs[layer] * k / actual_layer.o
             for temp_layer in following_layers:
-                temp -= per_layer_macs(temp_layer.index) * k / temp_layer.i
+                actual_layer = None
+                for t_layer in layer_graph:
+                    if layer_graph[t_layer].index == temp_layer:
+                        actual_layer = layer_graph[t_layer]
+                temp -= per_layer_macs[temp_layer] * k / actual_layer.i
 
             return temp
 
@@ -734,24 +790,27 @@ def reduce_macs(model, target, current):
                 fail = True
 
         if fail:
-            deletions.append(-1)
+            continue
 
         else:
-            deletions.append(i)
+            #deletions.append(i)
+            pass
 
         # Temporarily delete the content
-        model_copy = copy.deepcopy(model)
+        with torch.no_grad():
+            model_copy = copy.deepcopy(model)
 
         # Build the pruning graph
         prune_ratios = {}
-        prune_ratios[layer.index] = i / layer_graph[layer].o
+        prune_ratios[layer_graph[layer].index] = i / layer_graph[layer].o
 
         # If you delete a part of the previous one, not just all of it then you cannot just say these n are to be deleted
         # So for each layer you need to figure out what you are deleting from it, then for the next layer figure out what is deleted
 
         # So make a map of deletions
         deletions = {}
-        deletions[layer.index] = [(layer.o - i, layer.o)]
+        deletions[layer] = [(layer_graph[layer].o - i, layer_graph[layer].o)]
+
 
         for following_layer in following_layers:
             if following_layer in deletions:
@@ -760,18 +819,87 @@ def reduce_macs(model, target, current):
             deletions[following_layer] = []
             counter = 0
             for previous_layer in layer_graph[following_layer].before:
+                if previous_layer not in deletions:
+                    continue
                 for deletion in deletions[previous_layer]:
                     deletions[following_layer].append(
                         (counter + deletion[0], counter + deletion[1]))
                 counter += layer_graph[previous_layer].o
+                
+
 
         # The original layer is a special case because you delete its output not input
-        deletions[layer.index].insert(0, 'first')
+        deletions[layer].insert(0, 'first')
         channel_prune(
-            model, 0.1,
+            model_copy, 0.1,
             deletions)  # The 0.1 is a dummy variable for now, gets ignored
 
         # Train
-        train(model_copy, iterations=10)
+        generator_full = GeneratorFullModel(kp_detector, model_copy, discriminator,
+                                        train_params)
+        breakpoint()
 
-        # Store the best module
+        counter = 0
+        for x in tqdm(dataloader):
+            counter += 1
+            if counter > 10:
+                break
+            for j in x:
+                try:
+                    x[j] = x[j].cuda()
+                except:
+                    continue
+            x['driving_lr'] = F.interpolate(x['driving'], lr_size)
+            losses_generator, generated = generator_full(x, generator_type)
+            loss_values = [val.mean() for val in losses_generator.values()]
+            loss = sum(loss_values)
+            loss.backward()
+            optimizer_generator.step()
+            optimizer_generator.zero_grad()
+
+        #total_loss = 0
+        #for y in tqdm(metrics_dataloader):
+        #    for j in y:
+        #        try:
+        #            temp = y[j].cuda()
+        #            y[j] = temp
+        #        except:
+        #            continue
+        #    y['driving_lr'] = F.interpolate(y['driving'], lr_size)
+        #    losses_generator, metrics_generated = generator_full(
+        #        y, generator_type)
+        #    loss_values = [val.mean() for val in losses_generator.values()]
+        #    loss = sum(loss_values)
+        #    total_loss += loss.item()
+
+        ## Store the best module
+        ##if curr_loss == None or total_loss < curr_loss:
+        ##    curr_loss = total_loss
+        ##    del curr_model
+        ##    curr_model = model_copy
+        ##else:
+        ##    del model_copy
+        #del x
+        #del generated
+        #del metrics_generated
+        #del loss_values
+        #del y
+        #del total_loss
+        #del loss
+        #del losses_generator
+        #del j
+
+        q = []
+        for k in locals():
+            q.append(k)
+        for k in q:
+            if k not in curr_set and k != 'k' and k != 'q':
+                exec('del ' + k)
+        torch.cuda.empty_cache()
+        #breakpoint()
+
+
+    if curr_model == None:
+        print("Could not shrink anymore")
+        raise Exception("Could not shrink")
+    return curr_model

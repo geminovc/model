@@ -289,7 +289,7 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir,
                             batch_size=train_params['batch_size'],
                             shuffle=True,
                             drop_last=True,
-                            num_workers=1)
+                            num_workers=6)
 
     metrics_dataloader = None
     if 'metrics_params' in config:
@@ -297,12 +297,15 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir,
         metrics_dataloader = DataLoader(metrics_dataset,
                                         batch_size=train_params['batch_size'],
                                         shuffle=False,
-                                        num_workers=6,
+                                        num_workers=1,
                                         drop_last=True)
     optimizer_generator = torch.optim.Adam(generator.parameters(),
                                            lr=train_params['lr_generator'],
                                            betas=(0.5, 0.999))
 
+    
+    #generator = reduce_macs(generator, 10, 11, kp_detector, discriminator,
+    #                                    train_params, dataloader, metrics_dataloader, generator_type, optimizer_generator, lr_size)
     generator_full = GeneratorFullModel(kp_detector, generator, discriminator,
                                         train_params)
     discriminator_full = DiscriminatorFullModel(kp_detector, generator,
@@ -330,10 +333,28 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir,
         for epoch in trange(start_epoch, train_params['num_epochs'] + 4):
             print(epoch)
             counter = 0
+            temp_dataset = []
             for x in tqdm(dataloader):
                 counter += 1
+                # Convert to cpu
+                if counter == 11:
+
+                    current_macs = sum([val for i, val in calculate_macs(generator).items()])
+                    print(current_macs)
+                    generator = reduce_macs(generator, current_macs - 1000, current_macs, kp_detector, discriminator,
+                                                        train_params, dataloader, metrics_dataloader, generator_type, optimizer_generator, lr_size)
+                    generator_full = GeneratorFullModel(kp_detector, generator, discriminator,
+                                                        train_params)
+                if counter < 12:
+                    continue
                 if counter > 1000:
                     break
+                for j in x:
+                    try:
+                        temp = x[j].cuda()
+                        x[j] = temp
+                    except:
+                        continue
                 if use_lr_video or use_RIFE:
                     lr_frame = F.interpolate(x['driving'], lr_size)
                     if train_params.get('encode_video_for_training', False):
@@ -400,6 +421,12 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir,
             if metrics_dataloader is not None:
                 with torch.no_grad():
                     for i, y in enumerate(metrics_dataloader):
+                        for j in y:
+                            try:
+                                temp = y[j].cuda()
+                                y[j] = temp
+                            except:
+                                continue
                         if use_lr_video or use_RIFE:
                             lr_frame = F.interpolate(y['driving'], lr_size)
                             if train_params.get('encode_video_for_training',
