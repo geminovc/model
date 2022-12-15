@@ -725,7 +725,7 @@ def sensitivity_scan(model,
 
 
 def reduce_macs(model, target, current, kp_detector, discriminator,
-                                        train_params, dataset, metrics_dataloader, generator_type, optimizer_generator, lr_size):
+                                        train_params, dataloader, metrics_dataloader, generator_type, optimizer_generator, lr_size):
     # Take each layer and reduce its macs
     all_layers = [
         m for n, m in model.named_modules()
@@ -741,11 +741,6 @@ def reduce_macs(model, target, current, kp_detector, discriminator,
     deletions = []
     curr_model = None
     curr_loss = None
-    dataloader = DataLoader(dataset,
-                            batch_size=train_params['batch_size'],
-                            shuffle=True,
-                            num_workers=6,
-                            drop_last=True)
     for layer in layer_graph:
         if layer_graph[layer].type != 'conv':
             continue
@@ -842,8 +837,9 @@ def reduce_macs(model, target, current, kp_detector, discriminator,
                                                       device_ids=[0])
 
             counter = 0
-            for k in tqdm(dataloader):
-                counter += 1
+            for k in dataloader:
+                print("broke again")
+                break
 
             for x in tqdm(dataloader):
                 x['driving_lr'] = F.interpolate(x['driving'], lr_size)
