@@ -725,7 +725,7 @@ def sensitivity_scan(model,
 
 
 def reduce_macs(model, target, current, kp_detector, discriminator,
-                                        train_params, dataloader, metrics_dataloader, generator_type, optimizer_generator, lr_size):
+                                        train_params, dataset, metrics_dataloader, generator_type, optimizer_generator, lr_size):
     # Take each layer and reduce its macs
     all_layers = [
         m for n, m in model.named_modules()
@@ -741,154 +741,141 @@ def reduce_macs(model, target, current, kp_detector, discriminator,
     deletions = []
     curr_model = None
     curr_loss = None
+    dataloader = DataLoader(dataset,
+                            batch_size=train_params['batch_size'],
+                            shuffle=True,
+                            num_workers=6,
+                            drop_last=True)
     for layer in layer_graph:
-        curr_set = []
-        for l in locals():
-            curr_set.append(l)
-
-        curr_set = set(curr_set)
         if layer_graph[layer].type != 'conv':
             continue
-        # Reduct its output
-        curr_output = layer_graph[layer].o
+        def try_reduce(curr_loss, curr_model, per_layer_macs):
+            # Reduct its output
+            curr_output = layer_graph[layer].o
 
-        # find all the following layers
-        following_layers = []
+            # find all the following layers
+            following_layers = []
 
-        def follow(x):
-            following_layers.append(x.index)
-            if x.type == 'conv':
-                return
-            for y in x.after:
-                follow(layer_graph[y])
+            def follow(x):
+                following_layers.append(x.index)
+                if x.type == 'conv':
+                    return
+                for y in x.after:
+                    follow(layer_graph[y])
 
-        for after_layer in layer_graph[layer].after:
-            follow(layer_graph[layer])
+            for after_layer in layer_graph[layer].after:
+                follow(layer_graph[layer])
 
-        def edit_macs(following_layers, layer, k):
-            temp = current
-            actual_layer = None
-            for t_layer in layer_graph:
-                if layer_graph[t_layer].index == layer:
-                    actual_layer = layer_graph[t_layer]
-            temp -= per_layer_macs[layer] * k / actual_layer.o
-            for temp_layer in following_layers:
+            def edit_macs(following_layers, layer, k):
+                temp = current
                 actual_layer = None
                 for t_layer in layer_graph:
-                    if layer_graph[t_layer].index == temp_layer:
+                    if layer_graph[t_layer].index == layer:
                         actual_layer = layer_graph[t_layer]
-                temp -= per_layer_macs[temp_layer] * k / actual_layer.i
+                temp -= per_layer_macs[layer] * k / actual_layer.o
+                for temp_layer in following_layers:
+                    actual_layer = None
+                    for t_layer in layer_graph:
+                        if layer_graph[t_layer].index == temp_layer:
+                            actual_layer = layer_graph[t_layer]
+                    temp -= per_layer_macs[temp_layer] * k / actual_layer.i
 
-            return temp
+                return temp
 
-        i = 0
-        fail = False
-        while edit_macs(following_layers, layer, i) > target:
-            if layer_graph[layer].o > i:
-                i += 1
+            i = 0
+            fail = False
+            while edit_macs(following_layers, layer, i) > target:
+                if layer_graph[layer].o > i:
+                    i += 1
+                else:
+                    fail = True
+
+            if fail:
+                return
+
             else:
-                fail = True
+                #deletions.append(i)
+                pass
 
-        if fail:
-            continue
+            # Temporarily delete the content
+            with torch.no_grad():
+                model_copy = copy.deepcopy(model)
 
-        else:
-            #deletions.append(i)
-            pass
+            # Build the pruning graph
+            prune_ratios = {}
+            prune_ratios[layer_graph[layer].index] = i / layer_graph[layer].o
 
-        # Temporarily delete the content
-        with torch.no_grad():
-            model_copy = copy.deepcopy(model)
+            # If you delete a part of the previous one, not just all of it then you cannot just say these n are to be deleted
+            # So for each layer you need to figure out what you are deleting from it, then for the next layer figure out what is deleted
 
-        # Build the pruning graph
-        prune_ratios = {}
-        prune_ratios[layer_graph[layer].index] = i / layer_graph[layer].o
-
-        # If you delete a part of the previous one, not just all of it then you cannot just say these n are to be deleted
-        # So for each layer you need to figure out what you are deleting from it, then for the next layer figure out what is deleted
-
-        # So make a map of deletions
-        deletions = {}
-        deletions[layer] = [(layer_graph[layer].o - i, layer_graph[layer].o)]
+            # So make a map of deletions
+            deletions = {}
+            deletions[layer] = [(layer_graph[layer].o - i, layer_graph[layer].o)]
 
 
-        for following_layer in following_layers:
-            if following_layer in deletions:
-                continue
-
-            deletions[following_layer] = []
-            counter = 0
-            for previous_layer in layer_graph[following_layer].before:
-                if previous_layer not in deletions:
+            for following_layer in following_layers:
+                if following_layer in deletions:
                     continue
-                for deletion in deletions[previous_layer]:
-                    deletions[following_layer].append(
-                        (counter + deletion[0], counter + deletion[1]))
-                counter += layer_graph[previous_layer].o
-                
+
+                deletions[following_layer] = []
+                counter = 0
+                for previous_layer in layer_graph[following_layer].before:
+                    if previous_layer not in deletions:
+                        continue
+                    for deletion in deletions[previous_layer]:
+                        deletions[following_layer].append(
+                            (counter + deletion[0], counter + deletion[1]))
+                    counter += layer_graph[previous_layer].o
+                    
 
 
-        # The original layer is a special case because you delete its output not input
-        deletions[layer].insert(0, 'first')
-        channel_prune(
-            model_copy, 0.1,
-            deletions)  # The 0.1 is a dummy variable for now, gets ignored
+            # The original layer is a special case because you delete its output not input
+            deletions[layer].insert(0, 'first')
+            channel_prune(
+                model_copy, 0.1,
+                deletions)  # The 0.1 is a dummy variable for now, gets ignored
 
-        # Train
-        generator_full = GeneratorFullModel(kp_detector, model_copy, discriminator,
-                                        train_params)
-        generator_full = DataParallelWithCallback(generator_full,
-                                                  device_ids=[0])
-        breakpoint()
+            # Train
+            generator_full = GeneratorFullModel(kp_detector, model_copy, discriminator,
+                                            train_params)
+            generator_full = DataParallelWithCallback(generator_full,
+                                                      device_ids=[0])
 
-        counter = 0
-        for x in tqdm(dataloader):
-            counter += 1
-            if counter > 10:
-                break
-            x['driving_lr'] = F.interpolate(x['driving'], lr_size)
-            losses_generator, generated = generator_full(x, generator_type)
-            loss_values = [val.mean() for val in losses_generator.values()]
-            loss = sum(loss_values)
-            loss.backward()
-            optimizer_generator.step()
-            optimizer_generator.zero_grad()
+            counter = 0
+            for k in tqdm(dataloader):
+                counter += 1
 
-        total_loss = 0
-        for y in tqdm(metrics_dataloader):
-            y['driving_lr'] = F.interpolate(y['driving'], lr_size)
-            losses_generator, metrics_generated = generator_full(
-                y, generator_type)
-            loss_values = [val.mean() for val in losses_generator.values()]
-            loss = sum(loss_values)
-            total_loss += loss.item()
+            for x in tqdm(dataloader):
+                x['driving_lr'] = F.interpolate(x['driving'], lr_size)
+                losses_generator, generated = generator_full(x, generator_type)
+                loss_values = [val.mean() for val in losses_generator.values()]
+                loss = sum(loss_values)
+                loss.backward()
+                optimizer_generator.step()
+                optimizer_generator.zero_grad()
 
-        # Store the best module
-        if curr_loss == None or total_loss < curr_loss:
-            curr_loss = total_loss
-            del curr_model
-            curr_model = model_copy
-            print("saved")
-        else:
-            del model_copy
-            print("Unsaved")
-        del x
-        del generated
-        del metrics_generated
-        del loss_values
-        del y
-        del total_loss
-        del loss
-        del losses_generator
+            total_loss = 0
+            for y in tqdm(metrics_dataloader):
+                y['driving_lr'] = F.interpolate(y['driving'], lr_size)
+                losses_generator, metrics_generated = generator_full(
+                    y, generator_type)
+                loss_values = [val.mean() for val in losses_generator.values()]
+                loss = sum(loss_values)
+                total_loss += loss.item()
 
-        q = []
-        for k in locals():
-            q.append(k)
-        for k in q:
-            if k not in curr_set and k != 'k' and k != 'q':
-                exec('del ' + k)
-        torch.cuda.empty_cache()
-        #breakpoint()
+            # Store the best module
+            if curr_loss == None or total_loss < curr_loss and False:
+                curr_loss = total_loss
+                del curr_model
+                curr_model = model_copy
+                print("saved")
+            else:
+                del model_copy
+                print("Unsaved")
+            torch.cuda.empty_cache()
+            #breakpoint()
+
+        try_reduce(curr_loss, curr_model, per_layer_macs)
 
 
     if curr_model == None:

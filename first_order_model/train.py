@@ -307,15 +307,19 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir,
     loss_fn_vgg = vgg_model.compute_loss
     face_lpips = vgg_face_model.compute_loss
 
+    for k in dataloader:
+        print("bbb")
+    for k in dataloader:
+        print("lll")
+    generator = reduce_macs(generator, 10, 11, kp_detector, discriminator,
+                                            train_params, dataset, metrics_dataloader, generator_type, optimizer_generator, lr_size)
+    generator_full = GeneratorFullModel(kp_detector, generator, discriminator,
+                                        train_params)
     with Logger(log_dir=log_dir,
                 visualizer_params=config['visualizer_params'],
                 checkpoint_freq=train_params['checkpoint_freq']) as logger:
         for epoch in trange(start_epoch, train_params['num_epochs']):
             for x in dataloader:
-                generator = reduce_macs(generator, 10, 11, kp_detector, discriminator,
-                                                        train_params, dataloader, metrics_dataloader, generator_type, optimizer_generator, lr_size)
-                generator_full = GeneratorFullModel(kp_detector, generator, discriminator,
-                                        train_params)
                 print("Did an epoch")
                 if use_lr_video or use_RIFE:
                     lr_frame = F.interpolate(x['driving'], lr_size)
