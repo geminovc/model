@@ -749,7 +749,6 @@ def sensitivity_scan(model,
         accuracies.append(accuracy)
     return sparsities, accuracies
 
-
 def try_reduce(curr_loss, curr_model, per_layer_macs, dataloader, layer_graph, layer, kp_detector, discriminator, train_params, model, target, current, lr_size, generator_type, metrics_dataloader, generator_full):
     # Reduct its output
     curr_output = layer_graph[layer].o
@@ -854,7 +853,9 @@ def try_reduce(curr_loss, curr_model, per_layer_macs, dataloader, layer_graph, l
 
     count("before loop")
 
+    c = 0
     for x in tqdm(dataloader):
+        c += 1
         x['driving_lr'] = F.interpolate(x['driving'], lr_size)
         losses_generator, generated = generator_full(x, generator_type)
         loss_values = [val.mean() for val in losses_generator.values()]
@@ -919,7 +920,10 @@ def reduce_macs(model, target, current, kp_detector, discriminator,
 
         count("Reduce Macs")
         size = get_sizes()
-        try_reduce(curr_loss, curr_model, per_layer_macs, dataloader, layer_graph, layer, kp_detector, discriminator, train_params, model, target, current, lr_size, generator_type, metrics_dataloader, generator_full)
+        with profile(activities=[ProfilerActivity.CUDA],
+            profile_memory=True, record_shapes=True) as prof:
+            try_reduce(curr_loss, curr_model, per_layer_macs, dataloader, layer_graph, layer, kp_detector, discriminator, train_params, model, target, current, lr_size, generator_type, metrics_dataloader, generator_full)
+        print(prof.key_averages().table(sort_by="self_cuda_memory_usage"))
 
 
     if curr_model == None:
