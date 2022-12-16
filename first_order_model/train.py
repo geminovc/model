@@ -274,7 +274,8 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir,
     dataloader = DataLoader(dataset,
                             batch_size=train_params['batch_size'],
                             shuffle=True,
-                            num_workers=6,
+                            num_workers=12,
+                            prefetch_factor=2,
                             drop_last=True)
 
     metrics_dataloader = None
@@ -309,10 +310,10 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir,
     for k in dataloader:
         break
 
-    generator = reduce_macs(generator, 10, 11, kp_detector, discriminator,
-                                            train_params, dataloader, metrics_dataloader, generator_type, optimizer_generator, lr_size)
     generator_full = GeneratorFullModel(kp_detector, generator, discriminator,
                                         train_params)
+    generator = reduce_macs(generator, 69284835199167 - 1000000000000,69284835199167 , kp_detector, discriminator,
+                                            train_params, dataloader, metrics_dataloader, generator_type, lr_size, generator_full)
     with Logger(log_dir=log_dir,
                 visualizer_params=config['visualizer_params'],
                 checkpoint_freq=train_params['checkpoint_freq']) as logger:

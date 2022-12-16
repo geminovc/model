@@ -1,4 +1,5 @@
 from tqdm import trange
+import gc
 from tqdm import tqdm
 import torch
 import torchvision.models as models
@@ -35,6 +36,31 @@ from aiortc.jitterbuffer import JitterFrame
 from matplotlib import pyplot as plt
 import matplotlib
 
+def count(name):
+    obj_counter = 0
+    for obj in gc.get_objects():
+        try:
+            if torch.is_tensor(obj) or (hasattr(obj, 'data') and torch.is_tensor(obj.data)):
+                obj_counter += 1
+        except:
+            pass 
+    print("Gc tracks ", obj_counter, "objects in ", name)
+
+def get_sizes():
+    s = {}
+    obj_counter = 0
+    for obj in gc.get_objects():
+        try:
+            if torch.is_tensor(obj) or (hasattr(obj, 'data') and torch.is_tensor(obj.data)):
+                size = tuple(obj.size())
+                if size in s:
+                    s[size] = s[size] + 1
+                else:
+                    s[size] = 1
+                obj_counter += 1
+        except:
+            pass 
+    return s
 def plot_weight_distribution(model,
                              file_name,
                              bins=128,
@@ -724,8 +750,154 @@ def sensitivity_scan(model,
     return sparsities, accuracies
 
 
+def try_reduce(curr_loss, curr_model, per_layer_macs, dataloader, layer_graph, layer, kp_detector, discriminator, train_params, model, target, current, lr_size, generator_type, metrics_dataloader, generator_full):
+    # Reduct its output
+    curr_output = layer_graph[layer].o
+
+    # find all the following layers
+    following_layers = []
+
+    def follow(x):
+        following_layers.append(x.index)
+        if x.type == 'conv':
+            return
+        for y in x.after:
+            follow(layer_graph[y])
+
+    for after_layer in layer_graph[layer].after:
+        follow(layer_graph[layer])
+
+    def edit_macs(following_layers, layer, k):
+        temp = current
+        actual_layer = None
+        for t_layer in layer_graph:
+            if layer_graph[t_layer].index == layer:
+                actual_layer = layer_graph[t_layer]
+        temp -= per_layer_macs[layer] * k / actual_layer.o
+        for temp_layer in following_layers:
+            actual_layer = None
+            for t_layer in layer_graph:
+                if layer_graph[t_layer].index == temp_layer:
+                    actual_layer = layer_graph[t_layer]
+            temp -= per_layer_macs[temp_layer] * k / actual_layer.i
+
+        return temp
+
+    i = 0
+    fail = False
+    while edit_macs(following_layers, layer, i) > target:
+        if layer_graph[layer].o > i:
+            i += 1
+        else:
+            fail = True
+            break
+
+    if fail:
+        return
+
+    else:
+        #deletions.append(i)
+        pass
+
+    # Temporarily delete the content
+    with torch.no_grad():
+        model_copy = copy.deepcopy(model)
+
+    # Build the pruning graph
+    prune_ratios = {}
+    prune_ratios[layer_graph[layer].index] = i / layer_graph[layer].o
+
+    # If you delete a part of the previous one, not just all of it then you cannot just say these n are to be deleted
+    # So for each layer you need to figure out what you are deleting from it, then for the next layer figure out what is deleted
+
+    # So make a map of deletions
+    deletions = {}
+    deletions[layer] = [(layer_graph[layer].o - i, layer_graph[layer].o)]
+
+
+    for following_layer in following_layers:
+        if following_layer in deletions:
+            continue
+
+        deletions[following_layer] = []
+        counter = 0
+        for previous_layer in layer_graph[following_layer].before:
+            if previous_layer not in deletions:
+                continue
+            for deletion in deletions[previous_layer]:
+                deletions[following_layer].append(
+                    (counter + deletion[0], counter + deletion[1]))
+            counter += layer_graph[previous_layer].o
+            
+
+
+    # The original layer is a special case because you delete its output not input
+    deletions[layer].insert(0, 'first')
+    channel_prune(
+        model_copy, 0.1,
+        deletions)  # The 0.1 is a dummy variable for now, gets ignored
+
+    # Train
+    old_model = generator_full.generator
+    generator_full.generator = model_copy
+    optimizer_generator = torch.optim.Adam(model_copy.parameters(),
+                                           lr=train_params['lr_generator'],
+                                           betas=(0.5, 0.999))
+    if torch.cuda.is_available():
+        generator_full = DataParallelWithCallback(generator_full,
+                                                  device_ids=[0])
+
+    counter = 0
+    for k in dataloader:
+        print("broke again")
+        break
+
+    count("before loop")
+
+    for x in tqdm(dataloader):
+        x['driving_lr'] = F.interpolate(x['driving'], lr_size)
+        losses_generator, generated = generator_full(x, generator_type)
+        loss_values = [val.mean() for val in losses_generator.values()]
+        loss = sum(loss_values)
+        loss.backward()
+        optimizer_generator.step()
+        optimizer_generator.zero_grad()
+        pass
+    
+    count('in loop')
+
+    total_loss = 0
+    with torch.no_grad():
+        for y in tqdm(metrics_dataloader):
+            y['driving_lr'] = F.interpolate(y['driving'], lr_size)
+            losses_generator, metrics_generated = generator_full(
+                y, generator_type)
+            loss_values = [val.mean() for val in losses_generator.values()]
+            loss = sum(loss_values)
+            total_loss += loss.item()
+
+    generator_full.generator = old_model
+
+
+    del model_copy
+    del optimizer_generator
+    del total_loss
+    # Store the best module
+    count("before return")
+    return
+    if curr_loss == None or total_loss < curr_loss and False:
+        curr_loss = total_loss
+        del curr_model
+        curr_model = model_copy
+        print("saved")
+    else:
+        del model_copy
+        print("Unsaved")
+    torch.cuda.empty_cache()
+    #breakpoint()
+
 def reduce_macs(model, target, current, kp_detector, discriminator,
-                                        train_params, dataloader, metrics_dataloader, generator_type, optimizer_generator, lr_size):
+                                        train_params, dataloader, metrics_dataloader, generator_type, lr_size, generator_full):
     # Take each layer and reduce its macs
     all_layers = [
         m for n, m in model.named_modules()
@@ -744,134 +916,10 @@ def reduce_macs(model, target, current, kp_detector, discriminator,
     for layer in layer_graph:
         if layer_graph[layer].type != 'conv':
             continue
-        def try_reduce(curr_loss, curr_model, per_layer_macs):
-            # Reduct its output
-            curr_output = layer_graph[layer].o
 
-            # find all the following layers
-            following_layers = []
-
-            def follow(x):
-                following_layers.append(x.index)
-                if x.type == 'conv':
-                    return
-                for y in x.after:
-                    follow(layer_graph[y])
-
-            for after_layer in layer_graph[layer].after:
-                follow(layer_graph[layer])
-
-            def edit_macs(following_layers, layer, k):
-                temp = current
-                actual_layer = None
-                for t_layer in layer_graph:
-                    if layer_graph[t_layer].index == layer:
-                        actual_layer = layer_graph[t_layer]
-                temp -= per_layer_macs[layer] * k / actual_layer.o
-                for temp_layer in following_layers:
-                    actual_layer = None
-                    for t_layer in layer_graph:
-                        if layer_graph[t_layer].index == temp_layer:
-                            actual_layer = layer_graph[t_layer]
-                    temp -= per_layer_macs[temp_layer] * k / actual_layer.i
-
-                return temp
-
-            i = 0
-            fail = False
-            while edit_macs(following_layers, layer, i) > target:
-                if layer_graph[layer].o > i:
-                    i += 1
-                else:
-                    fail = True
-
-            if fail:
-                return
-
-            else:
-                #deletions.append(i)
-                pass
-
-            # Temporarily delete the content
-            with torch.no_grad():
-                model_copy = copy.deepcopy(model)
-
-            # Build the pruning graph
-            prune_ratios = {}
-            prune_ratios[layer_graph[layer].index] = i / layer_graph[layer].o
-
-            # If you delete a part of the previous one, not just all of it then you cannot just say these n are to be deleted
-            # So for each layer you need to figure out what you are deleting from it, then for the next layer figure out what is deleted
-
-            # So make a map of deletions
-            deletions = {}
-            deletions[layer] = [(layer_graph[layer].o - i, layer_graph[layer].o)]
-
-
-            for following_layer in following_layers:
-                if following_layer in deletions:
-                    continue
-
-                deletions[following_layer] = []
-                counter = 0
-                for previous_layer in layer_graph[following_layer].before:
-                    if previous_layer not in deletions:
-                        continue
-                    for deletion in deletions[previous_layer]:
-                        deletions[following_layer].append(
-                            (counter + deletion[0], counter + deletion[1]))
-                    counter += layer_graph[previous_layer].o
-                    
-
-
-            # The original layer is a special case because you delete its output not input
-            deletions[layer].insert(0, 'first')
-            channel_prune(
-                model_copy, 0.1,
-                deletions)  # The 0.1 is a dummy variable for now, gets ignored
-
-            # Train
-            generator_full = GeneratorFullModel(kp_detector, model_copy, discriminator,
-                                            train_params)
-            generator_full = DataParallelWithCallback(generator_full,
-                                                      device_ids=[0])
-
-            counter = 0
-            for k in dataloader:
-                print("broke again")
-                break
-
-            for x in tqdm(dataloader):
-                x['driving_lr'] = F.interpolate(x['driving'], lr_size)
-                losses_generator, generated = generator_full(x, generator_type)
-                loss_values = [val.mean() for val in losses_generator.values()]
-                loss = sum(loss_values)
-                loss.backward()
-                optimizer_generator.step()
-                optimizer_generator.zero_grad()
-
-            total_loss = 0
-            for y in tqdm(metrics_dataloader):
-                y['driving_lr'] = F.interpolate(y['driving'], lr_size)
-                losses_generator, metrics_generated = generator_full(
-                    y, generator_type)
-                loss_values = [val.mean() for val in losses_generator.values()]
-                loss = sum(loss_values)
-                total_loss += loss.item()
-
-            # Store the best module
-            if curr_loss == None or total_loss < curr_loss and False:
-                curr_loss = total_loss
-                del curr_model
-                curr_model = model_copy
-                print("saved")
-            else:
-                del model_copy
-                print("Unsaved")
-            torch.cuda.empty_cache()
-            #breakpoint()
-
-        try_reduce(curr_loss, curr_model, per_layer_macs)
+        count("Reduce Macs")
+        size = get_sizes()
+        try_reduce(curr_loss, curr_model, per_layer_macs, dataloader, layer_graph, layer, kp_detector, discriminator, train_params, model, target, current, lr_size, generator_type, metrics_dataloader, generator_full)
 
 
     if curr_model == None:
