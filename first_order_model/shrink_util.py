@@ -799,8 +799,8 @@ def try_reduce(curr_loss, curr_model, per_layer_macs, dataloader, layer_graph, l
         pass
 
     # Temporarily delete the content
-    with torch.no_grad():
-        model_copy = copy.deepcopy(model)
+    #with torch.no_grad():
+    #    model_copy = copy.deepcopy(model)
 
     # Build the pruning graph
     prune_ratios = {}
@@ -832,37 +832,53 @@ def try_reduce(curr_loss, curr_model, per_layer_macs, dataloader, layer_graph, l
 
     # The original layer is a special case because you delete its output not input
     deletions[layer].insert(0, 'first')
-    channel_prune(
-        model_copy, 0.1,
-        deletions)  # The 0.1 is a dummy variable for now, gets ignored
+    #channel_prune(
+    #    model_copy, 0.1,
+    #    deletions)  # The 0.1 is a dummy variable for now, gets ignored
 
     # Train
-    old_model = generator_full.generator
-    generator_full.generator = model_copy
-    optimizer_generator = torch.optim.Adam(model_copy.parameters(),
-                                           lr=train_params['lr_generator'],
-                                           betas=(0.5, 0.999))
-    if torch.cuda.is_available():
-        generator_full = DataParallelWithCallback(generator_full,
-                                                  device_ids=[0])
+    #old_model = generator_full.generator
+    #generator_full.generator = model_copy
+    #optimizer_generator = torch.optim.Adam(generator_full.generator.parameters(),
+    #                                       lr=train_params['lr_generator'],
+    #                                       betas=(0.5, 0.999))
+    #if torch.cuda.is_available():
+    #    generator_full = DataParallelWithCallback(generator_full,
+    #                                              device_ids=[0])
 
     counter = 0
+    print("starting dl")
     for k in dataloader:
         print("broke again")
         break
 
-    count("before loop")
 
-    c = 0
+    #generator_full.generator = old_model
+    count("before loop")
+    c=0
+
     for x in tqdm(dataloader):
         c += 1
         x['driving_lr'] = F.interpolate(x['driving'], lr_size)
-        losses_generator, generated = generator_full(x, generator_type)
-        loss_values = [val.mean() for val in losses_generator.values()]
-        loss = sum(loss_values)
-        loss.backward()
-        optimizer_generator.step()
-        optimizer_generator.zero_grad()
+        for k in x:
+            try:
+                x[k] = x[k].cuda()
+            except:
+                pass
+        print("Before")
+        print(get_sizes())
+        count("before gen")
+        with torch.no_grad():
+            generator_full(x, generator_type)
+            pass
+        print("After")
+        print(get_sizes())
+        count("after gen")
+        #loss_values = [val.mean() for val in losses_generator.values()]
+        #loss = sum(loss_values)
+        #loss.backward()
+        #optimizer_generator.step()
+        #optimizer_generator.zero_grad()
         pass
     
     count('in loop')
@@ -870,18 +886,23 @@ def try_reduce(curr_loss, curr_model, per_layer_macs, dataloader, layer_graph, l
     total_loss = 0
     with torch.no_grad():
         for y in tqdm(metrics_dataloader):
+            continue
             y['driving_lr'] = F.interpolate(y['driving'], lr_size)
+            try:
+                y[k] = y[k].cuda()
+            except:
+                pass
             losses_generator, metrics_generated = generator_full(
                 y, generator_type)
             loss_values = [val.mean() for val in losses_generator.values()]
             loss = sum(loss_values)
             total_loss += loss.item()
 
-    generator_full.generator = old_model
+    #generator_full.generator = old_model
 
 
-    del model_copy
-    del optimizer_generator
+    #del model_copy
+    #del optimizer_generator
     del total_loss
     # Store the best module
     count("before return")
@@ -914,18 +935,20 @@ def reduce_macs(model, target, current, kp_detector, discriminator,
     deletions = []
     curr_model = None
     curr_loss = None
-    for layer in layer_graph:
-        if layer_graph[layer].type != 'conv':
-            continue
+    i = 0
+    with profile(activities=[ProfilerActivity.CPU],
+        profile_memory=True, record_shapes=True) as prof:
+        for layer in layer_graph:
+            i += 1
+            if layer_graph[layer].type != 'conv':
+                continue
 
-        count("Reduce Macs")
-        size = get_sizes()
-        with profile(activities=[ProfilerActivity.CUDA],
-            profile_memory=True, record_shapes=True) as prof:
+            count("Reduce Macs")
+            size = get_sizes()
             try_reduce(curr_loss, curr_model, per_layer_macs, dataloader, layer_graph, layer, kp_detector, discriminator, train_params, model, target, current, lr_size, generator_type, metrics_dataloader, generator_full)
-        print(prof.key_averages().table(sort_by="self_cuda_memory_usage"))
+            torch.cuda.empty_cache()
 
-
+    print(prof.key_averages().table(sort_by="self_cpu_memory_usage"))
     if curr_model == None:
         print("Could not shrink anymore")
         raise Exception("Could not shrink")

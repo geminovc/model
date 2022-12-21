@@ -297,10 +297,10 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir,
     vgg_face_model = VggFace16()
 
     if torch.cuda.is_available():
-        generator_full = DataParallelWithCallback(generator_full,
-                                                  device_ids=device_ids)
-        discriminator_full = DataParallelWithCallback(discriminator_full,
-                                                      device_ids=device_ids)
+        #generator_full = DataParallelWithCallback(generator_full,
+        #                                          device_ids=device_ids)
+        #discriminator_full = DataParallelWithCallback(discriminator_full,
+        #                                              device_ids=device_ids)
         original_lpips = original_lpips.cuda()
         vgg_model = vgg_model.cuda()
         vgg_face_model = vgg_face_model.cuda()
@@ -310,8 +310,8 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir,
     for k in dataloader:
         break
 
-    generator_full = GeneratorFullModel(kp_detector, generator, discriminator,
-                                        train_params)
+    #generator_full = GeneratorFullModel(kp_detector, generator, discriminator,
+    #                                    train_params)
     generator = reduce_macs(generator, 69284835199167 - 1000000000000,69284835199167 , kp_detector, discriminator,
                                             train_params, dataloader, metrics_dataloader, generator_type, lr_size, generator_full)
     with Logger(log_dir=log_dir,
