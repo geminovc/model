@@ -36,6 +36,11 @@ from aiortc.jitterbuffer import JitterFrame
 from matplotlib import pyplot as plt
 import matplotlib
 
+def gen_state_dict(model):
+    state_dict = {}
+    for name, param in model.named_parameters():
+        state_dict[name] = param.data.detach().clone()
+    return state_dict
 def count(name):
     obj_counter = 0
     for obj in gc.get_objects():
@@ -262,8 +267,7 @@ def build_graph(all_layers, names):
     add('lr_first.conv', 'lr_first.norm')
     add_names([
         'hr_first.conv', 'hr_first.norm', 'hr_down_blocks.0.conv',
-        'hr_down_blocks.0.norm', 'hr_down_blocks.1.conv',
-        'hr_down_blocks.1.norm'
+        'hr_down_blocks.0.norm'
     ])
     add_names([
         'first.conv', 'first.norm', 'down_blocks.0.conv', 'down_blocks.0.norm',
@@ -277,8 +281,7 @@ def build_graph(all_layers, names):
         'bottleneck.r4.conv2', 'bottleneck.r5.norm1', 'bottleneck.r5.conv1',
         'bottleneck.r5.norm2', 'bottleneck.r5.conv2', 'up_blocks.0.conv',
         'up_blocks.0.norm', 'up_blocks.1.conv', 'up_blocks.1.norm',
-        'hr_up_blocks.0.conv', 'hr_up_blocks.0.norm', 'hr_up_blocks.1.conv',
-        'hr_up_blocks.1.norm', 'final'
+        'hr_up_blocks.0.conv', 'hr_up_blocks.0.norm', 'final'
     ])
 
     # Features get concatted into down block
@@ -288,11 +291,8 @@ def build_graph(all_layers, names):
     add('lr_first.norm', 'up_blocks.1.conv')
 
     # Add 2x hr down outputs to first hr up
-    add('hr_down_blocks.1.norm', 'hr_up_blocks.0.conv')
-    add('hr_down_blocks.1.norm', 'hr_up_blocks.0.conv')
-
-    add('hr_down_blocks.0.norm', 'hr_up_blocks.1.conv')
-    add('hr_down_blocks.0.norm', 'hr_up_blocks.1.conv')
+    add('hr_down_blocks.0.norm', 'hr_up_blocks.0.conv')
+    add('hr_down_blocks.0.norm', 'hr_up_blocks.0.conv')
 
     return graph
 
@@ -658,6 +658,7 @@ def channel_prune(model, prune_ratio, deletions=None):
                     node.value.bias.set_(node.value.bias.detach()[:op_delete])
         return model
     else:
+        print(deletions)
         for index, pruners in deletions.items():
             node = layer_graph[index]
             if pruners[0] == 'first':
@@ -766,7 +767,7 @@ def try_reduce(curr_loss, curr_model, per_layer_macs, dataloader, layer_graph, l
             follow(layer_graph[y])
 
     for after_layer in layer_graph[layer].after:
-        follow(layer_graph[layer])
+        follow(layer_graph[after_layer])
 
     def edit_macs(following_layers, layer, k):
         temp = current
@@ -833,7 +834,7 @@ def try_reduce(curr_loss, curr_model, per_layer_macs, dataloader, layer_graph, l
 
     # The original layer is a special case because you delete its output not input
     deletions[layer].insert(0, 'first')
-    channel_prune(
+    model_copy = channel_prune(
         model_copy, 0.1,
         deletions)  # The 0.1 is a dummy variable for now, gets ignored
 
