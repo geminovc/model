@@ -523,7 +523,7 @@ def calculate_macs(model, file_name = None):
     def follow(node, results, shape, times):
         if node.index in times:
             return
-        print("follow node ", node.index)
+        #print("follow node ", node.index)
         new_shape_ = convert_shape(shape, node)
         results[node.index] = calc_flops(new_shape_, node)
 
