@@ -37,16 +37,58 @@ from matplotlib import pyplot as plt
 import matplotlib
 
 def gen_state_dict(model):
-    state_dict = {}
-    for name, param in model.named_parameters():
-        state_dict[name] = param.data.detach().clone()
-    return state_dict
+    new_dict = model.state_dict()
+    new_dict_copy= {}
+    for param in new_dict:
+        new_dict_copy[param] = new_dict[param].detach().clone()
+    return new_dict_copy
+
+def clone_state_dict(state_dict):
+    new_dict = {}
+    for param in state_dict:
+        try:
+            new_dict[param] = state_dict[param].clone()
+        except:
+            new_dict[param] = state_dict[param]
+    return new_dict
 
 def copy_state_dict(model, new_state_dict):
-    for param, value in model.state_dict():
-        value.requires_grad_(False)
-        value.set_(new_state_dict[param].detach().clone())
-        value.requires_grad_(True)
+    all_convs = [(n, m) for n,m in model.named_modules() if isinstance(m, nn.Conv2d)]
+
+    all_bns = [
+        (n, m) for n, m in model.named_modules() if isinstance(
+            m, first_order_model.sync_batchnorm.SynchronizedBatchNorm2d)
+    ]
+
+    with torch.no_grad():
+        for name, conv in all_convs:
+            conv.weight.set_(new_state_dict[name +'.weight'])
+            conv.weight.requires_grad_(True)
+            conv.bias.set_(new_state_dict[name +'.bias'])
+        for name, bn in all_bns:
+            bn.weight.set_(new_state_dict[name +'.weight'])
+
+            bn.bias.set_(new_state_dict[name +'.bias'])
+            bn.running_mean.set_(new_state_dict[name +'.running_mean'])
+            bn.running_var.set_(new_state_dict[name +'.running_var'])
+    set_grads(model)
+
+def set_grads(model):
+
+    all_convs = [(n, m) for n,m in model.named_modules() if isinstance(m, nn.Conv2d)]
+
+    all_bns = [
+        (n, m) for n, m in model.named_modules() if isinstance(
+            m, first_order_model.sync_batchnorm.SynchronizedBatchNorm2d)
+    ]
+    for name, conv in all_convs:
+        conv.weight.requires_grad_(True)
+        conv.bias.requires_grad_(True)
+    for name, bn in all_bns:
+        bn.weight.requires_grad_(True)
+        bn.bias.requires_grad_(True)
+        bn.running_mean.requires_grad_(False)
+        bn.running_var.requires_grad_(False)
 
 def set_val(og, val):
     og.requires_grad_(False)
@@ -310,7 +352,7 @@ def build_graph(all_layers, names):
 
 @torch.no_grad()
 def apply_channel_sorting(model):
-    model = copy.deepcopy(model)  # do not modify the original model
+    # Will edit model in place, if this is not desired use gen/copy state dict to create a copy of the model before
     # fetch all the conv and bn layers from the backbone
     all_convs = [m for m in model.modules() if isinstance(m, nn.Conv2d)]
 
@@ -604,8 +646,7 @@ def channel_prune(model, prune_ratio, deletions=None):
     indicating that we use a uniform pruning rate for all layers, or a list of
     numbers to indicate per-layer pruning rate.
     """
-    # sanity check of provided prune_ratio
-    model = copy.deepcopy(model)
+    # Will edit model in place, if this is not desired use gen/copy state dict to create a copy of the model before
 
     all_layers = [
         m for n, m in model.named_modules()
@@ -812,8 +853,8 @@ def try_reduce(curr_loss, curr_model, per_layer_macs, dataloader, layer_graph, l
         pass
 
     # Temporarily delete the content
-    with torch.no_grad():
-        model_copy = copy.deepcopy(model)
+    new_state_dict = gen_state_dict(model)
+    copy_state_dict(model, new_state_dict)
 
     # Build the pruning graph
     prune_ratios = {}
@@ -846,13 +887,11 @@ def try_reduce(curr_loss, curr_model, per_layer_macs, dataloader, layer_graph, l
 
     # The original layer is a special case because you delete its output not input
     deletions[layer].insert(0, 'first')
-    model_copy = channel_prune(
-        model_copy, 0.1,
+    channel_prune(
+        model, 0.1,
         deletions)  # The 0.1 is a dummy variable for now, gets ignored
 
     # Train
-    old_model = generator_full.generator
-    generator_full.generator = model_copy
     optimizer_generator = torch.optim.Adam(generator_full.generator.parameters(),
                                            lr=train_params['lr_generator'],
                                            betas=(0.5, 0.999))
@@ -909,7 +948,6 @@ def try_reduce(curr_loss, curr_model, per_layer_macs, dataloader, layer_graph, l
             loss = sum(loss_values)
             total_loss += loss.item()
 
-    generator_full.generator = old_model
 
 
     #del model_copy
@@ -917,7 +955,7 @@ def try_reduce(curr_loss, curr_model, per_layer_macs, dataloader, layer_graph, l
     # Store the best module
     if curr_loss is None or total_loss < curr_loss:
         print("Returning new model")
-        return total_loss, model_copy
+        return total_loss, gen_state_dict(model)
     else:
         return None, None
     torch.cuda.empty_cache()
@@ -940,13 +978,18 @@ def reduce_macs(model, target, current, kp_detector, discriminator,
     curr_model = None
     curr_loss = None
     i = 0
+    # TODO: Sort the model beforehand
+    og_state_dict = gen_state_dict(model)
     for layer in layer_graph:
         i += 1
         if layer_graph[layer].type != 'conv':
             continue
+        breakpoint()
+        copy_of_state_dict = clone_state_dict(og_state_dict)
+
+        copy_state_dict(model, copy_of_state_dict)
 
         count("Reduce Macs")
-        breakpoint()
         loss, t_model = try_reduce(curr_loss, curr_model, per_layer_macs, dataloader, layer_graph, layer, kp_detector, discriminator, train_params, model, target, current, lr_size, generator_type, metrics_dataloader, generator_full)
         #torch.cuda.empty_cache()
         if loss is not None:
