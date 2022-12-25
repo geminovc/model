@@ -41,6 +41,17 @@ def gen_state_dict(model):
     for name, param in model.named_parameters():
         state_dict[name] = param.data.detach().clone()
     return state_dict
+
+def copy_state_dict(model, new_state_dict):
+    for param, value in model.state_dict():
+        value.requires_grad_(False)
+        value.set_(new_state_dict[param].detach().clone())
+        value.requires_grad_(True)
+
+def set_val(og, val):
+    og.requires_grad_(False)
+    og.set_(val)
+    og.require_grad_(True)
 def count(name):
     obj_counter = 0
     for obj in gc.get_objects():
@@ -822,6 +833,7 @@ def try_reduce(curr_loss, curr_model, per_layer_macs, dataloader, layer_graph, l
 
         deletions[following_layer] = []
         counter = 0
+        # This logic says if x feeds into y three times, then x has some output removed, y needs that output removed 3 times
         for previous_layer in layer_graph[following_layer].before:
             if previous_layer not in deletions:
                 continue
@@ -860,6 +872,8 @@ def try_reduce(curr_loss, curr_model, per_layer_macs, dataloader, layer_graph, l
     for x in tqdm(dataloader):
         c += 1
         x['driving_lr'] = F.interpolate(x['driving'], lr_size)
+
+        # We do this because I don't understand how dataparallelwithcallback interacts with cuda, and it auto moves inputs to cuda on main
         for k in x:
             try:
                 x[k] = x[k].cuda()
@@ -932,6 +946,7 @@ def reduce_macs(model, target, current, kp_detector, discriminator,
             continue
 
         count("Reduce Macs")
+        breakpoint()
         loss, t_model = try_reduce(curr_loss, curr_model, per_layer_macs, dataloader, layer_graph, layer, kp_detector, discriminator, train_params, model, target, current, lr_size, generator_type, metrics_dataloader, generator_full)
         #torch.cuda.empty_cache()
         if loss is not None:
