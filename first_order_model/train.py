@@ -1,5 +1,6 @@
 from tqdm import trange
 import torch
+from shrink_util import *
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
 from first_order_model.modules.model import Vgg19, VggFace16
@@ -222,6 +223,7 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
     
     loss_fn_vgg = vgg_model.compute_loss
     face_lpips = vgg_face_model.compute_loss
+
 
     with Logger(log_dir=log_dir, visualizer_params=config['visualizer_params'], checkpoint_freq=train_params['checkpoint_freq']) as logger:
         for epoch in trange(start_epoch, train_params['num_epochs']):
