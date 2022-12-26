@@ -49,7 +49,7 @@ def count(name):
                 obj_counter += 1
         except:
             pass 
-    print("Gc tracks ", obj_counter, "objects in ", name)
+    #print("Gc tracks ", obj_counter, "objects in ", name)
 
 def get_sizes():
     s = {}
@@ -633,6 +633,7 @@ def channel_prune(model, prune_ratio, deletions=None):
                         [nvd[:, :prune_indices[0]], nvd[:, prune_indices[1]:]],
                         dim=1)
                     node.value.weight.set_(nvd.clone().detach())
+
                 if node.type == 'bn':
 
                     def f_set(nvd, w, prune_indices):
@@ -752,6 +753,24 @@ def sensitivity_scan(model,
         accuracies.append(accuracy)
     return sparsities, accuracies
 
+def get_metrics_loss(metrics_dataloader, lr_size, generator_full, generator_type):
+    total_loss = 0
+    with torch.no_grad():
+        for y in metrics_dataloader:
+            y['driving_lr'] = F.interpolate(y['driving'], lr_size)
+            for k in y:
+                try:
+                    y[k] = y[k].cuda()
+                except:
+                    pass
+            losses_generator, metrics_generated = generator_full(
+                y, generator_type)
+            loss_values = [val.mean() for val in losses_generator.values()]
+            loss = sum(loss_values)
+            total_loss += loss.item()
+
+    return total_loss
+
 def try_reduce(curr_loss, curr_model, per_layer_macs, dataloader, layer_graph, layer, kp_detector, discriminator, train_params, model, target, current, lr_size, generator_type, metrics_dataloader, generator_full):
     # Reduct its output
     curr_output = layer_graph[layer].o
@@ -801,8 +820,7 @@ def try_reduce(curr_loss, curr_model, per_layer_macs, dataloader, layer_graph, l
         pass
 
     # Temporarily delete the content
-    with torch.no_grad():
-        model_copy = copy.deepcopy(model)
+    model_copy = copy.deepcopy(model)
 
     # Build the pruning graph
     prune_ratios = {}
@@ -849,9 +867,7 @@ def try_reduce(curr_loss, curr_model, per_layer_macs, dataloader, layer_graph, l
     #                                              device_ids=[0])
 
     counter = 0
-    print("starting dl")
     for k in dataloader:
-        print("broke again")
         break
 
 
@@ -878,22 +894,9 @@ def try_reduce(curr_loss, curr_model, per_layer_macs, dataloader, layer_graph, l
         optimizer_generator.step()
         optimizer_generator.zero_grad()
         pass
+    total_loss= get_metrics_loss(metrics_dataloader, lr_size, generator_full, generator_type)
+    print("Loss for this model is: ", total_loss)
     
-
-    total_loss = 0
-    with torch.no_grad():
-        for y in tqdm(metrics_dataloader):
-            continue
-            y['driving_lr'] = F.interpolate(y['driving'], lr_size)
-            try:
-                y[k] = y[k].cuda()
-            except:
-                pass
-            losses_generator, metrics_generated = generator_full(
-                y, generator_type)
-            loss_values = [val.mean() for val in losses_generator.values()]
-            loss = sum(loss_values)
-            total_loss += loss.item()
 
     generator_full.generator = old_model
 
@@ -902,7 +905,6 @@ def try_reduce(curr_loss, curr_model, per_layer_macs, dataloader, layer_graph, l
     #del optimizer_generator
     # Store the best module
     if curr_loss is None or total_loss < curr_loss:
-        print("Returning new model")
         return total_loss, model_copy
     else:
         return None, None
@@ -938,9 +940,9 @@ def reduce_macs(model, target, current, kp_detector, discriminator,
             print("Updated model")
             curr_model = t_model
             curr_loss = loss
+            break
 
     if curr_model is None:
         print("Could not shrink anymore")
-        raise Exception("Could not shrink")
-    print("PASSSSSSSSSSSSSSSSSSSSSSSED")
+        return model
     return curr_model
