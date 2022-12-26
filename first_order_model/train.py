@@ -209,20 +209,64 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
     reduce_amount = 1000000000000
     current = start
     target = start // 2
-
-    while current > target:
-        generator = reduce_macs(generator, current - reduce_amount,current , kp_detector, discriminator, train_params, dataloader, metrics_dataloader, generator_type, lr_size, generator_full)
-        current -= reduce_amount
-        generator_full.generator = generator
+    is_first_round = True
     if torch.cuda.is_available():
-        generator_full = DataParallelWithCallback(generator_full, device_ids=device_ids)
-        discriminator_full = DataParallelWithCallback(discriminator_full, device_ids=device_ids)
         original_lpips = original_lpips.cuda()
         vgg_model = vgg_model.cuda()
         vgg_face_model = vgg_face_model.cuda()
-    
+
     loss_fn_vgg = vgg_model.compute_loss
     face_lpips = vgg_face_model.compute_loss
+    with Logger(log_dir=log_dir, visualizer_params=config['visualizer_params'], checkpoint_freq=train_params['checkpoint_freq']) as logger:
+        epoch = 0
+        while current > target:
+            epoch += 1
+            if not is_first_round:
+                generator = reduce_macs(generator, current - reduce_amount,current , kp_detector, discriminator, train_params, dataloader, metrics_dataloader, generator_type, lr_size, generator_full)
+                current -= reduce_amount
+                generator_full.generator = generator
+            is_first_round = False
+            # This code is copied from below
+            if metrics_dataloader is not None:
+                with torch.no_grad():
+                    for i, y in enumerate(metrics_dataloader):
+                        if use_lr_video or use_RIFE:
+                            lr_frame = F.interpolate(y['driving'], lr_size)
+                            if train_params.get('encode_video_for_training', False):
+                                target_bitrate = train_params.get('target_bitrate', None)
+                                quantizer_level = train_params.get('quantizer_level', -1)
+                                if target_bitrate == 'random':
+                                    target_bitrate = np.random.randint(15, 75) * 1000
+                                nr = y.get('time_base_nr', torch.ones(lr_frame.size(dim=0), dtype=int))
+                                dr = y.get('time_base_dr', 30000 * torch.ones(lr_frame.size(dim=0), dtype=int))
+                                y['driving_lr'] = get_frame_from_video_codec(lr_frame, nr, \
+                                        dr, quantizer_level, target_bitrate) 
+                            else:
+                                y['driving_lr'] = lr_frame
+
+                        for k in y:
+                            try:
+                                y[k] = y[k].cuda()
+                            except:
+                                pass
+                        losses_generator, metrics_generated = generator_full(y, generator_type)
+                        losses = {key: value.mean().detach().data.cpu().numpy() for key, value in losses_generator.items()}
+                        logger.log_iter(losses=losses)
+                        logger.log_metrics_images(i, y, metrics_generated, loss_fn_vgg, original_lpips, face_lpips)
+
+            logger.log_epoch(epoch, {'generator': generator,
+                                     'discriminator': discriminator,
+                                     'kp_detector': kp_detector,
+                                     'optimizer_generator': optimizer_generator,
+                                     'optimizer_discriminator': optimizer_discriminator,
+                                     'optimizer_kp_detector': optimizer_kp_detector}, inp=y, out=metrics_generated)
+    if torch.cuda.is_available():
+        generator_full = DataParallelWithCallback(generator_full, device_ids=device_ids)
+        discriminator_full = DataParallelWithCallback(discriminator_full, device_ids=device_ids)
+        #original_lpips = original_lpips.cuda()
+        #vgg_model = vgg_model.cuda()
+        #vgg_face_model = vgg_face_model.cuda()
+    
 
 
     with Logger(log_dir=log_dir, visualizer_params=config['visualizer_params'], checkpoint_freq=train_params['checkpoint_freq']) as logger:
@@ -282,6 +326,8 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
            
             # record a standard set of metrics
             if metrics_dataloader is not None:
+                for x in metrics_dataloader:
+                    break
                 with torch.no_grad():
                     for i, y in enumerate(metrics_dataloader):
                         if use_lr_video or use_RIFE:
