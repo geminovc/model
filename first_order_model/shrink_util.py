@@ -488,7 +488,39 @@ def select_convs(model, params):
 
     return new_params
 
+def get_generator_time(model, x):
+    #for i in range(10):
+    #    _ = model(inp)
+    driving_lr =  x.get('driving_lr', None)
 
+    kp_source = model.kp_extractor(x['source'])
+    
+            
+    if driving_lr is not None:
+        kp_driving = model.kp_extractor(driving_lr)
+    else:
+        kp_driving = model.kp_extractor(x['driving'])
+    
+
+    #warmup
+    for _ in range(10):
+        generated = model.generator(x['source'], kp_source=kp_source, 
+                kp_driving=kp_driving, update_source=True, 
+                driving_lr=driving_lr)
+    
+    starter, ender = torch.cuda.Event(enable_timing=True), torch.cuda.Event(enable_timing=True)
+    total_time = 0
+    for i in range(50):
+        starter.record()
+        generated = model.generator(x['source'], kp_source=kp_source, 
+                kp_driving=kp_driving, update_source=True, 
+                driving_lr=driving_lr)
+        ender.record()
+        # WAIT FOR GPU SYNC
+        torch.cuda.synchronize()
+        curr_time = starter.elapsed_time(ender)
+        total_time += curr_time
+    return total_time/50
 def calculate_macs(model, file_name = None):
 
     all_layers = [

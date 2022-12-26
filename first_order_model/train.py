@@ -227,6 +227,8 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
                 generator_full.generator = generator
             is_first_round = False
             # This code is copied from below
+
+
             if metrics_dataloader is not None:
                 with torch.no_grad():
                     for i, y in enumerate(metrics_dataloader):
@@ -254,6 +256,7 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
                         logger.log_iter(losses=losses)
                         logger.log_metrics_images(i, y, metrics_generated, loss_fn_vgg, original_lpips, face_lpips)
 
+            print("Generator took (ms):", get_generator_time(generator_full, y)
             logger.log_epoch(epoch, {'generator': generator,
                                      'discriminator': discriminator,
                                      'kp_detector': kp_detector,
