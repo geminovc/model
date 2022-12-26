@@ -205,8 +205,8 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
     vgg_model = Vgg19()
     original_lpips = lpips.LPIPS(net='vgg')
     vgg_face_model = VggFace16()
-    start = 69284835199167
-    reduce_amount = 1000000000000
+    start = total_macs(generator)
+    reduce_amount = start // 45
     current = start
     target = start // 2
     is_first_round = True
@@ -217,23 +217,28 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
 
     loss_fn_vgg = vgg_model.compute_loss
     face_lpips = vgg_face_model.compute_loss
-    generator = apply_channel_sorting(generator)
-    generator = channel_prune(generator, 0.4)
-    generator_full.generator = generator
-    if True:
+    prune_percent = train_params.get('prune', 0)
+    if  prune_percent != 0:
+        generator = channel_prune(generator, prune_percent)
+        generator_full.generator = generator
+
+    if train_params.get('netadapt', False):
         with Logger(log_dir=log_dir, visualizer_params=config['visualizer_params'], checkpoint_freq=train_params['checkpoint_freq']) as logger:
             epoch = 0
             while current > target:
                 epoch += 1
+                print(current)
                 if not is_first_round:
                     generator = reduce_macs(generator, current - reduce_amount,current , kp_detector, discriminator, train_params, dataloader, metrics_dataloader, generator_type, lr_size, generator_full)
-                    current -= reduce_amount
+                    current = total_macs(generator)
                     generator_full.generator = generator
                 is_first_round = False
                 # This code is copied from below
 
 
                 if metrics_dataloader is not None:
+                    for x in metrics_dataloader:
+                        break
                     with torch.no_grad():
                         for i, y in enumerate(metrics_dataloader):
                             if use_lr_video or use_RIFE:
@@ -257,6 +262,7 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
                                     pass
                             losses_generator, metrics_generated = generator_full(y, generator_type)
                             losses = {key: value.mean().detach().data.cpu().numpy() for key, value in losses_generator.items()}
+                            losses['macs'] = current
                             logger.log_iter(losses=losses)
                             logger.log_metrics_images(i, y, metrics_generated, loss_fn_vgg, original_lpips, face_lpips)
 
@@ -295,7 +301,6 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
                     else:
                         x['driving_lr'] = lr_frame
 
-                print("Did a round")
                 losses_generator, generated = generator_full(x, generator_type)
 
                 if epoch == 0:

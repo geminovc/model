@@ -376,7 +376,6 @@ def apply_channel_sorting(model):
             def follow(node, layer_graph, previous, p_indices):
                 # Find the elements corresponding to this node
 
-                print("Following into", node.index)
                 indices = []
                 counter = 0
                 for b in node.before:
@@ -617,6 +616,13 @@ def calculate_macs(model, file_name = None):
     #fig.suptitle("Number of flops")
     #fig.savefig(file_name)
     return t_results
+
+def total_macs(model):
+    macs_dict = calculate_macs(model)
+    s = 0
+    for k in macs_dict:
+        s+=macs_dict[k]
+    return s
 
 
 @torch.no_grad()
@@ -925,7 +931,6 @@ def try_reduce(curr_loss, curr_model, per_layer_macs, dataloader, layer_graph, l
         loss.backward()
         optimizer_generator.step()
         optimizer_generator.zero_grad()
-        break
     total_loss= get_metrics_loss(metrics_dataloader, lr_size, generator_full, generator_type)
     print("Loss for this model is: ", total_loss)
     
@@ -972,7 +977,6 @@ def reduce_macs(model, target, current, kp_detector, discriminator,
             print("Updated model")
             curr_model = t_model
             curr_loss = loss
-            break
 
     if curr_model is None:
         print("Could not shrink anymore")
