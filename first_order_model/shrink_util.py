@@ -288,11 +288,12 @@ def build_graph(all_layers, names):
     add('down_blocks.1.norm', 'bottleneck.r0.norm1')
 
     # Second up block has 32 lr features added
-    add('lr_first.norm', 'up_blocks.1.conv')
+    add('lr_first.norm', 'up_blocks.0.conv')
 
     # Add 2x hr down outputs to first hr up
     add('hr_down_blocks.0.norm', 'hr_up_blocks.0.conv')
     add('hr_down_blocks.0.norm', 'hr_up_blocks.0.conv')
+
 
     return graph
 
@@ -681,7 +682,6 @@ def channel_prune(model, prune_ratio, deletions=None):
                           node.value.running_mean, prune_indices)
                     f_set(node.value.running_var.detach(),
                           node.value.running_var, prune_indices)
-
             op_delete = int((prune_ratio) * node.o)
             if node.type == 'conv':
                 if len(node.after) != 0:
