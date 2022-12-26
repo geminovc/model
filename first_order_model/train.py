@@ -217,9 +217,10 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
 
     loss_fn_vgg = vgg_model.compute_loss
     face_lpips = vgg_face_model.compute_loss
-    generator = channel_prune(generator, 0.9)
+    generator = apply_channel_sorting(generator)
+    generator = channel_prune(generator, 0.4)
     generator_full.generator = generator
-    if False:
+    if True:
         with Logger(log_dir=log_dir, visualizer_params=config['visualizer_params'], checkpoint_freq=train_params['checkpoint_freq']) as logger:
             epoch = 0
             while current > target:
