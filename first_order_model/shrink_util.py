@@ -178,6 +178,13 @@ class Node:
         self.before = []
         self.after = []
 
+        self.is_tied = False
+        self.tied_after = []
+
+    def add_tie(self, node):
+        self.tied_after.append(node)
+    def mark_tied(self):
+        self.is_tied = True
     def add_before(self, node):
         self.before.append(node)
 
@@ -213,6 +220,12 @@ def build_graph(all_layers, names):
         index2 = get_index(name2)
         graph[index1].add_after(index2)
         graph[index2].add_before(index1)
+
+    def add_tie(name1, name2):
+        index1 = get_index(name1)
+        index2 = get_index(name2)
+        graph[index1].add_tie(index2)
+        graph[index2].mark_tied()
 
     def add_names(names):
         index = 1
@@ -293,6 +306,15 @@ def build_graph(all_layers, names):
     # Add 2x hr down outputs to first hr up
     add('hr_down_blocks.0.norm', 'hr_up_blocks.0.conv')
     add('hr_down_blocks.0.norm', 'hr_up_blocks.0.conv')
+
+
+    add_tie('bottleneck.r0.conv1', 'bottleneck.r0.conv2')
+    add_tie('bottleneck.r1.conv1', 'bottleneck.r1.conv2')
+    add_tie('bottleneck.r2.conv1', 'bottleneck.r2.conv2')
+    add_tie('bottleneck.r3.conv1', 'bottleneck.r3.conv2')
+    add_tie('bottleneck.r4.conv1', 'bottleneck.r4.conv2')
+    add_tie('bottleneck.r5.conv1', 'bottleneck.r5.conv2')
+    add_tie('bottleneck.r5.conv1', 'bottleneck.r0.conv2')
 
 
     return graph
@@ -810,89 +832,116 @@ def get_metrics_loss(metrics_dataloader, lr_size, generator_full, generator_type
     return total_loss
 
 def try_reduce(curr_loss, curr_model, per_layer_macs, dataloader, layer_graph, layer, kp_detector, discriminator, train_params, model, target, current, lr_size, generator_type, metrics_dataloader, generator_full):
-    # Reduct its output
-    curr_output = layer_graph[layer].o
+    custom_deletions = []
+    deleted_things = set()
+    def compute_deletion(layer, custom=None):
+        # Reduct its output
+        curr_output = layer_graph[layer].o
 
-    # find all the following layers
-    following_layers = []
+        # find all the following layers
+        following_layers = []
 
-    def follow(x):
-        following_layers.append(x.index)
-        if x.type == 'conv':
-            return
-        for y in x.after:
-            follow(layer_graph[y])
+        def follow(x):
+            following_layers.append(x.index)
+            if x.type == 'conv':
+                return
+            for y in x.after:
+                follow(layer_graph[y])
 
-    for after_layer in layer_graph[layer].after:
-        follow(layer_graph[after_layer])
+        for after_layer in layer_graph[layer].after:
+            follow(layer_graph[after_layer])
 
-    def edit_macs(following_layers, layer, k):
-        temp = current
-        actual_layer = None
-        for t_layer in layer_graph:
-            if layer_graph[t_layer].index == layer:
-                actual_layer = layer_graph[t_layer]
-        temp -= per_layer_macs[layer] * k / actual_layer.o
-        for temp_layer in following_layers:
+        def edit_macs(following_layers, layer, k):
+            temp = current
             actual_layer = None
             for t_layer in layer_graph:
-                if layer_graph[t_layer].index == temp_layer:
+                if layer_graph[t_layer].index == layer:
                     actual_layer = layer_graph[t_layer]
-            temp -= per_layer_macs[temp_layer] * k / actual_layer.i
+            temp -= per_layer_macs[layer] * k / actual_layer.o
+            for temp_layer in following_layers:
+                actual_layer = None
+                for t_layer in layer_graph:
+                    if layer_graph[t_layer].index == temp_layer:
+                        actual_layer = layer_graph[t_layer]
+                temp -= per_layer_macs[temp_layer] * k / actual_layer.i
 
-        return temp
+            return temp
 
-    i = 0
-    fail = False
-    while edit_macs(following_layers, layer, i) > target:
-        if layer_graph[layer].o > i:
-            i += 1
+        i = 0
+        if custom is None:
+            fail = False
+            while edit_macs(following_layers, layer, i) > target:
+                if layer_graph[layer].o > i:
+                    i += 1
+                else:
+                    fail = True
+                    break
+
+            if fail:
+                return None
+
+            else:
+                pass
+
+
+
+        # Build the pruning graph
+        prune_ratios = {}
+        prune_ratios[layer_graph[layer].index] = i / layer_graph[layer].o
+
+        # If you delete a part of the previous one, not just all of it then you cannot just say these n are to be deleted
+        # So for each layer you need to figure out what you are deleting from it, then for the next layer figure out what is deleted
+
+        # So make a map of deletions
+        deletions = {}
+        if custom is None:
+            deletions[layer] = [(layer_graph[layer].o - i, layer_graph[layer].o)]
         else:
-            fail = True
-            break
-
-    if fail:
-        return None, None
-
-    else:
-        pass
-
-    # Temporarily delete the content
-    model_copy = copy.deepcopy(model)
-
-    # Build the pruning graph
-    prune_ratios = {}
-    prune_ratios[layer_graph[layer].index] = i / layer_graph[layer].o
-
-    # If you delete a part of the previous one, not just all of it then you cannot just say these n are to be deleted
-    # So for each layer you need to figure out what you are deleting from it, then for the next layer figure out what is deleted
-
-    # So make a map of deletions
-    deletions = {}
-    deletions[layer] = [(layer_graph[layer].o - i, layer_graph[layer].o)]
+            deletions[layer] = [(layer_graph[layer].o - custom, layer_graph[layer].o)]
 
 
-    for following_layer in following_layers:
-        if following_layer in deletions:
-            continue
-
-        deletions[following_layer] = []
-        counter = 0
-        for previous_layer in layer_graph[following_layer].before:
-            if previous_layer not in deletions:
+        for following_layer in following_layers:
+            if following_layer in deletions:
                 continue
-            for deletion in deletions[previous_layer]:
-                deletions[following_layer].append(
-                    (counter + deletion[0], counter + deletion[1]))
-            counter += layer_graph[previous_layer].o
-            
+
+            deletions[following_layer] = []
+            counter = 0
+            for previous_layer in layer_graph[following_layer].before:
+                if previous_layer not in deletions:
+                    continue
+                for deletion in deletions[previous_layer]:
+                    deletions[following_layer].append(
+                        (counter + deletion[0], counter + deletion[1]))
+                counter += layer_graph[previous_layer].o
+
+            if len(layer_graph[following_layer].tied_after) != 0:
+                total_deleted = 0
+                for del_tuple in deletions[following_layer]:
+                    total_deleted += del_tuple[1] - del_tuple[0]
+                for after_tied in layer_graph[following_layer].tied_after:
+                    if after_tied not in deleted_things:
+                        deleted_things.add(after_tied)
+                        custom_deletions.append((after_tied, total_deleted))
+                
 
 
-    # The original layer is a special case because you delete its output not input
-    deletions[layer].insert(0, 'first')
+        # The original layer is a special case because you delete its output not input
+        deletions[layer].insert(0, 'first')
+        return deletions
+    model_copy = copy.deepcopy(model)
+    deletions = compute_deletion(layer)
+    if deletions is None:
+        return None, None
     model_copy = channel_prune(
         model_copy, 0.1,
         deletions)  # The 0.1 is a dummy variable for now, gets ignored
+    while len(custom_deletions) != 0:
+        custom_deletion =  custom_deletions[0]
+        custom_deletions = custom_deletions[1:]
+        deletions = compute_deletion(custom_deletion[0], custom_deletion[1])
+        model_copy = channel_prune(
+            model_copy, 0.1,
+            deletions)  # The 0.1 is a dummy variable for now, gets ignored
 
     # Train
     old_model = generator_full.generator
@@ -968,6 +1017,8 @@ def reduce_macs(model, target, current, kp_detector, discriminator,
     for layer in layer_graph:
         i += 1
         if layer_graph[layer].type != 'conv':
+            continue
+        if layer_graph[layer].is_tied:
             continue
 
         count("Reduce Macs")
