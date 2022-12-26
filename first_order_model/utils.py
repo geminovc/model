@@ -5,7 +5,7 @@ from first_order_model.modules.generator import OcclusionAwareGenerator
 from first_order_model.modules.sr_generator import SuperResolutionGenerator
 from first_order_model.modules.discriminator import MultiScaleDiscriminator
 from first_order_model.modules.keypoint_detector import KPDetector
-from swinir_wrapper import SuperResolutionModel
+#from swinir_wrapper import SuperResolutionModel
 
 def frame_to_tensor(frame, device):
     """ convert numpy arrays to tensors for reconstruction pipeline """
