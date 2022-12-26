@@ -213,7 +213,7 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
     while current > target:
         generator = reduce_macs(generator, current - reduce_amount,current , kp_detector, discriminator, train_params, dataloader, metrics_dataloader, generator_type, lr_size, generator_full)
         current -= reduce_amount
-    generator_full.generator = generator
+        generator_full.generator = generator
     if torch.cuda.is_available():
         generator_full = DataParallelWithCallback(generator_full, device_ids=device_ids)
         discriminator_full = DataParallelWithCallback(discriminator_full, device_ids=device_ids)

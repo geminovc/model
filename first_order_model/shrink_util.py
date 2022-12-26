@@ -191,14 +191,14 @@ def build_graph(all_layers, names):
     for index in range(len(all_layers)):
         if isinstance(all_layers[index], nn.Conv2d):
 
-            graph[index] = Node(index, 'conv', all_layers[index].in_channels,
-                                all_layers[index].out_channels,
+            graph[index] = Node(index, 'conv', all_layers[index].weight.shape[1],
+                                all_layers[index].weight.shape[0],
                                 all_layers[index])
         elif isinstance(
                 all_layers[index],
                 first_order_model.sync_batchnorm.SynchronizedBatchNorm2d):
-            graph[index] = Node(index, 'bn', all_layers[index].num_features,
-                                all_layers[index].num_features,
+            graph[index] = Node(index, 'bn', all_layers[index].weight.shape[0],
+                                all_layers[index].weight.shape[0],
                                 all_layers[index])
         else:
             graph[index] = Node(index)
@@ -893,7 +893,7 @@ def try_reduce(curr_loss, curr_model, per_layer_macs, dataloader, layer_graph, l
         loss.backward()
         optimizer_generator.step()
         optimizer_generator.zero_grad()
-        pass
+        break
     total_loss= get_metrics_loss(metrics_dataloader, lr_size, generator_full, generator_type)
     print("Loss for this model is: ", total_loss)
     
