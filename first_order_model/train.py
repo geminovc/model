@@ -206,7 +206,8 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
     original_lpips = lpips.LPIPS(net='vgg')
     vgg_face_model = VggFace16()
     start = total_macs(generator)
-    reduce_amount = start // 45
+    prune_rate = train_params.get('shrink_rate', 0.02)
+    reduce_amount = int(start * prune_rate)
     current = start
     target = start // 2
     is_first_round = True
