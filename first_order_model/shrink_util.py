@@ -581,36 +581,6 @@ def calculate_macs(model, file_name = None):
         new_shape_ = convert_shape(shape, node)
         results[node.index] = calc_flops(new_shape_, node)
 
-        #if node.type == 'conv':
-        #    temp_input_cpu = torch.rand(1, node.value.weight.shape[1],
-        #                                new_shape_[0], new_shape_[1])
-        #else:
-        #    temp_input_cpu = torch.rand(1, node.value.weight.shape[0],
-        #                                new_shape_[0], new_shape_[1])
-        start = None
-        end = None
-        temp_input = None
-        if torch.cuda.is_available() and False:
-            with torch.no_grad():
-                temp_input = temp_input_cpu.cuda()
-                start = torch.cuda.Event(enable_timing=True)
-                end = torch.cuda.Event(enable_timing=True)
-
-                start.record()
-                node.value(temp_input)
-                end.record()
-
-                # Waits for everything to finish running
-                torch.cuda.synchronize()
-
-                times[node.index] = start.elapsed_time(end)
-
-        del temp_input
-        #del temp_input_cpu
-        del start
-        del end
-        torch.cuda.empty_cache()
-
         for node_index in node.after:
             follow(layer_graph[node_index], results, new_shape_, times)
 
@@ -619,7 +589,7 @@ def calculate_macs(model, file_name = None):
     for i in [0, 24, 25, 26, 28, 30]:
         follow(layer_graph[i], t_results, starting_shape, times)
 
-    fig, axes = plt.subplots(1, 1, figsize=(100, 100))
+    #fig, axes = plt.subplots(1, 1, figsize=(100, 100))
     names = [
         n for n, m in model.named_modules()
         if (isinstance(m, nn.Conv2d) or isinstance(
@@ -641,6 +611,103 @@ def calculate_macs(model, file_name = None):
 
 def total_macs(model):
     macs_dict = calculate_macs(model)
+    s = 0
+    for k in macs_dict:
+        s+=macs_dict[k]
+    return s
+
+def calc_latencies(model):
+    all_layers = [
+        m for n, m in model.named_modules()
+        if (isinstance(m, nn.Conv2d) or isinstance(
+            m, first_order_model.sync_batchnorm.SynchronizedBatchNorm2d))
+    ]
+    layer_graph = build_graph(all_layers, [
+        n for n, m in model.named_modules()
+        if (isinstance(m, nn.Conv2d) or isinstance(
+            m, first_order_model.sync_batchnorm.SynchronizedBatchNorm2d))
+    ])
+    starting_shape = (512, 512)
+
+    def convert_shape(shape, layer):
+        if layer.type == 'conv':
+            f = layer.value.kernel_size
+            s = layer.value.stride
+            new_shape = [0, 0]
+            new_shape[0] = (int((shape[0] - f[0]) / s[0])) + 1
+            new_shape[1] = (int((shape[1] - f[1]) / s[1])) + 1
+            return tuple(new_shape)
+        return shape
+
+    def calc_flops(out_shape, node):
+        if node.type == 'conv':
+            return (node.value.kernel_size[0]**2) * node.value.weight.shape[
+                0] * node.value.weight.shape[1] * out_shape[0] * out_shape[1]
+        else:
+            return node.o
+
+    def calc_time(in_shape, node):
+        if node.type == 'conv':
+            temp_input_cpu = torch.rand(1, node.value.weight.shape[1],
+                                        in_shape[0], in_shape[1])
+        else:
+            temp_input_cpu = torch.rand(1, node.value.weight.shape[0],
+                                        in_shape[0], in_shape[1])
+        temp_input = temp_input_cpu.cuda()
+
+        for _ in range(10):
+            generated = node.value(temp_input)        
+        starter, ender = torch.cuda.Event(enable_timing=True), torch.cuda.Event(enable_timing=True)
+        total_time = 0
+        for i in range(50):
+            starter.record()
+            generated = node.value(temp_input)        
+            ender.record()
+
+            # WAIT FOR GPU SYNC
+            torch.cuda.synchronize()
+            curr_time = starter.elapsed_time(ender)
+            total_time += curr_time
+        return total_time/50
+
+
+    def follow(node, results, shape, times):
+        if node.index in times:
+            return
+        #print("follow node ", node.index)
+        new_shape_ = convert_shape(shape, node)
+        with torch.no_grad():
+            results[node.index] = calc_time(new_shape_, node)
+
+
+        for node_index in node.after:
+            follow(layer_graph[node_index], results, new_shape_, times)
+
+    t_results = {}
+    times = {}
+    for i in [0, 24, 25, 26, 28, 30]:
+        follow(layer_graph[i], t_results, starting_shape, times)
+
+    fig, axes = plt.subplots(1, 1, figsize=(100, 100))
+    names = [
+        n for n, m in model.named_modules()
+        if (isinstance(m, nn.Conv2d) or isinstance(
+            m, first_order_model.sync_batchnorm.SynchronizedBatchNorm2d))
+    ]
+    parameter_size = [t_results[i] for i in range(len(names))]
+    parameter_size = select_convs(model, parameter_size)
+    axes.set_yscale("log")
+    names = select_convs(model, names)
+    axes.bar(names, parameter_size)
+    axes.set_xticklabels(names, rotation=90)
+
+    fig.suptitle("Times plot")
+    file_name = 'latencies'
+    fig.savefig(file_name)
+    return t_results
+
+def total_latency(model):
+    macs_dict = calc_latencies(model)
     s = 0
     for k in macs_dict:
         s+=macs_dict[k]
@@ -1009,7 +1076,7 @@ def reduce_macs(model, target, current, kp_detector, discriminator,
         if (isinstance(m, nn.Conv2d) or isinstance(
             m, first_order_model.sync_batchnorm.SynchronizedBatchNorm2d))
     ])
-    per_layer_macs = calculate_macs(model)
+    per_layer_macs = calc_latencies(model)
     deletions = []
     curr_model = None
     curr_loss = None
@@ -1031,5 +1098,6 @@ def reduce_macs(model, target, current, kp_detector, discriminator,
 
     if curr_model is None:
         print("Could not shrink anymore")
+        raise StopIteration("Modle shrinking complete")
         return model
     return curr_model

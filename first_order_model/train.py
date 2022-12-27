@@ -205,9 +205,9 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
     vgg_model = Vgg19()
     original_lpips = lpips.LPIPS(net='vgg')
     vgg_face_model = VggFace16()
-    start = total_macs(generator)
+    start = total_latency(generator)
     prune_rate = train_params.get('shrink_rate', 0.02)
-    reduce_amount = int(start * prune_rate)
+    reduce_amount = start * prune_rate
     current = start
     target = start // 2
     is_first_round = True
@@ -231,7 +231,7 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
                 print(current)
                 if not is_first_round:
                     generator = reduce_macs(generator, current - reduce_amount,current , kp_detector, discriminator, train_params, dataloader, metrics_dataloader, generator_type, lr_size, generator_full)
-                    current = total_macs(generator)
+                    current = total_latency(generator)
                     generator_full.generator = generator
                 is_first_round = False
                 # This code is copied from below
