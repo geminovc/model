@@ -202,14 +202,37 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
     generator_full = GeneratorFullModel(kp_detector, generator, discriminator, train_params)
     discriminator_full = DiscriminatorFullModel(kp_detector, generator, discriminator, train_params)
     
+    for x in dataloader:
+        if use_lr_video or use_RIFE:
+            lr_frame = F.interpolate(x['driving'], lr_size)
+            if train_params.get('encode_video_for_training', False):
+                target_bitrate = train_params.get('target_bitrate', None)
+                quantizer_level = train_params.get('quantizer_level', -1)
+                if target_bitrate == 'random':
+                    target_bitrate = np.random.randint(15, 75) * 1000
+                nr = x.get('time_base_nr', torch.ones(lr_frame.size(dim=0), dtype=int))
+                dr = x.get('time_base_dr', 30000 * torch.ones(lr_frame.size(dim=0), dtype=int))
+                x['driving_lr'] = get_frame_from_video_codec(lr_frame, nr, \
+                        dr, quantizer_level, target_bitrate) 
+            else:
+                x['driving_lr'] = lr_frame
+
+        for k in x:
+            try:
+                x[k] = x[k].cuda()
+            except:
+                pass
+
+        break
+    get_gen_input(generator_full,x)
     vgg_model = Vgg19()
     original_lpips = lpips.LPIPS(net='vgg')
     vgg_face_model = VggFace16()
-    start = total_latency(generator)
+    start = total_macs(generator)
     prune_rate = train_params.get('shrink_rate', 0.02)
     reduce_amount = start * prune_rate
     current = start
-    target = start // 2
+    target = start // 100000
     is_first_round = True
     if torch.cuda.is_available():
         original_lpips = original_lpips.cuda()
@@ -222,6 +245,7 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
     if  prune_percent != 0:
         generator = channel_prune(generator, prune_percent)
         generator_full.generator = generator
+    optimizer_generator = torch.optim.Adam(generator.parameters(), lr=train_params['lr_generator'], betas=(0.5, 0.999))
 
     if train_params.get('netadapt', False):
         with Logger(log_dir=log_dir, visualizer_params=config['visualizer_params'], checkpoint_freq=train_params['checkpoint_freq']) as logger:
@@ -230,9 +254,10 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
                 epoch += 1
                 print(current)
                 if not is_first_round:
-                    generator = reduce_macs(generator, current - reduce_amount,current , kp_detector, discriminator, train_params, dataloader, metrics_dataloader, generator_type, lr_size, generator_full)
-                    current = total_latency(generator)
-                    generator_full.generator = generator
+                    generator_full.generator  = reduce_macs(generator_full.generator, current - reduce_amount,current , kp_detector, discriminator, train_params, dataloader, metrics_dataloader, generator_type, lr_size, generator_full)
+                    current = total_macs(generator_full.generator)
+                    reduce_amount = current * prune_rate
+                    
                 is_first_round = False
                 # This code is copied from below
 
