@@ -8,6 +8,7 @@ import torch
 import torch.nn.functional as F
 import first_order_model
 from torchprofile import profile_macs
+import torch_pruning as tp
 
 import sys
 from torch.utils.data import DataLoader
@@ -35,6 +36,8 @@ from aiortc.codecs.vpx import Vp8Encoder, Vp8Decoder, vp8_depayload
 from aiortc.jitterbuffer import JitterFrame
 from matplotlib import pyplot as plt
 import matplotlib
+import warnings
+
 
 def gen_state_dict(model):
     state_dict = {}
@@ -510,6 +513,7 @@ def select_convs(model, params):
 
     return new_params
 
+
 def get_generator_time(model, x):
     #for i in range(10):
     #    _ = model(inp)
@@ -534,87 +538,46 @@ def get_generator_time(model, x):
     total_time = 0
     for i in range(50):
         starter.record()
-        generated = model.generator(x['source'], kp_source=kp_source, 
-                kp_driving=kp_driving, update_source=True, 
-                driving_lr=driving_lr)
+        with torch.no_grad():
+            generated = model.generator(x['source'], kp_source=kp_source, 
+                    kp_driving=kp_driving, update_source=True, 
+                    driving_lr=driving_lr)
         ender.record()
         # WAIT FOR GPU SYNC
         torch.cuda.synchronize()
         curr_time = starter.elapsed_time(ender)
         total_time += curr_time
+
     return total_time/50
+
+def get_gen_input(model=None, x=None):
+    if not x is None:
+        driving_lr =  x.get('driving_lr', None)
+
+        kp_source = model.kp_extractor(x['source'])
+        
+                
+        if driving_lr is not None:
+            kp_driving = model.kp_extractor(driving_lr)
+        else:
+            kp_driving = model.kp_extractor(x['driving'])
+        
+        get_gen_input.inputs = (x['source'], kp_source, kp_driving, True, driving_lr)
+    return get_gen_input.inputs
+
 def calculate_macs(model, file_name = None):
 
-    all_layers = [
-        m for n, m in model.named_modules()
-        if (isinstance(m, nn.Conv2d) or isinstance(
-            m, first_order_model.sync_batchnorm.SynchronizedBatchNorm2d))
-    ]
-    layer_graph = build_graph(all_layers, [
-        n for n, m in model.named_modules()
-        if (isinstance(m, nn.Conv2d) or isinstance(
-            m, first_order_model.sync_batchnorm.SynchronizedBatchNorm2d))
-    ])
-    starting_shape = (1024, 1024)
-
-    def convert_shape(shape, layer):
-        if layer.type == 'conv':
-            f = layer.value.kernel_size
-            s = layer.value.stride
-            new_shape = [0, 0]
-            new_shape[0] = (int((shape[0] - f[0]) / s[0])) + 1
-            new_shape[1] = (int((shape[1] - f[1]) / s[1])) + 1
-            return tuple(new_shape)
-        return shape
-
-    def calc_flops(out_shape, node):
-        if node.type == 'conv':
-            return (node.value.kernel_size[0]**2) * node.value.weight.shape[
-                0] * node.value.weight.shape[1] * out_shape[0] * out_shape[1]
-        else:
-            return node.o
-
-    def follow(node, results, shape, times):
-        if node.index in times:
-            return
-        #print("follow node ", node.index)
-        new_shape_ = convert_shape(shape, node)
-        results[node.index] = calc_flops(new_shape_, node)
-
-        for node_index in node.after:
-            follow(layer_graph[node_index], results, new_shape_, times)
-
-    t_results = {}
-    times = {}
-    for i in [0, 24, 25, 26, 28, 30]:
-        follow(layer_graph[i], t_results, starting_shape, times)
-
-    #fig, axes = plt.subplots(1, 1, figsize=(100, 100))
-    names = [
-        n for n, m in model.named_modules()
-        if (isinstance(m, nn.Conv2d) or isinstance(
-            m, first_order_model.sync_batchnorm.SynchronizedBatchNorm2d))
-    ]
-    parameter_size = [t_results[i] for i in range(len(names))]
-    parameter_size = select_convs(model, parameter_size)
-    #parameter_time = [times[i] for i in range(len(names))]
-    #parameter_time = select_convs(model, parameter_time)
-    #axes.set_yscale("log")
-    #names = select_convs(model, names)
-    #axes.bar(names, parameter_size)
-    #axes.bar(names, parameter_time)
-    #axes.set_xticklabels(names, rotation=90)
-
-    #fig.suptitle("Number of flops")
-    #fig.savefig(file_name)
-    return t_results
+    inputs = get_gen_input()
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        result = profile_macs(model, inputs, reduction=None)
+    return result
 
 def total_macs(model):
+
     macs_dict = calculate_macs(model)
-    s = 0
-    for k in macs_dict:
-        s+=macs_dict[k]
-    return s
+    breakpoint()
+    return sum(macs_dict.values())
 
 def calc_latencies(model):
     all_layers = [
@@ -786,16 +749,15 @@ def channel_prune(model, prune_ratio, deletions=None):
                     node.value.bias.set_(node.value.bias.detach()[:op_delete])
         return model
     else:
-        print(deletions)
         for index, pruners in deletions.items():
             node = layer_graph[index]
             if pruners[0] == 'first':
                 if node.type == 'conv' and len(node.after) != 0:
                     # Prune the outupts
                     node.value.weight.set_(
-                        node.value.weight.detach()[:pruners[1][0]])
+                        node.value.weight.detach()[:pruners[1][0]].contiguous())
                     node.value.bias.set_(
-                        node.value.bias.detach()[:pruners[1][0]])
+                        node.value.bias.detach()[:pruners[1][0]].contiguous())
                 else:
                     print("Should not be shrinking a batchnorm")
             else:
@@ -808,7 +770,7 @@ def channel_prune(model, prune_ratio, deletions=None):
                             nvd[:, :prune_indices[0]], nvd[:, prune_indices[1]:]
                         ],
                                         dim=1)
-                        node.value.weight.set_(nvd.clone().detach())
+                        node.value.weight.set_(nvd.clone().detach().contiguous())
                     if node.type == 'bn':
 
                         def f_set(nvd, w, prune_indices):
@@ -918,6 +880,7 @@ def try_reduce(curr_loss, curr_model, per_layer_macs, dataloader, layer_graph, l
         for after_layer in layer_graph[layer].after:
             follow(layer_graph[after_layer])
 
+    
         def edit_macs(following_layers, layer, k):
             temp = current
             actual_layer = None
@@ -949,9 +912,6 @@ def try_reduce(curr_loss, curr_model, per_layer_macs, dataloader, layer_graph, l
 
             else:
                 pass
-
-
-
         # Build the pruning graph
         prune_ratios = {}
         prune_ratios[layer_graph[layer].index] = i / layer_graph[layer].o
@@ -995,8 +955,11 @@ def try_reduce(curr_loss, curr_model, per_layer_macs, dataloader, layer_graph, l
         # The original layer is a special case because you delete its output not input
         deletions[layer].insert(0, 'first')
         return deletions
+
     model_copy = copy.deepcopy(model)
-    deletions = compute_deletion(layer)
+    if 1 >= layer_graph[layer].o:
+        return None, None
+    deletions = compute_deletion(layer, 1)
     if deletions is None:
         return None, None
     model_copy = channel_prune(
@@ -1009,6 +972,37 @@ def try_reduce(curr_loss, curr_model, per_layer_macs, dataloader, layer_graph, l
         model_copy = channel_prune(
             model_copy, 0.1,
             deletions)  # The 0.1 is a dummy variable for now, gets ignored
+
+    after_1_reduce = total_macs(model_copy)
+
+    to_remove = int((current-target) // (current - after_1_reduce))
+    model_copy = copy.deepcopy(model)
+
+    # Check the validity of a deletion op
+    if to_remove >= layer_graph[layer].o:
+        return None, None
+
+    
+    if to_remove >= 1:
+        deleted_things.clear()
+        custom_deletions = []
+        deletions = compute_deletion(layer, to_remove)
+        if deletions is None:
+            return None, None
+        model_copy = channel_prune(
+            model_copy, 0.1,
+            deletions)  # The 0.1 is a dummy variable for now, gets ignored
+        print(deletions)
+        while len(custom_deletions) != 0:
+            custom_deletion =  custom_deletions[0]
+            custom_deletions = custom_deletions[1:]
+            deletions = compute_deletion(custom_deletion[0], custom_deletion[1])
+            print(deletions)
+            model_copy = channel_prune(
+                model_copy, 0.1,
+                deletions)  # The 0.1 is a dummy variable for now, gets ignored
+
+
 
     # Train
     old_model = generator_full.generator
@@ -1076,7 +1070,7 @@ def reduce_macs(model, target, current, kp_detector, discriminator,
         if (isinstance(m, nn.Conv2d) or isinstance(
             m, first_order_model.sync_batchnorm.SynchronizedBatchNorm2d))
     ])
-    per_layer_macs = calc_latencies(model)
+    per_layer_macs = calculate_macs(model)
     deletions = []
     curr_model = None
     curr_loss = None
@@ -1088,8 +1082,9 @@ def reduce_macs(model, target, current, kp_detector, discriminator,
         if layer_graph[layer].is_tied:
             continue
 
-        count("Reduce Macs")
-        loss, t_model = try_reduce(curr_loss, curr_model, per_layer_macs, dataloader, layer_graph, layer, kp_detector, discriminator, train_params, model, target, current, lr_size, generator_type, metrics_dataloader, generator_full)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            loss, t_model = try_reduce(curr_loss, curr_model, per_layer_macs, dataloader, layer_graph, layer, kp_detector, discriminator, train_params, model, target, current, lr_size, generator_type, metrics_dataloader, generator_full)
         #torch.cuda.empty_cache()
         if loss is not None:
             print("Updated model")
