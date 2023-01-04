@@ -976,7 +976,6 @@ def try_reduce(curr_loss, curr_model, per_layer_macs, dataloader, layer_graph, l
     after_1_reduce = total_macs(model_copy)
 
     to_remove = int((current-target) // (current - after_1_reduce))
-    model_copy = copy.deepcopy(model)
 
     # Check the validity of a deletion op
     if to_remove >= layer_graph[layer].o:
@@ -984,6 +983,7 @@ def try_reduce(curr_loss, curr_model, per_layer_macs, dataloader, layer_graph, l
 
     
     if to_remove >= 1:
+        model_copy = copy.deepcopy(model)
         deleted_things.clear()
         custom_deletions = []
         deletions = compute_deletion(layer, to_remove)
