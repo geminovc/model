@@ -39,11 +39,35 @@ import matplotlib
 import warnings
 
 
-def gen_state_dict(model):
-    state_dict = {}
-    for name, param in model.named_parameters():
-        state_dict[name] = param.data.detach().clone()
-    return state_dict
+def get_attr(obj, names):
+    if len(names) == 1:
+        getattr(obj, names[0])
+    else:
+        get_attr(getattr(obj, names[0]), names[1:])
+
+def set_attr(obj, names, val):
+    if len(names) == 0:
+        with torch.no_grad():
+            obj.set_(val)
+        #setattr(obj, names[0], val)
+    else:
+        set_attr(getattr(obj, names[0]), names[1:], val)
+
+
+def set_module(mod, state_dict):
+    for key1 in state_dict.keys():
+        if key1 not in ['generator', 'kp_detector', 'discriminator']:
+            continue
+        breakpoint()
+        for key, dict_param in state_dict[key1].items():
+            if key1 == 'kp_detector':
+                submod_names = ['kp_extractor'] + key.split(".")
+            else:
+                submod_names = [key1] + key.split(".")
+            #curr_param = get_attr(mod, submod_names)
+            # Here you can either replace the existing one
+            set_attr(mod, submod_names, dict_param)
+    
 def count(name):
     obj_counter = 0
     for obj in gc.get_objects():
@@ -576,7 +600,6 @@ def calculate_macs(model, file_name = None):
 def total_macs(model):
 
     macs_dict = calculate_macs(model)
-    breakpoint()
     return sum(macs_dict.values())
 
 def calc_latencies(model):

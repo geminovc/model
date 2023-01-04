@@ -245,7 +245,16 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
     if  prune_percent != 0:
         generator = channel_prune(generator, prune_percent)
         generator_full.generator = generator
-    optimizer_generator = torch.optim.Adam(generator.parameters(), lr=train_params['lr_generator'], betas=(0.5, 0.999))
+        optimizer_generator = torch.optim.Adam(generator.parameters(), lr=train_params['lr_generator'], betas=(0.5, 0.999))
+
+    state_dict = torch.load('/data1/vedantha/nets_implementation/first_order_model/log/adaptive_train_till_failiure 31_12_22_14.36.35/00000119-checkpoint.pth.tar')
+    print(start)
+    generator_full.generator = copy.deepcopy(generator_full.generator)
+    print(total_macs(generator_full.generator))
+    set_module(generator_full, state_dict)
+    generator_full.generator = copy.deepcopy(generator_full.generator)
+    print(total_macs(generator_full.generator))
+    breakpoint()
 
     if train_params.get('netadapt', False):
         with Logger(log_dir=log_dir, visualizer_params=config['visualizer_params'], checkpoint_freq=train_params['checkpoint_freq']) as logger:
