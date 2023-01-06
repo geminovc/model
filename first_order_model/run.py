@@ -9,6 +9,7 @@ from time import gmtime, strftime
 from shutil import copy
 
 from frames_dataset import FramesDataset
+from frames_dataset import VP9Dataset
 from voxceleb2_dataset import Voxceleb2Dataset
 from first_order_model.utils import configure_fom_modules
 import torch
@@ -58,8 +59,10 @@ if __name__ == "__main__":
     config['dataset_params']['person_id'] = opt.person_id
     if 'metrics_params' in config:
         config['metrics_params']['person_id'] = opt.person_id
-    if "voxceleb2" in config['dataset_params']['root_dir']:
+    if 'voxceleb2' in config['dataset_params'].get('root_dir', 'None'):
         dataset = Voxceleb2Dataset(is_train=(opt.mode == 'train'), **config['dataset_params'])
+    elif config['train_params'].get('use_vp9', False):
+        dataset = VP9Dataset(is_train=(opt.mode == 'train'), **config['dataset_params'])
     else:
         dataset = FramesDataset(is_train=(opt.mode == 'train'), **config['dataset_params'])
 
