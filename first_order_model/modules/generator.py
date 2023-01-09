@@ -63,7 +63,7 @@ class OcclusionAwareGenerator(nn.Module):
         if self.generator_type == 'student_occlusion_aware':
             self.generator_type = 'occlusion_aware'
             self.encoder_type = 'efficient'
-            self.efficientnet_encoder = EfficientNet.from_pretrained('efficientnet-b0', include_top=True)
+            self.efficientnet_encoder = EfficientNet.from_pretrained('efficientnet-b7', include_top=True)
  
         if self.common_decoder_for_3_paths:
             self.use_lr_video = True
@@ -223,7 +223,7 @@ class OcclusionAwareGenerator(nn.Module):
                 resized_source_image = source_image
             
             if self.encoder_type == 'efficient':
-                self.encoder_output = self.efficientnet_encoder(resized_source_image)
+                self.encoder_output = self.efficientnet_encoder(source_image)
                 self.skip_connections = None 
             
             else:
