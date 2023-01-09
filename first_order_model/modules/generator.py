@@ -64,6 +64,7 @@ class OcclusionAwareGenerator(nn.Module):
             self.generator_type = 'occlusion_aware'
             self.encoder_type = 'efficient'
             self.efficientnet_encoder = EfficientNet.from_pretrained('efficientnet-b0', include_top=True)
+            self.use_hr_skip_connections = False
  
         if self.common_decoder_for_3_paths:
             self.use_lr_video = True
@@ -81,7 +82,7 @@ class OcclusionAwareGenerator(nn.Module):
         if self.concat_lr_video_in_decoder:
             print("concatenating lr video in decoder")
 
-        if use_hr_skip_connections:
+        if self.use_hr_skip_connections:
             assert run_at_256, "Skip connections require parallel 256 FOM pipeline"
         else:
             assert (not run_at_256) or (run_at_256 and not encode_hr_input_with_additional_blocks), \
@@ -92,7 +93,7 @@ class OcclusionAwareGenerator(nn.Module):
         
         self.upsample_factor = upsample_factor
         upsample_levels = round(math.log(upsample_factor, 2))
-        hr_starting_depth = hr_features if use_hr_skip_connections else block_expansion // (2 ** upsample_levels) 
+        hr_starting_depth = hr_features if self.use_hr_skip_connections else block_expansion // (2 ** upsample_levels) 
 
         # first layer either designed for 256x256 input or HR input
         self.first = SameBlock2d(num_channels, block_expansion, kernel_size=(7, 7), padding=(3, 3))
@@ -152,7 +153,7 @@ class OcclusionAwareGenerator(nn.Module):
         hr_up_blocks = []
         for i in range(upsample_levels):
             in_features = min(max_features, adjusted_hr_depth * (2 ** (upsample_levels - i)))
-            if use_hr_skip_connections:
+            if self.use_hr_skip_connections:
                 extra_offset = 2 if self.common_decoder_for_3_paths else 1
                 in_features += min(max_features, \
                         extra_offset * hr_starting_depth * (2 ** (upsample_levels - i)))
