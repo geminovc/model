@@ -1,13 +1,65 @@
 import yaml
 import torch
 import numpy as np
+from skimage import img_as_float32
 from first_order_model.modules.generator import OcclusionAwareGenerator
 from first_order_model.modules.sr_generator import SuperResolutionGenerator
 from first_order_model.modules.discriminator import MultiScaleDiscriminator
 from first_order_model.modules.keypoint_detector import KPDetector
 from swinir_wrapper import SuperResolutionModel
 from torchprofile import profile_macs
+from fractions import Fraction
+from aiortc.codecs.vpx import Vp8Encoder, Vp8Decoder, vp8_depayload
+from aiortc.jitterbuffer import JitterFrame
 import os
+import av
+
+
+def get_frame_from_video_codec(frame_tensor, nr_list, dr_list, quantizer, bitrate):
+    """ go through the encoder/decoder pipeline to get a 
+        representative decoded frame
+    """
+    # encode every frame as a keyframe with new encoder/decoder
+    frame_data = frame_tensor.data.cpu().numpy()
+    decoded_data = np.zeros(frame_data.shape, dtype=np.uint8) 
+    
+    frame_data = np.transpose(frame_data, [0, 2, 3, 1])
+    frame_data *= 255
+    frame_data = frame_data.astype(np.uint8)
+    
+    nr_list = nr_list.data.cpu().numpy()
+    dr_list = dr_list.data.cpu().numpy()
+
+    for i, (frame, nr, dr) in enumerate(zip(frame_data, nr_list, dr_list)):
+        av_frame = av.VideoFrame.from_ndarray(frame)
+        av_frame.pts = 0
+        av_frame.time_base = Fraction(nr, dr)
+        encoder, decoder = Vp8Encoder(), Vp8Decoder()
+        if bitrate == None:
+            payloads, timestamp = encoder.encode(av_frame, quantizer=quantizer, enable_gcc=False)
+        else:
+            payloads, timestamp = encoder.encode(av_frame, quantizer=-1, \
+                    target_bitrate=bitrate, enable_gcc=False)
+        payload_data = [vp8_depayload(p) for p in payloads]
+        
+        jitter_frame = JitterFrame(data=b"".join(payload_data), timestamp=timestamp)
+        decoded_frames = decoder.decode(jitter_frame)
+        decoded_frame = decoded_frames[0].to_rgb().to_ndarray()
+        decoded_data[i] = np.transpose(decoded_frame, [2, 0, 1]).astype(np.uint8)
+    return torch.from_numpy(img_as_float32(decoded_data))
+
+
+def get_encoded_frame(train_params, lr_frame, data):
+    """ extract target bitrate info, and nr and dr for time base """
+    target_bitrate = train_params.get('target_bitrate', None)
+    quantizer_level = train_params.get('quantizer_level', -1)
+    if target_bitrate == 'random':
+        target_bitrate = np.random.randint(15, 75) * 1000
+    nr = data.get('time_base_nr', torch.ones(lr_frame.size(dim=0), dtype=int))
+    dr = data.get('time_base_dr', 30000 * torch.ones(lr_frame.size(dim=0), dtype=int))
+
+    return get_frame_from_video_codec(lr_frame, nr, dr, quantizer_level, target_bitrate) 
+
 
 def frame_to_tensor(frame, device):
     """ convert numpy arrays to tensors for reconstruction pipeline """
