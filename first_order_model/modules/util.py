@@ -1,8 +1,11 @@
 from torch import nn
-from torch.nn import Conv2d
-# from first_order_model.modules.custom import Conv2d
+import os
 import torch.nn.functional as F
 import torch
+if os.environ.get('CONV_TYPE', 'regular') == 'regular':
+    from torch.nn import Conv2d
+else:
+    from first_order_model.modules.custom_conv import Conv2d
 
 from first_order_model.sync_batchnorm import SynchronizedBatchNorm2d as BatchNorm2d
 

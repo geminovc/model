@@ -1,7 +1,12 @@
 from torch import nn
+import os
 import torch
 import torch.nn.functional as F
 from first_order_model.modules.util import Hourglass, make_coordinate_grid, AntiAliasInterpolation2d
+if os.environ.get('CONV_TYPE', 'regular') == 'regular':
+    from torch.nn import Conv2d
+else:
+    from first_order_model.modules.custom_conv import Conv2d
 
 class KPDetector(nn.Module):
     """
@@ -17,7 +22,7 @@ class KPDetector(nn.Module):
         self.predictor = Hourglass(block_expansion, in_features=num_channels,
                                    max_features=max_features, num_blocks=num_blocks)
 
-        self.kp = nn.Conv2d(in_channels=self.predictor.out_filters, out_channels=num_kp, kernel_size=(7, 7),
+        self.kp = Conv2d(in_channels=self.predictor.out_filters, out_channels=num_kp, kernel_size=(7, 7),
                             padding=pad)
 
         self.num_kp = num_kp
@@ -25,15 +30,19 @@ class KPDetector(nn.Module):
         
         if estimate_jacobian:
             self.num_jacobian_maps = 1 if single_jacobian_map else num_kp
-            self.jacobian = nn.Conv2d(in_channels=self.predictor.out_filters,
+            self.jacobian = Conv2d(in_channels=self.predictor.out_filters,
                                       out_channels=4 * self.num_jacobian_maps, kernel_size=(7, 7), padding=pad)
-            self.jacobian.weight.data.zero_()
-            self.jacobian.bias.data.copy_(torch.tensor([1, 0, 0, 1] * self.num_jacobian_maps, dtype=torch.float))
+            if os.environ.get('CONV_TYPE', 'regular') == 'regular':
+                self.jacobian.weight.data.zero_()
+                self.jacobian.bias.data.copy_(torch.tensor([1, 0, 0, 1] * self.num_jacobian_maps, dtype=torch.float))
+            else:
+                self.jacobian.zero_out_weight()
+                self.jacobian.adjust_bias(self.predictor.out_filters, self.num_jacobian_maps)
         else:
             self.jacobian = None
 
         if predict_pixel_features:
-            self.pixel_feature_network = nn.Conv2d(in_channels=self.predictor.out_filters,
+            self.pixel_feature_network = Conv2d(in_channels=self.predictor.out_filters,
                                       out_channels=num_pixel_features * num_kp, 
                                       kernel_size=(7, 7), padding=pad)
         else:
