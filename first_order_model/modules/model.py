@@ -248,8 +248,6 @@ class GeneratorFullModel(torch.nn.Module):
         loss_values = {}
 
         # standard pyramides for Vgg perceptual loss
-        if 'teacher' in x:
-            print('using teacher output for losses')
         real_input = x['driving'] if 'teacher' not in x else x['teacher']
         generated_input = generated['prediction']
         pyramide_real = self.pyramid(real_input)
