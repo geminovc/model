@@ -16,6 +16,7 @@ import torch
 from train import train
 from reconstruction import reconstruction
 from animate import animate
+from train_with_distillation import train_distillation
 
 if __name__ == "__main__":
     
@@ -24,7 +25,7 @@ if __name__ == "__main__":
 
     parser = ArgumentParser()
     parser.add_argument("--config", required=True, help="path to config")
-    parser.add_argument("--mode", default="train", choices=["train", "reconstruction", "animate"])
+    parser.add_argument("--mode", default="train", choices=["train", "reconstruction", "animate", "distill"])
     parser.add_argument("--log_dir", default='log', help="path to log into")
     parser.add_argument("--experiment_name", default='vox-256-standard', help="experiment name to save logs")
     parser.add_argument("--checkpoint", default=None, help="path to checkpoint to restore")
@@ -56,12 +57,13 @@ if __name__ == "__main__":
         print(kp_detector)
 
     config['dataset_params']['person_id'] = opt.person_id
+    is_train = opt.mode in ['train', 'distill']
     if 'metrics_params' in config:
         config['metrics_params']['person_id'] = opt.person_id
     if "voxceleb2" in config['dataset_params']['root_dir']:
-        dataset = Voxceleb2Dataset(is_train=(opt.mode == 'train'), **config['dataset_params'])
+        dataset = Voxceleb2Dataset(is_train=is_train, **config['dataset_params'])
     else:
-        dataset = FramesDataset(is_train=(opt.mode == 'train'), **config['dataset_params'])
+        dataset = FramesDataset(is_train=is_train, **config['dataset_params'])
 
     if not os.path.exists(log_dir):
         os.makedirs(log_dir)
@@ -78,6 +80,9 @@ if __name__ == "__main__":
         reconstruction(config, generator, kp_detector, opt.checkpoint, log_dir, dataset, opt.enable_timing, 
                 opt.save_visualizations_as_images, opt.experiment_name, opt.reference_frame_update_freq,
                 opt.profile)
+    elif opt.mode == 'distill':
+        print("Distilling...")
+        train_distillation(config, generator, discriminator, kp_detector, opt.checkpoint, log_dir, dataset, opt.device_ids)
     elif opt.mode == 'animate':
         print("Animate...")
         animate(config, generator, kp_detector, opt.checkpoint, log_dir, dataset)

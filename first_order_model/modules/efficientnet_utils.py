@@ -40,7 +40,7 @@ from torch.utils import model_zoo
 GlobalParams = collections.namedtuple('GlobalParams', [
     'width_coefficient', 'depth_coefficient', 'image_size', 'dropout_rate',
     'num_classes', 'batch_norm_momentum', 'batch_norm_epsilon',
-    'drop_connect_rate', 'depth_divisor', 'min_depth'])
+    'drop_connect_rate', 'depth_divisor', 'min_depth', 'include_top'])
 
 # Parameters for an individual model block
 BlockArgs = collections.namedtuple('BlockArgs', [

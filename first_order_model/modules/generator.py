@@ -5,6 +5,7 @@ import torch.nn.functional as F
 from first_order_model.modules.util import ResBlock2d, SameBlock2d, UpBlock2d, DownBlock2d
 from first_order_model.modules.dense_motion import DenseMotionNetwork
 from first_order_model.modules.RIFE import RIFEModel
+from first_order_model.modules.efficientnet_encoder import EfficientNet
 import math
 if os.environ.get('CONV_TYPE', 'regular') == 'regular':
     from torch.nn import Conv2d
@@ -57,7 +58,13 @@ class OcclusionAwareGenerator(nn.Module):
         self.use_lr_video = use_lr_video
         self.use_dropout = use_dropout
         self.concat_lr_video_in_decoder = concat_lr_video_in_decoder
+        self.encoder_type = 'regular'
 
+        if self.generator_type == 'student_occlusion_aware':
+            self.generator_type = 'occlusion_aware'
+            self.encoder_type = 'efficient'
+            self.efficientnet_encoder = EfficientNet.from_pretrained('efficientnet-b0', include_top=True)
+ 
         if self.common_decoder_for_3_paths:
             self.use_lr_video = True
             self.concat_lr_video_in_decoder = True
@@ -215,20 +222,26 @@ class OcclusionAwareGenerator(nn.Module):
             else:
                 resized_source_image = source_image
             
-            hr_out = None
-            if self.use_hr_skip_connections or self.encode_hr_input_with_additional_blocks:
-                hr_out = self.hr_first(source_image)
-                self.skip_connections = [hr_out] if self.use_hr_skip_connections else []
-                for block in self.hr_down_blocks:
-                    hr_out = block(hr_out)
-                    if self.use_hr_skip_connections:
-                        self.skip_connections.append(hr_out)
+            if self.encoder_type == 'efficient':
+                self.encoder_output = self.efficientnet_encoder(resized_source_image)
+                self.skip_connections = None 
             
-            out = hr_out if self.encode_hr_input_with_additional_blocks else self.first(resized_source_image)
-            for block in self.down_blocks: 
-                out = block(out)
+            else:
+                hr_out = None
+                if self.use_hr_skip_connections or self.encode_hr_input_with_additional_blocks:
+                    hr_out = self.hr_first(source_image)
+                    self.skip_connections = [hr_out] if self.use_hr_skip_connections else []
+                    for block in self.hr_down_blocks:
+                        hr_out = block(hr_out)
+                        if self.use_hr_skip_connections:
+                            self.skip_connections.append(hr_out)
+                
+                out = hr_out if self.encode_hr_input_with_additional_blocks else self.first(resized_source_image)
+                for block in self.down_blocks: 
+                    out = block(out)
 
-            self.encoder_output = out
+                self.encoder_output = out
+
 
         # lr target image encoding
         if self.use_lr_video:
