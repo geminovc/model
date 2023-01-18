@@ -67,9 +67,11 @@ train_params:
   train_only_generator: False
   train_only_upsample_layers: False
   encode_video_for_training: False
-  num_epochs: 35
+  num_epochs: 250
   netadapt: True
-  shrink_rate: 0.05
+  shrink_rate: 0.03
+  target_shrink: .25
+  shrunk_gen: '/data1/vedantha/nets_implementation/first_order_model/log/finetune_netadapt 04_01_23_17.16.29/00000048-checkpoint.pth.tar'
   num_repeats: 15
   epoch_milestones: [60, 90]
   lr_generator: 2.0e-4

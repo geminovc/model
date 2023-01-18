@@ -232,7 +232,8 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
     prune_rate = train_params.get('shrink_rate', 0.02)
     reduce_amount = start * prune_rate
     current = start
-    target = start // 100000
+    target = start * train_params.get('target_shrink', 0.25)
+
     is_first_round = True
     if torch.cuda.is_available():
         original_lpips = original_lpips.cuda()
@@ -247,14 +248,15 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
         generator_full.generator = generator
         optimizer_generator = torch.optim.Adam(generator.parameters(), lr=train_params['lr_generator'], betas=(0.5, 0.999))
 
-    state_dict = torch.load('/data1/vedantha/nets_implementation/first_order_model/log/adaptive_train_till_failiure 31_12_22_14.36.35/00000119-checkpoint.pth.tar')
-    print(start)
-    generator_full.generator = copy.deepcopy(generator_full.generator)
-    print(total_macs(generator_full.generator))
-    set_module(generator_full, state_dict)
-    generator_full.generator = copy.deepcopy(generator_full.generator)
-    print(total_macs(generator_full.generator))
-    breakpoint()
+    reload_gen = train_params.get('shrunk_gen', None)
+    if reload_gen is not None:
+        state_dict =torch.load(reload_gen)
+        set_module(generator_full, state_dict)
+        optimizer_generator = torch.optim.Adam(generator_full.generator.parameters(), lr=train_params['lr_generator'], betas=(0.5, 0.999))
+        current=  total_macs(copy.deepcopy(generator_full.generator))
+        print('reloaded_params', current)
+
+
 
     if train_params.get('netadapt', False):
         with Logger(log_dir=log_dir, visualizer_params=config['visualizer_params'], checkpoint_freq=train_params['checkpoint_freq']) as logger:
@@ -302,12 +304,14 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
                             logger.log_metrics_images(i, y, metrics_generated, loss_fn_vgg, original_lpips, face_lpips)
 
                     print("Generator took (ms):", get_generator_time(generator_full, y))
-                    logger.log_epoch(epoch, {'generator': generator,
-                                             'discriminator': discriminator,
-                                             'kp_detector': kp_detector,
+                    logger.log_epoch(epoch, {'generator': generator_full.generator,
+                                             'discriminator': generator_full.discriminator,
+                                             'kp_detector': generator_full.kp_extractor,
                                              'optimizer_generator': optimizer_generator,
                                              'optimizer_discriminator': optimizer_discriminator,
                                              'optimizer_kp_detector': optimizer_kp_detector}, inp=y, out=metrics_generated)
+
+        optimizer_generator = torch.optim.Adam(generator_full.generator.parameters(), lr=train_params['lr_generator'], betas=(0.5, 0.999))
     if torch.cuda.is_available():
         generator_full = DataParallelWithCallback(generator_full, device_ids=device_ids)
         discriminator_full = DataParallelWithCallback(discriminator_full, device_ids=device_ids)

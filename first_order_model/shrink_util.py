@@ -56,9 +56,8 @@ def set_attr(obj, names, val):
 
 def set_module(mod, state_dict):
     for key1 in state_dict.keys():
-        if key1 not in ['generator', 'kp_detector', 'discriminator']:
+        if key1 not in ['generator']:
             continue
-        breakpoint()
         for key, dict_param in state_dict[key1].items():
             if key1 == 'kp_detector':
                 submod_names = ['kp_extractor'] + key.split(".")
