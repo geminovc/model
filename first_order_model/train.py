@@ -216,7 +216,6 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
     face_lpips = vgg_face_model.compute_loss
 
     with Logger(log_dir=log_dir, visualizer_params=config['visualizer_params'], checkpoint_freq=train_params['checkpoint_freq']) as logger:
-        print('using vp9 as encoder', train_params.get('use_vp9', False))
         for epoch in trange(start_epoch, train_params['num_epochs']):
             for x in dataloader:
                 if use_lr_video or use_RIFE:
@@ -230,7 +229,7 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
                         dr = x.get('time_base_dr', 30000 * torch.ones(lr_frame.size(dim=0), dtype=int))
                         x['driving_lr'] = get_frame_from_video_codec(lr_frame, nr, \
                                 dr, quantizer_level, target_bitrate) 
-                    elif not train_params.get('use_vp9', False) :
+                    else:
                         x['driving_lr'] = lr_frame
 
                 losses_generator, generated = generator_full(x, generator_type)

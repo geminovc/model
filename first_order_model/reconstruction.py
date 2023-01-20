@@ -286,7 +286,7 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
             predictions = []
             visualizations = []
             visual_metrics = []
-            video_name = x['video_path'][0] if 'video_path' in x else x['gt_video_path'][0] 
+            video_name = x['video_path'][0]
             print('doing video', video_name)
             visualizations = []
             video_duration = get_video_duration(video_name)
@@ -297,18 +297,8 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
             container = av.open(file=video_name, format=None, mode='r')
             stream = container.streams.video[0]
 
-            if 'lr_video_path' in x:
-                lr_video_name = x['lr_video_path'][0]
-                lr_container = av.open(file=lr_video_name, format=None, mode='r')
-                lr_video_stream = lr_container.streams.video[0]
-            else:
-                # dummy container
-                lr_container = av.open(file=video_name, format=None, mode='r')
-                lr_video_stream = lr_container.streams.video[0]
-
-
             frame_idx = 0
-            for av_frame, lr_frame in zip(container.decode(stream), lr_container.decode(lr_video_stream)):
+            for av_frame in container.decode(stream):
                 # ground-truth
                 frame = av_frame.to_rgb().to_ndarray()
                 driving = frame_to_tensor(img_as_float32(frame), device)
@@ -327,14 +317,13 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
                 if encoder_in_training:
                     driving_lr_av, driving_lr, compressed_tgt = get_frame_from_video_codec(driving_lr_av,
                             av_frame.index, lr_encoder, lr_decoder, quantizer_level, target_bitrate)
-                elif 'lr_video_path' not in x:
-                    compressed_tgt = 0
                 else:
-                    driving_lr = lr_frame._to_rgb().to_ndarray()
+                    compressed_tgt = 0
 
+                driving_lr_array = driving_lr
                 if frame_idx in special_frames_list and SAVE_LR_FRAMES and generator_type != 'vpx':
                     np.save(os.path.join(visualization_dir,
-                        'receiver_lr_frame_%05d.npy' % av_frame.index), driving_lr)
+                        'receiver_lr_frame_%05d.npy' % av_frame.index), driving_lr_array)
 
                 driving_lr = frame_to_tensor(img_as_float32(driving_lr), device)
                 
@@ -342,9 +331,6 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
                 if generator_type == 'vpx':
                     decoded_frame_av, decoded_frame, compressed_src = get_frame_from_video_codec(av_frame,
                             av_frame.index, hr_encoder, hr_decoder, quantizer_level, target_bitrate)
-                elif generator_type == 'vp9':
-                    # TODO: vibhaa -- implement this to read from the appropriately sized vp9
-                    pass
                 elif encoder_in_training:
                     decoded_frame_av, decoded_frame, compressed_src = get_frame_from_video_codec(av_frame,
                             av_frame.index, hr_encoder, hr_decoder, 32)
@@ -352,7 +338,6 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
                     decoded_frame_av = av_frame
                     decoded_frame = frame
                     compressed_src = 0
-                    # todo: vp9 case it needs to be encoded
 
                 decoded_frame = img_as_float32(decoded_frame)
                 decoded_tensor = frame_to_tensor(decoded_frame, device)
