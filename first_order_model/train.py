@@ -20,10 +20,11 @@ import random
 import av
 import numpy as np
 
-from aiortc.codecs.vpx import Vp8Encoder, Vp8Decoder, vp8_depayload
+from aiortc.codecs.vpx import Vp9Encoder, Vp9Decoder, Vp8Encoder, Vp8Decoder, vp8_depayload
 from aiortc.jitterbuffer import JitterFrame
 
-def get_frame_from_video_codec(frame_tensor, nr_list, dr_list, quantizer, bitrate):
+
+def get_frame_from_video_codec(frame_tensor, nr_list, dr_list, quantizer, bitrate, version="vp8"):
     """ go through the encoder/decoder pipeline to get a 
         representative decoded frame
     """
@@ -42,7 +43,11 @@ def get_frame_from_video_codec(frame_tensor, nr_list, dr_list, quantizer, bitrat
         av_frame = av.VideoFrame.from_ndarray(frame)
         av_frame.pts = 0
         av_frame.time_base = Fraction(nr, dr)
-        encoder, decoder = Vp8Encoder(), Vp8Decoder()
+        
+        if version == "vp8":
+            encoder, decoder = Vp8Encoder(), Vp8Decoder()
+        else:
+            encoder, decoder = Vp9Encoder(), Vp9Decoder()
         if bitrate == None:
             payloads, timestamp = encoder.encode(av_frame, quantizer=quantizer, enable_gcc=False)
         else:
@@ -221,6 +226,7 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
                 if use_lr_video or use_RIFE:
                     lr_frame = F.interpolate(x['driving'], lr_size)
                     if train_params.get('encode_video_for_training', False):
+                        codec = train_params.get('codec', 'vp8')
                         target_bitrate = train_params.get('target_bitrate', None)
                         quantizer_level = train_params.get('quantizer_level', -1)
                         if target_bitrate == 'random':
@@ -228,7 +234,7 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
                         nr = x.get('time_base_nr', torch.ones(lr_frame.size(dim=0), dtype=int))
                         dr = x.get('time_base_dr', 30000 * torch.ones(lr_frame.size(dim=0), dtype=int))
                         x['driving_lr'] = get_frame_from_video_codec(lr_frame, nr, \
-                                dr, quantizer_level, target_bitrate) 
+                                dr, quantizer_level, target_bitrate, codec) 
                     else:
                         x['driving_lr'] = lr_frame
 
