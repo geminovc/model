@@ -9,13 +9,13 @@ from first_order_model.modules.keypoint_detector import KPDetector
 from swinir_wrapper import SuperResolutionModel
 from torchprofile import profile_macs
 from fractions import Fraction
-from aiortc.codecs.vpx import Vp8Encoder, Vp8Decoder, vp8_depayload
+from aiortc.codecs.vpx import Vp9Encoder, Vp9Decoder, Vp8Encoder, Vp8Decoder, vp8_depayload
 from aiortc.jitterbuffer import JitterFrame
 import os
 import av
 
 
-def get_frame_from_video_codec(frame_tensor, nr_list, dr_list, quantizer, bitrate):
+def get_frame_from_video_codec(frame_tensor, nr_list, dr_list, quantizer, bitrate, version="vp8"):
     """ go through the encoder/decoder pipeline to get a 
         representative decoded frame
     """
@@ -34,7 +34,12 @@ def get_frame_from_video_codec(frame_tensor, nr_list, dr_list, quantizer, bitrat
         av_frame = av.VideoFrame.from_ndarray(frame)
         av_frame.pts = 0
         av_frame.time_base = Fraction(nr, dr)
-        encoder, decoder = Vp8Encoder(), Vp8Decoder()
+        
+        if version == "vp8":
+            encoder, decoder = Vp8Encoder(), Vp8Decoder()
+        else:
+            encoder, decoder = Vp9Encoder(), Vp9Decoder()
+        
         if bitrate == None:
             payloads, timestamp = encoder.encode(av_frame, quantizer=quantizer, enable_gcc=False)
         else:

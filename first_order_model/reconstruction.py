@@ -32,7 +32,7 @@ special_frames_list = [1322, 574, 140, 1786, 1048, 839, 761, 2253, 637, 375, \
         1155, 2309, 1524, 1486, 1207, 315, 1952, 2111, 2148, 1530, \
         112, 939, 1211, 403, 2225, 1900, 207, 1634, 2006, 28]  
 SAVE_LR_FRAMES = True
-generate_video_visualizations = True
+generate_video_visualizations = False
 
 
 def get_avg_visual_metrics(visual_metrics):
