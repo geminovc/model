@@ -458,13 +458,11 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
                     print(f'finished {frame_idx} frames, updated src: {updated_src}')
                 
                 if frame_idx in special_frames_list or generate_video_visualizations:
-                    """
                     if generator_type not in ['vpx', 'bicubic']:
                         v = Visualizer(**config['visualizer_params']).visualize(source=source,
                                                                                 driving=driving, out=out)
                     else:
-                    """
-                    v = out['prediction'].data.cpu().numpy().transpose(0, 2, 3, 1)[0]
+                        v = out['prediction'].data.cpu().numpy().transpose(0, 2, 3, 1)[0]
 
                     if generate_video_visualizations:
                         v = (255 * v).astype(np.uint8)
