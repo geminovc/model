@@ -31,6 +31,7 @@ if __name__ == "__main__":
     parser.add_argument("--device_ids", default="0", type=lambda x: list(map(int, x.split(','))),
                         help="Names of the devices comma separated.")
     parser.add_argument("--verbose", dest="verbose", action="store_true", help="Print model architecture")
+    parser.add_argument("--profile", dest="profile", action="store_true", help="Only profile model")
     parser.add_argument("--enable_timing", dest="enable_timing", action="store_true", help="Time the model")
     parser.add_argument("--save_visualizations_as_images", action="store_true", help="Save visuals as raw images for residual")
     parser.add_argument("--reference_frame_update_freq", type=int, help="how frequently to update reference frame")
@@ -75,7 +76,8 @@ if __name__ == "__main__":
     elif opt.mode == 'reconstruction':
         print("Reconstruction...")
         reconstruction(config, generator, kp_detector, opt.checkpoint, log_dir, dataset, opt.enable_timing, 
-                opt.save_visualizations_as_images, opt.experiment_name, opt.reference_frame_update_freq)
+                opt.save_visualizations_as_images, opt.experiment_name, opt.reference_frame_update_freq,
+                opt.profile)
     elif opt.mode == 'animate':
         print("Animate...")
         animate(config, generator, kp_detector, opt.checkpoint, log_dir, dataset)
