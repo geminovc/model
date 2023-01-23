@@ -180,6 +180,7 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
     loss_fn_vgg = vgg_model.compute_loss
     face_lpips = vgg_face_model.compute_loss
 
+    print(f'Encoding using {train_params.get("codec", "vp8")}')
     with Logger(log_dir=log_dir, visualizer_params=config['visualizer_params'], checkpoint_freq=train_params['checkpoint_freq']) as logger:
         for epoch in trange(start_epoch, train_params['num_epochs']):
             for x in dataloader:
