@@ -25,14 +25,14 @@ import matplotlib.pyplot as plt
 reference_frame_list = []
 encode_using_vpx = False
 
-from aiortc.codecs.vpx import Vp8Encoder, Vp8Decoder, vp8_depayload
+from aiortc.codecs.vpx import Vp8Encoder, Vp8Decoder, Vp9Encoder, Vp9Decoder, vp8_depayload
 from aiortc.jitterbuffer import JitterFrame
 KEYPOINT_FIXED_PAYLOAD_SIZE = 125 # bytes
 special_frames_list = [1322, 574, 140, 1786, 1048, 839, 761, 2253, 637, 375, \
         1155, 2309, 1524, 1486, 1207, 315, 1952, 2111, 2148, 1530, \
         112, 939, 1211, 403, 2225, 1900, 207, 1634, 2006, 28]  
 SAVE_LR_FRAMES = True
-generate_video_visualizations = True
+generate_video_visualizations = False
 
 
 def get_avg_visual_metrics(visual_metrics):
@@ -215,6 +215,7 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
     target_bitrate = train_params.get('target_bitrate', 1000000)
     quantizer_level = train_params.get('quantizer_level', -1)
     encoder_in_training = train_params.get('encode_video_for_training', False)
+    codec_params = train_params.get('codec', 'vp8')
     
     choose_reference_frame = False
     use_same_tgt_ref_quality = False
@@ -279,8 +280,12 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
         reference_stream = [0]
         lr_stream = [0]
         
-        hr_encoder, lr_encoder = Vp8Encoder(), Vp8Encoder()
-        hr_decoder, lr_decoder = Vp8Decoder(), Vp8Decoder()
+        if codec_params == 'vp9':
+            hr_encoder, lr_encoder = Vp9Encoder(), Vp9Encoder()
+            hr_decoder, lr_decoder = Vp9Decoder(), Vp9Decoder()
+        else:
+            hr_encoder, lr_encoder = Vp8Encoder(), Vp8Encoder()
+            hr_decoder, lr_decoder = Vp8Decoder(), Vp8Decoder()
 
         with torch.no_grad():
             predictions = []
