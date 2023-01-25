@@ -108,7 +108,8 @@ def train_distillation(config, generator, discriminator, kp_detector, teacher_ch
                     kp_driving = teacher_kp_detector(x['driving_lr'])
                     teacher_out = teacher_generator(x['source'], kp_source=kp_source, \
                                 kp_driving=kp_driving, update_source=True, driving_lr=x['driving_lr'])
-                    x['teacher'] = teacher_out['prediction'] 
+                    x['teacher'] = teacher_out['prediction']
+                    x['teacher_encoded_output'] = teacher_out['encoded_output'] 
 
                 losses_generator, generated = generator_full(x, generator_type='occlusion_aware')
 
@@ -164,6 +165,7 @@ def train_distillation(config, generator, discriminator, kp_detector, teacher_ch
                         teacher_out = teacher_generator(y['source'], kp_source=kp_source, \
                                 kp_driving=kp_driving, update_source=True, driving_lr=y['driving_lr'])
                         y['teacher'] = teacher_out['prediction']
+                        y['teacher_encoded_output'] = teacher_out['encoded_output'] 
 
                         _, metrics_generated = generator_full(y, generator_type='occlusion_aware')
                         logger.log_metrics_images(i, y, metrics_generated, loss_fn_vgg, original_lpips, face_lpips)
