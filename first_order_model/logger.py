@@ -302,6 +302,13 @@ class Visualizer:
             images.append((driving, kp_driving))
         images.append(driving)
 
+        # teacher output
+        if 'teacher' in out:
+            teacher = out['teacher']
+            teacher = teacher.data.cpu().numpy()
+            teacher = np.transpose(teacher, [0, 2, 3, 1])
+            images.append(teacher)
+
 
         # Deformed image
         if 'deformed' in out:
