@@ -73,6 +73,10 @@ def set_module(mod, state_dict):
             #curr_param = get_attr(mod, submod_names)
             # Here you can either replace the existing one
             set_attr(mod, submod_names, dict_param)
+            group_name = submod_names[:-1] + ['groups']
+            og_groups = get_attr_default(mod, group_name, 1)
+            if og_groups != 1:
+                get_attr(mod, group_name[:-1]).groups = dict_param.shape[0]
 
 def set_gen_module(mod, state_dict):
 
@@ -296,87 +300,87 @@ def build_graph(all_layers, names):
 
     # Build graph
     if os.environ.get('CONV_TYPE', 'regular') == 'regular':
-	add_names([
-		'dense_motion_network.hourglass.encoder.down_blocks.0.conv',
-		'dense_motion_network.hourglass.encoder.down_blocks.0.norm',
-		'dense_motion_network.hourglass.encoder.down_blocks.1.conv',
-		'dense_motion_network.hourglass.encoder.down_blocks.1.norm',
-		'dense_motion_network.hourglass.encoder.down_blocks.2.conv',
-		'dense_motion_network.hourglass.encoder.down_blocks.2.norm',
-		'dense_motion_network.hourglass.encoder.down_blocks.3.conv',
-		'dense_motion_network.hourglass.encoder.down_blocks.3.norm',
-		'dense_motion_network.hourglass.encoder.down_blocks.4.conv',
-		'dense_motion_network.hourglass.encoder.down_blocks.4.norm',
-		'dense_motion_network.hourglass.decoder.up_blocks.0.conv',
-		'dense_motion_network.hourglass.decoder.up_blocks.0.norm',
-		'dense_motion_network.hourglass.decoder.up_blocks.1.conv',
-		'dense_motion_network.hourglass.decoder.up_blocks.1.norm',
-		'dense_motion_network.hourglass.decoder.up_blocks.2.conv',
-		'dense_motion_network.hourglass.decoder.up_blocks.2.norm',
-		'dense_motion_network.hourglass.decoder.up_blocks.3.conv',
-		'dense_motion_network.hourglass.decoder.up_blocks.3.norm',
-		'dense_motion_network.hourglass.decoder.up_blocks.4.conv',
-		'dense_motion_network.hourglass.decoder.up_blocks.4.norm'
-	    ])
+        add_names([
+            'dense_motion_network.hourglass.encoder.down_blocks.0.conv',
+            'dense_motion_network.hourglass.encoder.down_blocks.0.norm',
+            'dense_motion_network.hourglass.encoder.down_blocks.1.conv',
+            'dense_motion_network.hourglass.encoder.down_blocks.1.norm',
+            'dense_motion_network.hourglass.encoder.down_blocks.2.conv',
+            'dense_motion_network.hourglass.encoder.down_blocks.2.norm',
+            'dense_motion_network.hourglass.encoder.down_blocks.3.conv',
+            'dense_motion_network.hourglass.encoder.down_blocks.3.norm',
+            'dense_motion_network.hourglass.encoder.down_blocks.4.conv',
+            'dense_motion_network.hourglass.encoder.down_blocks.4.norm',
+            'dense_motion_network.hourglass.decoder.up_blocks.0.conv',
+            'dense_motion_network.hourglass.decoder.up_blocks.0.norm',
+            'dense_motion_network.hourglass.decoder.up_blocks.1.conv',
+            'dense_motion_network.hourglass.decoder.up_blocks.1.norm',
+            'dense_motion_network.hourglass.decoder.up_blocks.2.conv',
+            'dense_motion_network.hourglass.decoder.up_blocks.2.norm',
+            'dense_motion_network.hourglass.decoder.up_blocks.3.conv',
+            'dense_motion_network.hourglass.decoder.up_blocks.3.norm',
+            'dense_motion_network.hourglass.decoder.up_blocks.4.conv',
+            'dense_motion_network.hourglass.decoder.up_blocks.4.norm'
+        ])
 
-	    # Add the dense motion skip connections
-	    add('dense_motion_network.hourglass.encoder.down_blocks.3.norm',
-		'dense_motion_network.hourglass.decoder.up_blocks.1.conv')
-	    add('dense_motion_network.hourglass.encoder.down_blocks.2.norm',
-		'dense_motion_network.hourglass.decoder.up_blocks.2.conv')
-	    add('dense_motion_network.hourglass.encoder.down_blocks.1.norm',
-		'dense_motion_network.hourglass.decoder.up_blocks.3.conv')
-	    add('dense_motion_network.hourglass.encoder.down_blocks.0.norm',
-		'dense_motion_network.hourglass.decoder.up_blocks.4.conv')
+        # Add the dense motion skip connections
+        add('dense_motion_network.hourglass.encoder.down_blocks.3.norm',
+            'dense_motion_network.hourglass.decoder.up_blocks.1.conv')
+        add('dense_motion_network.hourglass.encoder.down_blocks.2.norm',
+            'dense_motion_network.hourglass.decoder.up_blocks.2.conv')
+        add('dense_motion_network.hourglass.encoder.down_blocks.1.norm',
+            'dense_motion_network.hourglass.decoder.up_blocks.3.conv')
+        add('dense_motion_network.hourglass.encoder.down_blocks.0.norm',
+            'dense_motion_network.hourglass.decoder.up_blocks.4.conv')
 
-	    # Add the dense motion outputs partly (First part)
-	    add('dense_motion_network.hourglass.decoder.up_blocks.4.norm',
-		'dense_motion_network.mask')
-	    add('dense_motion_network.hourglass.decoder.up_blocks.4.norm',
-		'dense_motion_network.occlusion')
-	    add('dense_motion_network.hourglass.decoder.up_blocks.4.norm',
-		'dense_motion_network.lr_occlusion')
-	    add('dense_motion_network.hourglass.decoder.up_blocks.4.norm',
-		'dense_motion_network.hr_background_occlusion')
+        # Add the dense motion outputs partly (First part)
+        add('dense_motion_network.hourglass.decoder.up_blocks.4.norm',
+            'dense_motion_network.mask')
+        add('dense_motion_network.hourglass.decoder.up_blocks.4.norm',
+            'dense_motion_network.occlusion')
+        add('dense_motion_network.hourglass.decoder.up_blocks.4.norm',
+            'dense_motion_network.lr_occlusion')
+        add('dense_motion_network.hourglass.decoder.up_blocks.4.norm',
+            'dense_motion_network.hr_background_occlusion')
 
-	    add('lr_first.conv', 'lr_first.norm')
-	    add_names([
-		'hr_first.conv', 'hr_first.norm', 'hr_down_blocks.0.conv',
-		'hr_down_blocks.0.norm'
-	    ])
-	    add_names([
-		'first.conv', 'first.norm', 'down_blocks.0.conv', 'down_blocks.0.norm',
-		'down_blocks.1.conv', 'down_blocks.1.norm', 'bottleneck.r0.norm1',
-		'bottleneck.r0.conv1', 'bottleneck.r0.norm2', 'bottleneck.r0.conv2',
-		'bottleneck.r1.norm1', 'bottleneck.r1.conv1', 'bottleneck.r1.norm2',
-		'bottleneck.r1.conv2', 'bottleneck.r2.norm1', 'bottleneck.r2.conv1',
-		'bottleneck.r2.norm2', 'bottleneck.r2.conv2', 'bottleneck.r3.norm1',
-		'bottleneck.r3.conv1', 'bottleneck.r3.norm2', 'bottleneck.r3.conv2',
-		'bottleneck.r4.norm1', 'bottleneck.r4.conv1', 'bottleneck.r4.norm2',
-		'bottleneck.r4.conv2', 'bottleneck.r5.norm1', 'bottleneck.r5.conv1',
-		'bottleneck.r5.norm2', 'bottleneck.r5.conv2', 'up_blocks.0.conv',
-		'up_blocks.0.norm', 'up_blocks.1.conv', 'up_blocks.1.norm',
-		'hr_up_blocks.0.conv', 'hr_up_blocks.0.norm', 'final'
-	    ])
+        add('lr_first.conv', 'lr_first.norm')
+        add_names([
+            'hr_first.conv', 'hr_first.norm', 'hr_down_blocks.0.conv',
+            'hr_down_blocks.0.norm'
+        ])
+        add_names([
+            'first.conv', 'first.norm', 'down_blocks.0.conv', 'down_blocks.0.norm',
+            'down_blocks.1.conv', 'down_blocks.1.norm', 'bottleneck.r0.norm1',
+            'bottleneck.r0.conv1', 'bottleneck.r0.norm2', 'bottleneck.r0.conv2',
+            'bottleneck.r1.norm1', 'bottleneck.r1.conv1', 'bottleneck.r1.norm2',
+            'bottleneck.r1.conv2', 'bottleneck.r2.norm1', 'bottleneck.r2.conv1',
+            'bottleneck.r2.norm2', 'bottleneck.r2.conv2', 'bottleneck.r3.norm1',
+            'bottleneck.r3.conv1', 'bottleneck.r3.norm2', 'bottleneck.r3.conv2',
+            'bottleneck.r4.norm1', 'bottleneck.r4.conv1', 'bottleneck.r4.norm2',
+            'bottleneck.r4.conv2', 'bottleneck.r5.norm1', 'bottleneck.r5.conv1',
+            'bottleneck.r5.norm2', 'bottleneck.r5.conv2', 'up_blocks.0.conv',
+            'up_blocks.0.norm', 'up_blocks.1.conv', 'up_blocks.1.norm',
+            'hr_up_blocks.0.conv', 'hr_up_blocks.0.norm', 'final'
+        ])
 
-	    # Features get concatted into down block
-	    add('down_blocks.1.norm', 'bottleneck.r0.norm1')
+        # Features get concatted into down block
+        add('down_blocks.1.norm', 'bottleneck.r0.norm1')
 
-	    # Second up block has 32 lr features added
-	    add('lr_first.norm', 'up_blocks.0.conv')
+        # Second up block has 32 lr features added
+        add('lr_first.norm', 'up_blocks.0.conv')
 
-	    # Add 2x hr down outputs to first hr up
-	    add('hr_down_blocks.0.norm', 'hr_up_blocks.0.conv')
-	    add('hr_down_blocks.0.norm', 'hr_up_blocks.0.conv')
+        # Add 2x hr down outputs to first hr up
+        add('hr_down_blocks.0.norm', 'hr_up_blocks.0.conv')
+        add('hr_down_blocks.0.norm', 'hr_up_blocks.0.conv')
 
 
-	    add_tie('bottleneck.r0.conv1', 'bottleneck.r0.conv2')
-	    add_tie('bottleneck.r1.conv1', 'bottleneck.r1.conv2')
-	    add_tie('bottleneck.r2.conv1', 'bottleneck.r2.conv2')
-	    add_tie('bottleneck.r3.conv1', 'bottleneck.r3.conv2')
-	    add_tie('bottleneck.r4.conv1', 'bottleneck.r4.conv2')
-	    add_tie('bottleneck.r5.conv1', 'bottleneck.r5.conv2')
-	    add_tie('bottleneck.r5.conv1', 'bottleneck.r0.conv2')
+        add_tie('bottleneck.r0.conv1', 'bottleneck.r0.conv2')
+        add_tie('bottleneck.r1.conv1', 'bottleneck.r1.conv2')
+        add_tie('bottleneck.r2.conv1', 'bottleneck.r2.conv2')
+        add_tie('bottleneck.r3.conv1', 'bottleneck.r3.conv2')
+        add_tie('bottleneck.r4.conv1', 'bottleneck.r4.conv2')
+        add_tie('bottleneck.r5.conv1', 'bottleneck.r5.conv2')
+        add_tie('bottleneck.r5.conv1', 'bottleneck.r0.conv2')
     else:
         add_names([
             'dense_motion_network.hourglass.encoder.down_blocks.0.conv.depth_conv',
@@ -1134,6 +1138,9 @@ def try_reduce(curr_loss, curr_model, per_layer_macs, dataloader, layer_graph, l
             deletions)  # The 0.1 is a dummy variable for now, gets ignored
 
     after_1_reduce = total_macs(model_copy)
+    print(after_1_reduce)
+    if after_1_reduce == current:
+        return None, None
 
     to_remove = int((current-target) // (current - after_1_reduce))
 
