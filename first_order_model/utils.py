@@ -60,7 +60,6 @@ def get_encoded_frame(train_params, lr_frame, data):
 
     return get_frame_from_video_codec(lr_frame, nr, dr, quantizer_level, target_bitrate) 
 
->>>>>>> origin/depthwise
 
 def frame_to_tensor(frame, device):
     """ convert numpy arrays to tensors for reconstruction pipeline """
