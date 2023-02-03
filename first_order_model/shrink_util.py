@@ -1,5 +1,6 @@
 from tqdm import trange
 import gc
+import os
 from tqdm import tqdm
 import torch
 import torchvision.models as models
@@ -62,7 +63,7 @@ def set_attr(obj, names, val):
 
 def set_module(mod, state_dict):
     for key1 in state_dict.keys():
-        if key1 not in ['generator']:
+        if key1 not in ['generator', 'kp_detector']:
             continue
         for key, dict_param in state_dict[key1].items():
             if key1 == 'kp_detector':
@@ -294,105 +295,188 @@ def build_graph(all_layers, names):
             index += 1
 
     # Build graph
-    add_names([
-        'dense_motion_network.hourglass.encoder.down_blocks.0.conv.depth_conv',
-        'dense_motion_network.hourglass.encoder.down_blocks.0.conv.point_conv',
-        'dense_motion_network.hourglass.encoder.down_blocks.0.norm',
-        'dense_motion_network.hourglass.encoder.down_blocks.1.conv.depth_conv',
-        'dense_motion_network.hourglass.encoder.down_blocks.1.conv.point_conv',
-        'dense_motion_network.hourglass.encoder.down_blocks.1.norm',
-        'dense_motion_network.hourglass.encoder.down_blocks.2.conv.depth_conv',
-        'dense_motion_network.hourglass.encoder.down_blocks.2.conv.point_conv',
-        'dense_motion_network.hourglass.encoder.down_blocks.2.norm',
-        'dense_motion_network.hourglass.encoder.down_blocks.3.conv.depth_conv',
-        'dense_motion_network.hourglass.encoder.down_blocks.3.conv.point_conv',
-        'dense_motion_network.hourglass.encoder.down_blocks.3.norm',
-        'dense_motion_network.hourglass.encoder.down_blocks.4.conv.depth_conv',
-        'dense_motion_network.hourglass.encoder.down_blocks.4.conv.point_conv',
-        'dense_motion_network.hourglass.encoder.down_blocks.4.norm',
-        'dense_motion_network.hourglass.decoder.up_blocks.0.conv.depth_conv',
-        'dense_motion_network.hourglass.decoder.up_blocks.0.conv.point_conv',
-        'dense_motion_network.hourglass.decoder.up_blocks.0.norm',
-        'dense_motion_network.hourglass.decoder.up_blocks.1.conv.depth_conv',
-        'dense_motion_network.hourglass.decoder.up_blocks.1.conv.point_conv',
-        'dense_motion_network.hourglass.decoder.up_blocks.1.norm',
-        'dense_motion_network.hourglass.decoder.up_blocks.2.conv.depth_conv',
-        'dense_motion_network.hourglass.decoder.up_blocks.2.conv.point_conv',
-        'dense_motion_network.hourglass.decoder.up_blocks.2.norm',
-        'dense_motion_network.hourglass.decoder.up_blocks.3.conv.depth_conv',
-        'dense_motion_network.hourglass.decoder.up_blocks.3.conv.point_conv',
-        'dense_motion_network.hourglass.decoder.up_blocks.3.norm',
-        'dense_motion_network.hourglass.decoder.up_blocks.4.conv.depth_conv',
-        'dense_motion_network.hourglass.decoder.up_blocks.4.conv.point_conv',
-        'dense_motion_network.hourglass.decoder.up_blocks.4.norm'
-    ])
+    if os.environ.get('CONV_TYPE', 'regular') == 'regular':
+	add_names([
+		'dense_motion_network.hourglass.encoder.down_blocks.0.conv',
+		'dense_motion_network.hourglass.encoder.down_blocks.0.norm',
+		'dense_motion_network.hourglass.encoder.down_blocks.1.conv',
+		'dense_motion_network.hourglass.encoder.down_blocks.1.norm',
+		'dense_motion_network.hourglass.encoder.down_blocks.2.conv',
+		'dense_motion_network.hourglass.encoder.down_blocks.2.norm',
+		'dense_motion_network.hourglass.encoder.down_blocks.3.conv',
+		'dense_motion_network.hourglass.encoder.down_blocks.3.norm',
+		'dense_motion_network.hourglass.encoder.down_blocks.4.conv',
+		'dense_motion_network.hourglass.encoder.down_blocks.4.norm',
+		'dense_motion_network.hourglass.decoder.up_blocks.0.conv',
+		'dense_motion_network.hourglass.decoder.up_blocks.0.norm',
+		'dense_motion_network.hourglass.decoder.up_blocks.1.conv',
+		'dense_motion_network.hourglass.decoder.up_blocks.1.norm',
+		'dense_motion_network.hourglass.decoder.up_blocks.2.conv',
+		'dense_motion_network.hourglass.decoder.up_blocks.2.norm',
+		'dense_motion_network.hourglass.decoder.up_blocks.3.conv',
+		'dense_motion_network.hourglass.decoder.up_blocks.3.norm',
+		'dense_motion_network.hourglass.decoder.up_blocks.4.conv',
+		'dense_motion_network.hourglass.decoder.up_blocks.4.norm'
+	    ])
 
-    # Add the dense motion skip connections
-    add('dense_motion_network.hourglass.encoder.down_blocks.3.norm',
-        'dense_motion_network.hourglass.decoder.up_blocks.1.conv.depth_conv')
-    add('dense_motion_network.hourglass.encoder.down_blocks.2.norm',
-        'dense_motion_network.hourglass.decoder.up_blocks.2.conv.depth_conv')
-    add('dense_motion_network.hourglass.encoder.down_blocks.1.norm',
-        'dense_motion_network.hourglass.decoder.up_blocks.3.conv.depth_conv')
-    add('dense_motion_network.hourglass.encoder.down_blocks.0.norm',
-        'dense_motion_network.hourglass.decoder.up_blocks.4.conv.depth_conv')
+	    # Add the dense motion skip connections
+	    add('dense_motion_network.hourglass.encoder.down_blocks.3.norm',
+		'dense_motion_network.hourglass.decoder.up_blocks.1.conv')
+	    add('dense_motion_network.hourglass.encoder.down_blocks.2.norm',
+		'dense_motion_network.hourglass.decoder.up_blocks.2.conv')
+	    add('dense_motion_network.hourglass.encoder.down_blocks.1.norm',
+		'dense_motion_network.hourglass.decoder.up_blocks.3.conv')
+	    add('dense_motion_network.hourglass.encoder.down_blocks.0.norm',
+		'dense_motion_network.hourglass.decoder.up_blocks.4.conv')
 
-    # Add the dense motion outputs partly (First part)
-    add_names(['dense_motion_network.hourglass.decoder.up_blocks.4.norm',
-        'dense_motion_network.mask.depth_conv','dense_motion_network.mask.point_conv'])
-    add_names(['dense_motion_network.hourglass.decoder.up_blocks.4.norm',
-        'dense_motion_network.occlusion.depth_conv','dense_motion_network.occlusion.point_conv'])
-    add_names(['dense_motion_network.hourglass.decoder.up_blocks.4.norm',
-        'dense_motion_network.lr_occlusion.depth_conv','dense_motion_network.lr_occlusion.point_conv'])
-    add_names(['dense_motion_network.hourglass.decoder.up_blocks.4.norm',
-        'dense_motion_network.hr_background_occlusion.depth_conv','dense_motion_network.hr_background_occlusion.point_conv'])
+	    # Add the dense motion outputs partly (First part)
+	    add('dense_motion_network.hourglass.decoder.up_blocks.4.norm',
+		'dense_motion_network.mask')
+	    add('dense_motion_network.hourglass.decoder.up_blocks.4.norm',
+		'dense_motion_network.occlusion')
+	    add('dense_motion_network.hourglass.decoder.up_blocks.4.norm',
+		'dense_motion_network.lr_occlusion')
+	    add('dense_motion_network.hourglass.decoder.up_blocks.4.norm',
+		'dense_motion_network.hr_background_occlusion')
 
-    add_names(['lr_first.conv.depth_conv', 'lr_first.conv.point_conv', 'lr_first.norm'])
-    add_names([
-        'hr_first.conv.depth_conv', 'hr_first.conv.point_conv',  'hr_first.norm', 'hr_down_blocks.0.conv.depth_conv','hr_down_blocks.0.conv.point_conv',
-        'hr_down_blocks.0.norm'
-    ])
-    add_names([
-        'first.conv.depth_conv', 'first.conv.point_conv', 'first.norm', 'down_blocks.0.conv.depth_conv','down_blocks.0.conv.point_conv', 'down_blocks.0.norm',
-        'down_blocks.1.conv.depth_conv','down_blocks.1.conv.point_conv', 'down_blocks.1.norm', 'bottleneck.r0.norm1',
-        'bottleneck.r0.conv1.depth_conv','bottleneck.r0.conv1.point_conv', 'bottleneck.r0.norm2', 'bottleneck.r0.conv2.depth_conv','bottleneck.r0.conv2.point_conv',
-        'bottleneck.r1.norm1', 'bottleneck.r1.conv1.depth_conv','bottleneck.r1.conv1.point_conv', 'bottleneck.r1.norm2',
-        'bottleneck.r1.conv2.depth_conv','bottleneck.r1.conv2.point_conv', 'bottleneck.r2.norm1', 'bottleneck.r2.conv1.depth_conv','bottleneck.r2.conv1.point_conv',
-        'bottleneck.r2.norm2', 'bottleneck.r2.conv2.depth_conv','bottleneck.r2.conv2.point_conv', 'bottleneck.r3.norm1',
-        'bottleneck.r3.conv1.depth_conv','bottleneck.r3.conv1.point_conv', 'bottleneck.r3.norm2', 'bottleneck.r3.conv2.depth_conv','bottleneck.r3.conv2.point_conv',
-        'bottleneck.r4.norm1', 'bottleneck.r4.conv1.depth_conv','bottleneck.r4.conv1.point_conv', 'bottleneck.r4.norm2',
-        'bottleneck.r4.conv2.depth_conv','bottleneck.r4.conv2.point_conv', 'bottleneck.r5.norm1', 'bottleneck.r5.conv1.depth_conv','bottleneck.r5.conv1.point_conv',
-        'bottleneck.r5.norm2', 'bottleneck.r5.conv2.depth_conv','bottleneck.r5.conv2.point_conv', 'up_blocks.0.conv.depth_conv','up_blocks.0.conv.point_conv',
-        'up_blocks.0.norm', 'up_blocks.1.conv.depth_conv','up_blocks.1.conv.point_conv', 'up_blocks.1.norm',
-        'hr_up_blocks.0.conv.depth_conv','hr_up_blocks.0.conv.point_conv', 'hr_up_blocks.0.norm', 'final.depth_conv', 'final.point_conv'
-    ])
+	    add('lr_first.conv', 'lr_first.norm')
+	    add_names([
+		'hr_first.conv', 'hr_first.norm', 'hr_down_blocks.0.conv',
+		'hr_down_blocks.0.norm'
+	    ])
+	    add_names([
+		'first.conv', 'first.norm', 'down_blocks.0.conv', 'down_blocks.0.norm',
+		'down_blocks.1.conv', 'down_blocks.1.norm', 'bottleneck.r0.norm1',
+		'bottleneck.r0.conv1', 'bottleneck.r0.norm2', 'bottleneck.r0.conv2',
+		'bottleneck.r1.norm1', 'bottleneck.r1.conv1', 'bottleneck.r1.norm2',
+		'bottleneck.r1.conv2', 'bottleneck.r2.norm1', 'bottleneck.r2.conv1',
+		'bottleneck.r2.norm2', 'bottleneck.r2.conv2', 'bottleneck.r3.norm1',
+		'bottleneck.r3.conv1', 'bottleneck.r3.norm2', 'bottleneck.r3.conv2',
+		'bottleneck.r4.norm1', 'bottleneck.r4.conv1', 'bottleneck.r4.norm2',
+		'bottleneck.r4.conv2', 'bottleneck.r5.norm1', 'bottleneck.r5.conv1',
+		'bottleneck.r5.norm2', 'bottleneck.r5.conv2', 'up_blocks.0.conv',
+		'up_blocks.0.norm', 'up_blocks.1.conv', 'up_blocks.1.norm',
+		'hr_up_blocks.0.conv', 'hr_up_blocks.0.norm', 'final'
+	    ])
 
-    # Features get concatted into down block
-    add('down_blocks.1.norm', 'bottleneck.r0.norm1')
+	    # Features get concatted into down block
+	    add('down_blocks.1.norm', 'bottleneck.r0.norm1')
 
-    # Second up block has 32 lr features added
-    add('lr_first.norm', 'up_blocks.0.conv.depth_conv')
+	    # Second up block has 32 lr features added
+	    add('lr_first.norm', 'up_blocks.0.conv')
 
-    # Add 2x hr down outputs to first hr up
-    add('hr_down_blocks.0.norm', 'hr_up_blocks.0.conv.depth_conv')
-    add('hr_down_blocks.0.norm', 'hr_up_blocks.0.conv.depth_conv')
+	    # Add 2x hr down outputs to first hr up
+	    add('hr_down_blocks.0.norm', 'hr_up_blocks.0.conv')
+	    add('hr_down_blocks.0.norm', 'hr_up_blocks.0.conv')
 
 
-    add_tie('bottleneck.r0.conv1.depth_conv', 'bottleneck.r0.conv2.point_conv')
-    add_tie('bottleneck.r1.conv1.depth_conv', 'bottleneck.r1.conv2.point_conv')
-    add_tie('bottleneck.r2.conv1.depth_conv', 'bottleneck.r2.conv2.point_conv')
-    add_tie('bottleneck.r3.conv1.depth_conv', 'bottleneck.r3.conv2.point_conv')
-    add_tie('bottleneck.r4.conv1.depth_conv', 'bottleneck.r4.conv2.point_conv')
-    add_tie('bottleneck.r5.conv1.depth_conv', 'bottleneck.r5.conv2.point_conv')
-    #add_tie('bottleneck.r5.conv1', 'bottleneck.r0.conv2')
+	    add_tie('bottleneck.r0.conv1', 'bottleneck.r0.conv2')
+	    add_tie('bottleneck.r1.conv1', 'bottleneck.r1.conv2')
+	    add_tie('bottleneck.r2.conv1', 'bottleneck.r2.conv2')
+	    add_tie('bottleneck.r3.conv1', 'bottleneck.r3.conv2')
+	    add_tie('bottleneck.r4.conv1', 'bottleneck.r4.conv2')
+	    add_tie('bottleneck.r5.conv1', 'bottleneck.r5.conv2')
+	    add_tie('bottleneck.r5.conv1', 'bottleneck.r0.conv2')
+    else:
+        add_names([
+            'dense_motion_network.hourglass.encoder.down_blocks.0.conv.depth_conv',
+            'dense_motion_network.hourglass.encoder.down_blocks.0.conv.point_conv',
+            'dense_motion_network.hourglass.encoder.down_blocks.0.norm',
+            'dense_motion_network.hourglass.encoder.down_blocks.1.conv.depth_conv',
+            'dense_motion_network.hourglass.encoder.down_blocks.1.conv.point_conv',
+            'dense_motion_network.hourglass.encoder.down_blocks.1.norm',
+            'dense_motion_network.hourglass.encoder.down_blocks.2.conv.depth_conv',
+            'dense_motion_network.hourglass.encoder.down_blocks.2.conv.point_conv',
+            'dense_motion_network.hourglass.encoder.down_blocks.2.norm',
+            'dense_motion_network.hourglass.encoder.down_blocks.3.conv.depth_conv',
+            'dense_motion_network.hourglass.encoder.down_blocks.3.conv.point_conv',
+            'dense_motion_network.hourglass.encoder.down_blocks.3.norm',
+            'dense_motion_network.hourglass.encoder.down_blocks.4.conv.depth_conv',
+            'dense_motion_network.hourglass.encoder.down_blocks.4.conv.point_conv',
+            'dense_motion_network.hourglass.encoder.down_blocks.4.norm',
+            'dense_motion_network.hourglass.decoder.up_blocks.0.conv.depth_conv',
+            'dense_motion_network.hourglass.decoder.up_blocks.0.conv.point_conv',
+            'dense_motion_network.hourglass.decoder.up_blocks.0.norm',
+            'dense_motion_network.hourglass.decoder.up_blocks.1.conv.depth_conv',
+            'dense_motion_network.hourglass.decoder.up_blocks.1.conv.point_conv',
+            'dense_motion_network.hourglass.decoder.up_blocks.1.norm',
+            'dense_motion_network.hourglass.decoder.up_blocks.2.conv.depth_conv',
+            'dense_motion_network.hourglass.decoder.up_blocks.2.conv.point_conv',
+            'dense_motion_network.hourglass.decoder.up_blocks.2.norm',
+            'dense_motion_network.hourglass.decoder.up_blocks.3.conv.depth_conv',
+            'dense_motion_network.hourglass.decoder.up_blocks.3.conv.point_conv',
+            'dense_motion_network.hourglass.decoder.up_blocks.3.norm',
+            'dense_motion_network.hourglass.decoder.up_blocks.4.conv.depth_conv',
+            'dense_motion_network.hourglass.decoder.up_blocks.4.conv.point_conv',
+            'dense_motion_network.hourglass.decoder.up_blocks.4.norm'
+        ])
 
-    # Add ties from every conv to itself's depthwise because that is what depthwise means
-    # (Inputs = Outputs)
+        # Add the dense motion skip connections
+        add('dense_motion_network.hourglass.encoder.down_blocks.3.norm',
+            'dense_motion_network.hourglass.decoder.up_blocks.1.conv.depth_conv')
+        add('dense_motion_network.hourglass.encoder.down_blocks.2.norm',
+            'dense_motion_network.hourglass.decoder.up_blocks.2.conv.depth_conv')
+        add('dense_motion_network.hourglass.encoder.down_blocks.1.norm',
+            'dense_motion_network.hourglass.decoder.up_blocks.3.conv.depth_conv')
+        add('dense_motion_network.hourglass.encoder.down_blocks.0.norm',
+            'dense_motion_network.hourglass.decoder.up_blocks.4.conv.depth_conv')
 
-    # Take each depth conv and add it to itself
-    for name in names:
-        if 'depth_conv' in name:
-            add_tie(name, name)
+        # Add the dense motion outputs partly (First part)
+        add_names(['dense_motion_network.hourglass.decoder.up_blocks.4.norm',
+            'dense_motion_network.mask.depth_conv','dense_motion_network.mask.point_conv'])
+        add_names(['dense_motion_network.hourglass.decoder.up_blocks.4.norm',
+            'dense_motion_network.occlusion.depth_conv','dense_motion_network.occlusion.point_conv'])
+        add_names(['dense_motion_network.hourglass.decoder.up_blocks.4.norm',
+            'dense_motion_network.lr_occlusion.depth_conv','dense_motion_network.lr_occlusion.point_conv'])
+        add_names(['dense_motion_network.hourglass.decoder.up_blocks.4.norm',
+            'dense_motion_network.hr_background_occlusion.depth_conv','dense_motion_network.hr_background_occlusion.point_conv'])
+
+        add_names(['lr_first.conv.depth_conv', 'lr_first.conv.point_conv', 'lr_first.norm'])
+        add_names([
+            'hr_first.conv.depth_conv', 'hr_first.conv.point_conv',  'hr_first.norm', 'hr_down_blocks.0.conv.depth_conv','hr_down_blocks.0.conv.point_conv',
+            'hr_down_blocks.0.norm'
+        ])
+        add_names([
+            'first.conv.depth_conv', 'first.conv.point_conv', 'first.norm', 'down_blocks.0.conv.depth_conv','down_blocks.0.conv.point_conv', 'down_blocks.0.norm',
+            'down_blocks.1.conv.depth_conv','down_blocks.1.conv.point_conv', 'down_blocks.1.norm', 'bottleneck.r0.norm1',
+            'bottleneck.r0.conv1.depth_conv','bottleneck.r0.conv1.point_conv', 'bottleneck.r0.norm2', 'bottleneck.r0.conv2.depth_conv','bottleneck.r0.conv2.point_conv',
+            'bottleneck.r1.norm1', 'bottleneck.r1.conv1.depth_conv','bottleneck.r1.conv1.point_conv', 'bottleneck.r1.norm2',
+            'bottleneck.r1.conv2.depth_conv','bottleneck.r1.conv2.point_conv', 'bottleneck.r2.norm1', 'bottleneck.r2.conv1.depth_conv','bottleneck.r2.conv1.point_conv',
+            'bottleneck.r2.norm2', 'bottleneck.r2.conv2.depth_conv','bottleneck.r2.conv2.point_conv', 'bottleneck.r3.norm1',
+            'bottleneck.r3.conv1.depth_conv','bottleneck.r3.conv1.point_conv', 'bottleneck.r3.norm2', 'bottleneck.r3.conv2.depth_conv','bottleneck.r3.conv2.point_conv',
+            'bottleneck.r4.norm1', 'bottleneck.r4.conv1.depth_conv','bottleneck.r4.conv1.point_conv', 'bottleneck.r4.norm2',
+            'bottleneck.r4.conv2.depth_conv','bottleneck.r4.conv2.point_conv', 'bottleneck.r5.norm1', 'bottleneck.r5.conv1.depth_conv','bottleneck.r5.conv1.point_conv',
+            'bottleneck.r5.norm2', 'bottleneck.r5.conv2.depth_conv','bottleneck.r5.conv2.point_conv', 'up_blocks.0.conv.depth_conv','up_blocks.0.conv.point_conv',
+            'up_blocks.0.norm', 'up_blocks.1.conv.depth_conv','up_blocks.1.conv.point_conv', 'up_blocks.1.norm',
+            'hr_up_blocks.0.conv.depth_conv','hr_up_blocks.0.conv.point_conv', 'hr_up_blocks.0.norm', 'final.depth_conv', 'final.point_conv'
+        ])
+
+        # Features get concatted into down block
+        add('down_blocks.1.norm', 'bottleneck.r0.norm1')
+
+        # Second up block has 32 lr features added
+        add('lr_first.norm', 'up_blocks.0.conv.depth_conv')
+
+        # Add 2x hr down outputs to first hr up
+        add('hr_down_blocks.0.norm', 'hr_up_blocks.0.conv.depth_conv')
+        add('hr_down_blocks.0.norm', 'hr_up_blocks.0.conv.depth_conv')
+
+
+        add_tie('bottleneck.r0.conv1.depth_conv', 'bottleneck.r0.conv2.point_conv')
+        add_tie('bottleneck.r1.conv1.depth_conv', 'bottleneck.r1.conv2.point_conv')
+        add_tie('bottleneck.r2.conv1.depth_conv', 'bottleneck.r2.conv2.point_conv')
+        add_tie('bottleneck.r3.conv1.depth_conv', 'bottleneck.r3.conv2.point_conv')
+        add_tie('bottleneck.r4.conv1.depth_conv', 'bottleneck.r4.conv2.point_conv')
+        add_tie('bottleneck.r5.conv1.depth_conv', 'bottleneck.r5.conv2.point_conv')
+        #add_tie('bottleneck.r5.conv1', 'bottleneck.r0.conv2')
+
+        # Add ties from every conv to itself's depthwise because that is what depthwise means
+        # (Inputs = Outputs)
+
+        # Take each depth conv and add it to itself
+        for name in names:
+            if 'depth_conv' in name:
+                add_tie(name, name)
 
 
     return graph
