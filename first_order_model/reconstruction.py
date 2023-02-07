@@ -216,6 +216,7 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
     quantizer_level = train_params.get('quantizer_level', -1)
     encoder_in_training = train_params.get('encode_video_for_training', False)
     codec_params = train_params.get('codec', 'vp8')
+    print(f'Encoding using {codec_params}')
     
     choose_reference_frame = False
     use_same_tgt_ref_quality = False
