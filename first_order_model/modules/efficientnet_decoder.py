@@ -155,7 +155,7 @@ class MBConvBlock(nn.Module):
         self._swish = MemoryEfficientSwish() if memory_efficient else Swish()
 
 
-class EfficientNet(nn.Module):
+class EfficientNetDecoder(nn.Module):
     """EfficientNet model.
        Most easily loaded with the .from_name or .from_pretrained methods.
 
@@ -180,8 +180,19 @@ class EfficientNet(nn.Module):
         assert isinstance(blocks_args, list), 'blocks_args should be a list'
         assert len(blocks_args) > 0, 'block args must be greater than 0'
         self._global_params = global_params
-        self._blocks_args = blocks_args
-        self._blocks_args.reverse()
+        self._blocks_args = []
+
+        for block_args in reversed(blocks_args):
+            input_filters = block_args.input_filters
+            output_filters = block_args.output_filters
+            # Update block input and output filters based on depth multiplier.
+            block_args = block_args._replace(
+                input_filters=round_filters(output_filters, self._global_params),
+                output_filters=round_filters(input_filters, self._global_params),
+                num_repeat=round_repeats(block_args.num_repeat, self._global_params)
+            )
+            self._blocks_args.append(block_args)
+
 
         # Batch norm parameters
         bn_mom = 1 - self._global_params.batch_norm_momentum
@@ -193,15 +204,15 @@ class EfficientNet(nn.Module):
 
         # Reversing head and stem, so this is head
         image_size = (64, 64)
-        in_channels = 256 # output of final block
-        out_channels = round_filters(self.block_args[1].output_filter_size, self._global_params)
+        in_channels = 512 # output of final block
+        out_channels = round_filters(self._blocks_args[1].output_filters, self._global_params)
         Conv2d = get_same_padding_conv2d(image_size=image_size)
         self._conv_head = Conv2d(in_channels, out_channels, kernel_size=1, bias=False)
         self._bn1 = nn.BatchNorm2d(num_features=out_channels, momentum=bn_mom, eps=bn_eps)
         
         # Build blocks
         self._blocks = nn.ModuleList([])
-        for block_args in self._blocks_args[:5]:
+        for block_args in self._blocks_args[1:]:
 
             # Update block input and output filters based on depth multiplier.
             block_args = block_args._replace(
@@ -211,12 +222,13 @@ class EfficientNet(nn.Module):
             )
 
             # The first block needs to take care of stride and filter size increase.
-            if block_args.stride > 1:
-                stride = block_args.stride
+            stride = block_args.stride
+            stride = stride if isinstance(stride, int) else stride[0]
+            if stride > 1:
                 block_args = block_args._replace(input_filters=block_args.output_filters, stride=1)
                 self._blocks.append(MBConvBlock(block_args, self._global_params, image_size=image_size))
-                self._blocks_append(nn.Upsample(scale_factor=stride, mode='nearest'))
-            image_size = get_calculate_output_image_size(image_size, block_args.stride, 'upsampling')
+                self._blocks.append(nn.Upsample(scale_factor=stride, mode='nearest'))
+            image_size = calculate_output_image_size(image_size, block_args.stride, 'upsampling')
             if block_args.num_repeat > 1:  # modify block_args to keep same output size
                 block_args = block_args._replace(input_filters=block_args.output_filters, stride=1)
             for _ in range(block_args.num_repeat - 1):
@@ -307,7 +319,7 @@ class EfficientNet(nn.Module):
             layer in the efficientnet model.
         """
         # Head
-        x = self._swish(self._bn1(self._conv_head(inpuuts)))
+        x = self._swish(self._bn1(self._conv_head(inputs)))
         print("after swish 2", x.shape)
 
         # Blocks
@@ -315,7 +327,10 @@ class EfficientNet(nn.Module):
             drop_connect_rate = self._global_params.drop_connect_rate
             if drop_connect_rate:
                 drop_connect_rate *= float(idx) / len(self._blocks)  # scale drop connect_rate
-            x = block(x, drop_connect_rate=drop_connect_rate)
+            if isinstance(block, nn.Upsample):
+                x = block(x)
+            else:
+                x = block(x, drop_connect_rate=drop_connect_rate)
             print("after block", idx, x.shape)
 
         # Stem

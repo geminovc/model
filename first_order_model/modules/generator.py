@@ -6,6 +6,8 @@ from first_order_model.modules.util import ResBlock2d, SameBlock2d, UpBlock2d, D
 from first_order_model.modules.dense_motion import DenseMotionNetwork
 from first_order_model.modules.RIFE import RIFEModel
 from first_order_model.modules.efficientnet_encoder import EfficientNet
+from first_order_model.modules.efficientnet_decoder import EfficientNetDecoder
+
 import math
 if os.environ.get('CONV_TYPE', 'regular') == 'regular':
     from torch.nn import Conv2d
@@ -59,11 +61,15 @@ class OcclusionAwareGenerator(nn.Module):
         self.use_dropout = use_dropout
         self.concat_lr_video_in_decoder = concat_lr_video_in_decoder
         self.encoder_type = 'regular'
+        self.decoder_type = 'regular'
 
         if self.generator_type == 'student_occlusion_aware':
+            print('setting up EFFICIENTNET encoder/decoder')
             self.generator_type = 'occlusion_aware'
             self.encoder_type = 'efficient'
             self.efficientnet_encoder = EfficientNet.from_pretrained('efficientnet-b0', include_top=True)
+            self.decoder_type = 'efficient'
+            self.efficientnet_decoder = EfficientNetDecoder.from_pretrained('efficientnet-b0', include_top=True)
             self.use_hr_skip_connections = False
  
         if self.common_decoder_for_3_paths:
@@ -329,34 +335,41 @@ class OcclusionAwareGenerator(nn.Module):
 
         # Decoding part
         out = self.bottleneck(out)
-        for i, block in enumerate(self.up_blocks):
-            if i == math.log(self.lr_size / 64, 2) and self.concat_lr_video_in_decoder \
-                    and self.generator_type == "occlusion_aware":
-                out_shape = list(out.shape)
-                out_shape.pop(1)
-                lr_shape = list(lr_encoded_features.shape)
-                lr_shape.pop(1)
-                assert out_shape == lr_shape, "Dimensions mismatch in LR video input and rest of pipeline"
-                out = torch.cat([out, lr_encoded_features], dim=1)
-            out = block(out)
 
-        for i in range(len(self.hr_up_blocks)):
-            block = self.hr_up_blocks[i]
-            if i == (math.log(self.lr_size / 64, 2) - len(self.up_blocks)) \
-                    and self.concat_lr_video_in_decoder and self.generator_type == "occlusion_aware":
-                out_shape = list(out.shape)
-                out_shape.pop(1)
-                lr_shape = list(lr_encoded_features.shape)
-                lr_shape.pop(1)
-                assert out_shape == lr_shape, "Dimensions mismatch in LR video input and rest of pipeline"
-                out = torch.cat([out, lr_encoded_features], dim=1)
-            if self.use_hr_skip_connections:
-                skip = self.skip_connections[len(self.skip_connections) - 1 - i]
-                skip_deformed, _ = self.deform_input(skip, deformation)
-                out = torch.cat([out, skip_deformed], dim=1)
-                if self.common_decoder_for_3_paths: # if you have non-warped features also
-                    out = torch.cat([out, skip], dim=1)
-            out = block(out)
+        if self.decoder_type == 'efficient':
+            # TODO: add lr output
+            print('using decoder for efficient net')
+            out = self.efficientnet_decoder(out)
+
+        else:
+            for i, block in enumerate(self.up_blocks):
+                if i == math.log(self.lr_size / 64, 2) and self.concat_lr_video_in_decoder \
+                        and self.generator_type == "occlusion_aware":
+                    out_shape = list(out.shape)
+                    out_shape.pop(1)
+                    lr_shape = list(lr_encoded_features.shape)
+                    lr_shape.pop(1)
+                    assert out_shape == lr_shape, "Dimensions mismatch in LR video input and rest of pipeline"
+                    out = torch.cat([out, lr_encoded_features], dim=1)
+                out = block(out)
+
+            for i in range(len(self.hr_up_blocks)):
+                block = self.hr_up_blocks[i]
+                if i == (math.log(self.lr_size / 64, 2) - len(self.up_blocks)) \
+                        and self.concat_lr_video_in_decoder and self.generator_type == "occlusion_aware":
+                    out_shape = list(out.shape)
+                    out_shape.pop(1)
+                    lr_shape = list(lr_encoded_features.shape)
+                    lr_shape.pop(1)
+                    assert out_shape == lr_shape, "Dimensions mismatch in LR video input and rest of pipeline"
+                    out = torch.cat([out, lr_encoded_features], dim=1)
+                if self.use_hr_skip_connections:
+                    skip = self.skip_connections[len(self.skip_connections) - 1 - i]
+                    skip_deformed, _ = self.deform_input(skip, deformation)
+                    out = torch.cat([out, skip_deformed], dim=1)
+                    if self.common_decoder_for_3_paths: # if you have non-warped features also
+                        out = torch.cat([out, skip], dim=1)
+                out = block(out)
 
         out = self.final(out)
         out = F.sigmoid(out)
