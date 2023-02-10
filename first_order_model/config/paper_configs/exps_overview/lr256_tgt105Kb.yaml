@@ -91,6 +91,7 @@ train_params:
     pixelwise: 10
     equivariance_value: 10
     equivariance_jacobian: 10
+    encoder_distillation: 10
 
 reconstruction_params:
   num_videos: 1000
