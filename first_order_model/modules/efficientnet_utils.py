@@ -168,7 +168,7 @@ def get_width_and_height_from_size(x):
         raise TypeError()
 
 
-def calculate_output_image_size(input_image_size, stride):
+def calculate_output_image_size(input_image_size, stride, kind='downsampling'):
     """Calculates the output image size when using Conv2dSamePadding with a stride.
        Necessary for static padding. Thanks to mannatsingh for pointing this out.
 
@@ -183,8 +183,13 @@ def calculate_output_image_size(input_image_size, stride):
         return None
     image_height, image_width = get_width_and_height_from_size(input_image_size)
     stride = stride if isinstance(stride, int) else stride[0]
-    image_height = int(math.ceil(image_height / stride))
-    image_width = int(math.ceil(image_width / stride))
+
+    if kind == 'downsampling':
+        image_height = int(math.ceil(image_height / stride))
+        image_width = int(math.ceil(image_width / stride))
+    else:
+        image_height *= stride
+        image_width *= stride
     return [image_height, image_width]
 
 
