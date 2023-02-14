@@ -103,37 +103,24 @@ class MBConvBlock(nn.Module):
         x = inputs
         if self._block_args.expand_ratio != 1:
             x = self._expand_conv(inputs)
-            print("after expand features", x.shape)
             x = self._bn0(x)
-            print("after bn", x.shape)
             x = self._swish(x)
-            print("after swish", x.shape)
 
         x = self._depthwise_conv(x)
-        print("after depthwise", x.shape)
         x = self._bn1(x)
-        print("after bn", x.shape)
         x = self._swish(x)
-        print("after swish", x.shape)
 
         # Squeeze and Excitation
         if self.has_se:
             x_squeezed = F.adaptive_avg_pool2d(x, 1)
-            print("after adaptive pool", x_squeezed.shape)
             x_squeezed = self._se_reduce(x_squeezed)
-            print("after se reduce", x_squeezed.shape)
             x_squeezed = self._swish(x_squeezed)
-            print("after swish", x_squeezed.shape)
             x_squeezed = self._se_expand(x_squeezed)
-            print("after se expand", x_squeezed.shape)
             x = torch.sigmoid(x_squeezed) * x
-            print("after sigmoid", x.shape)
 
         # Pointwise Convolution
         x = self._project_conv(x)
-        print("after project conv", x.shape)
         x = self._bn2(x)
-        print("after bn 2", x.shape)
 
         # Skip connection and drop connect
         input_filters, output_filters = self._block_args.input_filters, self._block_args.output_filters
@@ -141,9 +128,7 @@ class MBConvBlock(nn.Module):
             # The combination of skip connection and drop connect brings about stochastic depth.
             if drop_connect_rate:
                 x = drop_connect(x, p=drop_connect_rate, training=self.training)
-                print("after drop connect", x.shape)
             x = x + inputs  # skip connection
-            print("after skip", x.shape)
         return x
 
     def set_swish(self, memory_efficient=True):
@@ -300,9 +285,7 @@ class EfficientNet(nn.Module):
             layer in the efficientnet model.
         """
         # Stem
-        print("in extract features", inputs.shape)
         x = self._swish(self._bn0(self._conv_stem(inputs)))
-        print("after swish before blocks", x.shape)
 
         # Blocks
         for idx, block in enumerate(self._blocks):
@@ -310,11 +293,9 @@ class EfficientNet(nn.Module):
             if drop_connect_rate:
                 drop_connect_rate *= float(idx) / len(self._blocks)  # scale drop connect_rate
             x = block(x, drop_connect_rate=drop_connect_rate)
-            print("after block", idx, x.shape)
 
         # Head
         x = self._swish(self._bn1(self._conv_head(x)))
-        print("after swish 2", x.shape)
 
         return x
 
@@ -329,21 +310,15 @@ class EfficientNet(nn.Module):
             Output of this model after processing.
         """
         # Convolution layers
-        print("starting extraction", inputs.shape)
         x = self.extract_features(inputs)
-        print("after features", x.shape)
         
         # Pooling and final linear layer
         """
         x = self._avg_pooling(x)
-        print("after pooling", x.shape)
         if self._global_params.include_top:
             x = x.flatten(start_dim=1)
-            print("after flattening", x.shape)
             x = self._dropout(x)
-            print("after dropout", x.shape)
             x = self._fc(x)
-            print("after fc", x.shape)
         """ 
         return x
 
