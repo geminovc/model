@@ -132,7 +132,7 @@ class OcclusionAwareGenerator(nn.Module):
         self.down_blocks = nn.ModuleList(down_blocks)
 
         # increase decoder feature sizes if you're getting multiple inputus
-        if self.common_decoder_for_3_paths:
+        if self.common_decoder_for_3_paths and self.decoder_type != 'efficient':
             adjusted_block_expansion = block_expansion * 2 
             if upsample_levels > 0:
                 adjusted_hr_depth = hr_starting_depth * 2 
@@ -322,7 +322,10 @@ class OcclusionAwareGenerator(nn.Module):
         # LR will get incorporated at the appropriate place below
         # in upblocks
         if self.common_decoder_for_3_paths:
-            out = torch.cat([out, hr_encoded_features], dim=1)
+            if self.decoder_type == 'efficient':
+                out += hr_encoded_features
+            else:
+                out = torch.cat([out, hr_encoded_features], dim=1)
         
         if self.rife is not None:
             source_lr = F.interpolate(source_image, self.lr_size)

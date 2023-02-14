@@ -79,7 +79,7 @@ class EfficientNetDecoder(nn.Module):
 
         # Reversing head and stem, so this is head
         image_size = (64, 64)
-        in_channels = 512 # output of final block of encoder
+        in_channels = 256 # output of final block of encoder
         out_channels = round_filters(self._blocks_args[2].input_filters, self._global_params)
         Conv2d = get_same_padding_conv2d(image_size=image_size)
         self._conv_head = Conv2d(in_channels, out_channels, kernel_size=1, bias=False)
@@ -112,7 +112,7 @@ class EfficientNetDecoder(nn.Module):
 
         # stem because stem and head are reversed
         self._upsample = nn.Upsample(scale_factor=2, mode='nearest')
-        out_channels = 32  # just before final layer which converts to rgb
+        out_channels = 16  # just before final layer which converts to rgb
         in_channels = round_filters(32, self._global_params)  # number of output channels
         self._conv_stem = Conv2d(in_channels, out_channels, kernel_size=3, stride=1, bias=False)
         self._bn0 = nn.BatchNorm2d(num_features=out_channels, momentum=bn_mom, eps=bn_eps)
