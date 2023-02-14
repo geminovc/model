@@ -205,15 +205,14 @@ class EfficientNetDecoder(nn.Module):
         # Reversing head and stem, so this is head
         image_size = (64, 64)
         in_channels = 512 # output of final block
-        out_channels = round_filters(self._blocks_args[1].output_filters, self._global_params)
+        out_channels = round_filters(self._blocks_args[2].input_filters, self._global_params)
         Conv2d = get_same_padding_conv2d(image_size=image_size)
         self._conv_head = Conv2d(in_channels, out_channels, kernel_size=1, bias=False)
         self._bn1 = nn.BatchNorm2d(num_features=out_channels, momentum=bn_mom, eps=bn_eps)
         
         # Build blocks
         self._blocks = nn.ModuleList([])
-        for block_args in self._blocks_args[1:]:
-
+        for block_args in self._blocks_args[2:]:
             # Update block input and output filters based on depth multiplier.
             block_args = block_args._replace(
                 input_filters=round_filters(block_args.input_filters, self._global_params),
@@ -221,23 +220,24 @@ class EfficientNetDecoder(nn.Module):
                 num_repeat=round_repeats(block_args.num_repeat, self._global_params)
             )
 
-            # The first block needs to take care of stride and filter size increase.
+            # The first block needs to take care of upsampling if the stride is > 1
             stride = block_args.stride
             stride = stride if isinstance(stride, int) else stride[0]
             if stride > 1:
-                block_args = block_args._replace(input_filters=block_args.output_filters, stride=1)
-                self._blocks.append(MBConvBlock(block_args, self._global_params, image_size=image_size))
                 self._blocks.append(nn.Upsample(scale_factor=stride, mode='nearest'))
-            image_size = calculate_output_image_size(image_size, block_args.stride, 'upsampling')
+                image_size = calculate_output_image_size(image_size, block_args.stride, 'upsampling')
+                block_args = block_args._replace(stride=1)
+            self._blocks.append(MBConvBlock(block_args, self._global_params, image_size=image_size))
+            
+            # adjust filter size for subsequent blocks
             if block_args.num_repeat > 1:  # modify block_args to keep same output size
-                block_args = block_args._replace(input_filters=block_args.output_filters, stride=1)
+                block_args = block_args._replace(input_filters=block_args.output_filters)
             for _ in range(block_args.num_repeat - 1):
                 self._blocks.append(MBConvBlock(block_args, self._global_params, image_size=image_size))
-                # image_size = calculate_output_image_size(image_size, block_args.stride)  # stride = 1
 
         # stem because stem and head are reversed
         self._upsample = nn.Upsample(scale_factor=2, mode='nearest')
-        out_channels = 3  # rgb
+        out_channels = 32  # just before final layer which converts to rgb
         in_channels = round_filters(32, self._global_params)  # number of output channels
         self._conv_stem = Conv2d(in_channels, out_channels, kernel_size=3, stride=1, bias=False)
         self._bn0 = nn.BatchNorm2d(num_features=out_channels, momentum=bn_mom, eps=bn_eps)

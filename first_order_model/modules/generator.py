@@ -338,7 +338,6 @@ class OcclusionAwareGenerator(nn.Module):
 
         if self.decoder_type == 'efficient':
             # TODO: add lr output
-            print('using decoder for efficient net')
             out = self.efficientnet_decoder(out)
 
         else:
