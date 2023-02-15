@@ -388,7 +388,7 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
                     driving_times.append(0)
                 
                 start.record()
-                if generator_type in ['occlusion_aware', 'split_hf_lf']:
+                if generator_type in ['occlusion_aware', 'split_hf_lf', 'student_occlusion_aware']:
                     out = generator(source, kp_source=kp_source, \
                             kp_driving=kp_driving, update_source=update_source, driving_lr=driving_lr)
 
