@@ -48,12 +48,13 @@ class EfficientNetDecoder(nn.Module):
         >>> outputs = model(inputs)
     """
 
-    def __init__(self, blocks_args=None, global_params=None):
+    def __init__(self, blocks_args=None, global_params=None, lr_resolution=128):
         super().__init__()
         assert isinstance(blocks_args, list), 'blocks_args should be a list'
         assert len(blocks_args) > 0, 'block args must be greater than 0'
         self._global_params = global_params
         self._blocks_args = []
+        self._lr_feature_concat_idx = -1
 
         # reverse block order and input/output filters
         for block_args in reversed(blocks_args):
@@ -102,6 +103,8 @@ class EfficientNetDecoder(nn.Module):
                 self._blocks.append(nn.Upsample(scale_factor=stride, mode='nearest'))
                 image_size = calculate_output_image_size(image_size, block_args.stride, 'upsampling')
                 block_args = block_args._replace(stride=1)
+                if image_size[0] == lr_resolution:
+                    self._lr_feature_concat_idx = len(self._blocks)
             self._blocks.append(MBConvBlock(block_args, self._global_params, image_size=image_size))
             
             # adjust filter size for subsequent blocks
@@ -136,11 +139,12 @@ class EfficientNetDecoder(nn.Module):
         for block in self._blocks:
             block.set_swish(memory_efficient)
 
-    def extract_features(self, inputs):
-        """use convolution layer to extract feature .
+    def upsample_features(self, inputs, lr_inputs):
+        """use convolution layer to upsample features .
 
         Args:
             inputs (tensor): Input tensor.
+            lr_inputs (tensor): Input from the LR encoder
 
         Returns:
             Output of the final convolution
@@ -152,6 +156,8 @@ class EfficientNetDecoder(nn.Module):
 
         # Blocks
         for idx, block in enumerate(self._blocks):
+            if idx == self._lr_feature_concat_idx:
+                x += lr_inputs
             drop_connect_rate = self._global_params.drop_connect_rate
             if drop_connect_rate:
                 drop_connect_rate *= float(idx) / len(self._blocks)  # scale drop connect_rate
@@ -170,19 +176,20 @@ class EfficientNetDecoder(nn.Module):
 
         return x
 
-    def forward(self, inputs):
+    def forward(self, inputs, lr_inputs):
         """EfficientNet's forward function.
-           Calls extract_features to extract features, applies final linear layer, and returns logits.
+           Calls upsample_features to upsample features, applies final linear layer, and returns features.
 
         Args:
             inputs (tensor): Input tensor.
+            lr_inputs (tensor): Inputs from the LR encoder
 
         Returns:
             Output of this model after processing.
         """
         # Convolution layers
         print("starting extraction", inputs.shape)
-        x = self.extract_features(inputs)
+        x = self.upsample_features(inputs, lr_features)
         print("after features", x.shape)
         
         # Pooling and final linear layer

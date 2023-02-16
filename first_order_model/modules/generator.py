@@ -5,8 +5,9 @@ import torch.nn.functional as F
 from first_order_model.modules.util import ResBlock2d, SameBlock2d, UpBlock2d, DownBlock2d
 from first_order_model.modules.dense_motion import DenseMotionNetwork
 from first_order_model.modules.RIFE import RIFEModel
-from first_order_model.modules.efficientnet_encoder import EfficientNet
+from first_order_model.modules.efficientnet_encoder import EfficientNet, MBConvBlock
 from first_order_model.modules.efficientnet_decoder import EfficientNetDecoder
+from first_order_model.modules.efficientnet_utils import get_model_params
 
 import math
 if os.environ.get('CONV_TYPE', 'regular') == 'regular':
@@ -109,7 +110,14 @@ class OcclusionAwareGenerator(nn.Module):
 
         # first layer for LR input
         if self.use_lr_video:
-            self.lr_first = SameBlock2d(num_channels, lr_features, kernel_size=(7, 7), padding=(3, 3))
+            if self.encoder_type == 'efficient':
+                idx = TODO # compute based on lr resolutiion
+                blocks_args, global_params = get_model_params('efficientnet-b0')
+                lr_block_args = blocks_args[idx]
+                lr_block_args = lr_block_args._replace(stride=1, input_filters=3)
+                self.lr_first = MBConvBlock(lr_block_args, global_params, image_size=(lr_size, lr_size))
+            else:
+                self.lr_first = SameBlock2d(num_channels, lr_features, kernel_size=(7, 7), padding=(3, 3))
 
             if self.use_dropout:
                 self.dropout = nn.Dropout(p=dropout_rate)
