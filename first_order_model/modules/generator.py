@@ -70,7 +70,9 @@ class OcclusionAwareGenerator(nn.Module):
             self.encoder_type = 'efficient'
             self.efficientnet_encoder = EfficientNet.from_pretrained('efficientnet-b0', include_top=True)
             self.decoder_type = 'efficient'
-            self.efficientnet_decoder = EfficientNetDecoder.from_pretrained('efficientnet-b0', include_top=True)
+            self.efficientnet_decoder = EfficientNetDecoder.from_pretrained('efficientnet-b0', 
+                                                                            lr_resolution=self.lr_size,
+                                                                            include_top=True) 
             self.use_hr_skip_connections = False
  
         if self.common_decoder_for_3_paths:
@@ -111,11 +113,13 @@ class OcclusionAwareGenerator(nn.Module):
         # first layer for LR input
         if self.use_lr_video:
             if self.encoder_type == 'efficient':
-                idx = TODO # compute based on lr resolutiion
-                blocks_args, global_params = get_model_params('efficientnet-b0')
+                idx = round(math.log(512 / self.lr_size, 2)) + 1
+                blocks_args, global_params = get_model_params('efficientnet-b0', None)
                 lr_block_args = blocks_args[idx]
                 lr_block_args = lr_block_args._replace(stride=1, input_filters=3)
-                self.lr_first = MBConvBlock(lr_block_args, global_params, image_size=(lr_size, lr_size))
+                self.lr_first = MBConvBlock(lr_block_args, 
+                                            global_params, 
+                                            image_size=(self.lr_size, self.lr_size))
             else:
                 self.lr_first = SameBlock2d(num_channels, lr_features, kernel_size=(7, 7), padding=(3, 3))
 
@@ -348,8 +352,7 @@ class OcclusionAwareGenerator(nn.Module):
         out = self.bottleneck(out)
 
         if self.decoder_type == 'efficient':
-            # TODO: add lr output
-            out = self.efficientnet_decoder(out)
+            out = self.efficientnet_decoder(out, lr_encoded_features)
 
         else:
             for i, block in enumerate(self.up_blocks):

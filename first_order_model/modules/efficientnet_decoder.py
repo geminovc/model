@@ -157,6 +157,7 @@ class EfficientNetDecoder(nn.Module):
         # Blocks
         for idx, block in enumerate(self._blocks):
             if idx == self._lr_feature_concat_idx:
+                print(x.shape, lr_inputs.shape)
                 x += lr_inputs
             drop_connect_rate = self._global_params.drop_connect_rate
             if drop_connect_rate:
@@ -189,7 +190,7 @@ class EfficientNetDecoder(nn.Module):
         """
         # Convolution layers
         print("starting extraction", inputs.shape)
-        x = self.upsample_features(inputs, lr_features)
+        x = self.upsample_features(inputs, lr_inputs)
         print("after features", x.shape)
         
         # Pooling and final linear layer
@@ -207,11 +208,12 @@ class EfficientNetDecoder(nn.Module):
         return x
 
     @classmethod
-    def from_name(cls, model_name, in_channels=3, **override_params):
+    def from_name(cls, model_name, lr_resolution=128, in_channels=3, **override_params):
         """Create an efficientnet model according to name.
 
         Args:
             model_name (str): Name for efficientnet.
+            lr_resolution (int): height and width for LR features
             in_channels (int): Input data's channel number.
             override_params (other key word params):
                 Params to override model's global_params.
@@ -227,17 +229,18 @@ class EfficientNetDecoder(nn.Module):
         """
         cls._check_model_name_is_valid(model_name)
         blocks_args, global_params = get_model_params(model_name, override_params)
-        model = cls(blocks_args, global_params)
+        model = cls(blocks_args, global_params, lr_resolution)
         model._change_in_channels(in_channels)
         return model
 
     @classmethod
-    def from_pretrained(cls, model_name, weights_path=None, advprop=False,
+    def from_pretrained(cls, model_name, lr_resolution=128, weights_path=None, advprop=False,
                         in_channels=3, num_classes=1000, **override_params):
         """Create an efficientnet model according to name.
 
         Args:
             model_name (str): Name for efficientnet.
+            lr_resolution (int): height and width of low res features
             weights_path (None or str):
                 str: path to pretrained weights file on the local disk.
                 None: use pretrained weights downloaded from the Internet.
@@ -260,7 +263,7 @@ class EfficientNetDecoder(nn.Module):
         Returns:
             A pretrained efficientnet model.
         """
-        model = cls.from_name(model_name, num_classes=num_classes, **override_params)
+        model = cls.from_name(model_name, lr_resolution, num_classes=num_classes, **override_params)
         """
         load_pretrained_weights(model, model_name, weights_path=weights_path,
                                 load_fc=(num_classes == 1000), advprop=advprop)
