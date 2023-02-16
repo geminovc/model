@@ -152,12 +152,10 @@ class EfficientNetDecoder(nn.Module):
         """
         # Head
         x = self._swish(self._bn1(self._conv_head(inputs)))
-        print("after swish 2", x.shape)
 
         # Blocks
         for idx, block in enumerate(self._blocks):
             if idx == self._lr_feature_concat_idx:
-                print(x.shape, lr_inputs.shape)
                 x += lr_inputs
             drop_connect_rate = self._global_params.drop_connect_rate
             if drop_connect_rate:
@@ -166,14 +164,10 @@ class EfficientNetDecoder(nn.Module):
                 x = block(x)
             else:
                 x = block(x, drop_connect_rate=drop_connect_rate)
-            print("after block", idx, x.shape)
 
         # Stem
-        print("in extract features", inputs.shape)
         x = self._upsample(x)
-        print("after upsample", x.shape)
         x = self._swish(self._bn0(self._conv_stem(x)))
-        print("after swish before blocks", x.shape)
 
         return x
 
@@ -189,21 +183,15 @@ class EfficientNetDecoder(nn.Module):
             Output of this model after processing.
         """
         # Convolution layers
-        print("starting extraction", inputs.shape)
         x = self.upsample_features(inputs, lr_inputs)
-        print("after features", x.shape)
         
         # Pooling and final linear layer
         """
         x = self._avg_pooling(x)
-        print("after pooling", x.shape)
         if self._global_params.include_top:
             x = x.flatten(start_dim=1)
-            print("after flattening", x.shape)
             x = self._dropout(x)
-            print("after dropout", x.shape)
             x = self._fc(x)
-            print("after fc", x.shape)
         """ 
         return x
 
