@@ -1124,6 +1124,7 @@ def try_reduce(curr_loss, curr_model, per_layer_macs, dataloader, layer_graph, l
     if 1 >= layer_graph[layer].o:
         return None, None
     deletions = compute_deletion(layer, 1)
+    print(deletions)
     if deletions is None:
         return None, None
     model_copy = channel_prune(
@@ -1140,12 +1141,14 @@ def try_reduce(curr_loss, curr_model, per_layer_macs, dataloader, layer_graph, l
     after_1_reduce = total_macs(model_copy)
     print(after_1_reduce)
     if after_1_reduce == current:
+        print("Trying to remove something that is not a part of the model")
         return None, None
 
     to_remove = int((current-target) // (current - after_1_reduce))
 
     # Check the validity of a deletion op
     if to_remove >= layer_graph[layer].o:
+        print("Cannot remove enough to hit target")
         return None, None
 
     
