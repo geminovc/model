@@ -209,7 +209,7 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
     generator_params = config['model_params']['generator_params']
     generator_type = generator_params.get('generator_type', 'occlusion_aware')
     lr_size = generator_params.get('lr_size', 64)
-    print("reference_frame_update_freq", reference_frame_update_freq)
+    print("reference_frame_update_freq", reference_frame_update_freq, 'lr_size', lr_size)
 
     train_params = config['train_params']
     target_bitrate = train_params.get('target_bitrate', 1000000)

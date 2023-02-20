@@ -98,7 +98,8 @@ class Logger:
     def load_cpk(checkpoint_path, generator=None, discriminator=None, kp_detector=None,
                  optimizer_generator=None, optimizer_discriminator=None, optimizer_kp_detector=None, 
                  device='gpu', dense_motion_network=None, upsampling_enabled=False, use_lr_video=[], 
-                 hr_skip_connections=False, run_at_256=True, generator_type='occlusion_aware', reconstruction=False):
+                 hr_skip_connections=False, run_at_256=True, generator_type='occlusion_aware', 
+                 reconstruction=False, skip_generator_loading=False):
 
         if device == torch.device('cpu'):
             checkpoint = torch.load(checkpoint_path, map_location=torch.device('cpu'))
@@ -109,7 +110,7 @@ class Logger:
             print("loading everything in generator as is")
             generator.load_state_dict(checkpoint['generator'])
 
-        elif generator is None and dense_motion_network is not None:
+        elif skip_generator_loading and dense_motion_network is not None:
             gen_params = checkpoint['generator']
             dense_motion_params = {k: gen_params[k] for k in gen_params.keys() if k.startswith('dense_motion_network')}
             generator.load_state_dict(dense_motion_params, strict=False)

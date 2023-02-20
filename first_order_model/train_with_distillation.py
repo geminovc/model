@@ -73,11 +73,29 @@ def train_distillation(config, generator, discriminator, kp_detector, teacher_ch
     scheduler_kp_detector = MultiStepLR(optimizer_kp_detector, train_params['epoch_milestones'], gamma=0.1,
                                       last_epoch=-1)
     
+    # train only generator parameters and keep dense motion/keypoint stuff frozen
+    if train_params.get('train_only_generator', False) and teacher_checkpoint is not None:
+        print('loading kp detector, and dense motion from checkpoint, and freezing during training')
+        Logger.load_cpk(teacher_checkpoint, generator, None, kp_detector,
+                        None, None, None, dense_motion_network=generator.dense_motion_network,
+                        generator_type='occlusion_aware', skip_generator_loading=True)
+        
+        for param in kp_detector.parameters():
+            param.requires_grad = False
+        ev_loss = train_params['loss_weights']['equivariance_value']
+        ev_jacobian = train_params['loss_weights']['equivariance_jacobian']
+        assert ev_loss == 0 and ev_jacobian == 0, "Equivariance losses must be 0 to freeze keypoint detector"
+
+        for param in generator.dense_motion_network.parameters():
+            param.requires_grad = False
+    
+    # set up loss functions
     print('setting up loss functions')
     vgg_model = Vgg19()
     original_lpips = lpips.LPIPS(net='vgg')
     vgg_face_model = VggFace16()
 
+    # set up full model
     if torch.cuda.is_available():
         generator_full = DataParallelWithCallback(generator_full, device_ids=device_ids)
         discriminator_full = DataParallelWithCallback(discriminator_full, device_ids=device_ids)
@@ -88,6 +106,7 @@ def train_distillation(config, generator, discriminator, kp_detector, teacher_ch
     loss_fn_vgg = vgg_model.compute_loss
     face_lpips = vgg_face_model.compute_loss
 
+    # start training
     start_epoch = 0
     generator_params = config['model_params']['generator_params']
     lr_size = generator_params.get('lr_size', 64)
