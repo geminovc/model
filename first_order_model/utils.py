@@ -150,11 +150,11 @@ def configure_fom_modules(config, device, teacher=False):
     return generator, discriminator, kp_detector
 
 
-def get_model_macs(log_dir, generator, kp_detector, device):
+def get_model_macs(log_dir, generator, kp_detector, device, lr_size, image_size):
     BATCH_SIZE = 1 # reconstruction
 
-    source_image = torch.randn(BATCH_SIZE, 3, 512, 512, requires_grad=False, device=device)
-    driving_lr = torch.randn(BATCH_SIZE, 3, 64, 64, requires_grad = False, device=device)
+    source_image = torch.randn(BATCH_SIZE, 3, image_size, image_size, requires_grad=False, device=device)
+    driving_lr = torch.randn(BATCH_SIZE, 3, lr_size, lr_size, requires_grad = False, device=device)
     update_source = True
     kp_val1 = torch.randn(BATCH_SIZE, 10, 2, requires_grad=False, device=device)
     kp_jac1 = torch.randn(BATCH_SIZE, 10, 2, 2, requires_grad=False, device=device)

@@ -235,7 +235,8 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
         else:
             get_model_info(log_dir, kp_detector, generator)
 
-        get_model_macs(log_dir, generator, kp_detector, device)
+        image_size = config['dataset_params']['frame_shape'][0]
+        get_model_macs(log_dir, generator, kp_detector, device, lr_size, image_size)
         return
     
     if not os.path.exists(log_dir):
