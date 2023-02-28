@@ -120,7 +120,6 @@ class OcclusionAwareGenerator(nn.Module):
                                             global_params, 
                                             image_size=(self.lr_size, self.lr_size))
             else:
-                print('here as I should be', self.lr_size)
                 self.lr_first = SameBlock2d(num_channels, lr_features, kernel_size=(7, 7), padding=(3, 3))
 
             if self.use_dropout:

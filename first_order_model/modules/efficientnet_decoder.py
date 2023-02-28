@@ -82,7 +82,6 @@ class EfficientNetDecoder(nn.Module):
         # Reversing head and stem, so this is head
         image_size = (64, 64)
         in_channels = 256 # output of final block of encoder
-        print(self._blocks_args)
         out_channels = round_filters(self._blocks_args[1].input_filters, self._global_params)
         Conv2d = get_same_padding_conv2d(image_size=image_size)
         self._conv_head = Conv2d(in_channels, out_channels, kernel_size=1, bias=False)
@@ -107,10 +106,8 @@ class EfficientNetDecoder(nn.Module):
                 block_args = block_args._replace(stride=1)
                 if image_size[0] == lr_resolution:
                     self._lr_feature_concat_idx = len(self._blocks)
-                    print("LR appending point", block_args, len(self._blocks))
                     block_args = block_args._replace(input_filters=block_args.input_filters + 32)
                 if image_size[0] > 128:
-                    print(image_size, 'at index', len(self._blocks))
                     self._skip_connection_indices.append(len(self._blocks) + 1)
             self._blocks.append(MBConvBlock(block_args, self._global_params, image_size=image_size))
             
@@ -163,20 +160,16 @@ class EfficientNetDecoder(nn.Module):
         # Blocks
         for idx, block in enumerate(self._blocks):
             if idx == self._lr_feature_concat_idx:
-                print("LR appending point in forward", idx, x.shape, lr_inputs.shape)
                 x = torch.cat([lr_inputs, x], dim=1)
             if idx in self._skip_connection_indices:
                 skip = skip_connections.pop()
-                print(f'skip dimensions for index {idx} taken from {total_blocks - idx - 1} is of shape {skip.shape} while x is of shape {x.shape}')
                 x += skip
             drop_connect_rate = self._global_params.drop_connect_rate
             if drop_connect_rate:
                 drop_connect_rate *= float(idx) / len(self._blocks)  # scale drop connect_rate
             if isinstance(block, nn.Upsample):
-                print("block in forward", idx, x.shape)
                 x = block(x)
             else:
-                print("block in forward", idx, x.shape)
                 x = block(x, drop_connect_rate=drop_connect_rate)
 
         # Stem
