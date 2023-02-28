@@ -55,6 +55,7 @@ class EfficientNetDecoder(nn.Module):
         self._global_params = global_params
         self._blocks_args = []
         self._lr_feature_concat_idx = -1
+        self._skip_connection_indices = []
 
         # reverse block order and input/output filters
         for block_args in reversed(blocks_args):
@@ -105,6 +106,8 @@ class EfficientNetDecoder(nn.Module):
                 block_args = block_args._replace(stride=1)
                 if image_size[0] == lr_resolution:
                     self._lr_feature_concat_idx = len(self._blocks)
+                if image_size[0] > 128:
+                    self._skip_connection_indices.append(len(self._blocks) + 1)
             self._blocks.append(MBConvBlock(block_args, self._global_params, image_size=image_size))
             
             # adjust filter size for subsequent blocks
@@ -139,7 +142,7 @@ class EfficientNetDecoder(nn.Module):
         for block in self._blocks:
             block.set_swish(memory_efficient)
 
-    def upsample_features(self, inputs, lr_inputs):
+    def upsample_features(self, inputs, lr_inputs, skip_connections):
         """use convolution layer to upsample features .
 
         Args:
@@ -157,6 +160,9 @@ class EfficientNetDecoder(nn.Module):
         for idx, block in enumerate(self._blocks):
             if idx == self._lr_feature_concat_idx:
                 x += lr_inputs
+            if idx in self._skip_connection_indices:
+                skip = skip_connections.pop()
+                x += skip
             drop_connect_rate = self._global_params.drop_connect_rate
             if drop_connect_rate:
                 drop_connect_rate *= float(idx) / len(self._blocks)  # scale drop connect_rate
@@ -171,7 +177,7 @@ class EfficientNetDecoder(nn.Module):
 
         return x
 
-    def forward(self, inputs, lr_inputs):
+    def forward(self, inputs, lr_inputs, skip_connections={}):
         """EfficientNet's forward function.
            Calls upsample_features to upsample features, applies final linear layer, and returns features.
 
@@ -183,7 +189,7 @@ class EfficientNetDecoder(nn.Module):
             Output of this model after processing.
         """
         # Convolution layers
-        x = self.upsample_features(inputs, lr_inputs)
+        x = self.upsample_features(inputs, lr_inputs, skip_connections)
         
         # Pooling and final linear layer
         """

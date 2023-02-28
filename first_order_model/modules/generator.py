@@ -73,7 +73,6 @@ class OcclusionAwareGenerator(nn.Module):
             self.efficientnet_decoder = EfficientNetDecoder.from_pretrained('efficientnet-b0', 
                                                                             lr_resolution=self.lr_size,
                                                                             include_top=True) 
-            self.use_hr_skip_connections = False
  
         if self.common_decoder_for_3_paths:
             self.use_lr_video = True
@@ -242,8 +241,7 @@ class OcclusionAwareGenerator(nn.Module):
                 resized_source_image = source_image
             
             if self.encoder_type == 'efficient':
-                self.encoder_output = self.efficientnet_encoder(source_image)
-                self.skip_connections = None 
+                self.encoder_output, self.skip_connections = self.efficientnet_encoder(source_image)
             
             else:
                 hr_out = None
@@ -352,7 +350,8 @@ class OcclusionAwareGenerator(nn.Module):
         out = self.bottleneck(out)
 
         if self.decoder_type == 'efficient':
-            out = self.efficientnet_decoder(out, lr_encoded_features)
+            skip_connections = self.skip_connections if self.use_hr_skip_connections else []
+            out = self.efficientnet_decoder(out, lr_encoded_features, skip_connections)
 
         else:
             for i, block in enumerate(self.up_blocks):
