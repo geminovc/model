@@ -287,6 +287,7 @@ class EfficientNet(nn.Module):
         """
         # Stem
         x = self._swish(self._bn0(self._conv_stem(inputs)))
+        print(f'skip connection 0 in encoder is of shape{x.shape}')
         skip_connections = [x]
 
         # Blocks
@@ -297,6 +298,7 @@ class EfficientNet(nn.Module):
             x = block(x, drop_connect_rate=drop_connect_rate)
             if idx in self._skip_connection_blocks:
                 skip_connections.append(x)
+                print(f'skip connection {len(skip_connections)} in encoder is of shape{x.shape}')
 
         # Head
         x = self._swish(self._bn1(self._conv_head(x)))
