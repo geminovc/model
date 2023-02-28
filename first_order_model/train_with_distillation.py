@@ -74,7 +74,9 @@ def train_distillation(config, generator, discriminator, kp_detector, teacher_ch
                                       last_epoch=-1)
     
     # train only generator parameters and keep dense motion/keypoint stuff frozen
-    if train_params.get('train_only_generator', False) and teacher_checkpoint is not None:
+    partially_freeze = train_params.get('train_only_generator', False) \
+            or train_params.get('train_only_decoder', False)
+    if partially_freeze and teacher_checkpoint is not None:
         print('loading kp detector, and dense motion from checkpoint, and freezing during training')
         Logger.load_cpk(teacher_checkpoint, generator, None, kp_detector,
                         None, None, None, dense_motion_network=generator.dense_motion_network,
@@ -88,24 +90,30 @@ def train_distillation(config, generator, discriminator, kp_detector, teacher_ch
 
         for param in generator.dense_motion_network.parameters():
             param.requires_grad = False
+
+        if train_params.get('train_only_decoder', False):
+            for param in generator.hr_first.parameters(): 
+                param.requires_grad = False
+            for param in generator.lr_first.parameters():
+                param.requires_grad = False
+
+            for param in generator.hr_down_blocks.parameters():
+                param.requires_grad = False
+            
+            for param in generator.down_blocks.parameters():
+                param.requires_grad = False
+
     
     # set up loss functions
     print('setting up loss functions')
-    vgg_model = Vgg19()
     original_lpips = lpips.LPIPS(net='vgg')
-    vgg_face_model = VggFace16()
 
     # set up full model
     if torch.cuda.is_available():
         generator_full = DataParallelWithCallback(generator_full, device_ids=device_ids)
         discriminator_full = DataParallelWithCallback(discriminator_full, device_ids=device_ids)
         original_lpips = original_lpips.cuda()
-        vgg_model = vgg_model.cuda()
-        vgg_face_model = vgg_face_model.cuda()
     
-    loss_fn_vgg = vgg_model.compute_loss
-    face_lpips = vgg_face_model.compute_loss
-
     # start training
     start_epoch = 0
     generator_params = config['model_params']['generator_params']
@@ -187,7 +195,7 @@ def train_distillation(config, generator, discriminator, kp_detector, teacher_ch
                         y['teacher_encoded_output'] = teacher_out['encoded_output'] 
 
                         _, metrics_generated = generator_full(y, generator_type='occlusion_aware')
-                        logger.log_metrics_images(i, y, metrics_generated, loss_fn_vgg, original_lpips, face_lpips)
+                        logger.log_metrics_images(i, y, metrics_generated, None, original_lpips, None)
 
             logger.log_epoch(epoch, {'generator': generator,
                                      'discriminator': discriminator,
