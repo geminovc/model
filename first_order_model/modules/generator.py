@@ -111,7 +111,7 @@ class OcclusionAwareGenerator(nn.Module):
 
         # first layer for LR input
         if self.use_lr_video:
-            if self.decoder_type == 'efficient':
+            if self.encoder_type == 'efficient':
                 idx = round(math.log(512 / self.lr_size, 2)) + 1
                 blocks_args, global_params = get_model_params('efficientnet-b0', None)
                 lr_block_args = blocks_args[idx]

@@ -510,6 +510,7 @@ def efficientnet(width_coefficient=None, depth_coefficient=None, image_size=None
 
     # Blocks args for the whole model(efficientnet-b0 by default)
     # It will be modified in the construction of EfficientNet Class according to model
+    """
     blocks_args = [
         'r1_k3_s11_e1_i32_o16_se0.25',
         'r2_k3_s22_e6_i16_o24_se0.25',
@@ -519,6 +520,16 @@ def efficientnet(width_coefficient=None, depth_coefficient=None, image_size=None
         'r4_k5_s22_e6_i112_o192_se0.25',
         'r1_k3_s11_e6_i192_o320_se0.25',
     ]
+    """
+    blocks_args = [
+        'r1_k3_s11_e1_i16_o16_se0.25',
+        'r2_k3_s22_e6_i16_o32_se0.25',
+        'r2_k3_s22_e6_i32_o64_se0.25',
+        'r3_k3_s22_e6_i64_o128_se0.25',
+        'r3_k3_s22_e6_i128_o256_se0.25',
+        'r3_k3_s22_e6_i256_o512_se0.25',
+    ]
+
     blocks_args = BlockDecoder.decode(blocks_args)
 
     global_params = GlobalParams(

@@ -82,14 +82,14 @@ class EfficientNetDecoder(nn.Module):
         # Reversing head and stem, so this is head
         image_size = (64, 64)
         in_channels = 256 # output of final block of encoder
-        out_channels = round_filters(self._blocks_args[2].input_filters, self._global_params)
+        out_channels = round_filters(self._blocks_args[1].input_filters, self._global_params)
         Conv2d = get_same_padding_conv2d(image_size=image_size)
         self._conv_head = Conv2d(in_channels, out_channels, kernel_size=1, bias=False)
         self._bn1 = nn.BatchNorm2d(num_features=out_channels, momentum=bn_mom, eps=bn_eps)
         
         # Build blocks
         self._blocks = nn.ModuleList([])
-        for block_args in self._blocks_args[2:]:
+        for block_args in self._blocks_args[1:]:
             # Update block input and output filters based on depth multiplier.
             block_args = block_args._replace(
                 input_filters=round_filters(block_args.input_filters, self._global_params),
@@ -106,6 +106,7 @@ class EfficientNetDecoder(nn.Module):
                 block_args = block_args._replace(stride=1)
                 if image_size[0] == lr_resolution:
                     self._lr_feature_concat_idx = len(self._blocks)
+                    block_args = block_args._replace(input_filters=block_args.input_filters + 32)
                 if image_size[0] > 128:
                     self._skip_connection_indices.append(len(self._blocks) + 1)
             self._blocks.append(MBConvBlock(block_args, self._global_params, image_size=image_size))
@@ -117,9 +118,9 @@ class EfficientNetDecoder(nn.Module):
                 self._blocks.append(MBConvBlock(block_args, self._global_params, image_size=image_size))
 
         # stem because stem and head are reversed
-        self._upsample = nn.Upsample(scale_factor=2, mode='nearest')
+        # self._upsample = nn.Upsample(scale_factor=2, mode='nearest')
         out_channels = 16  # just before final layer which converts to rgb
-        in_channels = round_filters(32, self._global_params)  # number of output channels
+        in_channels = round_filters(16, self._global_params)  # number of output channels
         self._conv_stem = Conv2d(in_channels, out_channels, kernel_size=3, stride=1, bias=False)
         self._bn0 = nn.BatchNorm2d(num_features=out_channels, momentum=bn_mom, eps=bn_eps)
         
@@ -159,7 +160,7 @@ class EfficientNetDecoder(nn.Module):
         # Blocks
         for idx, block in enumerate(self._blocks):
             if idx == self._lr_feature_concat_idx:
-                x += lr_inputs
+                x = torch.cat([lr_inputs, x], dim=1)
             if idx in self._skip_connection_indices:
                 skip = skip_connections.pop()
                 x += skip
@@ -172,7 +173,7 @@ class EfficientNetDecoder(nn.Module):
                 x = block(x, drop_connect_rate=drop_connect_rate)
 
         # Stem
-        x = self._upsample(x)
+        # x = self._upsample(x)
         x = self._swish(self._bn0(self._conv_stem(x)))
 
         return x
