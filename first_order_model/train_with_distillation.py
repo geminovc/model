@@ -7,7 +7,7 @@ import lpips
 import random
 import numpy as np
 
-from first_order_model.utils import configure_fom_modules, get_encoded_frame
+from first_order_model.utils import configure_fom_modules, get_encoded_frame, get_model_macs
 from first_order_model.modules.model import Vgg19, VggFace16
 from first_order_model.modules.model import GeneratorFullModel, DiscriminatorFullModel
 from first_order_model.sync_batchnorm import DataParallelWithCallback
@@ -103,6 +103,11 @@ def train_distillation(config, generator, discriminator, kp_detector, teacher_ch
             for param in generator.down_blocks.parameters():
                 param.requires_grad = False
 
+    image_size = config['dataset_params']['frame_shape'][0]
+    generator_params = config['model_params']['generator_params']
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    lr_size = generator_params.get('lr_size', 64)
+    get_model_macs(log_dir, generator, kp_detector, device, lr_size, image_size)
     
     # set up loss functions
     print('setting up loss functions')
