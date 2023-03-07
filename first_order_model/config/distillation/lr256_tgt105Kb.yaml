@@ -68,10 +68,11 @@ model_params:
 train_params:
   skip_generator_loading: False
   train_only_generator: True
+  train_only_decoder: True
   train_only_upsample_layers: False
   encode_video_for_training: True
   target_bitrate: 105000
-  num_epochs: 30
+  num_epochs: 60
   num_repeats: 15
   epoch_milestones: [60, 90]
   lr_generator: 2.0e-4
