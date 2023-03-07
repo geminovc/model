@@ -522,12 +522,11 @@ def efficientnet(width_coefficient=None, depth_coefficient=None, image_size=None
     ]
     """
     blocks_args = [
-        'r1_k3_s11_e1_i16_o16_se0.25',
-        'r2_k3_s22_e6_i16_o32_se0.25',
-        'r2_k3_s22_e6_i32_o64_se0.25',
-        'r3_k3_s22_e6_i64_o128_se0.25',
-        'r3_k3_s22_e6_i128_o256_se0.25',
-        'r3_k3_s22_e6_i256_o512_se0.25',
+        'r1_k3_s22_e6_i16_o32_se0.25',
+        'r1_k3_s22_e6_i32_o64_se0.25',
+        'r1_k3_s22_e6_i64_o128_se0.25',
+        'r1_k3_s22_e6_i128_o256_se0.25',
+        'r1_k3_s22_e6_i256_o512_se0.25',
     ]
 
     blocks_args = BlockDecoder.decode(blocks_args)
