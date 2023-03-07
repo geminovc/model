@@ -67,8 +67,9 @@ class OcclusionAwareGenerator(nn.Module):
         if self.generator_type == 'student_occlusion_aware':
             print('setting up EFFICIENTNET encoder/decoder')
             self.generator_type = 'occlusion_aware'
-            self.encoder_type = 'efficient'
-            self.efficientnet_encoder = EfficientNet.from_pretrained('efficientnet-b0', include_top=True)
+            # encoder is teacher one by default 
+            # self.encoder_type = 'efficient'
+            # self.efficientnet_encoder = EfficientNet.from_pretrained('efficientnet-b0', include_top=True)
             self.decoder_type = 'efficient'
             self.efficientnet_decoder = EfficientNetDecoder.from_pretrained('efficientnet-b0', 
                                                                             lr_resolution=self.lr_size,

@@ -92,7 +92,7 @@ def train_distillation(config, generator, discriminator, kp_detector, teacher_ch
         for param in generator.dense_motion_network.parameters():
             param.requires_grad = False
 
-        if train_params.get('train_only_decoder', False):
+        if decoder_training:
             for param in generator.hr_first.parameters(): 
                 param.requires_grad = False
             for param in generator.lr_first.parameters():
