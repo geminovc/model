@@ -74,13 +74,14 @@ def train_distillation(config, generator, discriminator, kp_detector, teacher_ch
                                       last_epoch=-1)
     
     # train only generator parameters and keep dense motion/keypoint stuff frozen
-    partially_freeze = train_params.get('train_only_generator', False) \
-            or train_params.get('train_only_decoder', False)
-    if partially_freeze and teacher_checkpoint is not None:
+    gen_training = train_params.get('train_only_generator', False)
+    decoder_training = train_params.get('train_only_decoder', False)
+    if (gen_training or decoder_training) and teacher_checkpoint is not None:
         print('loading kp detector, and dense motion from checkpoint, and freezing during training')
         Logger.load_cpk(teacher_checkpoint, generator, None, kp_detector,
                         None, None, None, dense_motion_network=generator.dense_motion_network,
-                        generator_type='occlusion_aware', skip_generator_loading=True)
+                        generator_type='occlusion_aware', 
+                        skip_generator_loading=gen_training, keep_encoder=decoder_training)
         
         for param in kp_detector.parameters():
             param.requires_grad = False

@@ -67,7 +67,7 @@ model_params:
 
 train_params:
   skip_generator_loading: False
-  train_only_generator: True
+  train_only_generator: False
   train_only_decoder: True
   train_only_upsample_layers: False
   encode_video_for_training: True
