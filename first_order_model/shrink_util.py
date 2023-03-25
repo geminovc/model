@@ -60,6 +60,33 @@ def set_attr(obj, names, val):
     else:
         set_attr(getattr(obj, names[0]), names[1:], val)
 
+def print_gen_module(state_dict):
+    for key1 in state_dict.keys():
+        if key1 not in ['generator', 'kp_detector']:
+            continue
+        for key, dict_param in state_dict[key1].items():
+            if key1 == 'kp_detector':
+                submod_names = ['kp_extractor'] + key.split(".")
+            else:
+                submod_names = [key1] + key.split(".")
+            #curr_param = get_attr(mod, submod_names)
+            # Here you can either replace the existing one
+
+            if 'norm' not in key and 'bias' not in key:
+                print(dict_param.shape, key)
+            #set_attr(mod, submod_names, dict_param)
+
+def print_diff(state_dict, state_dict2):
+    for key1 in state_dict.keys():
+        if key1 not in ['generator']:
+            continue
+        for key, dict_param in state_dict[key1].items():
+            if 'norm' not in key and 'bias' not in key:
+                if state_dict2[key1][key].shape != dict_param.shape:
+
+                    print(dict_param.shape, state_dict2[key1][key].shape,key)
+            #set_attr(mod, ksubmod_names, dict_param)
+
 
 def set_module(mod, state_dict):
     for key1 in state_dict.keys():

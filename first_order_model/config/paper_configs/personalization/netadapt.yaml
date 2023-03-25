@@ -1,10 +1,10 @@
 dataset_params:
-  root_dir: /data1/vedantha
+  root_dir: /video-conf/scratch/pantea/fom_personalized_512
   frame_shape: [512, 512, 3]
   augmentation_params:
     flip_param:
       horizontal_flip: True
-      time_flip: True
+      time_flip: True 
     jitter_param:
       brightness: 0.1
       contrast: 0.1
@@ -12,7 +12,7 @@ dataset_params:
       hue: 0.1
 
 metrics_params:
-  root_dir: /data1/vedantha
+  root_dir: /video-conf/scratch/pantea/fom_personalized_512
   frame_shape: [512, 512, 3]
 
 model_params:
@@ -70,9 +70,8 @@ train_params:
   num_epochs: 250
   netadapt: True
   shrink_rate: 0.03
-  target_shrink: .25
-  shrunk_gen: '/data1/vedantha/nets_implementation/first_order_model/log/finetune_netadapt 04_01_23_17.16.29/00000048-checkpoint.pth.tar'
-  num_repeats: 15
+  target_shrink: .06
+  num_repeats: 1
   epoch_milestones: [60, 90]
   lr_generator: 2.0e-4
   lr_discriminator: 2.0e-4

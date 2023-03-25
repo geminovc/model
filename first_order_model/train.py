@@ -263,6 +263,7 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
             epoch = 0
             while current > target:
                 epoch += 1
+                start_epoch = epoch + 1
                 print(current)
                 if not is_first_round:
                     generator_full.generator  = reduce_macs(generator_full.generator, current - reduce_amount,current , kp_detector, discriminator, train_params, dataloader, metrics_dataloader, generator_type, lr_size, generator_full)
@@ -274,8 +275,6 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
 
 
                 if metrics_dataloader is not None:
-                    for x in metrics_dataloader:
-                        break
                     with torch.no_grad():
                         for i, y in enumerate(metrics_dataloader):
                             if use_lr_video or use_RIFE:
@@ -319,13 +318,11 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
         #vgg_model = vgg_model.cuda()
         #vgg_face_model = vgg_face_model.cuda()
     
-    for x in dataloader:
-        break
 
 
     with Logger(log_dir=log_dir, visualizer_params=config['visualizer_params'], checkpoint_freq=train_params['checkpoint_freq']) as logger:
         for epoch in trange(start_epoch, train_params['num_epochs']):
-            for x in dataloader:
+            for x in tqdm(dataloader):
                 if use_lr_video or use_RIFE:
                     lr_frame = F.interpolate(x['driving'], lr_size)
                     if train_params.get('encode_video_for_training', False):

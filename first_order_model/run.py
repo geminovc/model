@@ -16,6 +16,7 @@ import torch
 from train import train
 from reconstruction import reconstruction
 from animate import animate
+from shrink_util import set_module, set_gen_module, set_keypoint_module
 
 if __name__ == "__main__":
     
