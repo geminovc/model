@@ -119,8 +119,8 @@ class EfficientNetDecoder(nn.Module):
 
         # stem because stem and head are reversed
         # self._upsample = nn.Upsample(scale_factor=2, mode='nearest')
-        out_channels = 16  # just before final layer which converts to rgb
-        in_channels = round_filters(16, self._global_params)  # number of output channels
+        out_channels = 32 # 16  # just before final layer which converts to rgb
+        in_channels = round_filters(32, self._global_params)  # number of output channels
         self._conv_stem = Conv2d(in_channels, out_channels, kernel_size=3, stride=1, bias=False)
         self._bn0 = nn.BatchNorm2d(num_features=out_channels, momentum=bn_mom, eps=bn_eps)
         
