@@ -247,8 +247,11 @@ class GeneratorFullModel(torch.nn.Module):
         
         loss_values = {}
 
+        if 'teacher' in x:
+            generated.update({'teacher': x['teacher']})
+
         # standard pyramides for Vgg perceptual loss
-        real_input = x['driving']
+        real_input = x['driving'] if 'teacher' not in x else x['teacher']
         generated_input = generated['prediction']
         pyramide_real = self.pyramid(real_input)
         pyramide_generated = self.pyramid(generated_input)
@@ -302,6 +305,12 @@ class GeneratorFullModel(torch.nn.Module):
                     else generated['prediction']
             pix_loss = loss_fn(generated_lf, real_input.detach())
             loss_values['pixelwise'] = self.loss_weights['pixelwise'] * pix_loss
+
+        if self.loss_weights.get('encoder_distillation', 0) != 0:
+            student_encoded_output = generated['encoded_output'] 
+            teacher_encoded_output = x['teacher_encoded_output']
+            distillation_loss = F.mse_loss(student_encoded_output, teacher_encoded_output)
+            loss_values['encoder_distillation'] = self.loss_weights['encoder_distillation'] * distillation_loss
                    
         if self.loss_weights['generator_gan'] != 0:
             if generator_type == 'occlusion_aware':

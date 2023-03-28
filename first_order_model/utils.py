@@ -95,7 +95,7 @@ def get_main_config_params(config_path):
             }
 
 
-def configure_fom_modules(config, device):
+def configure_fom_modules(config, device, teacher=False):
     """ Generator can be of the following types:
         1. VPX: (not model based) just runs through the regular VPX 
            decoder to decode the frame at its highest resolution
@@ -113,11 +113,14 @@ def configure_fom_modules(config, device):
     """
     generator_params = config['model_params']['generator_params']
     generator_type = generator_params.get('generator_type', 'occlusion_aware')
+    if teacher:
+        generator_type = 'occlusion_aware'
+        config['model_params']['generator_params']['generator_type'] = 'occlusion_aware'
     if generator_type == 'swinir':
         generator = SuperResolutionModel(config)
         discriminator = None
     elif generator_type not in ['vpx', 'bicubic']:
-        if generator_type in ['occlusion_aware', 'split_hf_lf']:
+        if generator_type in ['occlusion_aware', 'split_hf_lf', 'student_occlusion_aware']:
             generator = OcclusionAwareGenerator(**config['model_params']['generator_params'],
                                             **config['model_params']['common_params'])
         elif generator_type == 'just_upsampler':
@@ -135,7 +138,7 @@ def configure_fom_modules(config, device):
         generator = None
         discriminator = None
 
-    if generator_type in ['occlusion_aware', 'split_hf_lf']:
+    if generator_type in ['occlusion_aware', 'split_hf_lf', 'student_occlusion_aware']:
         kp_detector = KPDetector(**config['model_params']['kp_detector_params'],
                              **config['model_params']['common_params'])
         if torch.cuda.is_available():
@@ -147,11 +150,11 @@ def configure_fom_modules(config, device):
     return generator, discriminator, kp_detector
 
 
-def get_model_macs(log_dir, generator, kp_detector, device):
+def get_model_macs(log_dir, generator, kp_detector, device, lr_size, image_size):
     BATCH_SIZE = 1 # reconstruction
 
-    source_image = torch.randn(BATCH_SIZE, 3, 512, 512, requires_grad=False, device=device)
-    driving_lr = torch.randn(BATCH_SIZE, 3, 64, 64, requires_grad = False, device=device)
+    source_image = torch.randn(BATCH_SIZE, 3, image_size, image_size, requires_grad=False, device=device)
+    driving_lr = torch.randn(BATCH_SIZE, 3, lr_size, lr_size, requires_grad = False, device=device)
     update_source = True
     kp_val1 = torch.randn(BATCH_SIZE, 10, 2, requires_grad=False, device=device)
     kp_jac1 = torch.randn(BATCH_SIZE, 10, 2, 2, requires_grad=False, device=device)
