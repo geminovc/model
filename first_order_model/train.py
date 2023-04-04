@@ -257,6 +257,7 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
         print('reloaded_params', current)
 
 
+    model = generator_full.generator
 
     if train_params.get('netadapt', False):
         with Logger(log_dir=log_dir, visualizer_params=config['visualizer_params'], checkpoint_freq=train_params['checkpoint_freq']) as logger:

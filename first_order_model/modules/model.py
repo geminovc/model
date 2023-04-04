@@ -228,7 +228,7 @@ class GeneratorFullModel(torch.nn.Module):
     def forward(self, x, generator_type='occlusion_aware'):
         driving_lr =  x.get('driving_lr', None)
 
-        if generator_type in ['occlusion_aware', 'split_hf_lf']:
+        if generator_type in ['occlusion_aware', 'split_hf_lf'] or True:
             kp_source = self.kp_extractor(x['source'])
             
             if driving_lr is not None:
