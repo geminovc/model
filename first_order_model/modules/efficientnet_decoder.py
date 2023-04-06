@@ -161,16 +161,10 @@ class EfficientNetDecoder(nn.Module):
         for idx, block in enumerate(self._blocks):
             if idx == self._lr_feature_concat_idx:
                 x = torch.cat([lr_inputs, x], dim=1)
-                print("did this on index", idx)
-            print(self._skip_connection_indices)
-            print(len(skip_connections))
-            print(len(self._blocks))
             if idx in self._skip_connection_indices:
                 if len(skip_connections) > 0:
                     skip = skip_connections.pop()
-                    print("did skip on index", idx)
                     x += skip
-                    print(skip.shape)
             drop_connect_rate = self._global_params.drop_connect_rate
             if drop_connect_rate:
                 drop_connect_rate *= float(idx) / len(self._blocks)  # scale drop connect_rate

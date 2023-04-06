@@ -69,7 +69,10 @@ train_params:
   train_only_upsample_layers: False
   encode_video_for_training: False
   num_epochs: 60
-  num_repeats: 15
+  netadapt: True
+  shrink_rate: 0.03
+  target_shrink: .06
+  num_repeats: 1
   epoch_milestones: [60, 90]
   lr_generator: 2.0e-4
   lr_discriminator: 2.0e-4

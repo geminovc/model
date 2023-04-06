@@ -253,7 +253,6 @@ class OcclusionAwareGenerator(nn.Module):
                         hr_out = block(hr_out)
                         if self.use_hr_skip_connections:
                             self.skip_connections.append(hr_out)
-                            print(hr_out.shape)
                 
                 out = hr_out if self.encode_hr_input_with_additional_blocks else self.first(resized_source_image)
                 for block in self.down_blocks: 
