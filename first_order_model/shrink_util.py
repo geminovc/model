@@ -1,5 +1,7 @@
 from tqdm import trange
 import gc
+from torch.utils.mobile_optimizer import optimize_for_mobile
+
 import os
 from tqdm import tqdm
 import torch
@@ -9,7 +11,6 @@ import torch
 import torch.nn.functional as F
 import first_order_model
 from torchprofile import profile_macs
-import torch_pruning as tp
 
 import sys
 from torch.utils.data import DataLoader
@@ -824,25 +825,30 @@ def get_generator_time(model, x):
     
 
     #warmup
-    #model = torch.compile(model)
+    #modelgen= torch.compile(model.generator) #model.generator #torch.compile(model.generator)
+    #modelgen = optimize_for_mobile(model.generator)
+    #modelgen = torch.compile(model.generator.cpu())
+    modelgen = model.generator#.cpu()
+
     for _ in range(10):
-        generated = model.generator(x['source'], kp_source=kp_source, 
+        generated = modelgen(x['source'], kp_source=kp_source, 
                 kp_driving=kp_driving, update_source=True, 
                 driving_lr=driving_lr)
     
     starter, ender = torch.cuda.Event(enable_timing=True), torch.cuda.Event(enable_timing=True)
     total_time = 0
-    for i in range(50):
-        starter.record()
-        with torch.no_grad():
-            generated = model.generator(x['source'], kp_source=kp_source, 
+    with torch.no_grad():
+        for i in range(50):
+            starter.record()
+            generated = modelgen(x['source'], kp_source=kp_source, 
                     kp_driving=kp_driving, update_source=True, 
                     driving_lr=driving_lr)
-        ender.record()
-        # WAIT FOR GPU SYNC
-        torch.cuda.synchronize()
-        curr_time = starter.elapsed_time(ender)
-        total_time += curr_time
+            # WAIT FOR GPU SYNC
+            # This looks backward but its whata they say online to do
+            ender.record()
+            torch.cuda.synchronize()
+            curr_time = starter.elapsed_time(ender)
+            total_time += curr_time
 
     return total_time/50
 

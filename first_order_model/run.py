@@ -42,7 +42,7 @@ if __name__ == "__main__":
 
     opt = parser.parse_args()
     with open(opt.config) as f:
-        config = yaml.load(f)
+        config = yaml.full_load(f)
 
     if opt.mode == "reconstruction":
         loc = config['train_params'].get('shrunk_gen', None)
