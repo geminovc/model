@@ -813,15 +813,16 @@ def select_convs(model, params):
 def get_generator_time(model, x):
     #for i in range(10):
     #    _ = model(inp)
-    driving_lr =  x.get('driving_lr', None)
+    #model = model.half()
+    driving_lr =  x.get('driving_lr', None).half()
 
-    kp_source = model.kp_extractor(x['source'])
+    kp_source = model.kp_extractor(x['source'].half())
     
             
     if driving_lr is not None:
         kp_driving = model.kp_extractor(driving_lr)
     else:
-        kp_driving = model.kp_extractor(x['driving'])
+        kp_driving = model.kp_extractor(x['driving'].half())
     
 
     #warmup
@@ -831,7 +832,7 @@ def get_generator_time(model, x):
     modelgen = model.generator#.cpu()
 
     for _ in range(10):
-        generated = modelgen(x['source'], kp_source=kp_source, 
+        generated = modelgen(x['source'].half(), kp_source=kp_source, 
                 kp_driving=kp_driving, update_source=True, 
                 driving_lr=driving_lr)
     
@@ -840,7 +841,7 @@ def get_generator_time(model, x):
     with torch.no_grad():
         for i in range(50):
             starter.record()
-            generated = modelgen(x['source'], kp_source=kp_source, 
+            generated = modelgen(x['source'].half(), kp_source=kp_source, 
                     kp_driving=kp_driving, update_source=True, 
                     driving_lr=driving_lr)
             # WAIT FOR GPU SYNC
@@ -854,17 +855,17 @@ def get_generator_time(model, x):
 
 def get_gen_input(model=None, x=None):
     if not x is None:
-        driving_lr =  x.get('driving_lr', None)
+        driving_lr =  x.get('driving_lr', None).half()
 
-        kp_source = model.kp_extractor(x['source'])
+        kp_source = model.kp_extractor(x['source'].half())
         
                 
         if driving_lr is not None:
             kp_driving = model.kp_extractor(driving_lr)
         else:
-            kp_driving = model.kp_extractor(x['driving'])
+            kp_driving = model.kp_extractor(x['driving'].half())
         
-        get_gen_input.inputs = (x['source'], kp_source, kp_driving, True, driving_lr)
+        get_gen_input.inputs = (x['source'].half(), kp_source, kp_driving, True, driving_lr)
     return get_gen_input.inputs
 
 def calculate_macs(model, file_name = None):

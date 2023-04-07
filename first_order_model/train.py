@@ -224,6 +224,18 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
                 pass
 
         break
+    reload_gen = train_params.get('shrunk_gen', None)
+    if reload_gen is not None:
+        state_dict =torch.load(reload_gen)
+        set_module(generator_full, state_dict)
+        optimizer_generator = torch.optim.Adam(generator_full.generator.parameters(), lr=train_params['lr_generator'], betas=(0.5, 0.999))
+        generator_full = generator_full.half()
+        get_gen_input(generator_full,x)
+        current=  total_macs(copy.deepcopy(generator_full.generator))
+        print('reloaded_params', current)
+
+    print("Gen time is ", get_generator_time(generator_full, x))
+
     get_gen_input(generator_full,x)
     vgg_model = Vgg19()
     original_lpips = lpips.LPIPS(net='vgg')
@@ -248,13 +260,6 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
         generator_full.generator = generator
         optimizer_generator = torch.optim.Adam(generator.parameters(), lr=train_params['lr_generator'], betas=(0.5, 0.999))
 
-    reload_gen = train_params.get('shrunk_gen', None)
-    if reload_gen is not None:
-        state_dict =torch.load(reload_gen)
-        set_module(generator_full, state_dict)
-        optimizer_generator = torch.optim.Adam(generator_full.generator.parameters(), lr=train_params['lr_generator'], betas=(0.5, 0.999))
-        current=  total_macs(copy.deepcopy(generator_full.generator))
-        print('reloaded_params', current)
 
 
     model = generator_full.generator
