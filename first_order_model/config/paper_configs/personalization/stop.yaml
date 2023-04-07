@@ -68,11 +68,12 @@ train_params:
   train_only_upsample_layers: False
   encode_video_for_training: False
   num_epochs: 250
-  netadapt: False
+  netadapt: True
   shrink_rate: 0.03
   target_shrink: .01
   num_repeats: 1
   epoch_milestones: [60, 90]
+    #shrunk_gen: /video-conf/scratch/vedantha/model/first_order_model/log/adaptive_reduce_depthwise_forever 19_01_23_19.31.55/00000239-checkpoint.pth.tar
   shrunk_gen: /video-conf/scratch/vedantha/model/first_order_model/log/adaptive_reduce_generic_2 03_03_23_07.17.26/00000089-checkpoint.pth.tar
   lr_generator: 2.0e-4
   lr_discriminator: 2.0e-4
