@@ -18,6 +18,7 @@ from argparse import ArgumentParser
 from time import gmtime, strftime
 from shutil import copy
 import collections
+from shrink_util import *
 from first_order_model.sync_batchnorm import DataParallelWithCallback
 from first_order_model.modules.discriminator import MultiScaleDiscriminator
 from first_order_model.frames_dataset import FramesDataset, DatasetRepeater
@@ -170,7 +171,7 @@ opt = parser.parse_args()
 main_configs = get_main_config_params(opt.config)
 
 with open(opt.config) as f:
-    config = yaml.load(f)
+    config = yaml.full_load(f)
 
 IMAGE_RESOLUTION = int(opt.resolution)
 BATCH_SIZE = int(opt.batch_size)
@@ -181,4 +182,10 @@ if main_configs['use_lr_video'] == True:
 else:
     LR_SIZE = None
 generator, _, _ = configure_fom_modules(config, torch.device('cuda' if torch.cuda.is_available() else 'cpu'))
+train_params = config['train_params']
+reload_gen = train_params.get('shrunk_gen', None)
+if reload_gen is not None:
+    state_dict =torch.load(reload_gen)
+    set_gen_module(generator, state_dict)
+    print('reloaded_params')
 time_generator(generator)
