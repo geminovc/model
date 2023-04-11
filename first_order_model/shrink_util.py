@@ -46,11 +46,14 @@ def get_attr(obj, names):
     else:
         return get_attr(getattr(obj, names[0]), names[1:])
 
+
 def get_attr_default(obj, names, default):
     if len(names) == 1:
         return getattr(obj, names[0], default)
     else:
-        return get_attr_default(getattr(obj, names[0], default), names[1:], default)
+        return get_attr_default(getattr(obj, names[0], default), names[1:],
+                                default)
+
 
 def set_attr(obj, names, val):
     if len(names) == 0:
@@ -59,6 +62,7 @@ def set_attr(obj, names, val):
         #setattr(obj, names[0], val)
     else:
         set_attr(getattr(obj, names[0]), names[1:], val)
+
 
 def print_gen_module(state_dict):
     for key1 in state_dict.keys():
@@ -76,6 +80,7 @@ def print_gen_module(state_dict):
                 print(dict_param.shape, key)
             #set_attr(mod, submod_names, dict_param)
 
+
 def print_diff(state_dict, state_dict2):
     for key1 in state_dict.keys():
         if key1 not in ['generator']:
@@ -84,7 +89,7 @@ def print_diff(state_dict, state_dict2):
             if 'norm' not in key and 'bias' not in key:
                 if state_dict2[key1][key].shape != dict_param.shape:
 
-                    print(dict_param.shape, state_dict2[key1][key].shape,key)
+                    print(dict_param.shape, state_dict2[key1][key].shape, key)
             #set_attr(mod, ksubmod_names, dict_param)
 
 
@@ -104,6 +109,7 @@ def set_module(mod, state_dict):
             og_groups = get_attr_default(mod, group_name, 1)
             if og_groups != 1:
                 get_attr(mod, group_name[:-1]).groups = dict_param.shape[0]
+
 
 def set_gen_module(mod, state_dict):
 
@@ -132,7 +138,7 @@ def set_keypoint_module(mod, state_dict):
             #curr_param = get_attr(mod, submod_names)
             # Here you can either replace the existing one
             set_attr(mod, submod_names, dict_param)
-    
+
 
 def get_input_channel_importance(weight):
     in_channels = weight.shape[1]
@@ -165,8 +171,10 @@ class Node:
 
     def add_tie(self, node):
         self.tied_after.append(node)
+
     def mark_tied(self):
         self.is_tied = True
+
     def add_before(self, node):
         self.before.append(node)
 
@@ -183,12 +191,11 @@ def build_graph(all_layers, names):
     for index in range(len(all_layers)):
         if isinstance(all_layers[index], nn.Conv2d):
 
-            graph[index] = Node(index, 'conv', all_layers[index].weight.shape[1],
+            graph[index] = Node(index, 'conv',
+                                all_layers[index].weight.shape[1],
                                 all_layers[index].weight.shape[0],
                                 all_layers[index])
-        elif isinstance(
-                all_layers[index],
-                nn.modules.batchnorm._BatchNorm):
+        elif isinstance(all_layers[index], nn.modules.batchnorm._BatchNorm):
             graph[index] = Node(index, 'bn', all_layers[index].weight.shape[0],
                                 all_layers[index].weight.shape[0],
                                 all_layers[index])
@@ -279,18 +286,51 @@ def build_graph(all_layers, names):
             'hr_down_blocks.0.norm'
         ])
         add_names([
-            'first.conv', 'first.norm', 'down_blocks.0.conv', 'down_blocks.0.norm',
-            'down_blocks.1.conv', 'down_blocks.1.norm', 'bottleneck.r0.norm1',
-            'bottleneck.r0.conv1', 'bottleneck.r0.norm2', 'bottleneck.r0.conv2',
-            'bottleneck.r1.norm1', 'bottleneck.r1.conv1', 'bottleneck.r1.norm2',
-            'bottleneck.r1.conv2', 'bottleneck.r2.norm1', 'bottleneck.r2.conv1',
-            'bottleneck.r2.norm2', 'bottleneck.r2.conv2', 'bottleneck.r3.norm1',
-            'bottleneck.r3.conv1', 'bottleneck.r3.norm2', 'bottleneck.r3.conv2',
-            'bottleneck.r4.norm1', 'bottleneck.r4.conv1', 'bottleneck.r4.norm2',
-            'bottleneck.r4.conv2', 'bottleneck.r5.norm1', 'bottleneck.r5.conv1',
+            'first.conv', 'first.norm', 'down_blocks.0.conv',
+            'down_blocks.0.norm', 'down_blocks.1.conv', 'down_blocks.1.norm',
+            'bottleneck.r0.norm1', 'bottleneck.r0.conv1',
+            'bottleneck.r0.norm2', 'bottleneck.r0.conv2',
+            'bottleneck.r1.norm1', 'bottleneck.r1.conv1',
+            'bottleneck.r1.norm2', 'bottleneck.r1.conv2',
+            'bottleneck.r2.norm1', 'bottleneck.r2.conv1',
+            'bottleneck.r2.norm2', 'bottleneck.r2.conv2',
+            'bottleneck.r3.norm1', 'bottleneck.r3.conv1',
+            'bottleneck.r3.norm2', 'bottleneck.r3.conv2',
+            'bottleneck.r4.norm1', 'bottleneck.r4.conv1',
+            'bottleneck.r4.norm2', 'bottleneck.r4.conv2',
+            'bottleneck.r5.norm1', 'bottleneck.r5.conv1',
             'bottleneck.r5.norm2', 'bottleneck.r5.conv2'
         ])
-        add_names(['bottleneck.r5.conv2', 'efficientnet_decoder._conv_head', 'efficientnet_decoder._bn1', 'efficientnet_decoder._blocks.1._expand_conv', 'efficientnet_decoder._blocks.1._bn0', 'efficientnet_decoder._blocks.1._depthwise_conv', 'efficientnet_decoder._blocks.1._bn1', 'efficientnet_decoder._blocks.1._se_reduce', 'efficientnet_decoder._blocks.1._se_expand', 'efficientnet_decoder._blocks.1._project_conv', 'efficientnet_decoder._blocks.1._bn2', 'efficientnet_decoder._blocks.3._expand_conv', 'efficientnet_decoder._blocks.3._bn0', 'efficientnet_decoder._blocks.3._depthwise_conv', 'efficientnet_decoder._blocks.3._bn1', 'efficientnet_decoder._blocks.3._se_reduce', 'efficientnet_decoder._blocks.3._se_expand', 'efficientnet_decoder._blocks.3._project_conv', 'efficientnet_decoder._blocks.3._bn2', 'efficientnet_decoder._blocks.5._expand_conv', 'efficientnet_decoder._blocks.5._bn0', 'efficientnet_decoder._blocks.5._depthwise_conv', 'efficientnet_decoder._blocks.5._bn1', 'efficientnet_decoder._blocks.5._se_reduce', 'efficientnet_decoder._blocks.5._se_expand', 'efficientnet_decoder._blocks.5._project_conv', 'efficientnet_decoder._blocks.5._bn2', 'efficientnet_decoder._conv_stem', 'efficientnet_decoder._bn0', 'final'])
+        add_names([
+            'bottleneck.r5.conv2', 'efficientnet_decoder._conv_head',
+            'efficientnet_decoder._bn1',
+            'efficientnet_decoder._blocks.1._expand_conv',
+            'efficientnet_decoder._blocks.1._bn0',
+            'efficientnet_decoder._blocks.1._depthwise_conv',
+            'efficientnet_decoder._blocks.1._bn1',
+            'efficientnet_decoder._blocks.1._se_reduce',
+            'efficientnet_decoder._blocks.1._se_expand',
+            'efficientnet_decoder._blocks.1._project_conv',
+            'efficientnet_decoder._blocks.1._bn2',
+            'efficientnet_decoder._blocks.3._expand_conv',
+            'efficientnet_decoder._blocks.3._bn0',
+            'efficientnet_decoder._blocks.3._depthwise_conv',
+            'efficientnet_decoder._blocks.3._bn1',
+            'efficientnet_decoder._blocks.3._se_reduce',
+            'efficientnet_decoder._blocks.3._se_expand',
+            'efficientnet_decoder._blocks.3._project_conv',
+            'efficientnet_decoder._blocks.3._bn2',
+            'efficientnet_decoder._blocks.5._expand_conv',
+            'efficientnet_decoder._blocks.5._bn0',
+            'efficientnet_decoder._blocks.5._depthwise_conv',
+            'efficientnet_decoder._blocks.5._bn1',
+            'efficientnet_decoder._blocks.5._se_reduce',
+            'efficientnet_decoder._blocks.5._se_expand',
+            'efficientnet_decoder._blocks.5._project_conv',
+            'efficientnet_decoder._blocks.5._bn2',
+            'efficientnet_decoder._conv_stem', 'efficientnet_decoder._bn0',
+            'final'
+        ])
 
         # Features get concatted into down block
         #add_mirror('down_blocks.1.con', 'bottleneck.r0.norm1')
@@ -301,9 +341,9 @@ def build_graph(all_layers, names):
         # Add 2x hr down outputs to first hr up
         add('hr_down_blocks.0.norm', 'hr_up_blocks.0.conv')
         add('hr_down_blocks.0.norm', 'hr_up_blocks.0.conv')
-        add_mirrors('hr_down_blocks.0.conv', 'efficientnet_decoder._blocks.3._project_conv')
+        add_mirrors('hr_down_blocks.0.conv',
+                    'efficientnet_decoder._blocks.3._project_conv')
         #add_mirrors('hr_first.norm', 'efficientnet_decoder._bn1')
-
 
         add_tie('bottleneck.r0.conv1', 'bottleneck.r0.conv2')
         add_tie('bottleneck.r1.conv1', 'bottleneck.r1.conv2')
@@ -315,8 +355,9 @@ def build_graph(all_layers, names):
         for name in names:
             if 'depthwise_conv' in name:
                 add_tie(name, name)
-        for i in [1,3,5]:
-            add_tie('efficientnet_decoder._blocks.'+str(i)+'._se_reduce', 'efficientnet_decoder._blocks.'+str(i)+'._se_expand')
+        for i in [1, 3, 5]:
+            add_tie('efficientnet_decoder._blocks.' + str(i) + '._se_reduce',
+                    'efficientnet_decoder._blocks.' + str(i) + '._se_expand')
 
     # Build graph
     elif os.environ.get('CONV_TYPE', 'regular') == 'regular':
@@ -369,15 +410,19 @@ def build_graph(all_layers, names):
             'hr_down_blocks.0.norm'
         ])
         add_names([
-            'first.conv', 'first.norm', 'down_blocks.0.conv', 'down_blocks.0.norm',
-            'down_blocks.1.conv', 'down_blocks.1.norm', 'bottleneck.r0.norm1',
-            'bottleneck.r0.conv1', 'bottleneck.r0.norm2', 'bottleneck.r0.conv2',
-            'bottleneck.r1.norm1', 'bottleneck.r1.conv1', 'bottleneck.r1.norm2',
-            'bottleneck.r1.conv2', 'bottleneck.r2.norm1', 'bottleneck.r2.conv1',
-            'bottleneck.r2.norm2', 'bottleneck.r2.conv2', 'bottleneck.r3.norm1',
-            'bottleneck.r3.conv1', 'bottleneck.r3.norm2', 'bottleneck.r3.conv2',
-            'bottleneck.r4.norm1', 'bottleneck.r4.conv1', 'bottleneck.r4.norm2',
-            'bottleneck.r4.conv2', 'bottleneck.r5.norm1', 'bottleneck.r5.conv1',
+            'first.conv', 'first.norm', 'down_blocks.0.conv',
+            'down_blocks.0.norm', 'down_blocks.1.conv', 'down_blocks.1.norm',
+            'bottleneck.r0.norm1', 'bottleneck.r0.conv1',
+            'bottleneck.r0.norm2', 'bottleneck.r0.conv2',
+            'bottleneck.r1.norm1', 'bottleneck.r1.conv1',
+            'bottleneck.r1.norm2', 'bottleneck.r1.conv2',
+            'bottleneck.r2.norm1', 'bottleneck.r2.conv1',
+            'bottleneck.r2.norm2', 'bottleneck.r2.conv2',
+            'bottleneck.r3.norm1', 'bottleneck.r3.conv1',
+            'bottleneck.r3.norm2', 'bottleneck.r3.conv2',
+            'bottleneck.r4.norm1', 'bottleneck.r4.conv1',
+            'bottleneck.r4.norm2', 'bottleneck.r4.conv2',
+            'bottleneck.r5.norm1', 'bottleneck.r5.conv1',
             'bottleneck.r5.norm2', 'bottleneck.r5.conv2', 'up_blocks.0.conv',
             'up_blocks.0.norm', 'up_blocks.1.conv', 'up_blocks.1.norm',
             'hr_up_blocks.0.conv', 'hr_up_blocks.0.norm', 'final'
@@ -392,7 +437,6 @@ def build_graph(all_layers, names):
         # Add 2x hr down outputs to first hr up
         add('hr_down_blocks.0.norm', 'hr_up_blocks.0.conv')
         add('hr_down_blocks.0.norm', 'hr_up_blocks.0.conv')
-
 
         add_tie('bottleneck.r0.conv1', 'bottleneck.r0.conv2')
         add_tie('bottleneck.r1.conv1', 'bottleneck.r1.conv2')
@@ -436,43 +480,82 @@ def build_graph(all_layers, names):
         ])
 
         # Add the dense motion skip connections
-        add('dense_motion_network.hourglass.encoder.down_blocks.3.norm',
-            'dense_motion_network.hourglass.decoder.up_blocks.1.conv.depth_conv')
-        add('dense_motion_network.hourglass.encoder.down_blocks.2.norm',
-            'dense_motion_network.hourglass.decoder.up_blocks.2.conv.depth_conv')
-        add('dense_motion_network.hourglass.encoder.down_blocks.1.norm',
-            'dense_motion_network.hourglass.decoder.up_blocks.3.conv.depth_conv')
-        add('dense_motion_network.hourglass.encoder.down_blocks.0.norm',
-            'dense_motion_network.hourglass.decoder.up_blocks.4.conv.depth_conv')
+        add(
+            'dense_motion_network.hourglass.encoder.down_blocks.3.norm',
+            'dense_motion_network.hourglass.decoder.up_blocks.1.conv.depth_conv'
+        )
+        add(
+            'dense_motion_network.hourglass.encoder.down_blocks.2.norm',
+            'dense_motion_network.hourglass.decoder.up_blocks.2.conv.depth_conv'
+        )
+        add(
+            'dense_motion_network.hourglass.encoder.down_blocks.1.norm',
+            'dense_motion_network.hourglass.decoder.up_blocks.3.conv.depth_conv'
+        )
+        add(
+            'dense_motion_network.hourglass.encoder.down_blocks.0.norm',
+            'dense_motion_network.hourglass.decoder.up_blocks.4.conv.depth_conv'
+        )
 
         # Add the dense motion outputs partly (First part)
-        add_names(['dense_motion_network.hourglass.decoder.up_blocks.4.norm',
-            'dense_motion_network.mask.depth_conv','dense_motion_network.mask.point_conv'])
-        add_names(['dense_motion_network.hourglass.decoder.up_blocks.4.norm',
-            'dense_motion_network.occlusion.depth_conv','dense_motion_network.occlusion.point_conv'])
-        add_names(['dense_motion_network.hourglass.decoder.up_blocks.4.norm',
-            'dense_motion_network.lr_occlusion.depth_conv','dense_motion_network.lr_occlusion.point_conv'])
-        add_names(['dense_motion_network.hourglass.decoder.up_blocks.4.norm',
-            'dense_motion_network.hr_background_occlusion.depth_conv','dense_motion_network.hr_background_occlusion.point_conv'])
-
-        add_names(['lr_first.conv.depth_conv', 'lr_first.conv.point_conv', 'lr_first.norm'])
         add_names([
-            'hr_first.conv.depth_conv', 'hr_first.conv.point_conv',  'hr_first.norm', 'hr_down_blocks.0.conv.depth_conv','hr_down_blocks.0.conv.point_conv',
-            'hr_down_blocks.0.norm'
+            'dense_motion_network.hourglass.decoder.up_blocks.4.norm',
+            'dense_motion_network.mask.depth_conv',
+            'dense_motion_network.mask.point_conv'
         ])
         add_names([
-            'first.conv.depth_conv', 'first.conv.point_conv', 'first.norm', 'down_blocks.0.conv.depth_conv','down_blocks.0.conv.point_conv', 'down_blocks.0.norm',
-            'down_blocks.1.conv.depth_conv','down_blocks.1.conv.point_conv', 'down_blocks.1.norm', 'bottleneck.r0.norm1',
-            'bottleneck.r0.conv1.depth_conv','bottleneck.r0.conv1.point_conv', 'bottleneck.r0.norm2', 'bottleneck.r0.conv2.depth_conv','bottleneck.r0.conv2.point_conv',
-            'bottleneck.r1.norm1', 'bottleneck.r1.conv1.depth_conv','bottleneck.r1.conv1.point_conv', 'bottleneck.r1.norm2',
-            'bottleneck.r1.conv2.depth_conv','bottleneck.r1.conv2.point_conv', 'bottleneck.r2.norm1', 'bottleneck.r2.conv1.depth_conv','bottleneck.r2.conv1.point_conv',
-            'bottleneck.r2.norm2', 'bottleneck.r2.conv2.depth_conv','bottleneck.r2.conv2.point_conv', 'bottleneck.r3.norm1',
-            'bottleneck.r3.conv1.depth_conv','bottleneck.r3.conv1.point_conv', 'bottleneck.r3.norm2', 'bottleneck.r3.conv2.depth_conv','bottleneck.r3.conv2.point_conv',
-            'bottleneck.r4.norm1', 'bottleneck.r4.conv1.depth_conv','bottleneck.r4.conv1.point_conv', 'bottleneck.r4.norm2',
-            'bottleneck.r4.conv2.depth_conv','bottleneck.r4.conv2.point_conv', 'bottleneck.r5.norm1', 'bottleneck.r5.conv1.depth_conv','bottleneck.r5.conv1.point_conv',
-            'bottleneck.r5.norm2', 'bottleneck.r5.conv2.depth_conv','bottleneck.r5.conv2.point_conv', 'up_blocks.0.conv.depth_conv','up_blocks.0.conv.point_conv',
-            'up_blocks.0.norm', 'up_blocks.1.conv.depth_conv','up_blocks.1.conv.point_conv', 'up_blocks.1.norm',
-            'hr_up_blocks.0.conv.depth_conv','hr_up_blocks.0.conv.point_conv', 'hr_up_blocks.0.norm', 'final.depth_conv', 'final.point_conv'
+            'dense_motion_network.hourglass.decoder.up_blocks.4.norm',
+            'dense_motion_network.occlusion.depth_conv',
+            'dense_motion_network.occlusion.point_conv'
+        ])
+        add_names([
+            'dense_motion_network.hourglass.decoder.up_blocks.4.norm',
+            'dense_motion_network.lr_occlusion.depth_conv',
+            'dense_motion_network.lr_occlusion.point_conv'
+        ])
+        add_names([
+            'dense_motion_network.hourglass.decoder.up_blocks.4.norm',
+            'dense_motion_network.hr_background_occlusion.depth_conv',
+            'dense_motion_network.hr_background_occlusion.point_conv'
+        ])
+
+        add_names([
+            'lr_first.conv.depth_conv', 'lr_first.conv.point_conv',
+            'lr_first.norm'
+        ])
+        add_names([
+            'hr_first.conv.depth_conv', 'hr_first.conv.point_conv',
+            'hr_first.norm', 'hr_down_blocks.0.conv.depth_conv',
+            'hr_down_blocks.0.conv.point_conv', 'hr_down_blocks.0.norm'
+        ])
+        add_names([
+            'first.conv.depth_conv', 'first.conv.point_conv', 'first.norm',
+            'down_blocks.0.conv.depth_conv', 'down_blocks.0.conv.point_conv',
+            'down_blocks.0.norm', 'down_blocks.1.conv.depth_conv',
+            'down_blocks.1.conv.point_conv', 'down_blocks.1.norm',
+            'bottleneck.r0.norm1', 'bottleneck.r0.conv1.depth_conv',
+            'bottleneck.r0.conv1.point_conv', 'bottleneck.r0.norm2',
+            'bottleneck.r0.conv2.depth_conv', 'bottleneck.r0.conv2.point_conv',
+            'bottleneck.r1.norm1', 'bottleneck.r1.conv1.depth_conv',
+            'bottleneck.r1.conv1.point_conv', 'bottleneck.r1.norm2',
+            'bottleneck.r1.conv2.depth_conv', 'bottleneck.r1.conv2.point_conv',
+            'bottleneck.r2.norm1', 'bottleneck.r2.conv1.depth_conv',
+            'bottleneck.r2.conv1.point_conv', 'bottleneck.r2.norm2',
+            'bottleneck.r2.conv2.depth_conv', 'bottleneck.r2.conv2.point_conv',
+            'bottleneck.r3.norm1', 'bottleneck.r3.conv1.depth_conv',
+            'bottleneck.r3.conv1.point_conv', 'bottleneck.r3.norm2',
+            'bottleneck.r3.conv2.depth_conv', 'bottleneck.r3.conv2.point_conv',
+            'bottleneck.r4.norm1', 'bottleneck.r4.conv1.depth_conv',
+            'bottleneck.r4.conv1.point_conv', 'bottleneck.r4.norm2',
+            'bottleneck.r4.conv2.depth_conv', 'bottleneck.r4.conv2.point_conv',
+            'bottleneck.r5.norm1', 'bottleneck.r5.conv1.depth_conv',
+            'bottleneck.r5.conv1.point_conv', 'bottleneck.r5.norm2',
+            'bottleneck.r5.conv2.depth_conv', 'bottleneck.r5.conv2.point_conv',
+            'up_blocks.0.conv.depth_conv', 'up_blocks.0.conv.point_conv',
+            'up_blocks.0.norm', 'up_blocks.1.conv.depth_conv',
+            'up_blocks.1.conv.point_conv', 'up_blocks.1.norm',
+            'hr_up_blocks.0.conv.depth_conv', 'hr_up_blocks.0.conv.point_conv',
+            'hr_up_blocks.0.norm', 'final.depth_conv', 'final.point_conv'
         ])
 
         # Features get concatted into down block
@@ -485,13 +568,18 @@ def build_graph(all_layers, names):
         add('hr_down_blocks.0.norm', 'hr_up_blocks.0.conv.depth_conv')
         add('hr_down_blocks.0.norm', 'hr_up_blocks.0.conv.depth_conv')
 
-
-        add_tie('bottleneck.r0.conv1.depth_conv', 'bottleneck.r0.conv2.point_conv')
-        add_tie('bottleneck.r1.conv1.depth_conv', 'bottleneck.r1.conv2.point_conv')
-        add_tie('bottleneck.r2.conv1.depth_conv', 'bottleneck.r2.conv2.point_conv')
-        add_tie('bottleneck.r3.conv1.depth_conv', 'bottleneck.r3.conv2.point_conv')
-        add_tie('bottleneck.r4.conv1.depth_conv', 'bottleneck.r4.conv2.point_conv')
-        add_tie('bottleneck.r5.conv1.depth_conv', 'bottleneck.r5.conv2.point_conv')
+        add_tie('bottleneck.r0.conv1.depth_conv',
+                'bottleneck.r0.conv2.point_conv')
+        add_tie('bottleneck.r1.conv1.depth_conv',
+                'bottleneck.r1.conv2.point_conv')
+        add_tie('bottleneck.r2.conv1.depth_conv',
+                'bottleneck.r2.conv2.point_conv')
+        add_tie('bottleneck.r3.conv1.depth_conv',
+                'bottleneck.r3.conv2.point_conv')
+        add_tie('bottleneck.r4.conv1.depth_conv',
+                'bottleneck.r4.conv2.point_conv')
+        add_tie('bottleneck.r5.conv1.depth_conv',
+                'bottleneck.r5.conv2.point_conv')
         #add_tie('bottleneck.r5.conv1', 'bottleneck.r0.conv2')
 
         # Add ties from every conv to itself's depthwise because that is what depthwise means
@@ -501,7 +589,6 @@ def build_graph(all_layers, names):
         for name in names:
             if 'depth_conv' in name:
                 add_tie(name, name)
-
 
     return graph
 
@@ -514,18 +601,19 @@ def apply_channel_sorting(model):
 
     all_convs = all_convs[:10] + all_convs[14:]
     all_bns = [
-        m for m in model.modules() if isinstance(
-            m, nn.modules.batchnorm._BatchNorm)
+        m for m in model.modules()
+        if isinstance(m, nn.modules.batchnorm._BatchNorm)
     ]
     all_layers = [
-        m for m in model.modules() if (isinstance(m, nn.Conv2d) or isinstance(
-            m, nn.modules.batchnorm._BatchNorm))
+        m for m in model.modules()
+        if (isinstance(m, nn.Conv2d)
+            or isinstance(m, nn.modules.batchnorm._BatchNorm))
     ]
 
     layer_graph = build_graph(all_layers, [
         n for n, m in model.named_modules()
-        if (isinstance(m, nn.Conv2d) or isinstance(
-            m, nn.modules.batchnorm._BatchNorm))
+        if (isinstance(m, nn.Conv2d)
+            or isinstance(m, nn.modules.batchnorm._BatchNorm))
     ])
 
     for base_index in layer_graph.keys():
@@ -623,7 +711,7 @@ def apply_channel_sorting(model):
 
                     tensor_to_apply = getattr(bn.value, tensor_name)
                     tensor_to_apply.copy_(torch.cat(starter).clone().detach())
-                    #node.value.weight.set_(torch.cat(starter).clone().detach())
+                    # node.value.weight.set_(torch.cat(starter).clone().detach())
 
                 if node.type == 'conv':
                     thing_you_are_changing = []
@@ -651,7 +739,7 @@ def apply_channel_sorting(model):
                     tensor_to_apply = getattr(node.value, 'weight')
                     tensor_to_apply.copy_(
                         torch.cat(starter, dim=1).clone().detach())
-                    #layer_graph[node.index].value.weight.set_(tensor_to_apply)
+                    # layer_graph[node.index].value.weight.set_(tensor_to_apply)
 
                     return
 
@@ -674,58 +762,63 @@ def apply_channel_sorting(model):
 
 
 def get_generator_time(model, x):
-    #for i in range(10):
+    # for i in range(10):
     #    _ = model(inp)
-    driving_lr =  x.get('driving_lr', None)
+    driving_lr = x.get('driving_lr', None)
 
     kp_source = model.kp_extractor(x['source'])
-    
-            
+
     if driving_lr is not None:
         kp_driving = model.kp_extractor(driving_lr)
     else:
         kp_driving = model.kp_extractor(x['driving'])
-    
 
-    #warmup
+    # warmup
     #model = torch.compile(model)
     for _ in range(10):
-        generated = model.generator(x['source'], kp_source=kp_source, 
-                kp_driving=kp_driving, update_source=True, 
-                driving_lr=driving_lr)
-    
-    starter, ender = torch.cuda.Event(enable_timing=True), torch.cuda.Event(enable_timing=True)
+        generated = model.generator(x['source'],
+                                    kp_source=kp_source,
+                                    kp_driving=kp_driving,
+                                    update_source=True,
+                                    driving_lr=driving_lr)
+
+    starter, ender = torch.cuda.Event(enable_timing=True), torch.cuda.Event(
+        enable_timing=True)
     total_time = 0
     for i in range(50):
         starter.record()
         with torch.no_grad():
-            generated = model.generator(x['source'], kp_source=kp_source, 
-                    kp_driving=kp_driving, update_source=True, 
-                    driving_lr=driving_lr)
+            generated = model.generator(x['source'],
+                                        kp_source=kp_source,
+                                        kp_driving=kp_driving,
+                                        update_source=True,
+                                        driving_lr=driving_lr)
         ender.record()
         # WAIT FOR GPU SYNC
         torch.cuda.synchronize()
         curr_time = starter.elapsed_time(ender)
         total_time += curr_time
 
-    return total_time/50
+    return total_time / 50
+
 
 def get_gen_input(model=None, x=None):
     if not x is None:
-        driving_lr =  x.get('driving_lr', None)
+        driving_lr = x.get('driving_lr', None)
 
         kp_source = model.kp_extractor(x['source'])
-        
-                
+
         if driving_lr is not None:
             kp_driving = model.kp_extractor(driving_lr)
         else:
             kp_driving = model.kp_extractor(x['driving'])
-        
-        get_gen_input.inputs = (x['source'], kp_source, kp_driving, True, driving_lr)
+
+        get_gen_input.inputs = (x['source'], kp_source, kp_driving, True,
+                                driving_lr)
     return get_gen_input.inputs
 
-def calculate_macs(model, file_name = None):
+
+def calculate_macs(model, file_name=None):
 
     inputs = get_gen_input()
     with warnings.catch_warnings():
@@ -733,11 +826,11 @@ def calculate_macs(model, file_name = None):
         result = profile_macs(model, inputs, reduction=None)
     return result
 
+
 def total_macs(model):
 
     macs_dict = calculate_macs(model)
     return sum(macs_dict.values())
-
 
 
 @torch.no_grad()
@@ -752,13 +845,13 @@ def channel_prune(model, deletions):
 
     all_layers = [
         m for n, m in model.named_modules()
-        if (isinstance(m, nn.Conv2d) or isinstance(
-            m, nn.modules.batchnorm._BatchNorm))
+        if (isinstance(m, nn.Conv2d)
+            or isinstance(m, nn.modules.batchnorm._BatchNorm))
     ]
     layer_graph = build_graph(all_layers, [
         n for n, m in model.named_modules()
-        if (isinstance(m, nn.Conv2d) or isinstance(
-            m, nn.modules.batchnorm._BatchNorm))
+        if (isinstance(m, nn.Conv2d)
+            or isinstance(m, nn.modules.batchnorm._BatchNorm))
     ])
 
     for index, pruners in deletions.items():
@@ -781,17 +874,15 @@ def channel_prune(model, deletions):
 
                 if node.type == 'conv':
                     nvd = node.value.weight.detach()
-                    nvd = torch.cat([
-                        nvd[:, :prune_indices[0]], nvd[:, prune_indices[1]:]
-                    ],
-                                    dim=1)
+                    nvd = torch.cat(
+                        [nvd[:, :prune_indices[0]], nvd[:, prune_indices[1]:]],
+                        dim=1)
                     node.value.weight.set_(nvd.clone().detach().contiguous())
                 if node.type == 'bn':
 
                     def f_set(nvd, w, prune_indices):
-                        nvd = torch.cat([
-                            nvd[:prune_indices[0]], nvd[prune_indices[1]:]
-                        ])
+                        nvd = torch.cat(
+                            [nvd[:prune_indices[0]], nvd[prune_indices[1]:]])
                         w.set_(nvd.clone().detach())
 
                     f_set(node.value.weight.detach(), node.value.weight,
@@ -806,7 +897,8 @@ def channel_prune(model, deletions):
     return model
 
 
-def get_metrics_loss(metrics_dataloader, lr_size, generator_full, generator_type):
+def get_metrics_loss(metrics_dataloader, lr_size, generator_full,
+                     generator_type):
     total_loss = 0
     with torch.no_grad():
         for y in metrics_dataloader:
@@ -825,7 +917,12 @@ def get_metrics_loss(metrics_dataloader, lr_size, generator_full, generator_type
     return total_loss
 
 
-def compute_deletion(layer_graph, custom_deletions, deleted_things, layer, custom=None, reason=None):
+def compute_deletion(layer_graph,
+                     custom_deletions,
+                     deleted_things,
+                     layer,
+                     custom=None,
+                     reason=None):
     """
     Given a layer, generate the list of the indexes we need to delete from its following layers
     """
@@ -845,8 +942,6 @@ def compute_deletion(layer_graph, custom_deletions, deleted_things, layer, custo
     for after_layer in layer_graph[layer].after:
         follow(layer_graph[after_layer])
 
-
-
     # If you delete a part of the previous one, not just all of it then you cannot just say these n are to be deleted
     # So for each layer you need to figure out what you are deleting from it, then for the next layer figure out what is deleted
 
@@ -855,13 +950,13 @@ def compute_deletion(layer_graph, custom_deletions, deleted_things, layer, custo
     if custom is None:
         deletions[layer] = [(layer_graph[layer].o - i, layer_graph[layer].o)]
     else:
-        deletions[layer] = [(layer_graph[layer].o - custom, layer_graph[layer].o)]
+        deletions[layer] = [(layer_graph[layer].o - custom,
+                             layer_graph[layer].o)]
 
     amount_to_delete = custom
     if custom is None:
         amount_to_delete = i
 
-    
     for mirror in layer_graph[layer].mirror:
         # Start a new custom deletion for the mirror
         if reason != 'mirror':
@@ -869,26 +964,27 @@ def compute_deletion(layer_graph, custom_deletions, deleted_things, layer, custo
             custom_deletions.append((mirror, amount_to_delete, 'mirror'))
             print("Starting a mirrorred deletion")
 
-
     for following_layer in following_layers:
         if following_layer in deletions:
             continue
 
         deletions[following_layer] = []
         counter = 0
-        #previous_mirrors = [i for i in layer_graph[following_layer].before
+        # previous_mirrors = [i for i in layer_graph[following_layer].before
         for previous_layer in layer_graph[following_layer].before:
             if previous_layer not in deletions:
                 continue
             # Currently assumes we can only have one set of mirrors for a particular mirror output
             # If the previous layer is a mirror with the next one, exclude it so we only include it once
-            if len(layer_graph[previous_layer].mirror) == 0 or True or min(layer_graph[previous_layer].mirror) > previous_layer:
+            if len(layer_graph[previous_layer].mirror) == 0 or True or min(
+                    layer_graph[previous_layer].mirror) > previous_layer:
                 for deletion in deletions[previous_layer]:
                     deletions[following_layer].append(
                         (counter + deletion[0], counter + deletion[1]))
                 counter += layer_graph[previous_layer].o
             else:
-                print("ignoring layer", previous_layer, "in", layer_graph[previous_layer].mirror)
+                print("ignoring layer", previous_layer, "in",
+                      layer_graph[previous_layer].mirror)
 
         if len(layer_graph[following_layer].tied_after) != 0:
             total_deleted = 0
@@ -898,31 +994,35 @@ def compute_deletion(layer_graph, custom_deletions, deleted_things, layer, custo
                 if after_tied not in deleted_things:
                     deleted_things.add(after_tied)
                     custom_deletions.append((after_tied, total_deleted, 'tie'))
-            
-
 
     # The original layer is a special case because you delete its output not input
     deletions[layer].insert(0, 'first')
     return deletions
 
 
-def try_reduce(curr_loss, curr_model, per_layer_macs, dataloader, layer_graph, layer, kp_detector, discriminator, train_params, model, target, current, lr_size, generator_type, metrics_dataloader, generator_full):
+def try_reduce(curr_loss, curr_model, per_layer_macs, dataloader, layer_graph,
+               layer, kp_detector, discriminator, train_params, model, target,
+               current, lr_size, generator_type, metrics_dataloader,
+               generator_full):
     custom_deletions = []
     deleted_things = set()
     model_copy = copy.deepcopy(model)
     if 1 >= layer_graph[layer].o:
         return None, None
-    deletions = compute_deletion(layer_graph, custom_deletions, deleted_things,layer, 1)
+    deletions = compute_deletion(layer_graph, custom_deletions, deleted_things,
+                                 layer, 1)
     print(deletions)
     if deletions is None:
         return None, None
-    model_copy = channel_prune( model_copy, deletions)
+    model_copy = channel_prune(model_copy, deletions)
     while len(custom_deletions) != 0:
-        custom_deletion =  custom_deletions[0]
+        custom_deletion = custom_deletions[0]
         custom_deletions = custom_deletions[1:]
-        deletions = compute_deletion(layer_graph, custom_deletions, deleted_things, custom_deletion[0], custom_deletion[1], custom_deletion[2])
+        deletions = compute_deletion(layer_graph, custom_deletions,
+                                     deleted_things, custom_deletion[0],
+                                     custom_deletion[1], custom_deletion[2])
         print(deletions)
-        model_copy = channel_prune( model_copy, deletions)
+        model_copy = channel_prune(model_copy, deletions)
 
     after_1_reduce = total_macs(model_copy)
     print(after_1_reduce)
@@ -930,39 +1030,43 @@ def try_reduce(curr_loss, curr_model, per_layer_macs, dataloader, layer_graph, l
         print("Trying to remove something that is not a part of the model")
         return None, None
 
-    to_remove = int((current-target) // (current - after_1_reduce))
+    to_remove = int((current - target) // (current - after_1_reduce))
 
     # Check the validity of a deletion op
     if to_remove >= layer_graph[layer].o:
         print("Cannot remove enough to hit target")
         return None, None
-    
+
     if to_remove >= 1:
         model_copy = copy.deepcopy(model)
         deleted_things.clear()
         custom_deletions = []
-        deletions = compute_deletion(layer_graph, custom_deletions, deleted_things, layer, to_remove)
+        deletions = compute_deletion(layer_graph, custom_deletions,
+                                     deleted_things, layer, to_remove)
         if deletions is None:
             return None, None
-        model_copy = channel_prune( model_copy, deletions)
+        model_copy = channel_prune(model_copy, deletions)
         print(deletions)
         while len(custom_deletions) != 0:
-            custom_deletion =  custom_deletions[0]
+            custom_deletion = custom_deletions[0]
             custom_deletions = custom_deletions[1:]
-            deletions = compute_deletion(layer_graph, custom_deletions, deleted_things,custom_deletion[0], custom_deletion[1], custom_deletion[2])
+            deletions = compute_deletion(layer_graph, custom_deletions,
+                                         deleted_things, custom_deletion[0],
+                                         custom_deletion[1],
+                                         custom_deletion[2])
             print(deletions)
-            model_copy = channel_prune( model_copy, deletions)
-
+            model_copy = channel_prune(model_copy, deletions)
 
     print("done")
 
     # Train
     old_model = generator_full.generator
     generator_full.generator = model_copy
-    optimizer_generator = torch.optim.Adam(generator_full.generator.parameters(),
-                                           lr=train_params['lr_generator'],
-                                           betas=(0.5, 0.999))
-    #if torch.cuda.is_available():
+    optimizer_generator = torch.optim.Adam(
+        generator_full.generator.parameters(),
+        lr=train_params['lr_generator'],
+        betas=(0.5, 0.999))
+    # if torch.cuda.is_available():
     #    generator_full = DataParallelWithCallback(generator_full,
     #                                              device_ids=[0])
 
@@ -970,9 +1074,8 @@ def try_reduce(curr_loss, curr_model, per_layer_macs, dataloader, layer_graph, l
     for k in dataloader:
         break
 
-
     #generator_full.generator = old_model
-    c=0
+    c = 0
     for x in tqdm(dataloader):
         c += 1
         x['driving_lr'] = F.interpolate(x['driving'], lr_size)
@@ -987,12 +1090,11 @@ def try_reduce(curr_loss, curr_model, per_layer_macs, dataloader, layer_graph, l
         loss.backward()
         optimizer_generator.step()
         optimizer_generator.zero_grad()
-    total_loss= get_metrics_loss(metrics_dataloader, lr_size, generator_full, generator_type)
+    total_loss = get_metrics_loss(metrics_dataloader, lr_size, generator_full,
+                                  generator_type)
     print("Loss for this model is: ", total_loss)
-    
 
     generator_full.generator = old_model
-
 
     #del model_copy
     #del optimizer_generator
@@ -1003,18 +1105,20 @@ def try_reduce(curr_loss, curr_model, per_layer_macs, dataloader, layer_graph, l
         return None, None
     torch.cuda.empty_cache()
 
+
 def reduce_macs(model, target, current, kp_detector, discriminator,
-                                        train_params, dataloader, metrics_dataloader, generator_type, lr_size, generator_full):
+                train_params, dataloader, metrics_dataloader, generator_type,
+                lr_size, generator_full):
     # Take each layer and reduce its macs
     all_layers = [
         m for n, m in model.named_modules()
-        if (isinstance(m, nn.Conv2d) or isinstance(
-            m, nn.modules.batchnorm._BatchNorm))
+        if (isinstance(m, nn.Conv2d)
+            or isinstance(m, nn.modules.batchnorm._BatchNorm))
     ]
     layer_graph = build_graph(all_layers, [
         n for n, m in model.named_modules()
-        if (isinstance(m, nn.Conv2d) or isinstance(
-            m, nn.modules.batchnorm._BatchNorm))
+        if (isinstance(m, nn.Conv2d)
+            or isinstance(m, nn.modules.batchnorm._BatchNorm))
     ])
     per_layer_macs = calculate_macs(model)
     deletions = []
@@ -1030,8 +1134,13 @@ def reduce_macs(model, target, current, kp_detector, discriminator,
 
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
-            loss, t_model = try_reduce(curr_loss, curr_model, per_layer_macs, dataloader, layer_graph, layer, kp_detector, discriminator, train_params, model, target, current, lr_size, generator_type, metrics_dataloader, generator_full)
-        #torch.cuda.empty_cache()
+            loss, t_model = try_reduce(curr_loss, curr_model, per_layer_macs,
+                                       dataloader, layer_graph, layer,
+                                       kp_detector, discriminator,
+                                       train_params, model, target, current,
+                                       lr_size, generator_type,
+                                       metrics_dataloader, generator_full)
+        # torch.cuda.empty_cache()
         if loss is not None:
             print("Updated model")
             curr_model = t_model
