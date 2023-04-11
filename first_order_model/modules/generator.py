@@ -218,6 +218,7 @@ class OcclusionAwareGenerator(nn.Module):
         self.update_source = True
         self.encoder_output = None
         self.skip_connections = None
+        self.starter, self.ender = torch.cuda.Event(enable_timing=True), torch.cuda.Event(enable_timing=True)
 
     def deform_input(self, inp, deformation):
         _, h_old, w_old, _ = deformation.shape
@@ -238,6 +239,7 @@ class OcclusionAwareGenerator(nn.Module):
             self.source_image = source_image
         
         # Encoding (downsampling) part
+        self.starter.record()
         if self.encoder_output is None or self.update_source:
             if self.run_at_256:
                 resized_source_image = F.interpolate(source_image, 256)
@@ -262,6 +264,9 @@ class OcclusionAwareGenerator(nn.Module):
                     out = block(out)
 
                 self.encoder_output = out
+        self.ender.record()
+        torch.cuda.synchronize()
+        down_blocks_time = self.starter.elapsed_time(self.ender)
 
 
         # lr target image encoding
@@ -279,8 +284,12 @@ class OcclusionAwareGenerator(nn.Module):
         output_dict = {}
         output_dict['encoded_output'] = self.encoder_output
         if self.dense_motion_network is not None:
+            self.starter.record()
             dense_motion = self.dense_motion_network(source_image=source_image, kp_driving=kp_driving,
                                                      kp_source=kp_source, lr_frame=driving_lr)
+            self.ender.record()
+            torch.cuda.synchronize()
+            dense_motion_time = self.starter.elapsed_time(self.ender)
             if 'mask' in dense_motion and 'sparse_deformed' in dense_motion:
                 output_dict['mask'] = dense_motion['mask']
                 output_dict['sparse_deformed'] = dense_motion['sparse_deformed']
@@ -351,8 +360,13 @@ class OcclusionAwareGenerator(nn.Module):
             output_dict["deformation"] = deformation
 
         # Decoding part
+        self.starter.record()
         out = self.bottleneck(out)
+        self.ender.record()
+        torch.cuda.synchronize()
+        bottleneck_time = self.starter.elapsed_time(self.ender)
 
+        self.starter.record()
         if self.decoder_type == 'efficient':
             skip_connections = self.skip_connections if self.use_hr_skip_connections else []
             out = self.efficientnet_decoder(out, lr_encoded_features, skip_connections)
@@ -386,8 +400,15 @@ class OcclusionAwareGenerator(nn.Module):
                     if self.common_decoder_for_3_paths: # if you have non-warped features also
                         out = torch.cat([out, skip], dim=1)
                 out = block(out)
+        self.ender.record()
+        torch.cuda.synchronize()
+        up_blocks_time = self.starter.elapsed_time(self.ender)
 
+        self.starter.record()
         out = self.final(out)
+        self.ender.record()
+        torch.cuda.synchronize()
+        final_time = self.starter.elapsed_time(self.ender)
         out = F.sigmoid(out)
 
         # use LF SR pipeline if required and add it to above pipeline result
@@ -404,8 +425,10 @@ class OcclusionAwareGenerator(nn.Module):
             out = out + lf_out
 
         output_dict["prediction"] = out
+        time_dict = {'dense_motion_time': dense_motion_time, 'first_time': 5, 'down_blocks_time': down_blocks_time,
+                'bottleneck_time': bottleneck_time, 'up_blocks_time': up_blocks_time, 'final_time': final_time}
 
         if self.use_lr_video:
             output_dict['driving_lr'] = driving_lr
 
-        return output_dict
+        return output_dict, time_dict

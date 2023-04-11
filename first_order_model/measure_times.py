@@ -133,8 +133,8 @@ def time_generator(model):
     starter, ender = torch.cuda.Event(enable_timing=True), torch.cuda.Event(enable_timing=True)
     
     # warm-up
-    for _ in range(WARM_UP):
-        _ = model(*model_inputs)
+    for i in range(WARM_UP):
+        _, _ = model(*model_inputs)
     
     # measuring
     total_times = []
@@ -143,15 +143,15 @@ def time_generator(model):
     with torch.no_grad():
         for rep in range(NUM_RUNS):
             starter.record()
-            _ =  model(*model_inputs)
+            _, time_dict =  model(*model_inputs)
             ender.record()
             # WAIT FOR GPU SYNC
             torch.cuda.synchronize()
             curr_time = starter.elapsed_time(ender)
             print(curr_time)
             total_times.append(curr_time)
-            #for key in time_dict.keys():
-            #    times_dict[key].append(time_dict[key])
+            for key in time_dict.keys():
+                times_dict[key].append(time_dict[key])
             if SLEEP_DUR > 0:
                 time.sleep(SLEEP_DUR)
     times_dict['total_with_print'] = total_times
