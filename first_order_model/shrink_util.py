@@ -926,9 +926,6 @@ def compute_deletion(layer_graph,
     """
     Given a layer, generate the list of the indexes we need to delete from its following layers
     """
-    # Reduct its output
-    curr_output = layer_graph[layer].o
-
     # find all the following layers
     following_layers = []
 
@@ -947,16 +944,13 @@ def compute_deletion(layer_graph,
 
     # So make a map of deletions
     deletions = {}
-    if custom is None:
-        deletions[layer] = [(layer_graph[layer].o - i, layer_graph[layer].o)]
-    else:
-        deletions[layer] = [(layer_graph[layer].o - custom,
-                             layer_graph[layer].o)]
+    deletions[layer] = [(layer_graph[layer].o - custom,
+                         layer_graph[layer].o)]
 
     amount_to_delete = custom
-    if custom is None:
-        amount_to_delete = i
 
+    # If there is a plus operation, the other operand is a "mirror" of this
+    # SO copy whatever we do here to the other operand
     for mirror in layer_graph[layer].mirror:
         # Start a new custom deletion for the mirror
         if reason != 'mirror':
@@ -976,7 +970,7 @@ def compute_deletion(layer_graph,
                 continue
             # Currently assumes we can only have one set of mirrors for a particular mirror output
             # If the previous layer is a mirror with the next one, exclude it so we only include it once
-            if len(layer_graph[previous_layer].mirror) == 0 or True or min(
+            if len(layer_graph[previous_layer].mirror) == 0 or min(
                     layer_graph[previous_layer].mirror) > previous_layer:
                 for deletion in deletions[previous_layer]:
                     deletions[following_layer].append(
@@ -1000,17 +994,11 @@ def compute_deletion(layer_graph,
     return deletions
 
 
-def try_reduce(curr_loss, curr_model, per_layer_macs, dataloader, layer_graph,
-               layer, kp_detector, discriminator, train_params, model, target,
-               current, lr_size, generator_type, metrics_dataloader,
-               generator_full):
+def shrink_model(model_copy, layer_graph, layer, count):
     custom_deletions = []
     deleted_things = set()
-    model_copy = copy.deepcopy(model)
-    if 1 >= layer_graph[layer].o:
-        return None, None
     deletions = compute_deletion(layer_graph, custom_deletions, deleted_things,
-                                 layer, 1)
+                                 layer, count)
     print(deletions)
     if deletions is None:
         return None, None
@@ -1023,12 +1011,23 @@ def try_reduce(curr_loss, curr_model, per_layer_macs, dataloader, layer_graph,
                                      custom_deletion[1], custom_deletion[2])
         print(deletions)
         model_copy = channel_prune(model_copy, deletions)
+    return model_copy
+
+def try_reduce(curr_loss, curr_model, per_layer_macs, dataloader, layer_graph,
+               layer, kp_detector, discriminator, train_params, model, target,
+               current, lr_size, generator_type, metrics_dataloader,
+               generator_full):
+    model_copy = copy.deepcopy(model)
+    if 1 >= layer_graph[layer].o:
+        return None, None
+    model_copy = shrink_model(model_copy, layer_graph, layer, 1)
 
     after_1_reduce = total_macs(model_copy)
     print(after_1_reduce)
     if after_1_reduce == current:
         print("Trying to remove something that is not a part of the model")
         return None, None
+
 
     to_remove = int((current - target) // (current - after_1_reduce))
 
@@ -1037,26 +1036,8 @@ def try_reduce(curr_loss, curr_model, per_layer_macs, dataloader, layer_graph,
         print("Cannot remove enough to hit target")
         return None, None
 
-    if to_remove >= 1:
-        model_copy = copy.deepcopy(model)
-        deleted_things.clear()
-        custom_deletions = []
-        deletions = compute_deletion(layer_graph, custom_deletions,
-                                     deleted_things, layer, to_remove)
-        if deletions is None:
-            return None, None
-        model_copy = channel_prune(model_copy, deletions)
-        print(deletions)
-        while len(custom_deletions) != 0:
-            custom_deletion = custom_deletions[0]
-            custom_deletions = custom_deletions[1:]
-            deletions = compute_deletion(layer_graph, custom_deletions,
-                                         deleted_things, custom_deletion[0],
-                                         custom_deletion[1],
-                                         custom_deletion[2])
-            print(deletions)
-            model_copy = channel_prune(model_copy, deletions)
-
+    model_copy = copy.deepcopy(model)
+    model_copy = shrink_model(model_copy, layer_graph, layer, to_remove)
     print("done")
 
     # Train
@@ -1066,9 +1047,6 @@ def try_reduce(curr_loss, curr_model, per_layer_macs, dataloader, layer_graph,
         generator_full.generator.parameters(),
         lr=train_params['lr_generator'],
         betas=(0.5, 0.999))
-    # if torch.cuda.is_available():
-    #    generator_full = DataParallelWithCallback(generator_full,
-    #                                              device_ids=[0])
 
     counter = 0
     for k in dataloader:
