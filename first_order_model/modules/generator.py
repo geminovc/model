@@ -119,6 +119,7 @@ class OcclusionAwareGenerator(nn.Module):
                 blocks_args, global_params = get_model_params('efficientnet-b0', None)
                 lr_block_args = blocks_args[idx]
                 lr_block_args = lr_block_args._replace(stride=1, input_filters=3)
+                # single Mobilenet block to encode LR
                 self.lr_first = MBConvBlock(lr_block_args, 
                                             global_params, 
                                             image_size=(self.lr_size, self.lr_size))
@@ -332,8 +333,8 @@ class OcclusionAwareGenerator(nn.Module):
         
         # concatenate all pieces of info before decoding if you
         # want to use LR + static HR background
-        # LR will get incorporated at the appropriate place below
-        # in upblocks
+        # LR will get incorporated at the appropriate place below in upblocks
+        # use addition instead of concat for EfficientNet to keep features small
         if self.common_decoder_for_3_paths:
             if self.decoder_type == 'efficient':
                 out += hr_encoded_features

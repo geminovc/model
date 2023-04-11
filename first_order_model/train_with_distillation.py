@@ -1,3 +1,14 @@
+""" Train routine for distillation.
+
+    Sets up teacher model with standard convolutions. Sets up
+    an efficientnet based generator to mimic the teacher model.
+    By default, losses on the efficientnet version are computed
+    relative to the teacher model, rather than the ground truth.
+    This can be changed in models.py. Has support for only training
+    the decoder part in an efficient manner, and keeping the rest
+    frozen from the teacher model.
+"""
+
 from tqdm import trange
 import torch
 import torch.nn.functional as F
@@ -89,9 +100,13 @@ def train_distillation(config, generator, discriminator, kp_detector, teacher_ch
         ev_jacobian = train_params['loss_weights']['equivariance_jacobian']
         assert ev_loss == 0 and ev_jacobian == 0, "Equivariance losses must be 0 to freeze keypoint detector"
 
+        # Freezes dense motion from the teacher in the student
         for param in generator.dense_motion_network.parameters():
             param.requires_grad = False
 
+        # Ensure that none of the encoder blocks for the HR or LR 
+        # pathways are training in the student since the encoder is
+        # used sparingly in the end-to-end pipeline.
         if decoder_training:
             for param in generator.hr_first.parameters(): 
                 param.requires_grad = False

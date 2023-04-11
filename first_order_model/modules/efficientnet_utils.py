@@ -510,6 +510,7 @@ def efficientnet(width_coefficient=None, depth_coefficient=None, image_size=None
 
     # Blocks args for the whole model(efficientnet-b0 by default)
     # It will be modified in the construction of EfficientNet Class according to model
+    # original block args before incorporating into Gemino
     """
     blocks_args = [
         'r1_k3_s11_e1_i32_o16_se0.25',
@@ -521,6 +522,9 @@ def efficientnet(width_coefficient=None, depth_coefficient=None, image_size=None
         'r1_k3_s11_e6_i192_o320_se0.25',
     ]
     """
+
+    # modified block args for Gemino with no repetitions 
+    # matched up number of features
     blocks_args = [
         'r1_k3_s22_e6_i16_o32_se0.25',
         'r1_k3_s22_e6_i32_o64_se0.25',
