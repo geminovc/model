@@ -133,118 +133,6 @@ def set_keypoint_module(mod, state_dict):
             # Here you can either replace the existing one
             set_attr(mod, submod_names, dict_param)
     
-def count(name):
-    obj_counter = 0
-    for obj in gc.get_objects():
-        try:
-            if torch.is_tensor(obj) or (hasattr(obj, 'data') and torch.is_tensor(obj.data)):
-                obj_counter += 1
-        except:
-            pass 
-    #print("Gc tracks ", obj_counter, "objects in ", name)
-
-def get_sizes():
-    s = {}
-    obj_counter = 0
-    for obj in gc.get_objects():
-        try:
-            if torch.is_tensor(obj) or (hasattr(obj, 'data') and torch.is_tensor(obj.data)):
-                size = tuple(obj.size())
-                if size in s:
-                    s[size] = s[size] + 1
-                else:
-                    s[size] = 1
-                obj_counter += 1
-        except:
-            pass 
-    return s
-def plot_weight_distribution(model,
-                             file_name,
-                             bins=128,
-                             count_nonzero_only=False):
-    fig, axes = plt.subplots(8, 10, figsize=(100, 60))
-    axes = axes.ravel()
-    plot_index = 0
-    for name, param in model.named_parameters():
-        if not name.endswith('weight'):
-            continue
-        if param.dim() > 1:
-            ax = axes[plot_index]
-            if count_nonzero_only:
-                param_cpu = param.detach().view(-1).cpu()
-                param_cpu = torch.norm(param_cpu, 'fro')
-                param_cpu = param_cpu[param_cpu != 0].view(-1)
-                ax.hist(param_cpu, bins=bins, density=True, alpha=0.5)
-            else:
-                ax.hist(param.detach().reshape(-1).cpu().numpy(),
-                        bins=bins,
-                        density=True,
-                        color='blue',
-                        alpha=0.5)
-            ax.set_xlabel(name)
-            ax.set_ylabel('density')
-            plot_index += 1
-    fig.suptitle('Histogram of Weights')
-    fig.tight_layout()
-    fig.subplots_adjust(top=0.925)
-    plt.savefig(file_name)
-
-
-def plot_layer_parameters(model, file_name):
-
-    fig, axes = plt.subplots(1, 1, figsize=(100, 60))
-    names = [n for n, m in model.named_parameters()]
-
-    def mul(x):
-        prod = 1
-        for a in x:
-            prod = prod * a
-        return prod
-
-    parameter_size = [mul(m.shape) for n, m in model.named_parameters()]
-    axes.set_yscale("log")
-    axes.bar(names, parameter_size)
-    axes.set_xticklabels(names, rotation=90)
-
-    fig.suptitle("Number of weights")
-    fig.savefig(file_name)
-
-
-def plot_norm_distribution(model,
-                           file_name,
-                           bins=128,
-                           count_nonzero_only=False):
-    fig, axes = plt.subplots(8, 10, figsize=(100, 60))
-    axes = axes.ravel()
-    plot_index = 0
-    for name, param in model.named_parameters():
-        if not name.endswith('weight'):
-            continue
-        if param.dim() > 1:
-            ax = axes[plot_index]
-            if count_nonzero_only:
-                param_cpu = param.detach().view(-1).cpu()
-                param_cpu = torch.norm(param_cpu, 'fro')
-                param_cpu = param_cpu[param_cpu != 0].view(-1)
-                ax.hist(param_cpu, bins=bins, density=True, alpha=0.5)
-            else:
-                op = []
-                for i in range(param.shape[1]):
-                    op.append(torch.norm(param[:, i]).detach().cpu().numpy())
-                op = np.asarray(op)
-                ax.hist(op, bins=bins, density=True, color='blue', alpha=0.5)
-            ax.set_xlabel(name)
-            ax.set_ylabel('density')
-            plot_index += 1
-    fig.suptitle('Histogram of Weights')
-    fig.tight_layout()
-    fig.subplots_adjust(top=0.925)
-    plt.savefig(file_name)
-
-
-def fine_grained_prune(tensor, sparsity):
-    prune.l1_unstructured(module, name='weight', amount=sparsity)
-
 
 def get_input_channel_importance(weight):
     in_channels = weight.shape[1]
@@ -785,30 +673,6 @@ def apply_channel_sorting(model):
     return model
 
 
-def get_num_channels_to_keep(channels: int, prune_ratio: float) -> int:
-    """A function to calculate the number of layers to PRESERVE after pruning
-    Note that preserve_rate = 1. - prune_ratio
-    """
-    return int(round(channels * (1 - prune_ratio)))
-
-
-def select_convs(model, params):
-
-    names = [
-        m for n, m in model.named_modules()
-        if (isinstance(m, nn.Conv2d) or isinstance(
-            m, nn.modules.batchnorm._BatchNorm))
-    ]
-
-    targets = [i for i, m in enumerate(names) if (isinstance(m, nn.Conv2d))]
-
-    new_params = []
-    for k in targets:
-        new_params.append(params[k])
-
-    return new_params
-
-
 def get_generator_time(model, x):
     #for i in range(10):
     #    _ = model(inp)
@@ -877,7 +741,7 @@ def total_macs(model):
 
 
 @torch.no_grad()
-def channel_prune(model, prune_ratio, deletions=None):
+def channel_prune(model, deletions):
     """Apply channel pruning to each of the conv layer in the backbone
     Note that for prune_ratio, we can either provide a floating-point number,
     indicating that we use a uniform pruning rate for all layers, or a list of
@@ -897,38 +761,37 @@ def channel_prune(model, prune_ratio, deletions=None):
             m, nn.modules.batchnorm._BatchNorm))
     ])
 
-    if deletions is None:
-        for base_index in layer_graph:
-            node = layer_graph[base_index]
-            total_rows = 0
-            counter = 0
-            pruners = []
-            curr_index = 0
-            for node_index in node.before:
-                total_rows += int(prune_ratio * layer_graph[node_index].o)
-
-                pruners.append(
-                    (int(counter + (layer_graph[node_index].o * prune_ratio)),
-                     counter + (layer_graph[node_index].o)))
-                counter += layer_graph[node_index].o
-
-            to_delete = total_rows
-
+    for index, pruners in deletions.items():
+        node = layer_graph[index]
+        if pruners[0] == 'first':
+            if node.type == 'conv' and len(node.after) != 0:
+                # Prune the outupts
+                node.value.weight.set_(
+                    node.value.weight.detach()[:pruners[1][0]].contiguous())
+                if node.value.bias is not None:
+                    node.value.bias.set_(
+                        node.value.bias.detach()[:pruners[1][0]].contiguous())
+            else:
+                print("Should not be shrinking a batchnorm")
+            if node.value.groups != 1:
+                node.value.groups = node.value.weight.shape[0]
+        else:
             for i in range(len(pruners)):
                 prune_indices = pruners[len(pruners) - i - 1]
 
                 if node.type == 'conv':
                     nvd = node.value.weight.detach()
-                    nvd = torch.cat(
-                        [nvd[:, :prune_indices[0]], nvd[:, prune_indices[1]:]],
-                        dim=1)
-                    node.value.weight.set_(nvd.clone().detach())
-
+                    nvd = torch.cat([
+                        nvd[:, :prune_indices[0]], nvd[:, prune_indices[1]:]
+                    ],
+                                    dim=1)
+                    node.value.weight.set_(nvd.clone().detach().contiguous())
                 if node.type == 'bn':
 
                     def f_set(nvd, w, prune_indices):
-                        nvd = torch.cat(
-                            [nvd[:prune_indices[0]], nvd[prune_indices[1]:]])
+                        nvd = torch.cat([
+                            nvd[:prune_indices[0]], nvd[prune_indices[1]:]
+                        ])
                         w.set_(nvd.clone().detach())
 
                     f_set(node.value.weight.detach(), node.value.weight,
@@ -939,110 +802,9 @@ def channel_prune(model, prune_ratio, deletions=None):
                           node.value.running_mean, prune_indices)
                     f_set(node.value.running_var.detach(),
                           node.value.running_var, prune_indices)
-            op_delete = int((prune_ratio) * node.o)
-            if node.type == 'conv':
-                if len(node.after) != 0:
-                    # Prune the outupts
-                    node.value.weight.set_(
-                        node.value.weight.detach()[:op_delete])
-                    node.value.bias.set_(node.value.bias.detach()[:op_delete])
-        return model
-    else:
-        for index, pruners in deletions.items():
-            node = layer_graph[index]
-            if pruners[0] == 'first':
-                if node.type == 'conv' and len(node.after) != 0:
-                    # Prune the outupts
-                    node.value.weight.set_(
-                        node.value.weight.detach()[:pruners[1][0]].contiguous())
-                    if node.value.bias is not None:
-                        node.value.bias.set_(
-                            node.value.bias.detach()[:pruners[1][0]].contiguous())
-                else:
-                    print("Should not be shrinking a batchnorm")
-                if node.value.groups != 1:
-                    node.value.groups = node.value.weight.shape[0]
-            else:
-                for i in range(len(pruners)):
-                    prune_indices = pruners[len(pruners) - i - 1]
 
-                    if node.type == 'conv':
-                        nvd = node.value.weight.detach()
-                        nvd = torch.cat([
-                            nvd[:, :prune_indices[0]], nvd[:, prune_indices[1]:]
-                        ],
-                                        dim=1)
-                        node.value.weight.set_(nvd.clone().detach().contiguous())
-                    if node.type == 'bn':
+    return model
 
-                        def f_set(nvd, w, prune_indices):
-                            nvd = torch.cat([
-                                nvd[:prune_indices[0]], nvd[prune_indices[1]:]
-                            ])
-                            w.set_(nvd.clone().detach())
-
-                        f_set(node.value.weight.detach(), node.value.weight,
-                              prune_indices)
-                        f_set(node.value.bias.detach(), node.value.bias,
-                              prune_indices)
-                        f_set(node.value.running_mean.detach(),
-                              node.value.running_mean, prune_indices)
-                        f_set(node.value.running_var.detach(),
-                              node.value.running_var, prune_indices)
-
-        #for base_index in layer_graph:
-        #    node = layer_graph[base_index]
-        #    total_rows = 0
-        #    counter = 0
-        #    pruners = []
-        #    curr_index = 0
-        #    for node_index in node.before:
-        #        total_rows += int(prune_ratios[node_index] *
-        #                          layer_graph[node_index].o)
-        #        pruners.append((int(counter + (layer_graph[node_index].o *
-        #                                       prune_ratios[node_index])),
-        #                        counter + (layer_graph[node_index].o)))
-        #        counter += layer_graph[node_index].o
-
-        #    to_delete = total_rows
-
-        return model
-
-
-@torch.no_grad()
-def sensitivity_scan(model,
-                     dataloader,
-                     scan_step=0.1,
-                     scan_start=0.4,
-                     scan_end=1.0,
-                     verbose=True):
-    sparsities = np.arange(start=scan_start, stop=scan_end, step=scan_step)
-    accuracies = []
-    named_conv_weights = [(name, param) for (name, param) \
-                          in model.named_parameters() if param.dim() > 1]
-    for i_layer, (name, param) in enumerate(named_conv_weights):
-        param_clone = param.detach().clone()
-        accuracy = []
-        for sparsity in tqdm(
-                sparsities,
-                desc=
-                f'scanning {i_layer}/{len(named_conv_weights)} weight - {name}'
-        ):
-            prune.l1_unstructured(param, name='weight', amount=sparsity)
-            fine_grained_prune(param.detach(), sparsity=sparsity)
-            acc = evaluate(model, dataloader, verbose=False)
-            if verbose:
-                print(f'\r    sparsity={sparsity:.2f}: accuracy={acc:.2f}%',
-                      end='')
-            # restore
-            param.copy_(param_clone)
-            accuracy.append(acc)
-        if verbose:
-            print(
-                f'\r    sparsity=[{",".join(["{:.2f}".format(x) for x in sparsities])}]: accuracy=[{", ".join(["{:.2f}%".format(x) for x in accuracy])}]',
-                end='')
-        accuracies.append(accuracy)
-    return sparsities, accuracies
 
 def get_metrics_loss(metrics_dataloader, lr_size, generator_full, generator_type):
     total_loss = 0
@@ -1062,138 +824,105 @@ def get_metrics_loss(metrics_dataloader, lr_size, generator_full, generator_type
 
     return total_loss
 
+
+def compute_deletion(layer_graph, custom_deletions, deleted_things, layer, custom=None, reason=None):
+    """
+    Given a layer, generate the list of the indexes we need to delete from its following layers
+    """
+    # Reduct its output
+    curr_output = layer_graph[layer].o
+
+    # find all the following layers
+    following_layers = []
+
+    def follow(x):
+        following_layers.append(x.index)
+        if x.type == 'conv':
+            return
+        for y in x.after:
+            follow(layer_graph[y])
+
+    for after_layer in layer_graph[layer].after:
+        follow(layer_graph[after_layer])
+
+
+
+    # If you delete a part of the previous one, not just all of it then you cannot just say these n are to be deleted
+    # So for each layer you need to figure out what you are deleting from it, then for the next layer figure out what is deleted
+
+    # So make a map of deletions
+    deletions = {}
+    if custom is None:
+        deletions[layer] = [(layer_graph[layer].o - i, layer_graph[layer].o)]
+    else:
+        deletions[layer] = [(layer_graph[layer].o - custom, layer_graph[layer].o)]
+
+    amount_to_delete = custom
+    if custom is None:
+        amount_to_delete = i
+
+    
+    for mirror in layer_graph[layer].mirror:
+        # Start a new custom deletion for the mirror
+        if reason != 'mirror':
+            amount_to_delete = amount_to_delete
+            custom_deletions.append((mirror, amount_to_delete, 'mirror'))
+            print("Starting a mirrorred deletion")
+
+
+    for following_layer in following_layers:
+        if following_layer in deletions:
+            continue
+
+        deletions[following_layer] = []
+        counter = 0
+        #previous_mirrors = [i for i in layer_graph[following_layer].before
+        for previous_layer in layer_graph[following_layer].before:
+            if previous_layer not in deletions:
+                continue
+            # Currently assumes we can only have one set of mirrors for a particular mirror output
+            # If the previous layer is a mirror with the next one, exclude it so we only include it once
+            if len(layer_graph[previous_layer].mirror) == 0 or True or min(layer_graph[previous_layer].mirror) > previous_layer:
+                for deletion in deletions[previous_layer]:
+                    deletions[following_layer].append(
+                        (counter + deletion[0], counter + deletion[1]))
+                counter += layer_graph[previous_layer].o
+            else:
+                print("ignoring layer", previous_layer, "in", layer_graph[previous_layer].mirror)
+
+        if len(layer_graph[following_layer].tied_after) != 0:
+            total_deleted = 0
+            for del_tuple in deletions[following_layer]:
+                total_deleted += del_tuple[1] - del_tuple[0]
+            for after_tied in layer_graph[following_layer].tied_after:
+                if after_tied not in deleted_things:
+                    deleted_things.add(after_tied)
+                    custom_deletions.append((after_tied, total_deleted, 'tie'))
+            
+
+
+    # The original layer is a special case because you delete its output not input
+    deletions[layer].insert(0, 'first')
+    return deletions
+
+
 def try_reduce(curr_loss, curr_model, per_layer_macs, dataloader, layer_graph, layer, kp_detector, discriminator, train_params, model, target, current, lr_size, generator_type, metrics_dataloader, generator_full):
     custom_deletions = []
     deleted_things = set()
-    def compute_deletion(layer, custom=None, reason=None):
-        # Reduct its output
-        curr_output = layer_graph[layer].o
-
-        # find all the following layers
-        following_layers = []
-
-        def follow(x):
-            following_layers.append(x.index)
-            if x.type == 'conv':
-                return
-            for y in x.after:
-                follow(layer_graph[y])
-
-        for after_layer in layer_graph[layer].after:
-            follow(layer_graph[after_layer])
-
-    
-        def edit_macs(following_layers, layer, k):
-            temp = current
-            actual_layer = None
-            for t_layer in layer_graph:
-                if layer_graph[t_layer].index == layer:
-                    actual_layer = layer_graph[t_layer]
-            temp -= per_layer_macs[layer] * k / actual_layer.o
-            for temp_layer in following_layers:
-                actual_layer = None
-                for t_layer in layer_graph:
-                    if layer_graph[t_layer].index == temp_layer:
-                        actual_layer = layer_graph[t_layer]
-                temp -= per_layer_macs[temp_layer] * k / actual_layer.i
-
-            return temp
-
-        i = 0
-        if custom is None:
-            fail = False
-            while edit_macs(following_layers, layer, i) > target:
-                if layer_graph[layer].o > i:
-                    i += 1
-                else:
-                    fail = True
-                    break
-
-            if fail:
-                return None
-
-            else:
-                pass
-        # Build the pruning graph
-        prune_ratios = {}
-        prune_ratios[layer_graph[layer].index] = i / layer_graph[layer].o
-
-        # If you delete a part of the previous one, not just all of it then you cannot just say these n are to be deleted
-        # So for each layer you need to figure out what you are deleting from it, then for the next layer figure out what is deleted
-
-        # So make a map of deletions
-        deletions = {}
-        if custom is None:
-            deletions[layer] = [(layer_graph[layer].o - i, layer_graph[layer].o)]
-        else:
-            deletions[layer] = [(layer_graph[layer].o - custom, layer_graph[layer].o)]
-
-        amount_to_delete = custom
-        if custom is None:
-            amount_to_delete = i
-
-        
-        for mirror in layer_graph[layer].mirror:
-            # Start a new custom deletion for the mirror
-            if reason != 'mirror':
-                amount_to_delete = amount_to_delete
-                custom_deletions.append((mirror, amount_to_delete, 'mirror'))
-                print("Starting a mirrorred deletion")
-
-
-        for following_layer in following_layers:
-            if following_layer in deletions:
-                continue
-
-            deletions[following_layer] = []
-            counter = 0
-            #previous_mirrors = [i for i in layer_graph[following_layer].before
-            for previous_layer in layer_graph[following_layer].before:
-                if previous_layer not in deletions:
-                    continue
-                # Currently assumes we can only have one set of mirrors for a particular mirror output
-                # If the previous layer is a mirror with the next one, exclude it so we only include it once
-                if len(layer_graph[previous_layer].mirror) == 0 or True or min(layer_graph[previous_layer].mirror) > previous_layer:
-                    for deletion in deletions[previous_layer]:
-                        deletions[following_layer].append(
-                            (counter + deletion[0], counter + deletion[1]))
-                    counter += layer_graph[previous_layer].o
-                else:
-                    print("ignoring layer", previous_layer, "in", layer_graph[previous_layer].mirror)
-
-            if len(layer_graph[following_layer].tied_after) != 0:
-                total_deleted = 0
-                for del_tuple in deletions[following_layer]:
-                    total_deleted += del_tuple[1] - del_tuple[0]
-                for after_tied in layer_graph[following_layer].tied_after:
-                    if after_tied not in deleted_things:
-                        deleted_things.add(after_tied)
-                        custom_deletions.append((after_tied, total_deleted, 'tie'))
-                
-
-
-        # The original layer is a special case because you delete its output not input
-        deletions[layer].insert(0, 'first')
-        return deletions
-
     model_copy = copy.deepcopy(model)
     if 1 >= layer_graph[layer].o:
         return None, None
-    deletions = compute_deletion(layer, 1)
+    deletions = compute_deletion(layer_graph, custom_deletions, deleted_things,layer, 1)
     print(deletions)
     if deletions is None:
         return None, None
-    model_copy = channel_prune(
-        model_copy, 0.1,
-        deletions)  # The 0.1 is a dummy variable for now, gets ignored
+    model_copy = channel_prune( model_copy, deletions)
     while len(custom_deletions) != 0:
         custom_deletion =  custom_deletions[0]
         custom_deletions = custom_deletions[1:]
-        deletions = compute_deletion(custom_deletion[0], custom_deletion[1], custom_deletion[2])
+        deletions = compute_deletion(layer_graph, custom_deletions, deleted_things, custom_deletion[0], custom_deletion[1], custom_deletion[2])
         print(deletions)
-        model_copy = channel_prune(
-            model_copy, 0.1,
-            deletions)  # The 0.1 is a dummy variable for now, gets ignored
+        model_copy = channel_prune( model_copy, deletions)
 
     after_1_reduce = total_macs(model_copy)
     print(after_1_reduce)
@@ -1212,21 +941,17 @@ def try_reduce(curr_loss, curr_model, per_layer_macs, dataloader, layer_graph, l
         model_copy = copy.deepcopy(model)
         deleted_things.clear()
         custom_deletions = []
-        deletions = compute_deletion(layer, to_remove)
+        deletions = compute_deletion(layer_graph, custom_deletions, deleted_things, layer, to_remove)
         if deletions is None:
             return None, None
-        model_copy = channel_prune(
-            model_copy, 0.1,
-            deletions)  # The 0.1 is a dummy variable for now, gets ignored
+        model_copy = channel_prune( model_copy, deletions)
         print(deletions)
         while len(custom_deletions) != 0:
             custom_deletion =  custom_deletions[0]
             custom_deletions = custom_deletions[1:]
-            deletions = compute_deletion(custom_deletion[0], custom_deletion[1], custom_deletion[2])
+            deletions = compute_deletion(layer_graph, custom_deletions, deleted_things,custom_deletion[0], custom_deletion[1], custom_deletion[2])
             print(deletions)
-            model_copy = channel_prune(
-                model_copy, 0.1,
-                deletions)  # The 0.1 is a dummy variable for now, gets ignored
+            model_copy = channel_prune( model_copy, deletions)
 
 
     print("done")
@@ -1256,13 +981,7 @@ def try_reduce(curr_loss, curr_model, per_layer_macs, dataloader, layer_graph, l
                 x[k] = x[k].cuda()
             except:
                 pass
-        #print("Before")
-        #print(get_sizes())
-        #count("before gen")
         losses_generator, generated = generator_full(x, generator_type)
-        #print("After")
-        #print(get_sizes())
-        #count("after gen")
         loss_values = [val.mean() for val in losses_generator.values()]
         loss = sum(loss_values)
         loss.backward()
