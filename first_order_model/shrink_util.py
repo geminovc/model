@@ -950,17 +950,21 @@ def compute_deletion(layer_graph,
     # If you delete a part of the previous one, not just all of it then you cannot just say these n are to be deleted
     # So for each layer you need to figure out what you are deleting from it, then for the next layer figure out what is deleted
 
-    # So make a map of deletions
     deletions = {}
-    deletions[layer] = custom # [(layer_graph[layer].o - custom, layer_graph[layer].o)]
-
+    if isinstance(custom, list):
+        deletions[layer] = custom
+    elif isinstance(custom, int):
+        # The sorting magic happens here
+        deletions[layer] = [(layer_graph[layer].o - custom, layer_graph[layer].o)]
+    else:
+        assert(False)
 
     # If there is a plus operation, the other operand is a "mirror" of this
     # SO copy whatever we do here to the other operand
     for mirror in layer_graph[layer].mirror:
         # Start a new custom deletion for the mirror
         if reason != 'mirror':
-            custom_deletions.append((mirror, custom, 'mirror'))
+            custom_deletions.append((mirror, copy.copy(deletions[layer]), 'mirror'))
             print("Starting a mirrorred deletion")
 
     for following_layer in following_layers:
@@ -976,20 +980,15 @@ def compute_deletion(layer_graph,
                 continue
             # Currently assumes we can only have one set of mirrors for a particular mirror output
             # If the previous layer is a mirror with the next one, exclude it so we only include it once
-            if len(layer_graph[previous_layer].mirror) == 0 or min(
-                    layer_graph[previous_layer].mirror) > previous_layer:
-                for deletion in deletions[previous_layer]:
-                    deletions[following_layer].append(
-                        (counter + deletion[0], counter + deletion[1]))
-            else:
-                print("ignoring layer", previous_layer, "in",
-                      layer_graph[previous_layer].mirror)
+            for deletion in deletions[previous_layer]:
+                deletions[following_layer].append(
+                    (counter + deletion[0], counter + deletion[1]))
             counter += layer_graph[previous_layer].o
 
         if len(layer_graph[following_layer].tied_after) != 0:
-            total_deleted = []
+            total_deleted = 0
             for del_tuple in deletions[following_layer]:
-                total_deleted += [(del_tuple[0] , del_tuple[1])]
+                total_deleted += del_tuple[1] - del_tuple[0]
             # Technically wrong. Need to fix.
             for after_tied in layer_graph[following_layer].tied_after:
                 if after_tied not in deleted_things:
@@ -1027,7 +1026,7 @@ def try_reduce(curr_loss, curr_model, per_layer_macs, dataloader, layer_graph,
     model_copy = copy.deepcopy(model)
     if 1 >= layer_graph[layer].o:
         return None, None
-    model_copy = shrink_model(model_copy, layer_graph, layer, [(layer_graph[layer].o - 1, layer_graph[layer].o)])
+    model_copy = shrink_model(model_copy, layer_graph, layer, 1)
 
     after_1_reduce = total_macs(model_copy)
     print(after_1_reduce)
@@ -1044,7 +1043,7 @@ def try_reduce(curr_loss, curr_model, per_layer_macs, dataloader, layer_graph,
         return None, None
 
     model_copy = copy.deepcopy(model)
-    model_copy = shrink_model(model_copy, layer_graph, layer, [(layer_graph[layer].o - to_remove, layer_graph[layer].o)])
+    model_copy = shrink_model(model_copy, layer_graph, layer, to_remove)
     print("done")
 
     # Train
