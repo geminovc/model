@@ -832,6 +832,20 @@ def total_macs(model):
     macs_dict = calculate_macs(model)
     return sum(macs_dict.values())
 
+def reverse_sort(input_list):
+    """
+    Input list is of the form: [(a, b), (c, d), ...]
+    We want to return the list sorted by the first element of each tuple
+    """
+    return sorted(input_list, key=lambda x: x[0], reverse=True)
+
+def f_set(weight, target, prune_indices):
+    """
+    Sets the value of a node to the weight modified with the prune indices
+    """
+    new_weight = torch.cat(
+        [weight[:prune_indices[0]], weight[prune_indices[1]:]])
+    target.set_(new_weight.clone().detach())
 
 @torch.no_grad()
 def channel_prune(model, deletions):
@@ -857,20 +871,18 @@ def channel_prune(model, deletions):
     for index, pruners in deletions.items():
         node = layer_graph[index]
         if pruners[0] == 'first':
-            if node.type == 'conv' and len(node.after) != 0:
-                # Prune the outupts
-                node.value.weight.set_(
-                    node.value.weight.detach()[:pruners[1][0]].contiguous())
-                if node.value.bias is not None:
-                    node.value.bias.set_(
-                        node.value.bias.detach()[:pruners[1][0]].contiguous())
-            else:
-                print("Should not be shrinking a batchnorm")
-            if node.value.groups != 1:
-                node.value.groups = node.value.weight.shape[0]
+            for prune_indices in reverse_sort(pruners[1:]):
+                if node.type == 'conv' and len(node.after) != 0:
+                    # Prune the outupts
+                    f_set(node.value.weight.detach(), node.value.weight, prune_indices)
+                    if node.value.bias is not None:
+                        f_set(node.value.bias.detach(), node.value.bias, prune_indices)
+                else:
+                    print("Should not be shrinking a batchnorm")
+                if node.value.groups != 1:
+                    node.value.groups = node.value.weight.shape[0]
         else:
-            for i in range(len(pruners)):
-                prune_indices = pruners[len(pruners) - i - 1]
+            for prune_indices in reverse_sort(pruners):
 
                 if node.type == 'conv':
                     nvd = node.value.weight.detach()
@@ -880,10 +892,6 @@ def channel_prune(model, deletions):
                     node.value.weight.set_(nvd.clone().detach().contiguous())
                 if node.type == 'bn':
 
-                    def f_set(nvd, w, prune_indices):
-                        nvd = torch.cat(
-                            [nvd[:prune_indices[0]], nvd[prune_indices[1]:]])
-                        w.set_(nvd.clone().detach())
 
                     f_set(node.value.weight.detach(), node.value.weight,
                           prune_indices)
@@ -944,18 +952,15 @@ def compute_deletion(layer_graph,
 
     # So make a map of deletions
     deletions = {}
-    deletions[layer] = [(layer_graph[layer].o - custom,
-                         layer_graph[layer].o)]
+    deletions[layer] = custom # [(layer_graph[layer].o - custom, layer_graph[layer].o)]
 
-    amount_to_delete = custom
 
     # If there is a plus operation, the other operand is a "mirror" of this
     # SO copy whatever we do here to the other operand
     for mirror in layer_graph[layer].mirror:
         # Start a new custom deletion for the mirror
         if reason != 'mirror':
-            amount_to_delete = amount_to_delete
-            custom_deletions.append((mirror, amount_to_delete, 'mirror'))
+            custom_deletions.append((mirror, custom, 'mirror'))
             print("Starting a mirrorred deletion")
 
     for following_layer in following_layers:
@@ -967,6 +972,7 @@ def compute_deletion(layer_graph,
         # previous_mirrors = [i for i in layer_graph[following_layer].before
         for previous_layer in layer_graph[following_layer].before:
             if previous_layer not in deletions:
+                counter += layer_graph[previous_layer].o
                 continue
             # Currently assumes we can only have one set of mirrors for a particular mirror output
             # If the previous layer is a mirror with the next one, exclude it so we only include it once
@@ -975,15 +981,16 @@ def compute_deletion(layer_graph,
                 for deletion in deletions[previous_layer]:
                     deletions[following_layer].append(
                         (counter + deletion[0], counter + deletion[1]))
-                counter += layer_graph[previous_layer].o
             else:
                 print("ignoring layer", previous_layer, "in",
                       layer_graph[previous_layer].mirror)
+            counter += layer_graph[previous_layer].o
 
         if len(layer_graph[following_layer].tied_after) != 0:
-            total_deleted = 0
+            total_deleted = []
             for del_tuple in deletions[following_layer]:
-                total_deleted += del_tuple[1] - del_tuple[0]
+                total_deleted += [(del_tuple[0] , del_tuple[1])]
+            # Technically wrong. Need to fix.
             for after_tied in layer_graph[following_layer].tied_after:
                 if after_tied not in deleted_things:
                     deleted_things.add(after_tied)
@@ -1020,7 +1027,7 @@ def try_reduce(curr_loss, curr_model, per_layer_macs, dataloader, layer_graph,
     model_copy = copy.deepcopy(model)
     if 1 >= layer_graph[layer].o:
         return None, None
-    model_copy = shrink_model(model_copy, layer_graph, layer, 1)
+    model_copy = shrink_model(model_copy, layer_graph, layer, [(layer_graph[layer].o - 1, layer_graph[layer].o)])
 
     after_1_reduce = total_macs(model_copy)
     print(after_1_reduce)
@@ -1037,7 +1044,7 @@ def try_reduce(curr_loss, curr_model, per_layer_macs, dataloader, layer_graph,
         return None, None
 
     model_copy = copy.deepcopy(model)
-    model_copy = shrink_model(model_copy, layer_graph, layer, to_remove)
+    model_copy = shrink_model(model_copy, layer_graph, layer, [(layer_graph[layer].o - to_remove, layer_graph[layer].o)])
     print("done")
 
     # Train
@@ -1056,6 +1063,8 @@ def try_reduce(curr_loss, curr_model, per_layer_macs, dataloader, layer_graph,
     c = 0
     for x in tqdm(dataloader):
         c += 1
+        if c > 1:
+            break
         x['driving_lr'] = F.interpolate(x['driving'], lr_size)
         for k in x:
             try:
