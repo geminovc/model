@@ -160,10 +160,18 @@ def get_model_macs(log_dir, generator, kp_detector, device, lr_size, image_size)
     kp_jac1 = torch.randn(BATCH_SIZE, 10, 2, 2, requires_grad=False, device=device)
     kp_val2 = torch.randn(BATCH_SIZE, 10, 2, requires_grad=False, device=device)
     kp_jac2 = torch.randn(BATCH_SIZE, 10, 2, 2, requires_grad=False, device=device)
+    num_features = 256 if 'distillation' in log_dir else 512
+    bottleneck_inp = torch.randn(BATCH_SIZE, num_features, 64, 64, requires_grad=False, device=device)
+
     model_inputs = (source_image, 
                     {'value':kp_val1, 'jacobian':kp_jac1}, 
                     {'value':kp_val2, 'jacobian':kp_jac2}, 
                     update_source,
+                    driving_lr)
+
+    dense_motion_inputs = (source_image, 
+                    {'value':kp_val1, 'jacobian':kp_jac1}, 
+                    {'value':kp_val2, 'jacobian':kp_jac2}, 
                     driving_lr)
 
     with open(os.path.join(log_dir, 'model_macs.txt'), 'wt') as model_file:
@@ -174,6 +182,51 @@ def get_model_macs(log_dir, generator, kp_detector, device, lr_size, image_size)
         generator_macs = profile_macs(generator, model_inputs)
         print('{}: {:.4g} G'.format('generator macs', generator_macs / 1e9))
         model_file.write('{}: {:.4g} G'.format('generator macs', generator_macs / 1e9))
+        
+        dense_motion_macs = profile_macs(generator.dense_motion_network, dense_motion_inputs)
+        print('{}: {:.4g} G'.format('dense motion macs', dense_motion_macs / 1e9))
+        model_file.write('{}: {:.4g} G'.format('generator macs', dense_motion_macs / 1e9))
+
+        bottleneck_macs = profile_macs(generator.bottleneck, bottleneck_inp)
+        print('{}: {:.4g} G'.format('bottleneck macs', bottleneck_macs / 1e9))
+        model_file.write('{}: {:.4g} G'.format('bottleneck macs', bottleneck_macs / 1e9))
+
+        encoder_macs = 0
+        for i, b in enumerate(generator.hr_down_blocks + generator.down_blocks):
+            dim = int(image_size/2**i)
+            start = int(16 * (1024 / image_size))
+            random_input =  torch.randn(BATCH_SIZE, start * 2**i, dim, dim, requires_grad=False, device=device)
+            encoder_macs += profile_macs(b, random_input)
+        print('{}: {:.4g} G'.format('encoder macs', encoder_macs / 1e9))
+        model_file.write('{}: {:.4g} G'.format('encoder macs', encoder_macs / 1e9))
+
+        if 'distillation' not in log_dir:
+            start_dim = 64
+            decoder_macs = 0
+            for i, b in enumerate(generator.up_blocks + generator.hr_up_blocks):
+                dim = int(start_dim * 2**i)
+                features = int(num_features / 2**i)
+                if i >= len(generator.up_blocks):
+                    features *= 2
+                if dim == lr_size:
+                    features += 32
+                random_input =  torch.randn(BATCH_SIZE, features, dim, dim, requires_grad=False, device=device)
+                decoder_macs += profile_macs(b, random_input)
+            print('{}: {:.4g} G'.format('decoder macs', decoder_macs / 1e9))
+            model_file.write('{}: {:.4g} G'.format('decoder macs', decoder_macs / 1e9))   
+        else:
+            skip_connections = []
+            dim = int(image_size)
+            features = int(16 * (1024 / image_size))
+            while dim >= 256:
+                skip_connections.append(torch.randn(BATCH_SIZE, features, dim, dim, requires_grad=False, device=device))
+                features *= 2
+                dim = dim // 2
+            lr_input = torch.randn(BATCH_SIZE, 32, lr_size, lr_size, requires_grad=False, device=device)
+            decoder_macs = profile_macs(generator.efficientnet_decoder, (bottleneck_inp, lr_input, skip_connections))
+            print('{}: {:.4g} G'.format('decoder macs', decoder_macs / 1e9))
+            model_file.write('{}: {:.4g} G'.format('decoder macs', decoder_macs / 1e9))   
+
 
 
 def get_model_info(log_dir, kp_detector, generator):
