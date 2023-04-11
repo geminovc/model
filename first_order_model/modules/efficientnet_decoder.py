@@ -48,7 +48,7 @@ class EfficientNetDecoder(nn.Module):
         >>> outputs = model(inputs)
     """
 
-    def __init__(self, blocks_args=None, global_params=None, lr_resolution=128):
+    def __init__(self, blocks_args=None, global_params=None, lr_resolution=128, output_resolution=1024):
         super().__init__()
         assert isinstance(blocks_args, list), 'blocks_args should be a list'
         assert len(blocks_args) > 0, 'block args must be greater than 0'
@@ -119,8 +119,8 @@ class EfficientNetDecoder(nn.Module):
 
         # stem because stem and head are reversed
         # self._upsample = nn.Upsample(scale_factor=2, mode='nearest')
-        out_channels = 32 # 16  # just before final layer which converts to rgb
-        in_channels = round_filters(32, self._global_params)  # number of output channels
+        out_channels = 16 if output_resolution == 1024 else 32  # just before final layer which converts to rgb
+        in_channels = round_filters(out_channels, self._global_params)  # number of output channels
         self._conv_stem = Conv2d(in_channels, out_channels, kernel_size=3, stride=1, bias=False)
         self._bn0 = nn.BatchNorm2d(num_features=out_channels, momentum=bn_mom, eps=bn_eps)
         
@@ -207,7 +207,8 @@ class EfficientNetDecoder(nn.Module):
         return x
 
     @classmethod
-    def from_name(cls, model_name, lr_resolution=128, in_channels=3, **override_params):
+    def from_name(cls, model_name, lr_resolution=128, output_resolution=1024,
+                  in_channels=3, **override_params):
         """Create an efficientnet model according to name.
 
         Args:
@@ -228,12 +229,15 @@ class EfficientNetDecoder(nn.Module):
         """
         cls._check_model_name_is_valid(model_name)
         blocks_args, global_params = get_model_params(model_name, override_params)
-        model = cls(blocks_args, global_params, lr_resolution)
+        if output_resolution == 512:
+            blocks_args = blocks_args[1:]
+        model = cls(blocks_args, global_params, lr_resolution, output_resolution)
         model._change_in_channels(in_channels)
         return model
 
     @classmethod
-    def from_pretrained(cls, model_name, lr_resolution=128, weights_path=None, advprop=False,
+    def from_pretrained(cls, model_name, lr_resolution=128, output_resolution=1024,
+                        weights_path=None, advprop=False,
                         in_channels=3, num_classes=1000, **override_params):
         """Create an efficientnet model according to name.
 
@@ -262,7 +266,7 @@ class EfficientNetDecoder(nn.Module):
         Returns:
             A pretrained efficientnet model.
         """
-        model = cls.from_name(model_name, lr_resolution, num_classes=num_classes, **override_params)
+        model = cls.from_name(model_name, lr_resolution, output_resolution, num_classes=num_classes, **override_params)
         """
         load_pretrained_weights(model, model_name, weights_path=weights_path,
                                 load_fc=(num_classes == 1000), advprop=advprop)

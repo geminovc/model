@@ -71,8 +71,10 @@ class OcclusionAwareGenerator(nn.Module):
             # self.encoder_type = 'efficient'
             # self.efficientnet_encoder = EfficientNet.from_pretrained('efficientnet-b0', include_top=True)
             self.decoder_type = 'efficient'
+            resolution = 1024 if hr_features == 16 else 512
             self.efficientnet_decoder = EfficientNetDecoder.from_pretrained('efficientnet-b0', 
                                                                             lr_resolution=self.lr_size,
+                                                                            output_resolution=resolution,
                                                                             include_top=True) 
  
         if self.common_decoder_for_3_paths:
