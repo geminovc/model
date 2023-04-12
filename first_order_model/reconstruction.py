@@ -209,7 +209,7 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
     generator_params = config['model_params']['generator_params']
     generator_type = generator_params.get('generator_type', 'occlusion_aware')
     lr_size = generator_params.get('lr_size', 64)
-    print("reference_frame_update_freq", reference_frame_update_freq)
+    print("reference_frame_update_freq", reference_frame_update_freq, 'lr_size', lr_size)
 
     train_params = config['train_params']
     target_bitrate = train_params.get('target_bitrate', 1000000)
@@ -237,7 +237,8 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
         else:
             get_model_info(log_dir, kp_detector, generator)
 
-        get_model_macs(log_dir, generator, kp_detector, device)
+        image_size = config['dataset_params']['frame_shape'][0]
+        get_model_macs(log_dir, generator, kp_detector, device, lr_size, image_size)
         return
     
     if not os.path.exists(log_dir):
@@ -394,7 +395,7 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
                     driving_times.append(0)
                 
                 start.record()
-                if generator_type in ['occlusion_aware', 'split_hf_lf']:
+                if generator_type in ['occlusion_aware', 'split_hf_lf', 'student_occlusion_aware']:
                     out = generator(source, kp_source=kp_source, \
                             kp_driving=kp_driving, update_source=update_source, driving_lr=driving_lr)
 

@@ -98,7 +98,8 @@ class Logger:
     def load_cpk(checkpoint_path, generator=None, discriminator=None, kp_detector=None,
                  optimizer_generator=None, optimizer_discriminator=None, optimizer_kp_detector=None, 
                  device='gpu', dense_motion_network=None, upsampling_enabled=False, use_lr_video=[], 
-                 hr_skip_connections=False, run_at_256=True, generator_type='occlusion_aware', reconstruction=False):
+                 hr_skip_connections=False, run_at_256=True, generator_type='occlusion_aware', 
+                 reconstruction=False, skip_generator_loading=False, keep_encoder=False):
 
         if device == torch.device('cpu'):
             checkpoint = torch.load(checkpoint_path, map_location=torch.device('cpu'))
@@ -109,11 +110,19 @@ class Logger:
             print("loading everything in generator as is")
             generator.load_state_dict(checkpoint['generator'])
 
-        elif generator is None and dense_motion_network is not None:
+        elif skip_generator_loading and dense_motion_network is not None:
             gen_params = checkpoint['generator']
             dense_motion_params = {k: gen_params[k] for k in gen_params.keys() if k.startswith('dense_motion_network')}
             generator.load_state_dict(dense_motion_params, strict=False)
             print("loading only dense motion in generator")
+        elif keep_encoder and dense_motion_network is not None:
+            gen_params = checkpoint['generator']
+            dense_motion_and_enc_params = {k: gen_params[k] for k in gen_params.keys() if \
+                    k.startswith('dense_motion_network') or k.startswith('hr_first') or \
+                    k.startswith('lr_first') or k.startswith('hr_down') or k.startswith('down')}
+            generator.load_state_dict(dense_motion_and_enc_params, strict=False)
+            print("loading only dense motion and encoding blocks in generator")
+
         elif generator is not None and upsampling_enabled:
             if hr_skip_connections or run_at_256:
                 # skip connections used in the decoder or bring everything down to same dimensions 
@@ -301,6 +310,13 @@ class Visualizer:
             kp_driving = out['kp_driving']['value'].data.cpu().numpy()
             images.append((driving, kp_driving))
         images.append(driving)
+
+        # teacher output
+        if 'teacher' in out:
+            teacher = out['teacher']
+            teacher = teacher.data.cpu().numpy()
+            teacher = np.transpose(teacher, [0, 2, 3, 1])
+            images.append(teacher)
 
 
         # Deformed image
