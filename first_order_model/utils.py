@@ -177,19 +177,19 @@ def get_model_macs(log_dir, generator, kp_detector, device, lr_size, image_size)
     with open(os.path.join(log_dir, 'model_macs.txt'), 'wt') as model_file:
         kp_macs = profile_macs(kp_detector, source_image)
         print('{}: {:.4g} G'.format('kp_detector macs', kp_macs / 1e9))
-        model_file.write('{}: {:.4g} G'.format('kp_detector macs', kp_macs / 1e9))
+        model_file.write('{}: {:.4g} G\n'.format('kp_detector macs', kp_macs / 1e9))
     
         generator_macs = profile_macs(generator, model_inputs)
         print('{}: {:.4g} G'.format('generator macs', generator_macs / 1e9))
-        model_file.write('{}: {:.4g} G'.format('generator macs', generator_macs / 1e9))
+        model_file.write('{}: {:.4g} G\n'.format('generator macs', generator_macs / 1e9))
         
         dense_motion_macs = profile_macs(generator.dense_motion_network, dense_motion_inputs)
         print('{}: {:.4g} G'.format('dense motion macs', dense_motion_macs / 1e9))
-        model_file.write('{}: {:.4g} G'.format('generator macs', dense_motion_macs / 1e9))
+        model_file.write('{}: {:.4g} G\n'.format('generator macs', dense_motion_macs / 1e9))
 
         bottleneck_macs = profile_macs(generator.bottleneck, bottleneck_inp)
         print('{}: {:.4g} G'.format('bottleneck macs', bottleneck_macs / 1e9))
-        model_file.write('{}: {:.4g} G'.format('bottleneck macs', bottleneck_macs / 1e9))
+        model_file.write('{}: {:.4g} G\n'.format('bottleneck macs', bottleneck_macs / 1e9))
 
         encoder_macs = 0
         for i, b in enumerate(generator.hr_down_blocks + generator.down_blocks):
@@ -198,7 +198,7 @@ def get_model_macs(log_dir, generator, kp_detector, device, lr_size, image_size)
             random_input =  torch.randn(BATCH_SIZE, start * 2**i, dim, dim, requires_grad=False, device=device)
             encoder_macs += profile_macs(b, random_input)
         print('{}: {:.4g} G'.format('encoder macs', encoder_macs / 1e9))
-        model_file.write('{}: {:.4g} G'.format('encoder macs', encoder_macs / 1e9))
+        model_file.write('{}: {:.4g} G\n'.format('encoder macs', encoder_macs / 1e9))
 
         if 'distillation' not in log_dir:
             start_dim = 64
@@ -213,7 +213,7 @@ def get_model_macs(log_dir, generator, kp_detector, device, lr_size, image_size)
                 random_input =  torch.randn(BATCH_SIZE, features, dim, dim, requires_grad=False, device=device)
                 decoder_macs += profile_macs(b, random_input)
             print('{}: {:.4g} G'.format('decoder macs', decoder_macs / 1e9))
-            model_file.write('{}: {:.4g} G'.format('decoder macs', decoder_macs / 1e9))   
+            model_file.write('{}: {:.4g} G\n'.format('decoder macs', decoder_macs / 1e9))   
         else:
             skip_connections = []
             dim = int(image_size)
@@ -225,7 +225,7 @@ def get_model_macs(log_dir, generator, kp_detector, device, lr_size, image_size)
             lr_input = torch.randn(BATCH_SIZE, 32, lr_size, lr_size, requires_grad=False, device=device)
             decoder_macs = profile_macs(generator.efficientnet_decoder, (bottleneck_inp, lr_input, skip_connections))
             print('{}: {:.4g} G'.format('decoder macs', decoder_macs / 1e9))
-            model_file.write('{}: {:.4g} G'.format('decoder macs', decoder_macs / 1e9))   
+            model_file.write('{}: {:.4g} G\n'.format('decoder macs', decoder_macs / 1e9))   
 
 
 
