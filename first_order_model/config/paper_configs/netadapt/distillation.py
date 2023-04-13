@@ -1,6 +1,6 @@
 dataset_params:
-  root_dir: /video-conf/scratch/pantea/fom_personalized_1024
-  frame_shape: [1024, 1024, 3]
+  root_dir: /video-conf/scratch/pantea/fom_personalized_512
+  frame_shape: [512, 512, 3]
   augmentation_params:
     flip_param:
       horizontal_flip: True
@@ -12,8 +12,8 @@ dataset_params:
       hue: 0.1
 
 metrics_params:
-  root_dir: /video-conf/scratch/pantea/fom_personalized_1024
-  frame_shape: [1024, 1024, 3]
+  root_dir: /video-conf/scratch/pantea/fom_personalized_512
+  frame_shape: [512, 512, 3]
 
 model_params:
   common_params:
@@ -29,18 +29,19 @@ model_params:
      num_blocks: 5
      run_at_256: True
   generator_params:
+    generator_type: 'student_occlusion_aware'
     block_expansion: 64
     max_features: 1024
     num_down_blocks: 2
     num_bottleneck_blocks: 6
     estimate_occlusion_map: True
     run_at_256: True
-    upsample_factor: 4
+    upsample_factor: 2
     use_hr_skip_connections: True
-    hr_features: 16
+    hr_features: 32
     encode_hr_input_with_additional_blocks: False
     use_lr_video: True
-    lr_size: 128
+    lr_size: 64
     concat_lr_video_in_decoder: False
     use_3_pathways: True
     dense_motion_params:
@@ -64,16 +65,19 @@ model_params:
 train_params:
   skip_generator_loading: False
   train_only_generator: False
+  train_only_decoder: True
   train_only_upsample_layers: False
   encode_video_for_training: False
-  quantizer_level: 55
-  num_epochs: 30
-  num_repeats: 15
+  num_epochs: 60
+  netadapt: True
+  shrink_rate: 0.03
+  target_shrink: .06
+  num_repeats: 1
   epoch_milestones: [60, 90]
   lr_generator: 2.0e-4
   lr_discriminator: 2.0e-4
   lr_kp_detector: 2.0e-4
-  batch_size: 2
+  batch_size: 1
   scales: [1, 0.5, 0.25, 0.125]
   checkpoint_freq: 15
   transform_params:
@@ -86,8 +90,9 @@ train_params:
     feature_matching: [10, 10, 10, 10]
     perceptual: [10, 10, 10, 10, 10]
     pixelwise: 10
-    equivariance_value: 10
-    equivariance_jacobian: 10
+    equivariance_value: 0
+    equivariance_jacobian: 0
+    encoder_distillation: 0
 
 reconstruction_params:
   num_videos: 1000
