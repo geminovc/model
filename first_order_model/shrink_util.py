@@ -1115,8 +1115,6 @@ def try_reduce(curr_loss, curr_model, dataloader, layer_graph,
     c = 0
     for x in tqdm(dataloader):
         c += 1
-        if c > 1:
-            break
         x['driving_lr'] = F.interpolate(x['driving'], lr_size)
 
         # Inputs need to manually be moved onto the gpu

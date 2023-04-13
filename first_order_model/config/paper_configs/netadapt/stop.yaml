@@ -73,7 +73,6 @@ train_params:
   target_shrink: .01
   num_repeats: 1
   epoch_milestones: [60, 90]
-  shrunk_gen: /video-conf/scratch/vedantha/model/first_order_model/log/adaptive_reduce_generic_2 03_03_23_07.17.26/00000089-checkpoint.pth.tar
   lr_generator: 2.0e-4
   lr_discriminator: 2.0e-4
   lr_kp_detector: 2.0e-4

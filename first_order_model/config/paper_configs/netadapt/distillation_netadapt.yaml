@@ -1,5 +1,5 @@
 dataset_params:
-  root_dir: /data1/vedantha
+  root_dir: /video-conf/scratch/pantea/fom_personalized_512
   frame_shape: [512, 512, 3]
   augmentation_params:
     flip_param:
@@ -12,7 +12,7 @@ dataset_params:
       hue: 0.1
 
 metrics_params:
-  root_dir: /data1/vedantha
+  root_dir: /video-conf/scratch/pantea/fom_personalized_512
   frame_shape: [512, 512, 3]
 
 model_params:
@@ -29,6 +29,7 @@ model_params:
      num_blocks: 5
      run_at_256: True
   generator_params:
+    generator_type: 'student_occlusion_aware'
     block_expansion: 64
     max_features: 1024
     num_down_blocks: 2
@@ -63,20 +64,23 @@ model_params:
 
 train_params:
   skip_generator_loading: False
-  fine_tune_entire_model: True
   train_only_generator: False
+  train_only_decoder: True
   train_only_upsample_layers: False
   encode_video_for_training: False
-  num_epochs: 250
-  prune: 0.4
-  num_repeats: 15
+  num_epochs: 60
+  num_repeats: 1
   epoch_milestones: [60, 90]
   lr_generator: 2.0e-4
   lr_discriminator: 2.0e-4
   lr_kp_detector: 2.0e-4
+  netadapt: True
+  netadapt_sort: True
+  shrink_rate: .04
+  target: .01
   batch_size: 2
   scales: [1, 0.5, 0.25, 0.125]
-  checkpoint_freq: 100
+  checkpoint_freq: 15
   transform_params:
     sigma_affine: 0.05
     sigma_tps: 0.005
@@ -87,8 +91,9 @@ train_params:
     feature_matching: [10, 10, 10, 10]
     perceptual: [10, 10, 10, 10, 10]
     pixelwise: 10
-    equivariance_value: 10
-    equivariance_jacobian: 10
+    equivariance_value: 0
+    equivariance_jacobian: 0
+    encoder_distillation: 0
 
 reconstruction_params:
   num_videos: 1000
