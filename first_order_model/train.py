@@ -201,7 +201,19 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
 
     generator_full = GeneratorFullModel(kp_detector, generator, discriminator, train_params)
     discriminator_full = DiscriminatorFullModel(kp_detector, generator, discriminator, train_params)
+
+    vgg_model = Vgg19()
+    original_lpips = lpips.LPIPS(net='vgg')
+    vgg_face_model = VggFace16()
     
+    if torch.cuda.is_available():
+        original_lpips = original_lpips.cuda()
+        vgg_model = vgg_model.cuda()
+        vgg_face_model = vgg_face_model.cuda()
+
+    loss_fn_vgg = vgg_model.compute_loss
+    face_lpips = vgg_face_model.compute_loss
+
     for x in dataloader:
         if use_lr_video or use_RIFE:
             lr_frame = F.interpolate(x['driving'], lr_size)
@@ -215,28 +227,13 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
 
         break
     get_gen_input(generator_full,x)
-    vgg_model = Vgg19()
-    original_lpips = lpips.LPIPS(net='vgg')
-    vgg_face_model = VggFace16()
     start = total_macs(generator)
-    prune_rate = train_params.get('shrink_rate', 0.02)
-    reduce_amount = start * prune_rate
-    current = start
-    target = start * train_params.get('target_shrink', 0.25)
-
-    is_first_round = True
-    if torch.cuda.is_available():
-        original_lpips = original_lpips.cuda()
-        vgg_model = vgg_model.cuda()
-        vgg_face_model = vgg_face_model.cuda()
-
-    loss_fn_vgg = vgg_model.compute_loss
-    face_lpips = vgg_face_model.compute_loss
-    prune_percent = train_params.get('prune', 0)
-    if  prune_percent != 0:
-        generator = channel_prune(generator, prune_percent)
-        generator_full.generator = generator
-        optimizer_generator = torch.optim.Adam(generator.parameters(), lr=train_params['lr_generator'], betas=(0.5, 0.999))
+    print("start macs: ", start)
+    if train_params.get('netadapt', False):
+        prune_rate = train_params.get('shrink_rate', 0.02)
+        reduce_amount = start * prune_rate
+        current = start
+        target = start * train_params.get('target_shrink', 0.25)
 
     reload_gen = train_params.get('shrunk_gen', None)
     if reload_gen is not None:
@@ -244,7 +241,7 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
         set_module(generator_full, state_dict)
         optimizer_generator = torch.optim.Adam(generator_full.generator.parameters(), lr=train_params['lr_generator'], betas=(0.5, 0.999))
         current=  total_macs(copy.deepcopy(generator_full.generator))
-        print('reloaded_params', current)
+        print('reloaded_params, new macs is', current)
 
 
     model = generator_full.generator
@@ -253,6 +250,7 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
         sort = train_params.get('netadapt_sort', False)
         with Logger(log_dir=log_dir, visualizer_params=config['visualizer_params'], checkpoint_freq=train_params['checkpoint_freq']) as logger:
             epoch = 0
+            is_first_round = True
             while current > target:
                 epoch += 1
                 start_epoch = epoch + 1
@@ -291,13 +289,13 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
                                              'optimizer_discriminator': optimizer_discriminator,
                                              'optimizer_kp_detector': optimizer_kp_detector}, inp=y, out=metrics_generated)
 
+        # Remake the generator optimizer because generator has been copied
         optimizer_generator = torch.optim.Adam(generator_full.generator.parameters(), lr=train_params['lr_generator'], betas=(0.5, 0.999))
+
+    # I move the data parallel stuff down because it breaks netadapt for some unknown reason. It's also the reasona I need to manually move inputs over to the gpu within netadapth
     if torch.cuda.is_available():
         generator_full = DataParallelWithCallback(generator_full, device_ids=device_ids)
         discriminator_full = DataParallelWithCallback(discriminator_full, device_ids=device_ids)
-        #original_lpips = original_lpips.cuda()
-        #vgg_model = vgg_model.cuda()
-        #vgg_face_model = vgg_face_model.cuda()
     
 
 
