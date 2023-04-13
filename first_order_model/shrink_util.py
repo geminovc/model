@@ -868,7 +868,8 @@ def compute_deletion(layer_graph,
                      custom_deletions,
                      deleted_things,
                      layer,
-                     custom=None,
+                     sort,
+                     custom,
                      reason=None):
     """
     Given a layer, generate the list of the indexes we need to delete from its following layers
@@ -888,33 +889,35 @@ def compute_deletion(layer_graph,
     elif isinstance(custom, int):
         # The sorting magic happens here
         # Find the first convolution
-        depthwise_skipped_following_layers = []
-        for after_layer in layer_graph[layer].after:
-            get_following_layers_skip_depthwise(depthwise_skipped_following_layers, layer_graph, layer_graph[after_layer])
+        if sort:
+            depthwise_skipped_following_layers = []
+            for after_layer in layer_graph[layer].after:
+                get_following_layers_skip_depthwise(depthwise_skipped_following_layers, layer_graph, layer_graph[after_layer])
 
-        first_conv = get_first_conv(layer_graph, depthwise_skipped_following_layers)
+            first_conv = get_first_conv(layer_graph, depthwise_skipped_following_layers)
 
-        if first_conv is None:
-            breakpoint()
+            if first_conv is None:
+                breakpoint()
 
-        slices = get_relevent_slice(layer_graph, first_conv, layer)
-        if len(slices) == 0:
-            breakpoint()
+            slices = get_relevent_slice(layer_graph, first_conv, layer)
+            if len(slices) == 0:
+                breakpoint()
 
-        importances = torch.zeros(layer_graph[layer].o).cuda()
-        for single_slice in slices:
-            importances += get_importances(layer_graph[first_conv].value.weight, single_slice)
+            importances = torch.zeros(layer_graph[layer].o).cuda()
+            for single_slice in slices:
+                importances += get_importances(layer_graph[first_conv].value.weight, single_slice)
 
-        importances = importances.tolist()
-        deletion_indices = pick_channels_with_lowest_importances(custom, importances)
-        if len(deletion_indices) != custom:
-            assert(False)
-        deletion_list = convert_to_deletions_list(deletion_indices)
+            importances = importances.tolist()
+            deletion_indices = pick_channels_with_lowest_importances(custom, importances)
+            if len(deletion_indices) != custom:
+                assert(False)
+            deletion_list = convert_to_deletions_list(deletion_indices)
 
 
-        #breakpoint()
-        deletions[layer] = deletion_list
-        #deletions[layer] = [(layer_graph[layer].o-custom, layer_graph[layer].o)]
+            #breakpoint()
+            deletions[layer] = deletion_list
+        else:
+            deletions[layer] = [(layer_graph[layer].o-custom, layer_graph[layer].o)]
     else:
         assert(False)
 
@@ -963,11 +966,11 @@ def compute_deletion(layer_graph,
     return deletions
 
 
-def shrink_model(model_copy, layer_graph, layer, count):
+def shrink_model(model_copy, layer_graph, layer, count, sort):
     custom_deletions = []
     deleted_things = set()
     deletions = compute_deletion(layer_graph, custom_deletions, deleted_things,
-                                 layer, count)
+                                 layer, sort, count)
     print(deletions)
     if deletions is None:
         return None, None
@@ -976,7 +979,7 @@ def shrink_model(model_copy, layer_graph, layer, count):
         custom_deletion = custom_deletions[0]
         custom_deletions = custom_deletions[1:]
         deletions = compute_deletion(layer_graph, custom_deletions,
-                                     deleted_things, custom_deletion[0],
+                                     deleted_things, sort, custom_deletion[0],
                                      custom_deletion[1], custom_deletion[2])
         print(deletions)
         model_copy = channel_prune(model_copy, deletions)
@@ -985,13 +988,13 @@ def shrink_model(model_copy, layer_graph, layer, count):
 def try_reduce(curr_loss, curr_model, per_layer_macs, dataloader, layer_graph,
                layer, kp_detector, discriminator, train_params, model, target,
                current, lr_size, generator_type, metrics_dataloader,
-               generator_full):
+               generator_full, sort):
     model_copy = copy.deepcopy(model)
     if 1 >= layer_graph[layer].o:
         return None, None
     if len(layer_graph[layer].after) == 0:
         return None, None
-    model_copy = shrink_model(model_copy, layer_graph, layer, 1)
+    model_copy = shrink_model(model_copy, layer_graph, layer, 1, sort)
 
     after_1_reduce = total_macs(model_copy)
     print(after_1_reduce)
@@ -1008,7 +1011,7 @@ def try_reduce(curr_loss, curr_model, per_layer_macs, dataloader, layer_graph,
         return None, None
 
     model_copy = copy.deepcopy(model)
-    model_copy = shrink_model(model_copy, layer_graph, layer, to_remove)
+    model_copy = shrink_model(model_copy, layer_graph, layer, to_remove, sort)
     print("done")
 
     # Train
@@ -1059,7 +1062,7 @@ def try_reduce(curr_loss, curr_model, per_layer_macs, dataloader, layer_graph,
 
 def reduce_macs(model, target, current, kp_detector, discriminator,
                 train_params, dataloader, metrics_dataloader, generator_type,
-                lr_size, generator_full):
+                lr_size, generator_full, sort):
     # Take each layer and reduce its macs
     all_layers = [
         m for n, m in model.named_modules()
@@ -1090,7 +1093,7 @@ def reduce_macs(model, target, current, kp_detector, discriminator,
                                        kp_detector, discriminator,
                                        train_params, model, target, current,
                                        lr_size, generator_type,
-                                       metrics_dataloader, generator_full)
+                                       metrics_dataloader, generator_full, sort)
         # torch.cuda.empty_cache()
         if loss is not None:
             print("Updated model")

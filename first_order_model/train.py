@@ -260,6 +260,7 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
     model = generator_full.generator
 
     if train_params.get('netadapt', False):
+        sort = train_params.get('netadapt_sort', False)
         with Logger(log_dir=log_dir, visualizer_params=config['visualizer_params'], checkpoint_freq=train_params['checkpoint_freq']) as logger:
             epoch = 0
             while current > target:
@@ -267,7 +268,7 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
                 start_epoch = epoch + 1
                 print(current)
                 if not is_first_round:
-                    generator_full.generator  = reduce_macs(generator_full.generator, current - reduce_amount,current , kp_detector, discriminator, train_params, dataloader, metrics_dataloader, generator_type, lr_size, generator_full)
+                    generator_full.generator  = reduce_macs(generator_full.generator, current - reduce_amount,current , kp_detector, discriminator, train_params, dataloader, metrics_dataloader, generator_type, lr_size, generator_full, sort)
                     current = total_macs(generator_full.generator)
                     reduce_amount = current * prune_rate
                     
