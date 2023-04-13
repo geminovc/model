@@ -226,21 +226,26 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
         move_to_gpu(x)
         break
 
+    # Get gen input once for macs/speed calculations in the future
     get_gen_input(generator_full,x)
     start = total_macs(generator)
     print("Start macs: ", start)
+
+    # Set up the netadapt hyper parameters
+    # Target: target macs, Current: current macs, reduce_amount: amoutn of macs to reduce each iteration
     if train_params.get('netadapt', False):
         prune_rate = train_params.get('shrink_rate', 0.02)
         reduce_amount = start * prune_rate
         current = start
         target = start * train_params.get('target_shrink', 0.25)
 
+    # Force load a netadapt checkpoint shrunk_gen points to
     reload_gen = train_params.get('shrunk_gen', None)
     if reload_gen is not None:
         state_dict =torch.load(reload_gen)
         set_module(generator_full, state_dict)
         optimizer_generator = torch.optim.Adam(generator_full.generator.parameters(), lr=train_params['lr_generator'], betas=(0.5, 0.999))
-        current=  total_macs(copy.deepcopy(generator_full.generator))
+        current = total_macs(copy.deepcopy(generator_full.generator))
         print('reloaded params, new macs is', current)
 
     if train_params.get('netadapt', False):
