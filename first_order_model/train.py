@@ -228,7 +228,7 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
 
     get_gen_input(generator_full,x)
     start = total_macs(generator)
-    print("start macs: ", start)
+    print("Start macs: ", start)
     if train_params.get('netadapt', False):
         prune_rate = train_params.get('shrink_rate', 0.02)
         reduce_amount = start * prune_rate
@@ -254,13 +254,21 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
                 print("Start macs was: ", start)
                 print("Shrink ratio is: ", current/start)
                 if not is_first_round:
-                    generator_full.generator  = reduce_macs(generator_full.generator, current - reduce_amount,current , kp_detector, discriminator, train_params, dataloader, metrics_dataloader, generator_type, lr_size, generator_full, sort)
+
+                    # Run one iteration of netadapt
+
+                    generator_full.generator = reduce_macs(
+                        generator_full.generator, current - reduce_amount,
+                        current, kp_detector, discriminator, train_params,
+                        dataloader, metrics_dataloader, generator_type,
+                        lr_size, generator_full, sort)
                     current = total_macs(generator_full.generator)
                     reduce_amount = current * prune_rate
                     
                 is_first_round = False
 
                 # This code is the same metrics dataloading code as below
+                # Logs metrics to tensorboard and checkpoints model.
                 if metrics_dataloader is not None:
                     with torch.no_grad():
                         for i, y in enumerate(metrics_dataloader):
