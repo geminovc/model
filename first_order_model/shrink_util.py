@@ -39,6 +39,17 @@ from matplotlib import pyplot as plt
 import matplotlib
 import warnings
 
+def move_to_gpu(data):
+    """
+    Move every value in data to gpu if possible.
+    Operates in place.
+    """
+    for key in data:
+        try:
+            data[key] = data[key].cuda()
+        except:
+            pass
+
 
 def get_attr(obj, names):
     """
@@ -880,11 +891,9 @@ def get_metrics_loss(metrics_dataloader, lr_size, generator_full,
     with torch.no_grad():
         for y in metrics_dataloader:
             y['driving_lr'] = F.interpolate(y['driving'], lr_size)
-            for k in y:
-                try:
-                    y[k] = y[k].cuda()
-                except:
-                    pass
+            
+            # Inputs need to be moved manually to gpu
+            move_to_gpu(y)
             losses_generator, metrics_generated = generator_full(
                 y, generator_type)
             loss_values = [val.mean() for val in losses_generator.values()]
@@ -1107,11 +1116,9 @@ def try_reduce(curr_loss, curr_model, dataloader, layer_graph,
         if c > 1:
             break
         x['driving_lr'] = F.interpolate(x['driving'], lr_size)
-        for k in x:
-            try:
-                x[k] = x[k].cuda()
-            except:
-                pass
+
+        # Inputs need to manually be moved onto the gpu
+        move_to_gpu(x)
         losses_generator, generated = generator_full(x, generator_type)
         loss_values = [val.mean() for val in losses_generator.values()]
         loss = sum(loss_values)

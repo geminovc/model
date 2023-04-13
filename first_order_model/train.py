@@ -206,22 +206,12 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
         if use_lr_video or use_RIFE:
             lr_frame = F.interpolate(x['driving'], lr_size)
             if train_params.get('encode_video_for_training', False):
-                target_bitrate = train_params.get('target_bitrate', None)
-                quantizer_level = train_params.get('quantizer_level', -1)
-                if target_bitrate == 'random':
-                    target_bitrate = np.random.randint(15, 75) * 1000
-                nr = x.get('time_base_nr', torch.ones(lr_frame.size(dim=0), dtype=int))
-                dr = x.get('time_base_dr', 30000 * torch.ones(lr_frame.size(dim=0), dtype=int))
-                x['driving_lr'] = get_frame_from_video_codec(lr_frame, nr, \
-                        dr, quantizer_level, target_bitrate) 
+                x['driving_lr'] = get_encoded_frame(train_params, lr_frame, x)
             else:
                 x['driving_lr'] = lr_frame
 
-        for k in x:
-            try:
-                x[k] = x[k].cuda()
-            except:
-                pass
+        # Manually move to cuda because it isn't automatically moved
+        move_to_gpu(x)
 
         break
     get_gen_input(generator_full,x)
@@ -282,22 +272,11 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
                             if use_lr_video or use_RIFE:
                                 lr_frame = F.interpolate(y['driving'], lr_size)
                                 if train_params.get('encode_video_for_training', False):
-                                    target_bitrate = train_params.get('target_bitrate', None)
-                                    quantizer_level = train_params.get('quantizer_level', -1)
-                                    if target_bitrate == 'random':
-                                        target_bitrate = np.random.randint(15, 75) * 1000
-                                    nr = y.get('time_base_nr', torch.ones(lr_frame.size(dim=0), dtype=int))
-                                    dr = y.get('time_base_dr', 30000 * torch.ones(lr_frame.size(dim=0), dtype=int))
-                                    y['driving_lr'] = get_frame_from_video_codec(lr_frame, nr, \
-                                            dr, quantizer_level, target_bitrate) 
+                                    y['driving_lr'] = get_encoded_frame(train_params, lr_frame, y)
                                 else:
                                     y['driving_lr'] = lr_frame
 
-                            for k in y:
-                                try:
-                                    y[k] = y[k].cuda()
-                                except:
-                                    pass
+                            move_to_gpu(y)
                             losses_generator, metrics_generated = generator_full(y, generator_type)
                             losses = {key: value.mean().detach().data.cpu().numpy() for key, value in losses_generator.items()}
                             losses['macs'] = current
