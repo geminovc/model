@@ -224,8 +224,8 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
 
         # Manually move to cuda because it isn't automatically moved
         move_to_gpu(x)
-
         break
+
     get_gen_input(generator_full,x)
     start = total_macs(generator)
     print("start macs: ", start)
@@ -241,10 +241,7 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
         set_module(generator_full, state_dict)
         optimizer_generator = torch.optim.Adam(generator_full.generator.parameters(), lr=train_params['lr_generator'], betas=(0.5, 0.999))
         current=  total_macs(copy.deepcopy(generator_full.generator))
-        print('reloaded_params, new macs is', current)
-
-
-    model = generator_full.generator
+        print('reloaded params, new macs is', current)
 
     if train_params.get('netadapt', False):
         sort = train_params.get('netadapt_sort', False)
@@ -253,17 +250,17 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
             is_first_round = True
             while current > target:
                 epoch += 1
-                start_epoch = epoch + 1
-                print(current)
+                print("Current macs is: ", current)
+                print("Start macs was: ", start)
+                print("Shrink ratio is: ", current/start)
                 if not is_first_round:
                     generator_full.generator  = reduce_macs(generator_full.generator, current - reduce_amount,current , kp_detector, discriminator, train_params, dataloader, metrics_dataloader, generator_type, lr_size, generator_full, sort)
                     current = total_macs(generator_full.generator)
                     reduce_amount = current * prune_rate
                     
                 is_first_round = False
-                # This code is copied from below
 
-
+                # This code is the same metrics dataloading code as below
                 if metrics_dataloader is not None:
                     with torch.no_grad():
                         for i, y in enumerate(metrics_dataloader):
@@ -291,6 +288,9 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
 
         # Remake the generator optimizer because generator has been copied
         optimizer_generator = torch.optim.Adam(generator_full.generator.parameters(), lr=train_params['lr_generator'], betas=(0.5, 0.999))
+
+        # For now I've stuck a return here to ensure we don't train/overwrite checkpoints after running netadapt
+        return
 
     # I move the data parallel stuff down because it breaks netadapt for some unknown reason. It's also the reasona I need to manually move inputs over to the gpu within netadapth
     if torch.cuda.is_available():
@@ -356,8 +356,6 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
            
             # record a standard set of metrics
             if metrics_dataloader is not None:
-                for x in metrics_dataloader:
-                    break
                 with torch.no_grad():
                     for i, y in enumerate(metrics_dataloader):
                         if use_lr_video or use_RIFE:

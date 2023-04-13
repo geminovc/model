@@ -45,12 +45,13 @@ if __name__ == "__main__":
         config = yaml.load(f)
 
     if opt.mode == "reconstruction":
-        loc = config['train_params'].get('shrunk_gen', None)
-        if loc is None:
+        shrunk_gen_location = config['train_params'].get('shrunk_gen', None)
+        if shrunk_gen_location is None:
             log_dir = os.path.dirname(opt.checkpoint)
         else:
-            log_dir = os.path.dirname(loc)
-            log_dir = os.path.join(log_dir, 'reconstruction' + '_' + opt.experiment_name)
+            log_dir = os.path.dirname(shrunk_gen_location)
+        log_dir = os.path.join(log_dir, 'reconstruction' + '_' + opt.experiment_name)
+                
     else:
         log_dir = os.path.join(opt.log_dir, opt.experiment_name)
         log_dir += ' ' + strftime("%d_%m_%y_%H.%M.%S", gmtime())
