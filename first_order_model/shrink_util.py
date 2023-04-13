@@ -155,7 +155,8 @@ def get_input_channel_importance(weight):
 
 
 class Node:
-    def __init__(self, index, t, i, o, value):
+    def __init__(self, index, t, i, o, value, name):
+        self.name = name
         self.index = index
         self.type = t
         self.i = i
@@ -194,11 +195,11 @@ def build_graph(all_layers, names):
             graph[index] = Node(index, 'conv',
                                 all_layers[index].weight.shape[1],
                                 all_layers[index].weight.shape[0],
-                                all_layers[index])
+                                all_layers[index], names[index])
         elif isinstance(all_layers[index], nn.modules.batchnorm._BatchNorm):
             graph[index] = Node(index, 'bn', all_layers[index].weight.shape[0],
                                 all_layers[index].weight.shape[0],
-                                all_layers[index])
+                                all_layers[index], names[index])
         else:
             graph[index] = Node(index)
     gotten = set()
@@ -592,177 +593,83 @@ def build_graph(all_layers, names):
 
     return graph
 
+def pick_channels_with_lowest_importances(n, importances):
+    """
+    Select n channges with lowest importances. Return their indices.
+    Input: n - number of channels to select
+              importances - list of importances of each channel (float)
+    """
+
+    # Create a list of tuples (channel index, importance)
+    channel_importances = [(i, importances[i]) for i in range(len(importances))]
+
+    # Sort the list by importance, which is the second element in the tuple
+    channel_importances = sorted(channel_importances, key=lambda x: x[1])
+
+    # Return the indices of the n channels with lowest importances
+    return [channel_importances[i][0] for i in range(n)]
+
+
+def convert_to_deletions_list(indices):
+    """ 
+    Convert list of indices to deletion list.
+
+    Example:
+    indices = [0, 1, 3, 5]
+    deletion_list = [(0, 1), (1,2), (3,4), (5,6)]
+    """
+
+    deletion_list = []
+    i = 0
+    indices = sorted(indices)
+    while i < len(indices):
+        old_i = i
+        while i < len(indices) - 1 and indices[i] + 1 == indices[i+1]:
+            i+= 1
+        deletion_list.append((indices[old_i], indices[i]+1))
+        i += 1
+    return deletion_list
+
+
+def get_importances(weight, relevent_slice):
+    """
+    Use the L2 norm of the weights to get the importance of each channel in relevent_slice.
+    """
+
+    # Get the weights of the relevent slice
+    relevent_weights = weight[:,relevent_slice[0]:relevent_slice[1]]
+
+    # Get the norm of each channel
+    importances = torch.linalg.vector_norm(relevent_weights, dim=(0,2,3))
+
+    return importances
+
+def get_relevent_slice(layer_graph, node, target):
+    counter = 0
+    output = []
+    for prev_node in layer_graph[node].before:
+        if prev_node == target:
+            output += [(counter, counter+layer_graph[prev_node].o)]
+
+        counter += layer_graph[prev_node].o
+
+    if len(output) == 0:
+        counter = 0
+        for prev_node in layer_graph[node].before:
+            temp_output = get_relevent_slice(layer_graph, prev_node, target)
+            for out in temp_output:
+                output += [(out[0] + counter, out[1] + counter)]
+
+            counter += layer_graph[prev_node].o
+            
+    return output
+
 
 @torch.no_grad()
-def apply_channel_sorting(model):
-    model = copy.deepcopy(model)  # do not modify the original model
-    # fetch all the conv and bn layers from the backbone
-    all_convs = [m for m in model.modules() if isinstance(m, nn.Conv2d)]
-
-    all_convs = all_convs[:10] + all_convs[14:]
-    all_bns = [
-        m for m in model.modules()
-        if isinstance(m, nn.modules.batchnorm._BatchNorm)
-    ]
-    all_layers = [
-        m for m in model.modules()
-        if (isinstance(m, nn.Conv2d)
-            or isinstance(m, nn.modules.batchnorm._BatchNorm))
-    ]
-
-    layer_graph = build_graph(all_layers, [
-        n for n, m in model.named_modules()
-        if (isinstance(m, nn.Conv2d)
-            or isinstance(m, nn.modules.batchnorm._BatchNorm))
-    ])
-
-    for base_index in layer_graph.keys():
-        node = layer_graph[base_index]
-        if node.type == 'conv':
-            # Find the first following conv.
-            if len(node.after) == 0:
-                continue
-
-            prev = node.index
-            curr_node_index = node.after[0]
-            curr_node = layer_graph[curr_node_index]
-            found = True
-            target = (0, node.o)
-            while curr_node.type != 'conv':
-                if len(curr_node.after) == 0:
-                    found = False
-                    break
-                prev = curr_node.index
-                curr_node_index = curr_node.after[0]
-                curr_node = layer_graph[curr_node_index]
-                counter = 0
-
-                for prev_node in curr_node.before:
-                    if prev_node == prev:
-                        target = (counter, counter + (target[1] - target[0]))
-                        break
-                    counter += layer_graph[prev_node].o
-
-            if not found:
-                continue
-
-            # Now curr_node points to the first conv input node for this
-            # Find the actual elements you care about
-            counter = 0
-
-            # Possible flip here
-            important_elements = curr_node.value.weight[:, target[0]:target[1]]
-            importance = get_input_channel_importance(important_elements)
-            # sorting from large to small
-            sort_idx = torch.argsort(importance, descending=True)
-
-            # Sort the outputs of the actual node
-            prev_conv = node
-            prev_conv.value.weight.copy_(
-                torch.index_select(prev_conv.value.weight.detach(), 0,
-                                   sort_idx))
-            prev_conv.value.bias.copy_(
-                torch.index_select(prev_conv.value.bias.detach(), 0, sort_idx))
-
-            # layer_graph[temp.index].value.weight.copy_(torch.index_select(
-            #     layer_graph[temp.index].value.weight.detach(), 0, sort_idx))
-            # layer_graph[temp.index].value.bias.copy_(torch.index_select(
-            #     layer_graph[temp.index].bias.detach(), 0, sort_idx))
-
-            def follow(node, layer_graph, previous, p_indices):
-                # Find the elements corresponding to this node
-
-                indices = []
-                counter = 0
-                for b in node.before:
-                    if b == previous:
-                        for p_index in p_indices:
-                            indices.append(
-                                (counter + p_index[0], counter + p_index[1]))
-
-                    counter += layer_graph[b].o
-
-                def shrink_bn(bn, tensor_name):
-                    thing_you_are_changing = []
-                    for index in indices:
-                        nvd = getattr(node.value, tensor_name).detach()
-                        nvd = nvd[index[0]:index[1]]
-                        nvd.set_(torch.index_select(nvd, 0, sort_idx))
-                        thing_you_are_changing.append(nvd)
-
-                    if len(thing_you_are_changing) == 0:
-                        print("Somehow we didnt change anything")
-
-                    starter = [
-                        getattr(node.value,
-                                tensor_name).detach()[:indices[0][0]]
-                    ]
-                    for index in range(len(indices)):
-                        starter.append(thing_you_are_changing[index])
-                        if len(thing_you_are_changing) > index + 1:
-                            starter.append(
-                                getattr(node.value, tensor_name).detach()
-                                [indices[index][1]:indices[index + 1][0]])
-                        else:
-                            starter.append(
-                                getattr(
-                                    node.value,
-                                    tensor_name).detach()[indices[index][1]:])
-
-                    tensor_to_apply = getattr(bn.value, tensor_name)
-                    tensor_to_apply.copy_(torch.cat(starter).clone().detach())
-                    # node.value.weight.set_(torch.cat(starter).clone().detach())
-
-                if node.type == 'conv':
-                    thing_you_are_changing = []
-                    for index in indices:
-                        nvd = node.value.weight.detach()
-                        nvd = nvd[:, index[0]:index[1]]
-                        nvd.set_(torch.index_select(nvd, 1, sort_idx))
-                        thing_you_are_changing.append(nvd)
-
-                    if len(thing_you_are_changing) == 0:
-                        print("Somehow we didnt change anything")
-
-                    starter = [node.value.weight.detach()[:, :indices[0][0]]]
-                    for index in range(len(indices)):
-                        starter.append(thing_you_are_changing[index])
-                        if len(thing_you_are_changing) > index + 1:
-                            starter.append(
-                                node.value.weight.detach()
-                                [:, indices[index][1]:indices[index + 1][0]])
-                        else:
-                            starter.append(
-                                node.value.weight.detach()[:,
-                                                           indices[index][1]:])
-
-                    tensor_to_apply = getattr(node.value, 'weight')
-                    tensor_to_apply.copy_(
-                        torch.cat(starter, dim=1).clone().detach())
-                    # layer_graph[node.index].value.weight.set_(tensor_to_apply)
-
-                    return
-
-                else:
-
-                    for tensor_name in [
-                            'weight', 'bias', 'running_mean', 'running_var'
-                    ]:
-                        shrink_bn(node, tensor_name)
-
-                for next_layer in set(node.after):
-                    follow(layer_graph[next_layer], layer_graph, node.index,
-                           indices)
-
-            for node_after in set(node.after):
-                follow(layer_graph[node_after], layer_graph, node.index,
-                       [(0, node.o)])
-
-    return model
-
-
 def get_generator_time(model, x):
-    # for i in range(10):
+    """
+    A sanity check timer function. This is only used in netadapt to get a rough idea for how fast the model is.
+    """
     #    _ = model(inp)
     driving_lr = x.get('driving_lr', None)
 
@@ -773,8 +680,7 @@ def get_generator_time(model, x):
     else:
         kp_driving = model.kp_extractor(x['driving'])
 
-    # warmup
-    #model = torch.compile(model)
+    # quick warmup
     for _ in range(10):
         generated = model.generator(x['source'],
                                     kp_source=kp_source,
@@ -784,6 +690,8 @@ def get_generator_time(model, x):
 
     starter, ender = torch.cuda.Event(enable_timing=True), torch.cuda.Event(
         enable_timing=True)
+
+    # Just 50 round measurement
     total_time = 0
     for i in range(50):
         starter.record()
@@ -839,13 +747,14 @@ def reverse_sort(input_list):
     """
     return sorted(input_list, key=lambda x: x[0], reverse=True)
 
+
 def f_set(weight, target, prune_indices):
     """
     Sets the value of a node to the weight modified with the prune indices
     """
     new_weight = torch.cat(
         [weight[:prune_indices[0]], weight[prune_indices[1]:]])
-    target.set_(new_weight.clone().detach())
+    target.set_(new_weight.clone().detach().contiguous())
 
 @torch.no_grad()
 def channel_prune(model, deletions):
@@ -854,9 +763,11 @@ def channel_prune(model, deletions):
     indicating that we use a uniform pruning rate for all layers, or a list of
     numbers to indicate per-layer pruning rate.
     """
-    # sanity check of provided prune_ratio
     model = copy.deepcopy(model)
 
+    """
+    Build layer_graph which graphs all the model dependencies
+    """
     all_layers = [
         m for n, m in model.named_modules()
         if (isinstance(m, nn.Conv2d)
@@ -868,8 +779,12 @@ def channel_prune(model, deletions):
             or isinstance(m, nn.modules.batchnorm._BatchNorm))
     ])
 
+    # Deletions looks something like this
+    # {92: ['first', (94, 95)], 95: [(94, 95)], 93: [(94, 95)]}
     for index, pruners in deletions.items():
         node = layer_graph[index]
+
+        # A pruner marked with first means you delete from its outputs
         if pruners[0] == 'first':
             for prune_indices in reverse_sort(pruners[1:]):
                 if node.type == 'conv' and len(node.after) != 0:
@@ -879,19 +794,21 @@ def channel_prune(model, deletions):
                         f_set(node.value.bias.detach(), node.value.bias, prune_indices)
                 else:
                     print("Should not be shrinking a batchnorm")
+                # Hacky solution to modify group count for dethwise convolutions
                 if node.value.groups != 1:
                     node.value.groups = node.value.weight.shape[0]
-        else:
+
+        else: # Delete from its inputs
             for prune_indices in reverse_sort(pruners):
 
-                if node.type == 'conv':
+                if node.type == 'conv' and node.value.groups == 1:
+
                     nvd = node.value.weight.detach()
                     nvd = torch.cat(
                         [nvd[:, :prune_indices[0]], nvd[:, prune_indices[1]:]],
                         dim=1)
                     node.value.weight.set_(nvd.clone().detach().contiguous())
                 if node.type == 'bn':
-
 
                     f_set(node.value.weight.detach(), node.value.weight,
                           prune_indices)
@@ -924,6 +841,28 @@ def get_metrics_loss(metrics_dataloader, lr_size, generator_full,
 
     return total_loss
 
+def get_following_layers_skip_depthwise(following_layers, layer_graph, x):
+    following_layers.append(x.index)
+    if x.type == 'conv' and x.value.groups == 1:
+        return
+    for y in x.after:
+        get_following_layers_skip_depthwise(following_layers, layer_graph, layer_graph[y])
+
+def follow(following_layers, layer_graph, x):
+    following_layers.append(x.index)
+    if x.type == 'conv':
+        return
+    for y in x.after:
+        follow(following_layers, layer_graph, layer_graph[y])
+
+
+def get_first_conv(layer_graph, following_layers):
+    """
+    Gets first convolution in following layers
+    """
+    for layer in following_layers:
+        if layer_graph[layer].type == 'conv' and layer_graph[layer].value.groups == 1:
+            return layer
 
 def compute_deletion(layer_graph,
                      custom_deletions,
@@ -937,15 +876,8 @@ def compute_deletion(layer_graph,
     # find all the following layers
     following_layers = []
 
-    def follow(x):
-        following_layers.append(x.index)
-        if x.type == 'conv':
-            return
-        for y in x.after:
-            follow(layer_graph[y])
-
     for after_layer in layer_graph[layer].after:
-        follow(layer_graph[after_layer])
+        follow(following_layers, layer_graph, layer_graph[after_layer])
 
     # If you delete a part of the previous one, not just all of it then you cannot just say these n are to be deleted
     # So for each layer you need to figure out what you are deleting from it, then for the next layer figure out what is deleted
@@ -955,7 +887,34 @@ def compute_deletion(layer_graph,
         deletions[layer] = custom
     elif isinstance(custom, int):
         # The sorting magic happens here
-        deletions[layer] = [(layer_graph[layer].o - custom, layer_graph[layer].o)]
+        # Find the first convolution
+        depthwise_skipped_following_layers = []
+        for after_layer in layer_graph[layer].after:
+            get_following_layers_skip_depthwise(depthwise_skipped_following_layers, layer_graph, layer_graph[after_layer])
+
+        first_conv = get_first_conv(layer_graph, depthwise_skipped_following_layers)
+
+        if first_conv is None:
+            breakpoint()
+
+        slices = get_relevent_slice(layer_graph, first_conv, layer)
+        if len(slices) == 0:
+            breakpoint()
+
+        importances = torch.zeros(layer_graph[layer].o).cuda()
+        for single_slice in slices:
+            importances += get_importances(layer_graph[first_conv].value.weight, single_slice)
+
+        importances = importances.tolist()
+        deletion_indices = pick_channels_with_lowest_importances(custom, importances)
+        if len(deletion_indices) != custom:
+            assert(False)
+        deletion_list = convert_to_deletions_list(deletion_indices)
+
+
+        #breakpoint()
+        deletions[layer] = deletion_list
+        #deletions[layer] = [(layer_graph[layer].o-custom, layer_graph[layer].o)]
     else:
         assert(False)
 
@@ -978,18 +937,22 @@ def compute_deletion(layer_graph,
             if previous_layer not in deletions:
                 counter += layer_graph[previous_layer].o
                 continue
-            # Currently assumes we can only have one set of mirrors for a particular mirror output
-            # If the previous layer is a mirror with the next one, exclude it so we only include it once
+
+            # If delete from previous layer, delete corresponding element from this layer
             for deletion in deletions[previous_layer]:
                 deletions[following_layer].append(
                     (counter + deletion[0], counter + deletion[1]))
             counter += layer_graph[previous_layer].o
 
+        # If there is another tied after layer i.e. a layer who has their output tied to the input of this layer, like in resnet, we need to delete from their outputs as well
         if len(layer_graph[following_layer].tied_after) != 0:
+
+            # Calculate the number of elements to delete
             total_deleted = 0
             for del_tuple in deletions[following_layer]:
                 total_deleted += del_tuple[1] - del_tuple[0]
-            # Technically wrong. Need to fix.
+
+            # Add the output layer to our work queue (custom deletions)
             for after_tied in layer_graph[following_layer].tied_after:
                 if after_tied not in deleted_things:
                     deleted_things.add(after_tied)
@@ -1025,6 +988,8 @@ def try_reduce(curr_loss, curr_model, per_layer_macs, dataloader, layer_graph,
                generator_full):
     model_copy = copy.deepcopy(model)
     if 1 >= layer_graph[layer].o:
+        return None, None
+    if len(layer_graph[layer].after) == 0:
         return None, None
     model_copy = shrink_model(model_copy, layer_graph, layer, 1)
 
@@ -1136,4 +1101,5 @@ def reduce_macs(model, target, current, kp_detector, discriminator,
         print("Could not shrink anymore")
         raise StopIteration("Modle shrinking complete")
         return model
+    breakpoint()
     return curr_model
