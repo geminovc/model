@@ -1,5 +1,5 @@
 dataset_params:
-  root_dir: /video-conf/scratch/pantea/fom_personalized_512
+  root_dir: /data1/vedantha
   frame_shape: [512, 512, 3]
   augmentation_params:
     flip_param:
@@ -12,7 +12,7 @@ dataset_params:
       hue: 0.1
 
 metrics_params:
-  root_dir: /video-conf/scratch/pantea/fom_personalized_512
+  root_dir: /data1/vedantha
   frame_shape: [512, 512, 3]
 
 model_params:
@@ -63,10 +63,13 @@ model_params:
 
 train_params:
   skip_generator_loading: False
+  fine_tune_entire_model: True
   train_only_generator: False
   train_only_upsample_layers: False
   encode_video_for_training: False
-  num_epochs: 30
+  num_epochs: 35
+  netadapt: True
+  prune: 0.4
   num_repeats: 15
   epoch_milestones: [60, 90]
   lr_generator: 2.0e-4
