@@ -229,12 +229,13 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
         else:
             raise AttributeError('Checkpoint should be specified for reconstruction')
 
+    # Manually force reload of netadapted model
     reload_gen = train_params.get('shrunk_gen', None)
     if reload_gen is not None:
-        state_dict =torch.load(reload_gen)
+        state_dict = torch.load(reload_gen)
         set_gen_module(generator, state_dict)
         set_keypoint_module(kp_detector, state_dict)
-        print('reloaded_params' )
+        print('reloaded params')
 
     # get number of model parameters and mac stats
     if profile:
