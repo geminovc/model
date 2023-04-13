@@ -41,6 +41,9 @@ import warnings
 
 
 def get_attr(obj, names):
+    """
+    Get the value of obj.names[0].names[1]...
+    """
     if len(names) == 1:
         return getattr(obj, names[0])
     else:
@@ -48,6 +51,11 @@ def get_attr(obj, names):
 
 
 def get_attr_default(obj, names, default):
+    """
+    Get the value of obj.names[0].names[1]...
+
+    If final parameter doesn't exist, use default
+    """
     if len(names) == 1:
         return getattr(obj, names[0], default)
     else:
@@ -56,6 +64,9 @@ def get_attr_default(obj, names, default):
 
 
 def set_attr(obj, names, val):
+    """
+    Set the value of obj.names[0].names[1]... to val
+    """
     if len(names) == 0:
         with torch.no_grad():
             obj.set_(val)
@@ -65,6 +76,10 @@ def set_attr(obj, names, val):
 
 
 def print_gen_module(state_dict):
+    """
+    Given a state dict for the full generator, print the gen module
+    Primarily used when initially coding up netadapt
+    """
     for key1 in state_dict.keys():
         if key1 not in ['generator', 'kp_detector']:
             continue
@@ -73,15 +88,18 @@ def print_gen_module(state_dict):
                 submod_names = ['kp_extractor'] + key.split(".")
             else:
                 submod_names = [key1] + key.split(".")
-            #curr_param = get_attr(mod, submod_names)
-            # Here you can either replace the existing one
 
             if 'norm' not in key and 'bias' not in key:
                 print(dict_param.shape, key)
-            #set_attr(mod, submod_names, dict_param)
 
 
 def print_diff(state_dict, state_dict2):
+    """
+    Prints the git-diff style diff of the different parameters shapes in the generator module of state_dicts.
+
+    Used when manually comparing two netadapted models
+    """
+
     for key1 in state_dict.keys():
         if key1 not in ['generator']:
             continue
@@ -94,6 +112,11 @@ def print_diff(state_dict, state_dict2):
 
 
 def set_module(mod, state_dict):
+    """
+    Given a generator full model, set the generator and keypoint detector with state dict.
+    This is different from set state dict since it goes in and edits weights regardless of shape mismatch. Used only in loading netadapted parameters
+    """
+
     for key1 in state_dict.keys():
         if key1 not in ['generator', 'kp_detector']:
             continue
@@ -112,6 +135,10 @@ def set_module(mod, state_dict):
 
 
 def set_gen_module(mod, state_dict):
+    """
+    See: set_module
+    applies only to generators
+    """
 
     for key1 in state_dict.keys():
         if key1 not in ['generator']:
@@ -130,6 +157,10 @@ def set_gen_module(mod, state_dict):
 
 
 def set_keypoint_module(mod, state_dict):
+    """
+    See: set module
+    applies only to keypoint detectors
+    """
     for key1 in state_dict.keys():
         if key1 not in ['kp_detector']:
             continue
@@ -139,22 +170,11 @@ def set_keypoint_module(mod, state_dict):
             # Here you can either replace the existing one
             set_attr(mod, submod_names, dict_param)
 
-
-def get_input_channel_importance(weight):
-    in_channels = weight.shape[1]
-    importances = []
-    # compute the importance for each input channel
-    for i_c in range(weight.shape[1]):
-        channel_weight = weight.detach()[:, i_c]
-        ##################### YOUR CODE STARTS HERE #####################
-        importance = torch.norm(channel_weight, 'fro')
-
-        ##################### YOUR CODE ENDS HERE #####################
-        importances.append(importance.view(1))
-    return torch.cat(importances)
-
-
 class Node:
+    """
+    Stores the information each node in the computation graph for a model will need.
+    Used in dependency graph of netadapt.
+    """
     def __init__(self, index, t, i, o, value, name):
         self.name = name
         self.index = index
@@ -187,7 +207,11 @@ class Node:
 
 
 def build_graph(all_layers, names):
-    # For the sake of getting this working we are going to hardcode each layer
+    """
+    Manually build dependency graph
+    """
+
+    # Create all the nodes
     graph = {}
     for index in range(len(all_layers)):
         if isinstance(all_layers[index], nn.Conv2d):
@@ -360,8 +384,8 @@ def build_graph(all_layers, names):
             add_tie('efficientnet_decoder._blocks.' + str(i) + '._se_reduce',
                     'efficientnet_decoder._blocks.' + str(i) + '._se_expand')
 
-    # Build graph
-    elif os.environ.get('CONV_TYPE', 'regular') == 'regular':
+    # Build graph for default model
+    elif os.environ.get('CONV_TYPE', 'regular') == 'regular': 
         add_names([
             'dense_motion_network.hourglass.encoder.down_blocks.0.conv',
             'dense_motion_network.hourglass.encoder.down_blocks.0.norm',
@@ -446,6 +470,8 @@ def build_graph(all_layers, names):
         add_tie('bottleneck.r4.conv1', 'bottleneck.r4.conv2')
         add_tie('bottleneck.r5.conv1', 'bottleneck.r5.conv2')
         add_tie('bottleneck.r5.conv1', 'bottleneck.r0.conv2')
+
+    # Build graph for depthwise convolution model
     else:
         add_names([
             'dense_motion_network.hourglass.encoder.down_blocks.0.conv.depth_conv',
@@ -645,6 +671,10 @@ def get_importances(weight, relevent_slice):
     return importances
 
 def get_relevent_slice(layer_graph, node, target):
+    """
+    Given a node and a target, finds the slices of node which are affected by target.
+    Returns [(x, y), (z, n)...] where each pair is the start and end of a slice
+    """
     counter = 0
     output = []
     for prev_node in layer_graph[node].before:
@@ -711,6 +741,10 @@ def get_generator_time(model, x):
 
 
 def get_gen_input(model=None, x=None):
+    """
+    Store the input of the model after this function is run once.
+    Is used for conveniently getting dummy inputs when I want to run a generator, without me needing to make sure sizes are set up correctly.
+    """
     if not x is None:
         driving_lr = x.get('driving_lr', None)
 
@@ -727,6 +761,10 @@ def get_gen_input(model=None, x=None):
 
 
 def calculate_macs(model, file_name=None):
+    """
+    Calculates the macs dict for the model.
+    Output is some sort of dictionary with key=layer, value = macs
+    """
 
     inputs = get_gen_input()
     with warnings.catch_warnings():
@@ -736,6 +774,9 @@ def calculate_macs(model, file_name=None):
 
 
 def total_macs(model):
+    """
+    Returns single number for total macs in model
+    """
 
     macs_dict = calculate_macs(model)
     return sum(macs_dict.values())
@@ -758,10 +799,14 @@ def f_set(weight, target, prune_indices):
 
 @torch.no_grad()
 def channel_prune(model, deletions):
-    """Apply channel pruning to each of the conv layer in the backbone
-    Note that for prune_ratio, we can either provide a floating-point number,
-    indicating that we use a uniform pruning rate for all layers, or a list of
-    numbers to indicate per-layer pruning rate.
+    """
+    Apply channel pruning to each of the conv layer in the backbone
+
+    I've gotten rid of generic n% pruning since it bloats the code and is not even remotely close to netadapt quality.
+
+    Deletions looks something like this
+    {92: ['first', (94, 95)], 95: [(94, 95)], 93: [(94, 95)]}
+    which means delete the 94 output ofr layer 92, the 94th input of layer 95, and the 94th input of layer 96
     """
     model = copy.deepcopy(model)
 
@@ -785,10 +830,11 @@ def channel_prune(model, deletions):
         node = layer_graph[index]
 
         # A pruner marked with first means you delete from its outputs
+        # This can only happen for convolutional layers
         if pruners[0] == 'first':
             for prune_indices in reverse_sort(pruners[1:]):
                 if node.type == 'conv' and len(node.after) != 0:
-                    # Prune the outupts
+                    # Prune the outupts of the convolutional layer
                     f_set(node.value.weight.detach(), node.value.weight, prune_indices)
                     if node.value.bias is not None:
                         f_set(node.value.bias.detach(), node.value.bias, prune_indices)
@@ -801,13 +847,16 @@ def channel_prune(model, deletions):
         else: # Delete from its inputs
             for prune_indices in reverse_sort(pruners):
 
+                # Prune inputs of a convolutional layer
+                # We ignore depthwise layers since they take 1 input, their groups are just what changes.
                 if node.type == 'conv' and node.value.groups == 1:
-
                     nvd = node.value.weight.detach()
                     nvd = torch.cat(
                         [nvd[:, :prune_indices[0]], nvd[:, prune_indices[1]:]],
                         dim=1)
                     node.value.weight.set_(nvd.clone().detach().contiguous())
+                
+                # Prune the inputs (and by definition outputs) of a batchnorm layer
                 if node.type == 'bn':
 
                     f_set(node.value.weight.detach(), node.value.weight,
@@ -824,6 +873,9 @@ def channel_prune(model, deletions):
 
 def get_metrics_loss(metrics_dataloader, lr_size, generator_full,
                      generator_type):
+    """
+    Computes total loss when running generator_full on metrics_dataloader's all inputs
+    """
     total_loss = 0
     with torch.no_grad():
         for y in metrics_dataloader:
@@ -842,6 +894,10 @@ def get_metrics_loss(metrics_dataloader, lr_size, generator_full,
     return total_loss
 
 def get_following_layers_skip_depthwise(following_layers, layer_graph, x):
+    """
+    Specialized version of follo that skips over depthwise convolved layers. Only used when sorting the outputs of a layer for importance.
+
+    """
     following_layers.append(x.index)
     if x.type == 'conv' and x.value.groups == 1:
         return
@@ -849,6 +905,9 @@ def get_following_layers_skip_depthwise(following_layers, layer_graph, x):
         get_following_layers_skip_depthwise(following_layers, layer_graph, layer_graph[y])
 
 def follow(following_layers, layer_graph, x):
+    """
+    Get any possible layers which are directly impacted by editing x's outputs
+    """
     following_layers.append(x.index)
     if x.type == 'conv':
         return
@@ -929,13 +988,13 @@ def compute_deletion(layer_graph,
             custom_deletions.append((mirror, copy.copy(deletions[layer]), 'mirror'))
             print("Starting a mirrorred deletion")
 
+    # Figure out what you need to delete for the following layers
     for following_layer in following_layers:
         if following_layer in deletions:
             continue
 
         deletions[following_layer] = []
         counter = 0
-        # previous_mirrors = [i for i in layer_graph[following_layer].before
         for previous_layer in layer_graph[following_layer].before:
             if previous_layer not in deletions:
                 counter += layer_graph[previous_layer].o
@@ -967,6 +1026,9 @@ def compute_deletion(layer_graph,
 
 
 def shrink_model(model_copy, layer_graph, layer, count, sort):
+    """
+    Return a new model with the layer corresponding to the argument layer shrunken by count outputs
+    """
     custom_deletions = []
     deleted_things = set()
     deletions = compute_deletion(layer_graph, custom_deletions, deleted_things,
@@ -985,15 +1047,27 @@ def shrink_model(model_copy, layer_graph, layer, count, sort):
         model_copy = channel_prune(model_copy, deletions)
     return model_copy
 
-def try_reduce(curr_loss, curr_model, per_layer_macs, dataloader, layer_graph,
+def try_reduce(curr_loss, curr_model, dataloader, layer_graph,
                layer, kp_detector, discriminator, train_params, model, target,
                current, lr_size, generator_type, metrics_dataloader,
                generator_full, sort):
+    """
+    Most complicated function.
+    High level summary:
+    Try to shrink the model to the target size.
+    Train the model for a short term fine tune
+    Test the model on the metrics dataset
+    If the model beats the current best model, return it. If at any point it fails, return None, None
+    """
     model_copy = copy.deepcopy(model)
+
+    # Ignore this layer if it has only one output, or its output is never used
     if 1 >= layer_graph[layer].o:
         return None, None
     if len(layer_graph[layer].after) == 0:
         return None, None
+
+    # Reduce the layer by size 1 to check how much it affects model size.
     model_copy = shrink_model(model_copy, layer_graph, layer, 1, sort)
 
     after_1_reduce = total_macs(model_copy)
@@ -1002,14 +1076,15 @@ def try_reduce(curr_loss, curr_model, per_layer_macs, dataloader, layer_graph,
         print("Trying to remove something that is not a part of the model")
         return None, None
 
-
+    # Calculate the number of layers that must actually be removed to hit the target
     to_remove = int((current - target) // (current - after_1_reduce))
 
-    # Check the validity of a deletion op
+    # Ensure the deletion is smaller than the layer size.
     if to_remove >= layer_graph[layer].o:
         print("Cannot remove enough to hit target")
         return None, None
 
+    # Perform the actual deletion
     model_copy = copy.deepcopy(model)
     model_copy = shrink_model(model_copy, layer_graph, layer, to_remove, sort)
     print("done")
@@ -1026,7 +1101,6 @@ def try_reduce(curr_loss, curr_model, per_layer_macs, dataloader, layer_graph,
     for k in dataloader:
         break
 
-    #generator_full.generator = old_model
     c = 0
     for x in tqdm(dataloader):
         c += 1
@@ -1044,26 +1118,31 @@ def try_reduce(curr_loss, curr_model, per_layer_macs, dataloader, layer_graph,
         loss.backward()
         optimizer_generator.step()
         optimizer_generator.zero_grad()
+        
+    # Test the model
     total_loss = get_metrics_loss(metrics_dataloader, lr_size, generator_full,
                                   generator_type)
     print("Loss for this model is: ", total_loss)
 
     generator_full.generator = old_model
 
-    #del model_copy
-    #del optimizer_generator
     # Store the best module
     if curr_loss is None or total_loss < curr_loss:
         return total_loss, model_copy
     else:
         return None, None
-    torch.cuda.empty_cache()
 
 
 def reduce_macs(model, target, current, kp_detector, discriminator,
                 train_params, dataloader, metrics_dataloader, generator_type,
                 lr_size, generator_full, sort):
-    # Take each layer and reduce its macs
+    """
+    Applies netadapt to reduce the model to target macs
+    """
+
+    """
+    Builds a depndency graph for later use
+    """
     all_layers = [
         m for n, m in model.named_modules()
         if (isinstance(m, nn.Conv2d)
@@ -1074,11 +1153,13 @@ def reduce_macs(model, target, current, kp_detector, discriminator,
         if (isinstance(m, nn.Conv2d)
             or isinstance(m, nn.modules.batchnorm._BatchNorm))
     ])
-    per_layer_macs = calculate_macs(model)
-    deletions = []
+
     curr_model = None
     curr_loss = None
     i = 0
+    """
+    Loops through the entire model running try_reduce on each layer
+    """
     for layer in layer_graph:
         i += 1
         if layer_graph[layer].type != 'conv':
@@ -1088,13 +1169,13 @@ def reduce_macs(model, target, current, kp_detector, discriminator,
 
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
-            loss, t_model = try_reduce(curr_loss, curr_model, per_layer_macs,
+            loss, t_model = try_reduce(curr_loss, curr_model,
                                        dataloader, layer_graph, layer,
                                        kp_detector, discriminator,
                                        train_params, model, target, current,
                                        lr_size, generator_type,
                                        metrics_dataloader, generator_full, sort)
-        # torch.cuda.empty_cache()
+        # Model returns loss != None if its model beats our current best
         if loss is not None:
             print("Updated model")
             curr_model = t_model
@@ -1104,5 +1185,4 @@ def reduce_macs(model, target, current, kp_detector, discriminator,
         print("Could not shrink anymore")
         raise StopIteration("Modle shrinking complete")
         return model
-    breakpoint()
     return curr_model
