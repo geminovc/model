@@ -958,6 +958,8 @@ def compute_deletion(layer_graph,
         # The sorting magic happens here
         # Find the first convolution
         if sort:
+            if layer_graph[layer].type == 'bn':
+                breakpoint()
             depthwise_skipped_following_layers = []
             for after_layer in layer_graph[layer].after:
                 get_following_layers_skip_depthwise(depthwise_skipped_following_layers, layer_graph, layer_graph[after_layer])
@@ -1050,7 +1052,7 @@ def shrink_model(model_copy, layer_graph, layer, count, sort):
         custom_deletion = custom_deletions[0]
         custom_deletions = custom_deletions[1:]
         deletions = compute_deletion(layer_graph, custom_deletions,
-                                     deleted_things, sort, custom_deletion[0],
+                                     deleted_things, custom_deletion[0], sort,
                                      custom_deletion[1], custom_deletion[2])
         print(deletions)
         model_copy = channel_prune(model_copy, deletions)
@@ -1192,4 +1194,5 @@ def reduce_macs(model, target, current, kp_detector, discriminator,
         print("Could not shrink anymore")
         raise StopIteration("Modle shrinking complete")
         return model
+    print("finished netadapt iteration")
     return curr_model
