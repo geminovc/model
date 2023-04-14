@@ -254,7 +254,7 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
 
     if train_params.get('netadapt', False):
         sort = train_params.get('netadapt_sort', False)
-        sort = train_params.get('netadapt_steps_per_it', 300)
+        steps_per_it = train_params.get('netadapt_steps_per_it', -1)
         with Logger(log_dir=log_dir, visualizer_params=config['visualizer_params'], checkpoint_freq=train_params['checkpoint_freq']) as logger:
             epoch = 0
             is_first_round = True
@@ -267,11 +267,11 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
 
                     # Run one iteration of netadapt
 
-                    generator_full.generator = reduce_macs(
+                    generator_full.generator, generator_full.kp_extractor, generator_full.discriminator = reduce_macs(
                         generator_full.generator, current - reduce_amount,
-                        current, kp_detector, discriminator, train_params,
+                        current, generator_full.kp_extractor, generator_full.discriminator, train_params,
                         dataloader, metrics_dataloader, generator_type,
-                        lr_size, generator_full, sort)
+                        lr_size, generator_full, sort, steps_per_it, device_ids)
                     current = total_macs(generator_full.generator)
                     reduce_amount = current * prune_rate
                     
