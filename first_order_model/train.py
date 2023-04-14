@@ -6,7 +6,7 @@ from torch.utils.data import DataLoader
 from first_order_model.modules.model import Vgg19, VggFace16
 
 from logger import Logger
-from modules.model import GeneratorFullModel, DiscriminatorFullModel
+from first_order_model.modules.model import GeneratorFullModel, DiscriminatorFullModel
 
 from torch.optim.lr_scheduler import MultiStepLR
 
@@ -21,42 +21,7 @@ import random
 import av
 import numpy as np
 
-from aiortc.codecs.vpx import Vp8Encoder, Vp8Decoder, vp8_depayload
-from aiortc.jitterbuffer import JitterFrame
-
-def get_frame_from_video_codec(frame_tensor, nr_list, dr_list, quantizer, bitrate):
-    """ go through the encoder/decoder pipeline to get a 
-        representative decoded frame
-    """
-    # encode every frame as a keyframe with new encoder/decoder
-    frame_data = frame_tensor.data.cpu().numpy()
-    decoded_data = np.zeros(frame_data.shape, dtype=np.uint8) 
-    
-    frame_data = np.transpose(frame_data, [0, 2, 3, 1])
-    frame_data *= 255
-    frame_data = frame_data.astype(np.uint8)
-    
-    nr_list = nr_list.data.cpu().numpy()
-    dr_list = dr_list.data.cpu().numpy()
-
-    for i, (frame, nr, dr) in enumerate(zip(frame_data, nr_list, dr_list)):
-        av_frame = av.VideoFrame.from_ndarray(frame)
-        av_frame.pts = 0
-        av_frame.time_base = Fraction(nr, dr)
-        encoder, decoder = Vp8Encoder(), Vp8Decoder()
-        if bitrate == None:
-            payloads, timestamp = encoder.encode(av_frame, quantizer=quantizer, enable_gcc=False)
-        else:
-            payloads, timestamp = encoder.encode(av_frame, quantizer=-1, \
-                    target_bitrate=bitrate, enable_gcc=False)
-        payload_data = [vp8_depayload(p) for p in payloads]
-        
-        jitter_frame = JitterFrame(data=b"".join(payload_data), timestamp=timestamp)
-        decoded_frames = decoder.decode(jitter_frame)
-        decoded_frame = decoded_frames[0].to_rgb().to_ndarray()
-        decoded_data[i] = np.transpose(decoded_frame, [2, 0, 1]).astype(np.uint8)
-    return torch.from_numpy(img_as_float32(decoded_data))
-
+from first_order_model.utils import get_frame_from_video_codec 
 
 def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, dataset, device_ids):
     train_params = config['train_params'] 
@@ -317,12 +282,14 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
     
 
 
+    print(f'Encoding using {train_params.get("codec", "vp8")}')
     with Logger(log_dir=log_dir, visualizer_params=config['visualizer_params'], checkpoint_freq=train_params['checkpoint_freq']) as logger:
         for epoch in trange(start_epoch, train_params['num_epochs']):
             for x in tqdm(dataloader):
                 if use_lr_video or use_RIFE:
                     lr_frame = F.interpolate(x['driving'], lr_size)
                     if train_params.get('encode_video_for_training', False):
+                        codec = train_params.get('codec', 'vp8')
                         target_bitrate = train_params.get('target_bitrate', None)
                         quantizer_level = train_params.get('quantizer_level', -1)
                         if target_bitrate == 'random':
@@ -330,7 +297,7 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
                         nr = x.get('time_base_nr', torch.ones(lr_frame.size(dim=0), dtype=int))
                         dr = x.get('time_base_dr', 30000 * torch.ones(lr_frame.size(dim=0), dtype=int))
                         x['driving_lr'] = get_frame_from_video_codec(lr_frame, nr, \
-                                dr, quantizer_level, target_bitrate) 
+                                dr, quantizer_level, target_bitrate, codec) 
                     else:
                         x['driving_lr'] = lr_frame
 

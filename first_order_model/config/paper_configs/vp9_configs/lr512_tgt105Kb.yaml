@@ -1,6 +1,6 @@
 dataset_params:
-  root_dir: /video-conf/scratch/pantea/fom_personalized_512
-  frame_shape: [512, 512, 3]
+  root_dir: /video-conf/scratch/pantea/fom_personalized_1024
+  frame_shape: [1024, 1024, 3]
   augmentation_params:
     flip_param:
       horizontal_flip: True
@@ -12,8 +12,8 @@ dataset_params:
       hue: 0.1
 
 metrics_params:
-  root_dir: /video-conf/scratch/pantea/fom_personalized_512
-  frame_shape: [512, 512, 3]
+  root_dir: /video-conf/scratch/pantea/fom_personalized_1024
+  frame_shape: [1024, 1024, 3]
 
 model_params:
   common_params:
@@ -35,12 +35,12 @@ model_params:
     num_bottleneck_blocks: 6
     estimate_occlusion_map: True
     run_at_256: True
-    upsample_factor: 2
+    upsample_factor: 4
     use_hr_skip_connections: True
-    hr_features: 32
+    hr_features: 16
     encode_hr_input_with_additional_blocks: False
     use_lr_video: True
-    lr_size: 64
+    lr_size: 512
     concat_lr_video_in_decoder: False
     use_3_pathways: True
     dense_motion_params:
@@ -65,8 +65,10 @@ train_params:
   skip_generator_loading: False
   train_only_generator: False
   train_only_upsample_layers: False
-  encode_video_for_training: False
-  num_epochs: 60
+  encode_video_for_training: True
+  codec: 'vp9'
+  target_bitrate: 105000
+  num_epochs: 30
   num_repeats: 15
   epoch_milestones: [60, 90]
   lr_generator: 2.0e-4
