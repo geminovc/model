@@ -1,5 +1,6 @@
 from tqdm import trange
 import gc
+from utils import get_model_macs
 import os
 from tqdm import tqdm
 import torch
@@ -808,6 +809,9 @@ def f_set(weight, target, prune_indices):
         [weight[:prune_indices[0]], weight[prune_indices[1]:]])
     target.set_(new_weight.clone().detach().contiguous())
 
+def get_channel_reduction(deletions):
+    return sum(map(lambda x : x[1] - x[0], deletions))
+
 @torch.no_grad()
 def channel_prune(model, deletions):
     """
@@ -843,6 +847,8 @@ def channel_prune(model, deletions):
         # A pruner marked with first means you delete from its outputs
         # This can only happen for convolutional layers
         if pruners[0] == 'first':
+            if node.type == 'conv':
+                node.value.out_channels = node.value.out_channels - get_channel_reduction(pruners[1:])
             for prune_indices in reverse_sort(pruners[1:]):
                 if node.type == 'conv' and len(node.after) != 0:
                     # Prune the outupts of the convolutional layer
@@ -856,7 +862,10 @@ def channel_prune(model, deletions):
                     node.value.groups = node.value.weight.shape[0]
 
         else: # Delete from its inputs
+            if node.type == 'conv':
+                node.value.in_channels = node.value.in_channels - get_channel_reduction(pruners)
             for prune_indices in reverse_sort(pruners):
+
 
                 # Prune inputs of a convolutional layer
                 # We ignore depthwise layers since they take 1 input, their groups are just what changes.
@@ -1061,7 +1070,7 @@ def shrink_model(model_copy, layer_graph, layer, count, sort):
 def try_reduce(curr_loss, curr_model, dataloader, layer_graph,
                layer, kp_detector, discriminator, train_params, model, target,
                current, lr_size, generator_type, metrics_dataloader,
-               og_generator_full_ignore, sort, steps_per_it, device_ids):
+               og_generator_full_ignore, sort, steps_per_it, device_ids, log_dir):
     """
     Most complicated function.
     High level summary:
@@ -1081,7 +1090,8 @@ def try_reduce(curr_loss, curr_model, dataloader, layer_graph,
     # Reduce the layer by size 1 to check how much it affects model size.
     model_copy = shrink_model(model_copy, layer_graph, layer, 1, sort)
 
-    after_1_reduce = total_macs(model_copy)
+
+    after_1_reduce = get_model_macs(log_dir, model_copy, kp_detector, torch.device('cuda' if torch.cuda.is_available() else 'cpu'), lr_size, 512, 2)
     print(after_1_reduce)
     if after_1_reduce == current:
         print("Trying to remove something that is not a part of the model")
@@ -1168,7 +1178,7 @@ def try_reduce(curr_loss, curr_model, dataloader, layer_graph,
 
 def reduce_macs(model, target, current, kp_detector, discriminator,
                 train_params, dataloader, metrics_dataloader, generator_type,
-                lr_size, generator_full, sort, steps_per_it, device_ids):
+                lr_size, generator_full, sort, steps_per_it, device_ids, log_dir):
     """
     Applies netadapt to reduce the model to target macs
     """
@@ -1209,7 +1219,7 @@ def reduce_macs(model, target, current, kp_detector, discriminator,
                                        kp_detector, discriminator,
                                        train_params, model, target, current,
                                        lr_size, generator_type,
-                                       metrics_dataloader, generator_full, sort, steps_per_it, device_ids)
+                                       metrics_dataloader, generator_full, sort, steps_per_it, device_ids, log_dir)
         # Model returns loss != None if its model beats our current best
         if loss is not None:
             print("Updated model")

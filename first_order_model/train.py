@@ -1,4 +1,5 @@
 from tqdm import trange
+from utils import get_model_macs
 import torch
 from shrink_util import *
 import torch.nn.functional as F
@@ -197,12 +198,14 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
 
     # Get gen input once for macs/speed calculations in the future
     get_gen_input(generator_full,x)
-    start = total_macs(generator)
-    print("Start macs: ", start)
 
     # Set up the netadapt hyper parameters
     # Target: target macs, Current: current macs, reduce_amount: amoutn of macs to reduce each iteration
     if train_params.get('netadapt', False):
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            start = get_model_macs(log_dir, generator, kp_detector, torch.device('cuda' if torch.cuda.is_available() else 'cpu'), lr_size, 512, 2)
+        print("Start macs: ", start)
         prune_rate = train_params.get('shrink_rate', 0.02)
         reduce_amount = start * prune_rate
         current = start
@@ -214,7 +217,7 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
         state_dict =torch.load(reload_gen)
         set_module(generator_full, state_dict)
         optimizer_generator = torch.optim.Adam(generator_full.generator.parameters(), lr=train_params['lr_generator'], betas=(0.5, 0.999))
-        current = total_macs(copy.deepcopy(generator_full.generator))
+        current = get_model_macs(log_dir, copy.deepcopy(generator_full.generator), kp_detector, torch.device('cuda' if torch.cuda.is_available() else 'cpu'), lr_size, 512, 2)
         print('reloaded params, new macs is', current)
 
     if train_params.get('netadapt', False):
@@ -236,8 +239,10 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
                         generator_full.generator, current - reduce_amount,
                         current, generator_full.kp_extractor, generator_full.discriminator, train_params,
                         dataloader, metrics_dataloader, generator_type,
-                        lr_size, generator_full, sort, steps_per_it, device_ids)
-                    current = total_macs(generator_full.generator)
+                        lr_size, generator_full, sort, steps_per_it, device_ids, log_dir)
+                    with warnings.catch_warnings():
+                        warnings.simplefilter("ignore")
+                        current = get_model_macs(log_dir, generator_full.generator, kp_detector, torch.device('cuda' if torch.cuda.is_available() else 'cpu'), lr_size, 512, 2)
                     reduce_amount = current * prune_rate
                     
                 is_first_round = False

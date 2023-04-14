@@ -1,4 +1,5 @@
 import yaml
+from torch import nn
 import torch
 import numpy as np
 from skimage import img_as_float32
@@ -154,9 +155,17 @@ def configure_fom_modules(config, device, teacher=False):
     
     return generator, discriminator, kp_detector
 
+def get_input_features(module):
 
-def get_model_macs(log_dir, generator, kp_detector, device, lr_size, image_size):
-    BATCH_SIZE = 1 # reconstruction
+    all_layers = [
+        m for n, m in module.named_modules()
+        if (isinstance(m, nn.Conv2d)
+            or isinstance(m, nn.modules.batchnorm._BatchNorm))
+    ]
+    return all_layers[0].in_channels
+
+def get_model_macs(log_dir, generator, kp_detector, device, lr_size, image_size, BATCH_SIZE=1):
+    # reconstruction
 
     source_image = torch.randn(BATCH_SIZE, 3, image_size, image_size, requires_grad=False, device=device)
     driving_lr = torch.randn(BATCH_SIZE, 3, lr_size, lr_size, requires_grad = False, device=device)
@@ -166,7 +175,8 @@ def get_model_macs(log_dir, generator, kp_detector, device, lr_size, image_size)
     kp_val2 = torch.randn(BATCH_SIZE, 10, 2, requires_grad=False, device=device)
     kp_jac2 = torch.randn(BATCH_SIZE, 10, 2, 2, requires_grad=False, device=device)
     num_features = 256 if 'distillation' in log_dir else 512
-    bottleneck_inp = torch.randn(BATCH_SIZE, num_features, 64, 64, requires_grad=False, device=device)
+    bottleneck_num_features  = get_input_features(generator.bottleneck)
+    bottleneck_inp = torch.randn(BATCH_SIZE, bottleneck_num_features, 64, 64, requires_grad=False, device=device)
 
     model_inputs = (source_image, 
                     {'value':kp_val1, 'jacobian':kp_jac1}, 
@@ -200,7 +210,8 @@ def get_model_macs(log_dir, generator, kp_detector, device, lr_size, image_size)
         for i, b in enumerate(generator.hr_down_blocks + generator.down_blocks):
             dim = int(image_size/2**i)
             start = int(16 * (1024 / image_size))
-            random_input =  torch.randn(BATCH_SIZE, start * 2**i, dim, dim, requires_grad=False, device=device)
+            features = get_input_features(b)
+            random_input =  torch.randn(BATCH_SIZE, features, dim, dim, requires_grad=False, device=device)
             encoder_macs += profile_macs(b, random_input)
         print('{}: {:.4g} G'.format('encoder macs', encoder_macs / 1e9))
         model_file.write('{}: {:.4g} G\n'.format('encoder macs', encoder_macs / 1e9))
@@ -215,6 +226,7 @@ def get_model_macs(log_dir, generator, kp_detector, device, lr_size, image_size)
                     features *= 2
                 if dim == lr_size:
                     features += 32
+                features = get_input_features(b)
                 random_input =  torch.randn(BATCH_SIZE, features, dim, dim, requires_grad=False, device=device)
                 decoder_macs += profile_macs(b, random_input)
             print('{}: {:.4g} G'.format('decoder macs', decoder_macs / 1e9))
@@ -232,6 +244,7 @@ def get_model_macs(log_dir, generator, kp_detector, device, lr_size, image_size)
             print('{}: {:.4g} G'.format('decoder macs', decoder_macs / 1e9))
             model_file.write('{}: {:.4g} G\n'.format('decoder macs', decoder_macs / 1e9))   
 
+    return decoder_macs
 
 
 def get_model_info(log_dir, kp_detector, generator):
