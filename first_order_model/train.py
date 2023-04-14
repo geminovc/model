@@ -93,6 +93,7 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
         use_RIFE = True
     else:
         use_RIFE = False
+
     
     if checkpoint is not None and generator_type in ["occlusion_aware", "split_hf_lf"]:
         if train_params.get('fine_tune_entire_model', False):
@@ -198,6 +199,9 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
         metrics_dataset = MetricsDataset(**config['metrics_params'])
         metrics_dataloader = DataLoader(metrics_dataset, batch_size=train_params['batch_size'], shuffle=False, 
                 num_workers=6, drop_last=True)
+
+    # Force this value for distillation trials
+    generator_type = 'occlusion_aware'
 
     generator_full = GeneratorFullModel(kp_detector, generator, discriminator, train_params)
     discriminator_full = DiscriminatorFullModel(kp_detector, generator, discriminator, train_params)
@@ -315,7 +319,7 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
 
     with Logger(log_dir=log_dir, visualizer_params=config['visualizer_params'], checkpoint_freq=train_params['checkpoint_freq']) as logger:
         for epoch in trange(start_epoch, train_params['num_epochs']):
-            for x in dataloader:
+            for x in tqdm(dataloader):
                 if use_lr_video or use_RIFE:
                     lr_frame = F.interpolate(x['driving'], lr_size)
                     if train_params.get('encode_video_for_training', False):
