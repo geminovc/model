@@ -1044,7 +1044,7 @@ def shrink_model(model_copy, layer_graph, layer, count, sort):
     deleted_things = set()
     deletions = compute_deletion(layer_graph, custom_deletions, deleted_things,
                                  layer, sort, count)
-    print(deletions)
+    print(deletions.keys())
     if deletions is None:
         return None, None
     model_copy = channel_prune(model_copy, deletions)
@@ -1054,14 +1054,14 @@ def shrink_model(model_copy, layer_graph, layer, count, sort):
         deletions = compute_deletion(layer_graph, custom_deletions,
                                      deleted_things, custom_deletion[0], sort,
                                      custom_deletion[1], custom_deletion[2])
-        print(deletions)
+        print(deletions.keys())
         model_copy = channel_prune(model_copy, deletions)
     return model_copy
 
 def try_reduce(curr_loss, curr_model, dataloader, layer_graph,
                layer, kp_detector, discriminator, train_params, model, target,
                current, lr_size, generator_type, metrics_dataloader,
-               generator_full, sort, steps_per_it):
+               og_generator_full_ignore, sort, steps_per_it, device_ids):
     """
     Most complicated function.
     High level summary:
@@ -1074,9 +1074,9 @@ def try_reduce(curr_loss, curr_model, dataloader, layer_graph,
 
     # Ignore this layer if it has only one output, or its output is never used
     if 1 >= layer_graph[layer].o:
-        return None, None
+        return None, None, None, None
     if len(layer_graph[layer].after) == 0:
-        return None, None
+        return None, None, None, None
 
     # Reduce the layer by size 1 to check how much it affects model size.
     model_copy = shrink_model(model_copy, layer_graph, layer, 1, sort)
@@ -1085,7 +1085,7 @@ def try_reduce(curr_loss, curr_model, dataloader, layer_graph,
     print(after_1_reduce)
     if after_1_reduce == current:
         print("Trying to remove something that is not a part of the model")
-        return None, None
+        return None, None, None, None
 
     # Calculate the number of layers that must actually be removed to hit the target
     to_remove = int((current - target) // (current - after_1_reduce))
@@ -1093,7 +1093,7 @@ def try_reduce(curr_loss, curr_model, dataloader, layer_graph,
     # Ensure the deletion is smaller than the layer size.
     if to_remove >= layer_graph[layer].o:
         print("Cannot remove enough to hit target")
-        return None, None
+        return None, None, None, None
 
     # Perform the actual deletion
     model_copy = copy.deepcopy(model)
@@ -1101,50 +1101,74 @@ def try_reduce(curr_loss, curr_model, dataloader, layer_graph,
     print("done")
 
     # Train
-    old_model = generator_full.generator
-    generator_full.generator = model_copy
+    #old_model = og_generator_full.generator
     optimizer_generator = torch.optim.Adam(
-        generator_full.generator.parameters(),
+        model_copy.parameters(),
         lr=train_params['lr_generator'],
         betas=(0.5, 0.999))
 
+    new_kp_detector = copy.deepcopy(kp_detector)
+    new_discriminator = copy.deepcopy(discriminator)
+    optimizer_kp_detector = torch.optim.Adam(new_kp_detector.parameters(), 
+            lr=train_params['lr_kp_detector'], betas=(0.5, 0.999))
+    
+    optimizer_discriminator = torch.optim.Adam(new_kp_detector.parameters(), 
+            lr=train_params['lr_discriminator'], betas=(0.5, 0.999))
+
+    generator_full = GeneratorFullModel(new_kp_detector, model_copy, new_discriminator, train_params)
+    discriminator_full = DiscriminatorFullModel(new_kp_detector, model_copy, new_discriminator, train_params)
     counter = 0
     for k in dataloader:
         break
+    generator_full = DataParallelWithCallback(generator_full, device_ids=device_ids)
+    discriminator_full = DataParallelWithCallback(discriminator_full, device_ids=device_ids)
 
     c = 0
     for x in tqdm(dataloader):
         c += 1
-        if c > steps_per_it:
+        if c > steps_per_it and steps_per_it != -1:
             break
         x['driving_lr'] = F.interpolate(x['driving'], lr_size)
 
         # Inputs need to manually be moved onto the gpu
-        move_to_gpu(x)
+        #move_to_gpu(x)
         losses_generator, generated = generator_full(x, generator_type)
         loss_values = [val.mean() for val in losses_generator.values()]
         loss = sum(loss_values)
         loss.backward()
         optimizer_generator.step()
         optimizer_generator.zero_grad()
+
+        if optimizer_kp_detector is not None:
+            optimizer_kp_detector.step()
+            optimizer_kp_detector.zero_grad()
+        if train_params['loss_weights']['generator_gan'] != 0:
+            optimizer_discriminator.zero_grad()
+            losses_discriminator = discriminator_full(x, generated)
+            loss_values = [val.mean() for val in losses_discriminator.values()]
+            loss = sum(loss_values)
+
+            loss.backward()
+            optimizer_discriminator.step()
+            optimizer_discriminator.zero_grad()
         
     # Test the model
     total_loss = get_metrics_loss(metrics_dataloader, lr_size, generator_full,
                                   generator_type)
     print("Loss for this model is: ", total_loss)
 
-    generator_full.generator = old_model
+    #generator_full.generator = old_model
 
     # Store the best module
     if curr_loss is None or total_loss < curr_loss:
-        return total_loss, model_copy
+        return total_loss, model_copy, new_kp_detector, new_discriminator
     else:
-        return None, None
+        return None, None, None, None
 
 
 def reduce_macs(model, target, current, kp_detector, discriminator,
                 train_params, dataloader, metrics_dataloader, generator_type,
-                lr_size, generator_full, sort, steps_per_it):
+                lr_size, generator_full, sort, steps_per_it, device_ids):
     """
     Applies netadapt to reduce the model to target macs
     """
@@ -1164,7 +1188,9 @@ def reduce_macs(model, target, current, kp_detector, discriminator,
     ])
 
     curr_model = None
+    curr_kp_detector = None
     curr_loss = None
+    curr_discriminator = None
     i = 0
     """
     Loops through the entire model running try_reduce on each layer
@@ -1178,21 +1204,22 @@ def reduce_macs(model, target, current, kp_detector, discriminator,
 
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
-            loss, t_model = try_reduce(curr_loss, curr_model,
+            loss, t_model, t_kp_detector, t_discriminator = try_reduce(curr_loss, curr_model,
                                        dataloader, layer_graph, layer,
                                        kp_detector, discriminator,
                                        train_params, model, target, current,
                                        lr_size, generator_type,
-                                       metrics_dataloader, generator_full, sort, steps_per_it)
+                                       metrics_dataloader, generator_full, sort, steps_per_it, device_ids)
         # Model returns loss != None if its model beats our current best
         if loss is not None:
             print("Updated model")
             curr_model = t_model
+            curr_kp_detector = t_kp_detector
+            curr_discriminator = t_discriminator
             curr_loss = loss
 
     if curr_model is None:
         print("Could not shrink anymore")
         raise StopIteration("Modle shrinking complete")
-        return model
-    print("finished netadapt iteration")
-    return curr_model
+    print("finished netadapt iteration with loss", curr_loss)
+    return curr_model, curr_kp_detector, curr_discriminator

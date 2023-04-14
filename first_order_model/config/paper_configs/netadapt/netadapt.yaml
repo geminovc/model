@@ -69,6 +69,7 @@ train_params:
   encode_video_for_training: False
   num_epochs: 250
   netadapt: True
+  netadapt_steps_per_it: 4
   netadapt_sort: True
   shrink_rate: 0.04
   target_shrink: .01
