@@ -58,7 +58,7 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
     else:
         use_RIFE = False
     
-    if checkpoint is not None and generator_type in ["occlusion_aware", "split_hf_lf"]:
+    if checkpoint is not None and generator_type in ["occlusion_aware", "split_hf_lf", "student_occlusion_aware"]:
         if train_params.get('fine_tune_entire_model', False):
             start_epoch = Logger.load_cpk(checkpoint, generator, discriminator, kp_detector,
                                       None if use_RIFE else optimizer_generator, optimizer_discriminator,
