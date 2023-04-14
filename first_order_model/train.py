@@ -250,6 +250,7 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
 
     if train_params.get('netadapt', False):
         sort = train_params.get('netadapt_sort', False)
+        sort = train_params.get('netadapt_steps_per_it', 300)
         with Logger(log_dir=log_dir, visualizer_params=config['visualizer_params'], checkpoint_freq=train_params['checkpoint_freq']) as logger:
             epoch = 0
             is_first_round = True
@@ -314,7 +315,7 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
 
     with Logger(log_dir=log_dir, visualizer_params=config['visualizer_params'], checkpoint_freq=train_params['checkpoint_freq']) as logger:
         for epoch in trange(start_epoch, train_params['num_epochs']):
-            for x in tqdm(dataloader):
+            for x in dataloader:
                 if use_lr_video or use_RIFE:
                     lr_frame = F.interpolate(x['driving'], lr_size)
                     if train_params.get('encode_video_for_training', False):

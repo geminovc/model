@@ -1061,7 +1061,7 @@ def shrink_model(model_copy, layer_graph, layer, count, sort):
 def try_reduce(curr_loss, curr_model, dataloader, layer_graph,
                layer, kp_detector, discriminator, train_params, model, target,
                current, lr_size, generator_type, metrics_dataloader,
-               generator_full, sort):
+               generator_full, sort, steps_per_it):
     """
     Most complicated function.
     High level summary:
@@ -1115,6 +1115,8 @@ def try_reduce(curr_loss, curr_model, dataloader, layer_graph,
     c = 0
     for x in tqdm(dataloader):
         c += 1
+        if c > steps_per_it:
+            break
         x['driving_lr'] = F.interpolate(x['driving'], lr_size)
 
         # Inputs need to manually be moved onto the gpu
@@ -1142,7 +1144,7 @@ def try_reduce(curr_loss, curr_model, dataloader, layer_graph,
 
 def reduce_macs(model, target, current, kp_detector, discriminator,
                 train_params, dataloader, metrics_dataloader, generator_type,
-                lr_size, generator_full, sort):
+                lr_size, generator_full, sort, steps_per_it):
     """
     Applies netadapt to reduce the model to target macs
     """
@@ -1181,7 +1183,7 @@ def reduce_macs(model, target, current, kp_detector, discriminator,
                                        kp_detector, discriminator,
                                        train_params, model, target, current,
                                        lr_size, generator_type,
-                                       metrics_dataloader, generator_full, sort)
+                                       metrics_dataloader, generator_full, sort, steps_per_it)
         # Model returns loss != None if its model beats our current best
         if loss is not None:
             print("Updated model")
