@@ -50,4 +50,4 @@ class SuperResolutionGenerator(nn.Module):
 
         output_dict= {"prediction": out}
 
-        return output_dict
+        return output_dict, {}

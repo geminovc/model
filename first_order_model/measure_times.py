@@ -109,10 +109,12 @@ def get_random_inputs(model_name, lr_size):
         x4 = x4.cuda()
         x5 = x5.cuda()
 
-    if model_name != "kp_detector":
-        return x0, x1, x2, x3, x4, x5
-    else:
+    if model_name == "kp_detector":
         return x0, None, None, None, None
+    elif model_name == "just_upsampler":
+        return x5
+    else:
+        return x0, x1, x2, x3, x4, x5
 
 
 def time_generator(model):
@@ -120,12 +122,18 @@ def time_generator(model):
     if USE_QUANTIZATION:
         model = quantize_generator(model, enable_meausre=False)
 
-    x0, x1, x2, x3, x4, x5 = get_random_inputs("generator", LR_SIZE)
-    if USE_FLOAT_16:
-        model.half()
-        model_inputs = [x0, {'value':x1}, {'value':x3}, False, x5]
-    else:
-        model_inputs = [x0, {'value':x1, 'jacobian':x2}, {'value':x3, 'jacobian':x4}, False, x5]
+    if GEN_TYPE == 'occlusion_aware':
+        x0, x1, x2, x3, x4, x5 = get_random_inputs(GEN_TYPE, LR_SIZE)
+        if USE_FLOAT_16:
+            model.half()
+            model_inputs = [x0, {'value':x1}, {'value':x3}, False, x5]
+        else:
+            model_inputs = [x0, {'value':x1, 'jacobian':x2}, {'value':x3, 'jacobian':x4}, False, x5]
+    elif GEN_TYPE == 'just_upsampler':
+        x0 = get_random_inputs(GEN_TYPE, LR_SIZE)
+        model_inputs = [x0]
+        if USE_FLOAT_16:
+            model.half()
 
     if USE_CUDA:
         model.cuda()
@@ -176,9 +184,7 @@ IMAGE_RESOLUTION = int(opt.resolution)
 BATCH_SIZE = int(opt.batch_size)
 USE_FLOAT_16 = opt.float16
 SLEEP_DUR = float(opt.sleep_dur)
-if main_configs['use_lr_video'] == True:
-    LR_SIZE = main_configs['lr_size']
-else:
-    LR_SIZE = None
+LR_SIZE = main_configs.get('lr_size', None)
+GEN_TYPE = main_configs.get('generator_type', 'occlusion_aware')
 generator, _, _ = configure_fom_modules(config, torch.device('cuda' if torch.cuda.is_available() else 'cpu'))
 time_generator(generator)
