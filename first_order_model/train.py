@@ -158,7 +158,7 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
 
     if 'num_repeats' in train_params or train_params['num_repeats'] != 1:
         dataset = DatasetRepeater(dataset, train_params['num_repeats'])
-    dataloader = DataLoader(dataset, batch_size=train_params['batch_size'], shuffle=True, num_workers=12, drop_last=True)
+    dataloader = DataLoader(dataset, batch_size=train_params['batch_size'], shuffle=True, num_workers=6, drop_last=True)
    
     metrics_dataloader = None
     if 'metrics_params' in config:
@@ -231,7 +231,7 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
                         generator_full.generator, current - reduce_amount,
                         current, generator_full.kp_extractor, generator_full.discriminator, train_params,
                         dataloader, metrics_dataloader, generator_type,
-                        lr_size, generator_full, sort, steps_per_it, device_ids, log_dir)
+                        lr_size, generator_full, sort, steps_per_it, device_ids, log_dir, discriminator_full)
                     with warnings.catch_warnings():
                         warnings.simplefilter("ignore")
                         current = get_model_macs(log_dir, generator_full.generator, kp_detector, torch.device('cuda' if torch.cuda.is_available() else 'cpu'), lr_size, 512, 2)

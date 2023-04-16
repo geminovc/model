@@ -1064,7 +1064,7 @@ def shrink_model(model_copy, layer_graph, layer, count, sort):
 def try_reduce(curr_loss, curr_model, dataloader, layer_graph,
                layer, kp_detector, discriminator, train_params, model, target,
                current, lr_size, generator_type, metrics_dataloader,
-               og_generator_full_ignore, sort, steps_per_it, device_ids, log_dir):
+               generator_full, sort, steps_per_it, device_ids, log_dir, discriminator_full):
     """
     Most complicated function.
     High level summary:
@@ -1121,15 +1121,17 @@ def try_reduce(curr_loss, curr_model, dataloader, layer_graph,
     optimizer_discriminator = torch.optim.Adam(new_kp_detector.parameters(), 
             lr=train_params['lr_discriminator'], betas=(0.5, 0.999))
 
-    generator_full = GeneratorFullModel(new_kp_detector, model_copy, new_discriminator, train_params)
-    discriminator_full = DiscriminatorFullModel(new_kp_detector, model_copy, new_discriminator, train_params)
+    generator_full.generator = model_copy
+    generator_full.discriminator = new_discriminator
+    generator_full.kp_extractor = new_kp_detector
+    discriminator_full.kp_extractor = new_kp_detector
+    discriminator_full.generator = model_copy
+    discriminator_full.discriminator = new_discriminator
+
     counter = 0
     generator_full = DataParallelWithCallback(generator_full, device_ids=device_ids)
     discriminator_full = DataParallelWithCallback(discriminator_full, device_ids=device_ids)
 
-    total_loss = get_metrics_loss(metrics_dataloader, lr_size, generator_full,
-                                  generator_type)
-    print("Loss for this model is: ", total_loss)
     for x in dataloader:
         break
 
@@ -1179,7 +1181,7 @@ def try_reduce(curr_loss, curr_model, dataloader, layer_graph,
 
 def reduce_macs(model, target, current, kp_detector, discriminator,
                 train_params, dataloader, metrics_dataloader, generator_type,
-                lr_size, generator_full, sort, steps_per_it, device_ids, log_dir):
+                lr_size, generator_full, sort, steps_per_it, device_ids, log_dir, discriminator_full):
     """
     Applies netadapt to reduce the model to target macs
     """
@@ -1220,7 +1222,7 @@ def reduce_macs(model, target, current, kp_detector, discriminator,
                                        kp_detector, discriminator,
                                        train_params, model, target, current,
                                        lr_size, generator_type,
-                                       metrics_dataloader, generator_full, sort, steps_per_it, device_ids, log_dir)
+                                       metrics_dataloader, generator_full, sort, steps_per_it, device_ids, log_dir, discriminator_full)
         # Model returns loss != None if its model beats our current best
         if loss is not None:
             print("Updated model")
