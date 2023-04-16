@@ -158,7 +158,7 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
 
     if 'num_repeats' in train_params or train_params['num_repeats'] != 1:
         dataset = DatasetRepeater(dataset, train_params['num_repeats'])
-    dataloader = DataLoader(dataset, batch_size=train_params['batch_size'], shuffle=True, num_workers=6, drop_last=True)
+    dataloader = DataLoader(dataset, batch_size=train_params['batch_size'], shuffle=True, num_workers=12, drop_last=True)
    
     metrics_dataloader = None
     if 'metrics_params' in config:
@@ -184,21 +184,6 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
     loss_fn_vgg = vgg_model.compute_loss
     face_lpips = vgg_face_model.compute_loss
 
-    for x in dataloader:
-        if use_lr_video or use_RIFE:
-            lr_frame = F.interpolate(x['driving'], lr_size)
-            if train_params.get('encode_video_for_training', False):
-                x['driving_lr'] = get_encoded_frame(train_params, lr_frame, x)
-            else:
-                x['driving_lr'] = lr_frame
-
-        # Manually move to cuda because it isn't automatically moved
-        move_to_gpu(x)
-        break
-
-    # Get gen input once for macs/speed calculations in the future
-    get_gen_input(generator_full,x)
-
     # Set up the netadapt hyper parameters
     # Target: target macs, Current: current macs, reduce_amount: amoutn of macs to reduce each iteration
     if train_params.get('netadapt', False):
@@ -217,8 +202,15 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
         state_dict =torch.load(reload_gen)
         set_module(generator_full, state_dict)
         optimizer_generator = torch.optim.Adam(generator_full.generator.parameters(), lr=train_params['lr_generator'], betas=(0.5, 0.999))
+        optimizer_kp_detector = torch.optim.Adam(generator_full.kp_extractor.parameters(), 
+                lr=train_params['lr_kp_detector'], betas=(0.5, 0.999))
+        optimizer_discriminator = torch.optim.Adam(generator_full.discriminator.parameters(), lr=train_params['lr_discriminator'], betas=(0.5, 0.999))
         current = get_model_macs(log_dir, copy.deepcopy(generator_full.generator), kp_detector, torch.device('cuda' if torch.cuda.is_available() else 'cpu'), lr_size, 512, 2)
+        discriminator_full = DiscriminatorFullModel(generator_full.kp_extractor, generator_full.generator, generator_full.discriminator, train_params)
         print('reloaded params, new macs is', current)
+
+    for x in dataloader:
+        break
 
     if train_params.get('netadapt', False):
         sort = train_params.get('netadapt_sort', False)
@@ -266,7 +258,6 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
                             logger.log_iter(losses=losses)
                             logger.log_metrics_images(i, y, metrics_generated, loss_fn_vgg, original_lpips, face_lpips)
 
-                    print("Generator took (ms):", get_generator_time(generator_full, y))
                     logger.log_epoch(epoch, {'generator': generator_full.generator,
                                              'discriminator': generator_full.discriminator,
                                              'kp_detector': generator_full.kp_extractor,

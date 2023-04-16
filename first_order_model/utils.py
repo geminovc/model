@@ -236,6 +236,7 @@ def get_model_macs(log_dir, generator, kp_detector, device, lr_size, image_size,
             dim = int(image_size)
             features = int(16 * (1024 / image_size))
             while dim >= 256:
+                #skip_features = get_input_features(generator.efficientnet_decoder._blocks[5])
                 skip_connections.append(torch.randn(BATCH_SIZE, features, dim, dim, requires_grad=False, device=device))
                 features *= 2
                 dim = dim // 2
@@ -244,7 +245,7 @@ def get_model_macs(log_dir, generator, kp_detector, device, lr_size, image_size,
             print('{}: {:.4g} G'.format('decoder macs', decoder_macs / 1e9))
             model_file.write('{}: {:.4g} G\n'.format('decoder macs', decoder_macs / 1e9))   
 
-    return decoder_macs
+    return decoder_macs + bottleneck_macs
 
 
 def get_model_info(log_dir, kp_detector, generator):

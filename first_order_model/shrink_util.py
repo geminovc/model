@@ -123,7 +123,7 @@ def print_diff(state_dict, state_dict2):
             #set_attr(mod, ksubmod_names, dict_param)
 
 
-def set_module(mod, state_dict):
+def set_module(mod, state_dict, force_model=None):
     """
     Given a generator full model, set the generator and keypoint detector with state dict.
     This is different from set state dict since it goes in and edits weights regardless of shape mismatch. Used only in loading netadapted parameters
@@ -132,11 +132,15 @@ def set_module(mod, state_dict):
     for key1 in state_dict.keys():
         if key1 not in ['generator', 'kp_detector']:
             continue
+        if force_model is not None and key1 != force_model:
+            continue
         for key, dict_param in state_dict[key1].items():
             if key1 == 'kp_detector':
                 submod_names = ['kp_extractor'] + key.split(".")
             else:
                 submod_names = [key1] + key.split(".")
+            if force_model != None:
+                submod_names = key.split(".")
             #curr_param = get_attr(mod, submod_names)
             # Here you can either replace the existing one
             set_attr(mod, submod_names, dict_param)
@@ -144,6 +148,18 @@ def set_module(mod, state_dict):
             og_groups = get_attr_default(mod, group_name, 1)
             if og_groups != 1:
                 get_attr(mod, group_name[:-1]).groups = dict_param.shape[0]
+                try:
+                    get_attr(mod, submod_names[:-1]).in_channels = dict_param.shape[0]
+                    get_attr(mod, submod_names[:-1]).out_channels = dict_param.shape[0]
+                except:
+                    pass
+            else:
+                try:
+                    get_attr(mod, submod_names[:-1]).in_channels = dict_param.shape[1]
+                    get_attr(mod, submod_names[:-1]).out_channels = dict_param.shape[0]
+                except:
+                    pass
+
 
 
 def set_gen_module(mod, state_dict):
@@ -151,36 +167,14 @@ def set_gen_module(mod, state_dict):
     See: set_module
     applies only to generators
     """
-
-    for key1 in state_dict.keys():
-        if key1 not in ['generator']:
-            continue
-        for key, dict_param in state_dict[key1].items():
-
-            submod_names = key.split(".")
-            #curr_param = get_attr(mod, submod_names)
-            # Here you can either replace the existing one
-            # Set the groups value for the depthwise case
-            set_attr(mod, submod_names, dict_param)
-            group_name = submod_names[:-1] + ['groups']
-            og_groups = get_attr_default(mod, group_name, 1)
-            if og_groups != 1:
-                get_attr(mod, group_name[:-1]).groups = dict_param.shape[0]
-
+    set_module(mod, state_dict, 'generator')
 
 def set_keypoint_module(mod, state_dict):
     """
     See: set module
     applies only to keypoint detectors
     """
-    for key1 in state_dict.keys():
-        if key1 not in ['kp_detector']:
-            continue
-        for key, dict_param in state_dict[key1].items():
-            submod_names = key.split(".")
-            #curr_param = get_attr(mod, submod_names)
-            # Here you can either replace the existing one
-            set_attr(mod, submod_names, dict_param)
+    set_module(mod, state_dict, 'kp_detector')
 
 class Node:
     """
@@ -752,7 +746,7 @@ def get_generator_time(model, x):
     return total_time / 50
 
 
-def get_gen_input(model=None, x=None):
+def get_gen_input_old(model=None, x=None):
     """
     Store the input of the model after this function is run once.
     Is used for conveniently getting dummy inputs when I want to run a generator, without me needing to make sure sizes are set up correctly.
@@ -807,7 +801,7 @@ def f_set(weight, target, prune_indices):
     """
     new_weight = torch.cat(
         [weight[:prune_indices[0]], weight[prune_indices[1]:]])
-    target.set_(new_weight.clone().detach().contiguous())
+    target.set_(new_weight.contiguous())
 
 def get_channel_reduction(deletions):
     return sum(map(lambda x : x[1] - x[0], deletions))
@@ -874,7 +868,7 @@ def channel_prune(model, deletions):
                     nvd = torch.cat(
                         [nvd[:, :prune_indices[0]], nvd[:, prune_indices[1]:]],
                         dim=1)
-                    node.value.weight.set_(nvd.clone().detach().contiguous())
+                    node.value.weight.set_(nvd.contiguous())
                 
                 # Prune the inputs (and by definition outputs) of a batchnorm layer
                 if node.type == 'bn':
@@ -1079,7 +1073,8 @@ def try_reduce(curr_loss, curr_model, dataloader, layer_graph,
     Test the model on the metrics dataset
     If the model beats the current best model, return it. If at any point it fails, return None, None
     """
-    model_copy = copy.deepcopy(model)
+    with torch.no_grad():
+        model_copy = copy.deepcopy(model)
 
     # Ignore this layer if it has only one output, or its output is never used
     if 1 >= layer_graph[layer].o:
@@ -1097,6 +1092,8 @@ def try_reduce(curr_loss, curr_model, dataloader, layer_graph,
         print("Trying to remove something that is not a part of the model")
         return None, None, None, None
 
+    with torch.no_grad():
+        model_copy = copy.deepcopy(model)
     # Calculate the number of layers that must actually be removed to hit the target
     to_remove = int((current - target) // (current - after_1_reduce))
 
@@ -1104,9 +1101,7 @@ def try_reduce(curr_loss, curr_model, dataloader, layer_graph,
     if to_remove >= layer_graph[layer].o:
         print("Cannot remove enough to hit target")
         return None, None, None, None
-
     # Perform the actual deletion
-    model_copy = copy.deepcopy(model)
     model_copy = shrink_model(model_copy, layer_graph, layer, to_remove, sort)
     print("done")
 
@@ -1117,8 +1112,9 @@ def try_reduce(curr_loss, curr_model, dataloader, layer_graph,
         lr=train_params['lr_generator'],
         betas=(0.5, 0.999))
 
-    new_kp_detector = copy.deepcopy(kp_detector)
-    new_discriminator = copy.deepcopy(discriminator)
+    with torch.no_grad():
+        new_kp_detector = copy.deepcopy(kp_detector)
+        new_discriminator = copy.deepcopy(discriminator)
     optimizer_kp_detector = torch.optim.Adam(new_kp_detector.parameters(), 
             lr=train_params['lr_kp_detector'], betas=(0.5, 0.999))
     
@@ -1128,10 +1124,14 @@ def try_reduce(curr_loss, curr_model, dataloader, layer_graph,
     generator_full = GeneratorFullModel(new_kp_detector, model_copy, new_discriminator, train_params)
     discriminator_full = DiscriminatorFullModel(new_kp_detector, model_copy, new_discriminator, train_params)
     counter = 0
-    for k in dataloader:
-        break
     generator_full = DataParallelWithCallback(generator_full, device_ids=device_ids)
     discriminator_full = DataParallelWithCallback(discriminator_full, device_ids=device_ids)
+
+    total_loss = get_metrics_loss(metrics_dataloader, lr_size, generator_full,
+                                  generator_type)
+    print("Loss for this model is: ", total_loss)
+    for x in dataloader:
+        break
 
     c = 0
     for x in tqdm(dataloader):
@@ -1161,6 +1161,7 @@ def try_reduce(curr_loss, curr_model, dataloader, layer_graph,
             loss.backward()
             optimizer_discriminator.step()
             optimizer_discriminator.zero_grad()
+
         
     # Test the model
     total_loss = get_metrics_loss(metrics_dataloader, lr_size, generator_full,

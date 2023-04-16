@@ -181,4 +181,10 @@ if main_configs['use_lr_video'] == True:
 else:
     LR_SIZE = None
 generator, _, _ = configure_fom_modules(config, torch.device('cuda' if torch.cuda.is_available() else 'cpu'))
+
+reload_gen = train_params.get('shrunk_gen', None)
+if reload_gen is not None:
+    state_dict =torch.load(reload_gen)
+    set_gen_module(generator, state_dict)
+    print('reloaded_params')
 time_generator(generator)
