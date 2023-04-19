@@ -76,6 +76,7 @@ train_params:
   lr_kp_detector: 2.0e-4
   netadapt: True
   netadapt_sort: True
+  netadapt_steps_per_it: 3
   shrink_rate: .04
   target: .01
   batch_size: 2
