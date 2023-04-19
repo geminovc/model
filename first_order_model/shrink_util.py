@@ -1097,6 +1097,8 @@ def try_reduce(curr_loss, curr_model, dataloader, layer_graph,
     # Calculate the number of layers that must actually be removed to hit the target
     to_remove = int((current - target) // (current - after_1_reduce))
 
+    if to_remove == 0:
+        to_remove = 1
     # Ensure the deletion is smaller than the layer size.
     if to_remove >= layer_graph[layer].o:
         print("Cannot remove enough to hit target")
