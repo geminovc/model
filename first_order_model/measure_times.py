@@ -3,6 +3,7 @@
     output_dict to output_dict, {}.
 """
 import torch
+import warnings
 from torch import nn
 from torch.autograd import grad
 from torch.optim.lr_scheduler import MultiStepLR
@@ -12,6 +13,9 @@ import csv
 import imageio 
 import time
 import os, sys
+from utils import get_model_macs
+from copy import deepcopy
+from shrink_util import set_gen_module
 import numpy as np
 from tqdm import trange
 from argparse import ArgumentParser
@@ -164,6 +168,8 @@ parser.add_argument("--resolution", default=1024, help="image resolution")
 parser.add_argument("--batch_size", default=1, help="image batch_size")
 parser.add_argument("--sleep_dur", default=0, help="sleep duration in seconds")
 parser.add_argument("--float16", dest="float16", action="store_true", help="use float16")
+parser.add_argument("--print_macs", dest="print_macs", action="store_true", help="use float16")
+parser.add_argument("--netadapt_checkpoint", default=None, help="path to netadapt cpk")
 parser.set_defaults(verbose=False)
 opt = parser.parse_args()
 
@@ -176,15 +182,31 @@ IMAGE_RESOLUTION = int(opt.resolution)
 BATCH_SIZE = int(opt.batch_size)
 USE_FLOAT_16 = opt.float16
 SLEEP_DUR = float(opt.sleep_dur)
+PRINT_MACS =  opt.print_macs
+
 if main_configs['use_lr_video'] == True:
     LR_SIZE = main_configs['lr_size']
 else:
     LR_SIZE = None
-generator, _, _ = configure_fom_modules(config, torch.device('cuda' if torch.cuda.is_available() else 'cpu'))
 
-reload_gen = train_params.get('shrunk_gen', None)
+generator, discriminator, kp_detector = configure_fom_modules(config, torch.device('cuda' if torch.cuda.is_available() else 'cpu'))
+if PRINT_MACS:
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        start = (get_model_macs('log', deepcopy(generator), kp_detector, torch.device('cuda'), LR_SIZE, IMAGE_RESOLUTION))
+    print("START", start)
+
+reload_gen = opt.netadapt_checkpoint
 if reload_gen is not None:
     state_dict =torch.load(reload_gen)
     set_gen_module(generator, state_dict)
     print('reloaded_params')
-time_generator(generator)
+    if PRINT_MACS:
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            end = get_model_macs('log', deepcopy(generator), kp_detector, torch.device('cuda'), LR_SIZE, IMAGE_RESOLUTION)
+        print("END", end)
+        print("Ratio: ", end/start)
+
+if not PRINT_MACS:
+    time_generator(generator)

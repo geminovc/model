@@ -30,6 +30,7 @@ if __name__ == "__main__":
     parser.add_argument("--log_dir", default='log', help="path to log into")
     parser.add_argument("--experiment_name", default='vox-256-standard', help="experiment name to save logs")
     parser.add_argument("--checkpoint", default=None, help="path to checkpoint to restore")
+    parser.add_argument("--netadapt_checkpoint", default=None, help="path to checkpoint to restore")
     parser.add_argument("--device_ids", default="0", type=lambda x: list(map(int, x.split(','))),
                         help="Names of the devices comma separated.")
     parser.add_argument("--verbose", dest="verbose", action="store_true", help="Print model architecture")
@@ -45,7 +46,7 @@ if __name__ == "__main__":
         config = yaml.load(f)
 
     if opt.mode == "reconstruction":
-        shrunk_gen_location = config['train_params'].get('shrunk_gen', None)
+        shrunk_gen_location = opt.netadapt_checkpoint
         if shrunk_gen_location is None:
             log_dir = os.path.dirname(opt.checkpoint)
         else:
@@ -80,7 +81,7 @@ if __name__ == "__main__":
 
     if opt.mode == 'train':
         print("Training...")
-        train(config, generator, discriminator, kp_detector, opt.checkpoint, log_dir, dataset, opt.device_ids)
+        train(config, generator, discriminator, kp_detector, opt.checkpoint, opt.netadapt_checkpoint, log_dir, dataset, opt.device_ids)
     elif opt.mode == 'reconstruction':
         print("Reconstruction...")
         reconstruction(config, generator, kp_detector, opt.checkpoint, log_dir, dataset, opt.enable_timing, 

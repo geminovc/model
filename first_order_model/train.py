@@ -24,7 +24,7 @@ import numpy as np
 
 from first_order_model.utils import get_frame_from_video_codec 
 
-def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, dataset, device_ids):
+def train(config, generator, discriminator, kp_detector, checkpoint, netadapt_checkpoint,  log_dir, dataset, device_ids):
     train_params = config['train_params'] 
     generator_params = config['model_params']['generator_params']
     generator_type = generator_params.get('generator_type', 'occlusion_aware')
@@ -196,8 +196,8 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
         current = start
         target = start * train_params.get('target_shrink', 0.25)
 
-    # Force load a netadapt checkpoint shrunk_gen points to
-    reload_gen = train_params.get('shrunk_gen', None)
+    # Force load a netadapt checkpoint
+    reload_gen = netadapt_checkpoint
     if reload_gen is not None:
         state_dict =torch.load(reload_gen)
         set_module(generator_full, state_dict)
