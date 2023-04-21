@@ -207,10 +207,11 @@ def train(config, generator, discriminator, kp_detector, checkpoint, netadapt_ch
         optimizer_discriminator = torch.optim.Adam(generator_full.discriminator.parameters(), lr=train_params['lr_discriminator'], betas=(0.5, 0.999))
         current = get_model_macs(log_dir, copy.deepcopy(generator_full.generator), kp_detector, torch.device('cuda' if torch.cuda.is_available() else 'cpu'), lr_size, 512, 2)
         discriminator_full = DiscriminatorFullModel(generator_full.kp_extractor, generator_full.generator, generator_full.discriminator, train_params)
+        generator = generator_full.generator
+        discriminator = generator_full.discriminator
+        kp_detector = generator_full.kp_extractor
         print('reloaded params, new macs is', current)
 
-    for x in dataloader:
-        break
 
     if train_params.get('netadapt', False):
         sort = train_params.get('netadapt_sort', False)

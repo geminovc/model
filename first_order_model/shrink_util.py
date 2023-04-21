@@ -130,7 +130,7 @@ def set_module(mod, state_dict, force_model=None):
     """
 
     for key1 in state_dict.keys():
-        if key1 not in ['generator', 'kp_detector']:
+        if key1 not in ['generator', 'kp_detector', 'discriminator']:
             continue
         if force_model is not None and key1 != force_model:
             continue
