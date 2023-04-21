@@ -10,7 +10,6 @@ import torch
 import torch.nn.functional as F
 import first_order_model
 from torchprofile import profile_macs
-import torch_pruning as tp
 
 import sys
 from torch.utils.data import DataLoader
