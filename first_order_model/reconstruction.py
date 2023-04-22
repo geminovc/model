@@ -197,7 +197,7 @@ def destamp_frame(frame):
     return final_frame, frame_id
 
 
-def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset, timing_enabled, 
+def reconstruction(config, generator, kp_detector, checkpoint, netadapt_checkpoint, log_dir, dataset, timing_enabled, 
         save_visualizations_as_images, experiment_name, reference_frame_update_freq=None, profile=False):
     """ reconstruct driving frames for each video in the dataset using the first frame
         as a source frame. Config specifies configuration details, while timing 
@@ -232,7 +232,7 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
             raise AttributeError('Checkpoint should be specified for reconstruction')
 
     # Manually force reload of netadapted model
-    reload_gen = train_params.get('shrunk_gen', None)
+    reload_gen = netadapt_checkpoint
     if reload_gen is not None:
         state_dict = torch.load(reload_gen)
         set_gen_module(generator, state_dict)

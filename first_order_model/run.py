@@ -84,7 +84,7 @@ if __name__ == "__main__":
         train(config, generator, discriminator, kp_detector, opt.checkpoint, opt.netadapt_checkpoint, log_dir, dataset, opt.device_ids)
     elif opt.mode == 'reconstruction':
         print("Reconstruction...")
-        reconstruction(config, generator, kp_detector, opt.checkpoint, log_dir, dataset, opt.enable_timing, 
+        reconstruction(config, generator, kp_detector, opt.checkpoint, opt.netadapt_checkpoint, log_dir, dataset, opt.enable_timing, 
                 opt.save_visualizations_as_images, opt.experiment_name, opt.reference_frame_update_freq,
                 opt.profile)
     elif opt.mode == 'distill':
