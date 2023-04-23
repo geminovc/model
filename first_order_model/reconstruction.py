@@ -228,7 +228,6 @@ def reconstruction(config, generator, kp_detector, checkpoint, netadapt_checkpoi
             Logger.load_cpk(checkpoint, generator=generator, 
                     kp_detector=kp_detector, device=device, 
                     dense_motion_network=dense_motion, generator_type=generator_type, reconstruction=True)
-        else:
             raise AttributeError('Checkpoint should be specified for reconstruction')
 
     # Manually force reload of netadapted model
@@ -238,6 +237,9 @@ def reconstruction(config, generator, kp_detector, checkpoint, netadapt_checkpoi
         set_gen_module(generator, state_dict)
         set_keypoint_module(kp_detector, state_dict)
         print('reloaded params')
+
+    if checkpoint is None and netadapt_checkpoint is None:
+        raise AttributeError('Checkpoint should be specified for reconstruction')
 
     # get number of model parameters and mac stats
     if profile:
