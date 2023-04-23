@@ -200,7 +200,7 @@ def get_model_macs(log_dir, generator, kp_detector, device, lr_size, image_size,
         
         dense_motion_macs = profile_macs(generator.dense_motion_network, dense_motion_inputs)
         print('{}: {:.4g} G'.format('dense motion macs', dense_motion_macs / 1e9))
-        model_file.write('{}: {:.4g} G\n'.format('generator macs', dense_motion_macs / 1e9))
+        model_file.write('{}: {:.4g} G\n'.format('dense motion macs', dense_motion_macs / 1e9))
 
         bottleneck_macs = profile_macs(generator.bottleneck, bottleneck_inp)
         print('{}: {:.4g} G'.format('bottleneck macs', bottleneck_macs / 1e9))
@@ -257,6 +257,14 @@ def get_model_info(log_dir, kp_detector, generator):
             if model is not None:
                 number_of_trainable_parameters = sum(p.numel() for p in model.parameters() if p.requires_grad) 
                 total_number_of_parameters = sum(p.numel() for p in model.parameters())
+
+                if name == 'generator':
+                    total_decoder_bottleneck_params = sum(p.numel() for p in model.bottleneck.parameters())
+                    total_decoder_bottleneck_params += sum(p.numel() for p in model.up_blocks.parameters())
+                    total_decoder_bottleneck_params += sum(p.numel() for p in model.hr_up_blocks.parameters())
+                    model_file.write('%s %s: %s\n' % (name, 'total_number_of_decoder_bottleneck_parameters',
+                            str(total_decoder_bottleneck_params)))
+
   
                 model_file.write('%s %s: %s\n' % (name, 'total_number_of_parameters',
                         str(total_number_of_parameters)))
