@@ -13,7 +13,7 @@ import csv
 import imageio 
 import time
 import os, sys
-from utils import get_model_macs
+from utils import get_decode_and_bottleneck_macs
 from copy import deepcopy
 from shrink_util import set_gen_module
 import numpy as np
@@ -193,7 +193,7 @@ generator, discriminator, kp_detector = configure_fom_modules(config, torch.devi
 if PRINT_MACS:
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
-        start = (get_model_macs('log', deepcopy(generator), kp_detector, torch.device('cuda'), LR_SIZE, IMAGE_RESOLUTION))
+        start = (get_decode_and_bottleneck_macs('log', deepcopy(generator), kp_detector, torch.device('cuda'), LR_SIZE, IMAGE_RESOLUTION))
     print("START", start)
 
 reload_gen = opt.netadapt_checkpoint
@@ -204,7 +204,7 @@ if reload_gen is not None:
     if PRINT_MACS:
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
-            end = get_model_macs('log', deepcopy(generator), kp_detector, torch.device('cuda'), LR_SIZE, IMAGE_RESOLUTION)
+            end = get_decode_and_bottleneck_macs('log', deepcopy(generator), kp_detector, torch.device('cuda'), LR_SIZE, IMAGE_RESOLUTION)
         print("END", end)
         print("Ratio: ", end/start)
 

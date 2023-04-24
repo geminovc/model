@@ -1,5 +1,5 @@
 from tqdm import trange
-from utils import get_model_macs
+from utils import get_decode_and_bottleneck_macs
 import torch
 from shrink_util import *
 import torch.nn.functional as F
@@ -186,7 +186,7 @@ def train(config, generator, discriminator, kp_detector, checkpoint, netadapt_ch
     if train_params.get('netadapt', False):
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
-            start = get_model_macs(log_dir, generator, kp_detector, torch.device('cuda' if torch.cuda.is_available() else 'cpu'), lr_size, 512, 2)
+            start = get_decode_and_bottleneck_macs(log_dir, generator, kp_detector, torch.device('cuda' if torch.cuda.is_available() else 'cpu'), lr_size, 512, 2)
         print("Start macs: ", start)
         prune_rate = train_params.get('shrink_rate', 0.02)
         reduce_amount = start * prune_rate
@@ -202,7 +202,7 @@ def train(config, generator, discriminator, kp_detector, checkpoint, netadapt_ch
         optimizer_kp_detector = torch.optim.Adam(generator_full.kp_extractor.parameters(), 
                 lr=train_params['lr_kp_detector'], betas=(0.5, 0.999))
         optimizer_discriminator = torch.optim.Adam(generator_full.discriminator.parameters(), lr=train_params['lr_discriminator'], betas=(0.5, 0.999))
-        current = get_model_macs(log_dir, copy.deepcopy(generator_full.generator), kp_detector, torch.device('cuda' if torch.cuda.is_available() else 'cpu'), lr_size, 512, 2)
+        current = get_decode_and_bottleneck_macs(log_dir, copy.deepcopy(generator_full.generator), kp_detector, torch.device('cuda' if torch.cuda.is_available() else 'cpu'), lr_size, 512, 2)
         discriminator_full = DiscriminatorFullModel(generator_full.kp_extractor, generator_full.generator, generator_full.discriminator, train_params)
         generator = generator_full.generator
         discriminator = generator_full.discriminator
@@ -230,7 +230,7 @@ def train(config, generator, discriminator, kp_detector, checkpoint, netadapt_ch
                         lr_size, generator_full, sort, steps_per_it, device_ids, log_dir, discriminator_full)
                     with warnings.catch_warnings():
                         warnings.simplefilter("ignore")
-                        current = get_model_macs(log_dir, generator_full.generator, kp_detector, torch.device('cuda' if torch.cuda.is_available() else 'cpu'), lr_size, 512, 2)
+                        current = get_decode_and_bottleneck_macs(log_dir, generator_full.generator, kp_detector, torch.device('cuda' if torch.cuda.is_available() else 'cpu'), lr_size, 512, 2)
                     reduce_amount = current * prune_rate
                     
                 epoch += 1

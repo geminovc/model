@@ -1,6 +1,6 @@
 from tqdm import trange
 import gc
-from utils import get_model_macs
+from utils import get_decode_and_bottleneck_macs
 import os
 from tqdm import tqdm
 import torch
@@ -1089,12 +1089,12 @@ def try_reduce(curr_loss, curr_model, dataloader, layer_graph,
                current, lr_size, generator_type, metrics_dataloader,
                generator_full, sort, steps_per_it, device_ids, log_dir, discriminator_full):
     """
-    Most complicated function.
     High level summary:
-    Try to shrink the model to the target size.
+    Try to shrink the model to the target size by deleting layer (passed in as an argument)
     Train the model for a short term fine tune
     Test the model on the metrics dataset
-    If the model beats the current best model, return it. If at any point it fails, return None, None
+    If the model beats the current best model, return it. If at any point it fails, return Nones
+    This function is called ~50 times, with each input layer as an argument once in one iteration of netadapt.
     """
     with torch.no_grad():
         model_copy = copy.deepcopy(model)
@@ -1108,7 +1108,7 @@ def try_reduce(curr_loss, curr_model, dataloader, layer_graph,
     # Reduce the layer by size 1 to check how much it affects model size.
     model_copy = shrink_model(model_copy, layer_graph, layer, 1, sort)
 
-    after_1_reduce = get_model_macs(log_dir, model_copy, kp_detector, torch.device('cuda' if torch.cuda.is_available() else 'cpu'), lr_size, 512, 2)
+    after_1_reduce = get_decode_and_bottleneck_macs(log_dir, model_copy, kp_detector, torch.device('cuda' if torch.cuda.is_available() else 'cpu'), lr_size, 512, 2)
     print(after_1_reduce)
     if after_1_reduce == current:
         print("Trying to remove something that is not a part of the model")
@@ -1130,7 +1130,6 @@ def try_reduce(curr_loss, curr_model, dataloader, layer_graph,
     print("done")
 
     # Train
-    #old_model = og_generator_full.generator
     optimizer_generator = torch.optim.Adam(
         model_copy.parameters(),
         lr=train_params['lr_generator'],
@@ -1193,8 +1192,6 @@ def try_reduce(curr_loss, curr_model, dataloader, layer_graph,
     total_loss = get_metrics_loss(metrics_dataloader, lr_size, generator_full,
                                   generator_type)
     print("Loss for this model is: ", total_loss)
-
-    #generator_full.generator = old_model
 
     # Store the best module
     if curr_loss is None or total_loss < curr_loss:
