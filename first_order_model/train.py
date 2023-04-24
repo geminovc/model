@@ -166,9 +166,6 @@ def train(config, generator, discriminator, kp_detector, checkpoint, netadapt_ch
         metrics_dataloader = DataLoader(metrics_dataset, batch_size=train_params['batch_size'], shuffle=False, 
                 num_workers=6, drop_last=True)
 
-    # Force this value for distillation trials
-    generator_type = 'occlusion_aware'
-
     generator_full = GeneratorFullModel(kp_detector, generator, discriminator, train_params)
     discriminator_full = DiscriminatorFullModel(kp_detector, generator, discriminator, train_params)
 

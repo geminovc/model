@@ -155,6 +155,7 @@ def configure_fom_modules(config, device, teacher=False):
     
     return generator, discriminator, kp_detector
 
+
 def get_input_features(module):
 
     all_layers = [
@@ -163,6 +164,7 @@ def get_input_features(module):
             or isinstance(m, nn.modules.batchnorm._BatchNorm))
     ]
     return all_layers[0].in_channels
+
 
 def get_model_macs(log_dir, generator, kp_detector, device, lr_size, image_size, BATCH_SIZE=1):
     # reconstruction

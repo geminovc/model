@@ -179,6 +179,13 @@ class Node:
     """
     Stores the information each node in the computation graph for a model will need.
     Used in dependency graph of netadapt.
+
+    Tied nodes are used when the inputs of a layer are tied to the outputs of a following layer.
+    This happens in the resnet when the inputs of a block and the outputs of a block must
+    have the same shape and when deleting from one layer, you should also delete from the second.
+
+    Mirrored nodes are nodes that are directly added together, so when deleting from one, you should
+    also delete from the other.
     """
     def __init__(self, index, t, i, o, value, name):
         self.name = name
@@ -955,7 +962,7 @@ def compute_deletion(layer_graph,
 
     deletions = {}
     if isinstance(custom, list):
-        deletions[layer] = custom
+        deletions[layer] = copy.copy(custom)
     elif isinstance(custom, int):
         # The sorting magic happens here
         # Find the first convolution
@@ -1022,10 +1029,7 @@ def compute_deletion(layer_graph,
         # If there is another tied after layer i.e. a layer who has their output tied to the input of this layer, like in resnet, we need to delete from their outputs as well
         if len(layer_graph[following_layer].tied_after) != 0:
 
-            # Calculate the number of elements to delete
-            total_deleted = 0
-            for del_tuple in deletions[following_layer]:
-                total_deleted += del_tuple[1] - del_tuple[0]
+            total_deleted = copy.copy(deletions[following_layer])
 
             # Add the output layer to our work queue (custom deletions)
             for after_tied in layer_graph[following_layer].tied_after:
