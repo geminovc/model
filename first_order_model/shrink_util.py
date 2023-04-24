@@ -804,6 +804,7 @@ def total_macs(model):
     macs_dict = calculate_macs(model)
     return sum(macs_dict.values())
 
+
 def reverse_sort(input_list):
     """
     Input list is of the form: [(a, b), (c, d), ...]
@@ -820,8 +821,16 @@ def f_set(weight, target, prune_indices):
         [weight[:prune_indices[0]], weight[prune_indices[1]:]])
     target.set_(new_weight.contiguous())
 
+
 def get_channel_reduction(deletions):
+    """
+    Calculates how many filters a deletion list deletes
+    Used when setting out_channels for a layer.
+    Example:
+    get_channel_reduction([(1, 3), (5, 6)]) = 3
+    """
     return sum(map(lambda x : x[1] - x[0], deletions))
+
 
 @torch.no_grad()
 def channel_prune(model, deletions):
@@ -832,7 +841,9 @@ def channel_prune(model, deletions):
 
     Deletions looks something like this
     {92: ['first', (94, 95)], 95: [(94, 95)], 93: [(94, 95)]}
-    which means delete the 94 output ofr layer 92, the 94th input of layer 95, and the 94th input of layer 96
+    which means delete the 94 output of layer 92, the 94th input of layer 95, and the 94th input of layer 96
+
+    The 'first' means you delete from layer 92's output instead of input signifying that it the 'first' layer whose outputs feed in as inputs to the rest of the layers.
     """
     model = copy.deepcopy(model)
 
