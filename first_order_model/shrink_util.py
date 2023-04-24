@@ -900,7 +900,6 @@ def channel_prune(model, deletions):
                 
                 # Prune the inputs (and by definition outputs) of a batchnorm layer
                 if node.type == 'bn':
-
                     f_set(node.value.weight.detach(), node.value.weight,
                           prune_indices)
                     f_set(node.value.bias.detach(), node.value.bias,
@@ -1073,8 +1072,7 @@ def shrink_model(model_copy, layer_graph, layer, count, sort):
     deletions = compute_deletion(layer_graph, custom_deletions, deleted_things,
                                  layer, sort, count)
     print(deletions.keys())
-    if deletions is None:
-        return None, None
+
     model_copy = channel_prune(model_copy, deletions)
     while len(custom_deletions) != 0:
         custom_deletion = custom_deletions[0]
@@ -1109,7 +1107,6 @@ def try_reduce(curr_loss, curr_model, dataloader, layer_graph,
 
     # Reduce the layer by size 1 to check how much it affects model size.
     model_copy = shrink_model(model_copy, layer_graph, layer, 1, sort)
-
 
     after_1_reduce = get_model_macs(log_dir, model_copy, kp_detector, torch.device('cuda' if torch.cuda.is_available() else 'cpu'), lr_size, 512, 2)
     print(after_1_reduce)
