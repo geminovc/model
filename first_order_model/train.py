@@ -196,7 +196,7 @@ def train(config, generator, discriminator, kp_detector, checkpoint, netadapt_ch
     # Force load a netadapt checkpoint
     reload_gen = netadapt_checkpoint
     if reload_gen is not None:
-        state_dict =torch.load(reload_gen)
+        state_dict = torch.load(reload_gen)
         set_module(generator_full, state_dict)
         optimizer_generator = torch.optim.Adam(generator_full.generator.parameters(), lr=train_params['lr_generator'], betas=(0.5, 0.999))
         optimizer_kp_detector = torch.optim.Adam(generator_full.kp_extractor.parameters(), 
@@ -215,16 +215,14 @@ def train(config, generator, discriminator, kp_detector, checkpoint, netadapt_ch
         steps_per_it = train_params.get('netadapt_steps_per_it', -1)
         with Logger(log_dir=log_dir, visualizer_params=config['visualizer_params'], checkpoint_freq=train_params['checkpoint_freq']) as logger:
             epoch = 0
-            is_first_round = True
+
             while current > target:
-                epoch += 1
                 print("Current macs is: ", current)
                 print("Start macs was: ", start)
                 print("Shrink ratio is: ", current/start)
-                if not is_first_round:
 
+                if epoch != 0:
                     # Run one iteration of netadapt
-
                     generator_full.generator, generator_full.kp_extractor, generator_full.discriminator = reduce_macs(
                         generator_full.generator, current - reduce_amount,
                         current, generator_full.kp_extractor, generator_full.discriminator, train_params,
@@ -235,7 +233,7 @@ def train(config, generator, discriminator, kp_detector, checkpoint, netadapt_ch
                         current = get_model_macs(log_dir, generator_full.generator, kp_detector, torch.device('cuda' if torch.cuda.is_available() else 'cpu'), lr_size, 512, 2)
                     reduce_amount = current * prune_rate
                     
-                is_first_round = False
+                epoch += 1
 
                 # This code is the same metrics dataloading code as below
                 # Logs metrics to tensorboard and checkpoints model.
@@ -266,7 +264,7 @@ def train(config, generator, discriminator, kp_detector, checkpoint, netadapt_ch
         # Remake the generator optimizer because generator has been copied
         optimizer_generator = torch.optim.Adam(generator_full.generator.parameters(), lr=train_params['lr_generator'], betas=(0.5, 0.999))
 
-        # For now I've stuck a return here to ensure we don't train/overwrite checkpoints after running netadapt
+        # Don't run finetune if you run netadapt
         return
 
     # I move the data parallel stuff down because it breaks netadapt for some unknown reason. It's also the reasona I need to manually move inputs over to the gpu within netadapth

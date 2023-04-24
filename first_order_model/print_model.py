@@ -10,11 +10,11 @@ If run as python print_model.py state_dict1 state_dict2. print out the diff betw
 """
 if __name__ == '__main__':
     if len(sys.argv) == 2:
-        state_dict =torch.load(sys.argv[1])
+        state_dict = torch.load(sys.argv[1])
         print_gen_module(state_dict)
     else:
         print("FIRST SHAPE | SECOND SHAPE | NAME")
-        state_dict =torch.load(sys.argv[1])
-        state_dict2 =torch.load(sys.argv[2])
+        state_dict = torch.load(sys.argv[1])
+        state_dict2 = torch.load(sys.argv[2])
         print_diff(state_dict, state_dict2)
 

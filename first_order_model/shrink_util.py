@@ -91,14 +91,14 @@ def print_gen_module(state_dict):
     Given a state dict for the full generator, print the gen module
     Primarily used when initially coding up netadapt
     """
-    for key1 in state_dict.keys():
-        if key1 not in ['generator', 'kp_detector']:
+    for outer in state_dict.keys():
+        if outer not in ['generator', 'kp_detector']:
             continue
-        for key, dict_param in state_dict[key1].items():
-            if key1 == 'kp_detector':
+        for key, dict_param in state_dict[outer].items():
+            if outer == 'kp_detector':
                 submod_names = ['kp_extractor'] + key.split(".")
             else:
-                submod_names = [key1] + key.split(".")
+                submod_names = [outer] + key.split(".")
 
             if 'norm' not in key and 'bias' not in key:
                 print(dict_param.shape, key)
@@ -111,15 +111,14 @@ def print_diff(state_dict, state_dict2):
     Used when manually comparing two netadapted models
     """
 
-    for key1 in state_dict.keys():
-        if key1 not in ['generator']:
+    for outer in state_dict.keys():
+        if outer not in ['generator']:
             continue
-        for key, dict_param in state_dict[key1].items():
+        for key, dict_param in state_dict[outer].items():
             if 'norm' not in key and 'bias' not in key:
-                if state_dict2[key1][key].shape != dict_param.shape:
+                if state_dict2[outer][key].shape != dict_param.shape:
 
-                    print(dict_param.shape, state_dict2[key1][key].shape, key)
-            #set_attr(mod, ksubmod_names, dict_param)
+                    print(dict_param.shape, state_dict2[outer][key].shape, key)
 
 
 def set_module(mod, state_dict, force_model=None):
@@ -128,19 +127,18 @@ def set_module(mod, state_dict, force_model=None):
     This is different from set state dict since it goes in and edits weights regardless of shape mismatch. Used only in loading netadapted parameters
     """
 
-    for key1 in state_dict.keys():
-        if key1 not in ['generator', 'kp_detector', 'discriminator']:
+    for outer in state_dict.keys():
+        if outer not in ['generator', 'kp_detector', 'discriminator']:
             continue
-        if force_model is not None and key1 != force_model:
+        if force_model is not None and outer != force_model:
             continue
-        for key, dict_param in state_dict[key1].items():
-            if key1 == 'kp_detector':
+        for key, dict_param in state_dict[outer].items():
+            if outer == 'kp_detector':
                 submod_names = ['kp_extractor'] + key.split(".")
             else:
-                submod_names = [key1] + key.split(".")
+                submod_names = [outer] + key.split(".")
             if force_model != None:
                 submod_names = key.split(".")
-            #curr_param = get_attr(mod, submod_names)
             # Here you can either replace the existing one
             set_attr(mod, submod_names, dict_param)
             group_name = submod_names[:-1] + ['groups']
@@ -184,8 +182,8 @@ class Node:
     This happens in the resnet when the inputs of a block and the outputs of a block must
     have the same shape and when deleting from one layer, you should also delete from the second.
 
-    Mirrored nodes are nodes that are directly added together, so when deleting from one, you should
-    also delete from the other.
+    Mirrored nodes are nodes whose outputs are directly added together, so when deleting from one, you should
+    also delete from the other. I added this only when I needed it in distillation, so I could convert all the tied nodes to mirror, but its painful to go through that process agian.
     """
     def __init__(self, index, t, i, o, value, name):
         self.name = name
