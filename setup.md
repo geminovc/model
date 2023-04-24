@@ -14,10 +14,12 @@ sudo apt-get install libopus-dev libvpx-dev
 
 ## Getting Conda Environment:
 Get latest version of conda from https://www.anaconda.com/products/distribution
-If python default version is different from what’s in the file, please change the line in the copied over file accordingly to
-reflect the default python package supported by this conda install.
 ```bash
 cp /video-conf/scratch/vibhaa_tardy/nets_fom.txt nets_fom.txt
+```
+
+If python default in conda is different from what’s in the file, please change the line in the file accordingly. For that, figure out what the default python version is with the conda installation, then https://anaconda.org/anaconda/python/files?sort=basename&sort_order=desc&version=3.10.9 should help you find the python link for your version. Once edited, run
+```bash
 conda create --prefix /home/vibhaa/anaconda3/envs/vibhaa_nets_fom --file nets_fom.txt
 ```
 
@@ -44,7 +46,7 @@ python get_pip.py
 Make sure the pip used below is within conda by checking `which pip`. If it does not point to the one in the environment, reference it using
 `${env_dir}/bin/pip` instead.
 ```bash
-pip install pyyaml matplotlib scikit-image scikit-learn torch torchvision torchprofile pandas flow_vis lpips pyav protobuf==3.20.0 piq bitstring
+pip install pyyaml matplotlib scikit-image scikit-learn torch torchvision torchprofile pandas flow_vis lpips av protobuf==3.20.0 piq bitstring
 ```
 
 ## Code changes
