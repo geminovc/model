@@ -51,8 +51,8 @@ pip install pyyaml matplotlib scikit-image scikit-learn torch torchvision torchp
 
 ## Code changes
 This is due to versioning issues with python 3.9 and latest associated packages.
-`augmentation.py`: `from skimage.util import pad` -> `from numpy import pad`
-`logger.py`: `import circle` -> `import disk as circle`
-`logger.py`: `circle(kp[1], kp0..`' -> `circle((kp[1], kp[0])..`
-`run.py`: `yaml.load` -> `yaml.full_load`
-'utils.py`: comment out `from swinir_wrapper import ...`
+* `augmentation.py`: `from skimage.util import pad` &rarr; `from numpy import pad`
+* `logger.py`: `import circle` &rarr; `import disk as circle`
+* `logger.py`: `circle(kp[1], kp0..`' &rarr; `circle((kp[1], kp[0])..`
+* `run.py`: `yaml.load` &rarr; `yaml.full_load`
+* `utils.py`: comment out `from swinir_wrapper import ...`
