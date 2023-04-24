@@ -243,24 +243,38 @@ def build_graph(all_layers, names):
         return names.index(name)
 
     def add(name1, name2):
+        """
+        Adds a connection where name1.output goes into name2.input
+        """
         index1 = get_index(name1)
         index2 = get_index(name2)
         graph[index1].add_after(index2)
         graph[index2].add_before(index1)
 
     def add_tie(name1, name2):
+        """
+        Add a tie where name1.input = name2.output shape
+        Used in resnet
+        """
         index1 = get_index(name1)
         index2 = get_index(name2)
         graph[index1].add_tie(index2)
         graph[index2].mark_tied()
 
     def add_mirrors(name1, name2):
+        """
+        Add a mirror where name1.output shape = name2.output shape
+        Used when concat is replaced with add (in distilled network)
+        """
         index1 = get_index(name1)
         index2 = get_index(name2)
         graph[index1].add_mirror(index2)
         graph[index2].add_mirror(index1)
 
     def add_names(names):
+        """
+        Extended version of add which takes in a list
+        """
         index = 1
         while index < len(names):
             add(names[index - 1], names[index])
@@ -368,7 +382,6 @@ def build_graph(all_layers, names):
         ])
 
         # Features get concatted into down block
-        #add_mirror('down_blocks.1.con', 'bottleneck.r0.norm1')
 
         # Second up block has 32 lr features added
         add('lr_first.norm', 'up_blocks.0.conv')
@@ -378,7 +391,6 @@ def build_graph(all_layers, names):
         add('hr_down_blocks.0.norm', 'hr_up_blocks.0.conv')
         add_mirrors('hr_down_blocks.0.conv',
                     'efficientnet_decoder._blocks.3._project_conv')
-        #add_mirrors('hr_first.norm', 'efficientnet_decoder._bn1')
 
         add_tie('bottleneck.r0.conv1', 'bottleneck.r0.conv2')
         add_tie('bottleneck.r1.conv1', 'bottleneck.r1.conv2')
@@ -617,7 +629,6 @@ def build_graph(all_layers, names):
                 'bottleneck.r4.conv2.point_conv')
         add_tie('bottleneck.r5.conv1.depth_conv',
                 'bottleneck.r5.conv2.point_conv')
-        #add_tie('bottleneck.r5.conv1', 'bottleneck.r0.conv2')
 
         # Add ties from every conv to itself's depthwise because that is what depthwise means
         # (Inputs = Outputs)
@@ -653,6 +664,8 @@ def convert_to_deletions_list(indices):
     Example:
     indices = [0, 1, 3, 5]
     deletion_list = [(0, 1), (1,2), (3,4), (5,6)]
+
+    This is used when we get the indices of the unimportant columns, then convert into a deletion list.
     """
 
     deletion_list = []
@@ -661,7 +674,7 @@ def convert_to_deletions_list(indices):
     while i < len(indices):
         old_i = i
         while i < len(indices) - 1 and indices[i] + 1 == indices[i+1]:
-            i+= 1
+            i += 1
         deletion_list.append((indices[old_i], indices[i]+1))
         i += 1
     return deletion_list
