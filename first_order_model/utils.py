@@ -247,11 +247,11 @@ def get_model_macs(log_dir, generator, kp_detector, device, lr_size, image_size,
             print('{}: {:.4g} G'.format('decoder macs', decoder_macs / 1e9))
             model_file.write('{}: {:.4g} G\n'.format('decoder macs', decoder_macs / 1e9))   
 
-    return {'decoder_macs': decoder_macs, 'bottleneck_macs', bottleneck_macs, 'kp_macs': kp_macs, 'dense_motion_macs' : dense_motion_macs}
+    return {'decoder_macs': decoder_macs, 'bottleneck_macs': bottleneck_macs, 'kp_macs': kp_macs, 'dense_motion_macs' : dense_motion_macs}
 
 
 def get_decode_and_bottleneck_macs(log_dir, generator, kp_detector, device, lr_size, image_size, BATCH_SIZE=1):
-    macs_dict = get_model(log_dir, generator, kp_detector, device, lr_size, image_size, BATCH_SIZE)
+    macs_dict = get_model_macs(log_dir, generator, kp_detector, device, lr_size, image_size, BATCH_SIZE)
     return macs_dict['decoder_macs'] + macs_dict['bottleneck_macs']
 
 
