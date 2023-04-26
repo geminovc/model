@@ -79,9 +79,11 @@ if __name__ == "__main__":
     elif opt.mode == "reconstruction":
         copy(opt.config, log_dir)
 
+    image_shape = config['dataset_params']['frame_shape'][0]
+
     if opt.mode == 'train':
         print("Training...")
-        train(config, generator, discriminator, kp_detector, opt.checkpoint, opt.netadapt_checkpoint, log_dir, dataset, opt.device_ids)
+        train(config, generator, discriminator, kp_detector, opt.checkpoint, opt.netadapt_checkpoint, log_dir, dataset, opt.device_ids, image_shape)
     elif opt.mode == 'reconstruction':
         print("Reconstruction...")
         reconstruction(config, generator, kp_detector, opt.checkpoint, opt.netadapt_checkpoint, log_dir, dataset, opt.enable_timing, 

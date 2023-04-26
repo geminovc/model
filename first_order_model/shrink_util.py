@@ -92,7 +92,7 @@ def print_gen_module(state_dict):
     Primarily used when initially coding up netadapt
     """
     for outer in state_dict.keys():
-        if outer not in ['generator', 'kp_detector']:
+        if outer not in ['generator']:
             continue
         for key, dict_param in state_dict[outer].items():
             if outer == 'kp_detector':
@@ -285,6 +285,11 @@ def build_graph(all_layers, names):
         if 'efficientnet' in name:
             is_efficient_net = True
             break
+
+    is_1024 = False
+    for name in names:
+        if 'hr_down_blocks.1' in name:
+            is_1024 = True
     if is_efficient_net:
         add_names([
             'dense_motion_network.hourglass.encoder.down_blocks.0.conv',
@@ -456,6 +461,10 @@ def build_graph(all_layers, names):
             'hr_first.conv', 'hr_first.norm', 'hr_down_blocks.0.conv',
             'hr_down_blocks.0.norm'
         ])
+
+        if is_1024:
+            add_names(['hr_down_blocks.0.norm', 'hr_down_blocks.1.conv', 'hr_down_blocks.1.norm'])
+
         add_names([
             'first.conv', 'first.norm', 'down_blocks.0.conv',
             'down_blocks.0.norm', 'down_blocks.1.conv', 'down_blocks.1.norm',
@@ -472,18 +481,34 @@ def build_graph(all_layers, names):
             'bottleneck.r5.norm1', 'bottleneck.r5.conv1',
             'bottleneck.r5.norm2', 'bottleneck.r5.conv2', 'up_blocks.0.conv',
             'up_blocks.0.norm', 'up_blocks.1.conv', 'up_blocks.1.norm',
-            'hr_up_blocks.0.conv', 'hr_up_blocks.0.norm', 'final'
+            'hr_up_blocks.0.conv', 'hr_up_blocks.0.norm'
         ])
+        if is_1024:
+            add_names(['hr_up_blocks.0.norm', 'hr_up_blocks.1.conv', 'hr_up_blocks.1.norm', 'final'])
+        else:
+            add('hr_up_blocks.0.norm', 'final')
 
         # Features get concatted into down block
         add('down_blocks.1.norm', 'bottleneck.r0.norm1')
 
-        # Second up block has 32 lr features added
-        add('lr_first.norm', 'up_blocks.0.conv')
+
+        if is_1024:
+            # Second up block has 32 lr features added
+            add('lr_first.norm', 'up_blocks.1.conv')
+        else:
+            # Second up block has 32 lr features added
+            add('lr_first.norm', 'up_blocks.0.conv')
 
         # Add 2x hr down outputs to first hr up
-        add('hr_down_blocks.0.norm', 'hr_up_blocks.0.conv')
-        add('hr_down_blocks.0.norm', 'hr_up_blocks.0.conv')
+
+        if is_1024:
+            add('hr_down_blocks.1.norm', 'hr_up_blocks.0.conv')
+            add('hr_down_blocks.1.norm', 'hr_up_blocks.0.conv')
+            add('hr_down_blocks.0.norm', 'hr_up_blocks.1.conv')
+            add('hr_down_blocks.0.norm', 'hr_up_blocks.1.conv')
+        else:
+            add('hr_down_blocks.0.norm', 'hr_up_blocks.0.conv')
+            add('hr_down_blocks.0.norm', 'hr_up_blocks.0.conv')
 
         add_tie('bottleneck.r0.conv1', 'bottleneck.r0.conv2')
         add_tie('bottleneck.r1.conv1', 'bottleneck.r1.conv2')
@@ -577,6 +602,9 @@ def build_graph(all_layers, names):
             'hr_first.norm', 'hr_down_blocks.0.conv.depth_conv',
             'hr_down_blocks.0.conv.point_conv', 'hr_down_blocks.0.norm'
         ])
+        if is_1024:
+            add_names(['hr_down_blocks.0.norm', 'hr_down_blocks.1.conv.depth_conv', 'hr_down_blocks.1.conv.point_conv', 'hr_down_blocks.1.norm'])
+
         add_names([
             'first.conv.depth_conv', 'first.conv.point_conv', 'first.norm',
             'down_blocks.0.conv.depth_conv', 'down_blocks.0.conv.point_conv',
@@ -604,18 +632,33 @@ def build_graph(all_layers, names):
             'up_blocks.0.norm', 'up_blocks.1.conv.depth_conv',
             'up_blocks.1.conv.point_conv', 'up_blocks.1.norm',
             'hr_up_blocks.0.conv.depth_conv', 'hr_up_blocks.0.conv.point_conv',
-            'hr_up_blocks.0.norm', 'final.depth_conv', 'final.point_conv'
-        ])
+            'hr_up_blocks.0.norm'])
+
+        if is_1024:
+            add_names(['hr_up_blocks.0.norm', 'hr_up_blocks.1.conv.depth_conv', 'hr_up_blocks.1.conv.point_conv', 'hr_up_blocks.1.norm', 'final.depth_conv', 'final.point_conv'])
+        else:
+            add_names(['hr_up_blocks.0.norm', 'final.depth_conv', 'final.point_conv'])
 
         # Features get concatted into down block
         add('down_blocks.1.norm', 'bottleneck.r0.norm1')
 
-        # Second up block has 32 lr features added
-        add('lr_first.norm', 'up_blocks.0.conv.depth_conv')
+        if is_1024:
+            # Second up block has 32 lr features added
+            add('lr_first.norm', 'up_blocks.1.conv.depth_conv')
+        else:
+            # Second up block has 32 lr features added
+            add('lr_first.norm', 'up_blocks.0.conv.depth_conv')
 
-        # Add 2x hr down outputs to first hr up
-        add('hr_down_blocks.0.norm', 'hr_up_blocks.0.conv.depth_conv')
-        add('hr_down_blocks.0.norm', 'hr_up_blocks.0.conv.depth_conv')
+        if is_1024:
+            # Add 2x hr down outputs to first hr up
+            add('hr_down_blocks.1.norm', 'hr_up_blocks.0.conv.depth_conv')
+            add('hr_down_blocks.1.norm', 'hr_up_blocks.0.conv.depth_conv')
+            add('hr_down_blocks.0.norm', 'hr_up_blocks.1.conv.depth_conv')
+            add('hr_down_blocks.0.norm', 'hr_up_blocks.1.conv.depth_conv')
+        else:
+            # Add 2x hr down outputs to first hr up
+            add('hr_down_blocks.0.norm', 'hr_up_blocks.0.conv.depth_conv')
+            add('hr_down_blocks.0.norm', 'hr_up_blocks.0.conv.depth_conv')
 
         add_tie('bottleneck.r0.conv1.depth_conv',
                 'bottleneck.r0.conv2.point_conv')
@@ -1087,7 +1130,7 @@ def shrink_model(model_copy, layer_graph, layer, count, sort):
 def try_reduce(curr_loss, curr_model, dataloader, layer_graph,
                layer, kp_detector, discriminator, train_params, model, target,
                current, lr_size, generator_type, metrics_dataloader,
-               generator_full, sort, steps_per_it, device_ids, log_dir, discriminator_full):
+               generator_full, sort, steps_per_it, device_ids, log_dir, discriminator_full, image_shape):
     """
     High level summary:
     Try to shrink the model to the target size by deleting layer (passed in as an argument)
@@ -1108,7 +1151,7 @@ def try_reduce(curr_loss, curr_model, dataloader, layer_graph,
     # Reduce the layer by size 1 to check how much it affects model size.
     model_copy = shrink_model(model_copy, layer_graph, layer, 1, sort)
 
-    after_1_reduce = get_decode_and_bottleneck_macs(log_dir, model_copy, kp_detector, torch.device('cuda' if torch.cuda.is_available() else 'cpu'), lr_size, 512, 2)
+    after_1_reduce = get_decode_and_bottleneck_macs(log_dir, model_copy, kp_detector, torch.device('cuda' if torch.cuda.is_available() else 'cpu'), lr_size, image_shape, 2)
     print(after_1_reduce)
     if after_1_reduce == current:
         print("Trying to remove something that is not a part of the model")
@@ -1202,7 +1245,7 @@ def try_reduce(curr_loss, curr_model, dataloader, layer_graph,
 
 def reduce_macs(model, target, current, kp_detector, discriminator,
                 train_params, dataloader, metrics_dataloader, generator_type,
-                lr_size, generator_full, sort, steps_per_it, device_ids, log_dir, discriminator_full):
+                lr_size, generator_full, sort, steps_per_it, device_ids, log_dir, discriminator_full, image_shape):
     """
     Applies netadapt to reduce the model to target macs
     """
@@ -1243,7 +1286,7 @@ def reduce_macs(model, target, current, kp_detector, discriminator,
                                        kp_detector, discriminator,
                                        train_params, model, target, current,
                                        lr_size, generator_type,
-                                       metrics_dataloader, generator_full, sort, steps_per_it, device_ids, log_dir, discriminator_full)
+                                       metrics_dataloader, generator_full, sort, steps_per_it, device_ids, log_dir, discriminator_full, image_shape)
         # Model returns loss != None if its model beats our current best
         if loss is not None:
             print("Updated model")

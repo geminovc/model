@@ -1,5 +1,6 @@
 from tqdm import trange
 from utils import get_decode_and_bottleneck_macs
+from utils import get_encoded_frame
 import torch
 from shrink_util import *
 import torch.nn.functional as F
@@ -24,7 +25,7 @@ import numpy as np
 
 from first_order_model.utils import get_frame_from_video_codec 
 
-def train(config, generator, discriminator, kp_detector, checkpoint, netadapt_checkpoint,  log_dir, dataset, device_ids):
+def train(config, generator, discriminator, kp_detector, checkpoint, netadapt_checkpoint,  log_dir, dataset, device_ids, image_shape):
     train_params = config['train_params'] 
     generator_params = config['model_params']['generator_params']
     generator_type = generator_params.get('generator_type', 'occlusion_aware')
@@ -183,10 +184,11 @@ def train(config, generator, discriminator, kp_detector, checkpoint, netadapt_ch
 
     # Set up the netadapt hyper parameters
     # Target: target macs, Current: current macs, reduce_amount: amoutn of macs to reduce each iteration
+    
     if train_params.get('netadapt', False):
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
-            start = get_decode_and_bottleneck_macs(log_dir, generator, kp_detector, torch.device('cuda' if torch.cuda.is_available() else 'cpu'), lr_size, 512, 2)
+            start = get_decode_and_bottleneck_macs(log_dir, generator, kp_detector, torch.device('cuda' if torch.cuda.is_available() else 'cpu'), lr_size, image_shape, 2)
         print("Start macs: ", start)
         prune_rate = train_params.get('shrink_rate', 0.02)
         reduce_amount = start * prune_rate
@@ -202,7 +204,7 @@ def train(config, generator, discriminator, kp_detector, checkpoint, netadapt_ch
         optimizer_kp_detector = torch.optim.Adam(generator_full.kp_extractor.parameters(), 
                 lr=train_params['lr_kp_detector'], betas=(0.5, 0.999))
         optimizer_discriminator = torch.optim.Adam(generator_full.discriminator.parameters(), lr=train_params['lr_discriminator'], betas=(0.5, 0.999))
-        current = get_decode_and_bottleneck_macs(log_dir, copy.deepcopy(generator_full.generator), kp_detector, torch.device('cuda' if torch.cuda.is_available() else 'cpu'), lr_size, 512, 2)
+        current = get_decode_and_bottleneck_macs(log_dir, copy.deepcopy(generator_full.generator), kp_detector, torch.device('cuda' if torch.cuda.is_available() else 'cpu'), lr_size, image_shape, 2)
         discriminator_full = DiscriminatorFullModel(generator_full.kp_extractor, generator_full.generator, generator_full.discriminator, train_params)
         generator = generator_full.generator
         discriminator = generator_full.discriminator
@@ -227,10 +229,10 @@ def train(config, generator, discriminator, kp_detector, checkpoint, netadapt_ch
                         generator_full.generator, current - reduce_amount,
                         current, generator_full.kp_extractor, generator_full.discriminator, train_params,
                         dataloader, metrics_dataloader, generator_type,
-                        lr_size, generator_full, sort, steps_per_it, device_ids, log_dir, discriminator_full)
+                        lr_size, generator_full, sort, steps_per_it, device_ids, log_dir, discriminator_full, image_shape)
                     with warnings.catch_warnings():
                         warnings.simplefilter("ignore")
-                        current = get_decode_and_bottleneck_macs(log_dir, generator_full.generator, kp_detector, torch.device('cuda' if torch.cuda.is_available() else 'cpu'), lr_size, 512, 2)
+                        current = get_decode_and_bottleneck_macs(log_dir, generator_full.generator, kp_detector, torch.device('cuda' if torch.cuda.is_available() else 'cpu'), lr_size, image_shape, 2)
                     reduce_amount = current * prune_rate
                     
                 epoch += 1
