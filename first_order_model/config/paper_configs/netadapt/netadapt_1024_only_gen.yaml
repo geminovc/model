@@ -71,7 +71,7 @@ train_params:
   train_only_upsample_layers: False
   encode_video_for_training: True
   netadapt: True
-  netadapt_steps_per_it: 250
+  netadapt_steps_per_it: 2
   netadapt_sort: True
   shrink_rate: 0.03
   target_shrink: .001
