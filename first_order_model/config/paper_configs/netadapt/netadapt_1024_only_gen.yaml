@@ -71,7 +71,7 @@ train_params:
   train_only_upsample_layers: False
   encode_video_for_training: True
   netadapt: True
-  netadapt_steps_per_it: 2
+  netadapt_steps_per_it: -1
   netadapt_sort: True
   shrink_rate: 0.03
   target_shrink: .001
@@ -84,7 +84,7 @@ train_params:
   lr_kp_detector: 2.0e-4
   batch_size: 2
   scales: [1, 0.5, 0.25, 0.125]
-  checkpoint_freq: 15
+  checkpoint_freq: 3
   transform_params:
     sigma_affine: 0.05
     sigma_tps: 0.005
@@ -95,8 +95,8 @@ train_params:
     feature_matching: [10, 10, 10, 10]
     perceptual: [10, 10, 10, 10, 10]
     pixelwise: 10
-    equivariance_value: 10
-    equivariance_jacobian: 10
+    equivariance_value: 0
+    equivariance_jacobian: 0
 
 reconstruction_params:
   num_videos: 1000
