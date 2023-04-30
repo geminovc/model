@@ -279,6 +279,8 @@ def train(config, generator, discriminator, kp_detector, checkpoint, netadapt_ch
     print(f'Encoding using {train_params.get("codec", "vp8")}')
     with Logger(log_dir=log_dir, visualizer_params=config['visualizer_params'], checkpoint_freq=train_params['checkpoint_freq']) as logger:
         for epoch in trange(start_epoch, train_params['num_epochs']):
+            for x in dataloader:
+                break
             for x in tqdm(dataloader):
                 if use_lr_video or use_RIFE:
                     lr_frame = F.interpolate(x['driving'], lr_size)
