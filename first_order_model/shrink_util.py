@@ -132,8 +132,6 @@ def set_module(mod, state_dict, force_model=None):
             continue
         if force_model is not None and outer != force_model:
             continue
-        if outer not in ['generator']:
-            continue
         for key, dict_param in state_dict[outer].items():
             if outer == 'kp_detector':
                 submod_names = ['kp_extractor'] + key.split(".")
