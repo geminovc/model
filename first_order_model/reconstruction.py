@@ -234,7 +234,7 @@ def reconstruction(config, generator, kp_detector, checkpoint, netadapt_checkpoi
     if reload_gen is not None:
         state_dict = torch.load(reload_gen)
         set_gen_module(generator, state_dict)
-        #set_keypoint_module(kp_detector, state_dict)
+        set_keypoint_module(kp_detector, state_dict)
         print('reloaded params')
 
     if checkpoint is None and netadapt_checkpoint is None:
