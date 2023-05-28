@@ -1,4 +1,5 @@
 from tqdm import trange
+from math import ceil
 import gc
 from utils import get_decode_and_bottleneck_macs
 import os
@@ -125,6 +126,7 @@ def set_module(mod, state_dict, force_model=None):
     """
     Given a generator full model, set the generator and keypoint detector with state dict.
     This is different from set state dict since it goes in and edits weights regardless of shape mismatch. Used only in loading netadapted parameters
+    Force model only sents that model, so if force_model = generator only the generator us updated.
     """
 
     for outer in state_dict.keys():
@@ -683,6 +685,7 @@ def build_graph(all_layers, names):
 
     return graph
 
+
 def pick_channels_with_lowest_importances(n, importances):
     """
     Select n channges with lowest importances. Return their indices.
@@ -975,9 +978,10 @@ def get_metrics_loss(metrics_dataloader, lr_size, generator_full,
 
     return total_loss
 
+
 def get_following_layers_skip_depthwise(following_layers, layer_graph, x):
     """
-    Specialized version of follo that skips over depthwise convolved layers. Only used when sorting the outputs of a layer for importance.
+    Specialized version of follow that skips over depthwise convolved layers. Only used when sorting the outputs of a layer for importance.
 
     """
     following_layers.append(x.index)
@@ -985,6 +989,7 @@ def get_following_layers_skip_depthwise(following_layers, layer_graph, x):
         return
     for y in x.after:
         get_following_layers_skip_depthwise(following_layers, layer_graph, layer_graph[y])
+
 
 def follow(following_layers, layer_graph, x):
     """
@@ -1005,6 +1010,7 @@ def get_first_conv(layer_graph, following_layers):
         if layer_graph[layer].type == 'conv' and layer_graph[layer].value.groups == 1:
             return layer
 
+
 def compute_deletion(layer_graph,
                      custom_deletions,
                      deleted_things,
@@ -1021,9 +1027,6 @@ def compute_deletion(layer_graph,
     for after_layer in layer_graph[layer].after:
         follow(following_layers, layer_graph, layer_graph[after_layer])
 
-    # If you delete a part of the previous one, not just all of it then you cannot just say these n are to be deleted
-    # So for each layer you need to figure out what you are deleting from it, then for the next layer figure out what is deleted
-
     deletions = {}
     if isinstance(custom, list):
         deletions[layer] = copy.copy(custom)
@@ -1031,68 +1034,75 @@ def compute_deletion(layer_graph,
         # The sorting magic happens here
         # Find the first convolution
         if sort:
-            if layer_graph[layer].type == 'bn':
-                breakpoint()
+            assert layer_graph[layer].type != 'bn', "We cant sort batchnorm layers"
+
+            # Get the layer which accepts this ones output as input.
             depthwise_skipped_following_layers = []
             for after_layer in layer_graph[layer].after:
                 get_following_layers_skip_depthwise(depthwise_skipped_following_layers, layer_graph, layer_graph[after_layer])
 
             first_conv = get_first_conv(layer_graph, depthwise_skipped_following_layers)
 
-            if first_conv is None:
-                breakpoint()
+            assert first_conv is not None, "First conv is none"
 
+            # Find the relevent slices of input which matters if there is a concat in the way
             slices = get_relevent_slice(layer_graph, first_conv, layer)
-            if len(slices) == 0:
-                breakpoint()
 
+            assert len(slices) != 0, "Slices length is 0"
+
+            # Generate importances going slice by slice of the next layer..
             importances = torch.zeros(layer_graph[layer].o).cuda()
             for single_slice in slices:
                 importances += get_importances(layer_graph[first_conv].value.weight, single_slice)
 
             importances = importances.tolist()
             deletion_indices = pick_channels_with_lowest_importances(custom, importances)
-            if len(deletion_indices) != custom:
-                assert(False)
+            assert len(deletion_indices) == custom, "Somehow we are deleting a different amount of indices than expected"
             deletion_list = convert_to_deletions_list(deletion_indices)
 
-
-            #breakpoint()
             deletions[layer] = deletion_list
         else:
             deletions[layer] = [(layer_graph[layer].o-custom, layer_graph[layer].o)]
     else:
-        assert(False)
+        assert False, "Unsupported custom, only support list and ints"
 
     # If there is a plus operation, the other operand is a "mirror" of this
-    # SO copy whatever we do here to the other operand
+    # So copy whatever we do here to the other operand
+    # A mirror means that two layers outputs get treated the same, so if index 1 is deleted in one,
+    # it will be deleted in the other.
     for mirror in layer_graph[layer].mirror:
-        # Start a new custom deletion for the mirror
+        # Start a new custom deletion for the mirror. The only other reason is tie, which is treated a little differently.
         if reason != 'mirror':
             custom_deletions.append((mirror, copy.copy(deletions[layer]), 'mirror'))
             print("Starting a mirrorred deletion")
 
-    # Figure out what you need to delete for the following layers
+    # Figure out what you need to delete from the inputs of the following convs, and the relevent portions of batchnorms.
+    # Following layers contains any layeres who can be affected by the deletion in layer_graph[layer]
     for following_layer in following_layers:
+        # If we have already addressed this layer, continue
         if following_layer in deletions:
             continue
 
         deletions[following_layer] = []
+        
+        # Counts up for each index in the inputs for this layer
         counter = 0
         for previous_layer in layer_graph[following_layer].before:
+
+            # If you don't delete from the previous layer, just increment the counter by its ouputs.
             if previous_layer not in deletions:
                 counter += layer_graph[previous_layer].o
                 continue
 
-            # If delete from previous layer, delete corresponding element from this layer
+            # If delete from previous layer, delete corresponding element from this layer and increment the counter
             for deletion in deletions[previous_layer]:
                 deletions[following_layer].append(
                     (counter + deletion[0], counter + deletion[1]))
             counter += layer_graph[previous_layer].o
 
-        # If there is another tied after layer i.e. a layer who has their output tied to the input of this layer, like in resnet, we need to delete from their outputs as well
+        # If there is another tied after layer i.e. a layer who has their output tied to the input of this layer, 
+        # like in resnet, we need to delete from their outputs as well
         if len(layer_graph[following_layer].tied_after) != 0:
-
             total_deleted = copy.copy(deletions[following_layer])
 
             # Add the output layer to our work queue (custom deletions)
@@ -1114,7 +1124,9 @@ def shrink_model(model_copy, layer_graph, layer, count, sort):
     deleted_things = set()
     deletions = compute_deletion(layer_graph, custom_deletions, deleted_things,
                                  layer, sort, count)
-    print(deletions.keys())
+
+    # Leaving this commented in because it is extremely useful
+    # print(deletions.keys())
 
     model_copy = channel_prune(model_copy, deletions)
     while len(custom_deletions) != 0:
@@ -1126,6 +1138,7 @@ def shrink_model(model_copy, layer_graph, layer, count, sort):
         print(deletions.keys())
         model_copy = channel_prune(model_copy, deletions)
     return model_copy
+
 
 def try_reduce(curr_loss, curr_model, dataloader, layer_graph,
                layer, kp_detector, discriminator, train_params, model, target,
@@ -1159,8 +1172,9 @@ def try_reduce(curr_loss, curr_model, dataloader, layer_graph,
 
     with torch.no_grad():
         model_copy = copy.deepcopy(model)
+
     # Calculate the number of layers that must actually be removed to hit the target
-    to_remove = int((current - target) // (current - after_1_reduce))
+    to_remove = ceil(int((current - target) / (current - after_1_reduce)))
 
     if to_remove == 0:
         to_remove = 1
@@ -1204,12 +1218,12 @@ def try_reduce(curr_loss, curr_model, dataloader, layer_graph,
     c = 0
     for x in tqdm(dataloader):
         c += 1
+
+        # -1 just means go to the end, don't stop early.
         if c > steps_per_it and steps_per_it != -1:
             break
         x['driving_lr'] = F.interpolate(x['driving'], lr_size)
 
-        # Inputs need to manually be moved onto the gpu
-        #move_to_gpu(x)
         losses_generator, generated = generator_full(x, generator_type)
         loss_values = [val.mean() for val in losses_generator.values()]
         loss = sum(loss_values)
