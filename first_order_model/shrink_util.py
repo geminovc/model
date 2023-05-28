@@ -1248,7 +1248,8 @@ def try_reduce(curr_loss, curr_model, dataloader, layer_graph,
     # Test the model
     total_loss = get_metrics_loss(metrics_dataloader, lr_size, generator_full,
                                   generator_type)
-    print("Loss for this model is: ", total_loss)
+    # Keeping this commented out because its useful
+    # print("Loss for this model is: ", total_loss)
 
     # Store the best module
     if curr_loss is None or total_loss < curr_loss:
