@@ -7,7 +7,7 @@ from first_order_model.modules.generator import OcclusionAwareGenerator
 from first_order_model.modules.sr_generator import SuperResolutionGenerator
 from first_order_model.modules.discriminator import MultiScaleDiscriminator
 from first_order_model.modules.keypoint_detector import KPDetector
-#from swinir_wrapper import SuperResolutionModel
+from swinir_wrapper import SuperResolutionModel
 from torchprofile import profile_macs
 from fractions import Fraction
 from aiortc.codecs.vpx import Vp9Encoder, Vp9Decoder, Vp8Encoder, Vp8Decoder, vp8_depayload

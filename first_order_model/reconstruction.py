@@ -1,7 +1,7 @@
 import os
 from tqdm import tqdm
 import torch
-from  shrink_util import *
+from  shrink_util import set_gen_module, set_keypoint_module
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
 from first_order_model.logger import Logger, Visualizer

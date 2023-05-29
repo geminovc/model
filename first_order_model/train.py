@@ -216,14 +216,14 @@ def train(config, generator, discriminator, kp_detector, checkpoint, netadapt_ch
         sort = train_params.get('netadapt_sort', False)
         steps_per_it = train_params.get('netadapt_steps_per_it', -1)
         with Logger(log_dir=log_dir, visualizer_params=config['visualizer_params'], checkpoint_freq=train_params['checkpoint_freq']) as logger:
-            epoch = 0
+            netadapt_iteration = 0
 
             while current > target:
                 print("Current macs is: ", current)
                 print("Start macs was: ", start)
                 print("Shrink ratio is: ", current/start)
 
-                if epoch != 0:
+                if netadapt_iteration != 0:
                     # Run one iteration of netadapt
                     generator_full.generator, generator_full.kp_extractor, generator_full.discriminator = reduce_macs(
                         generator_full.generator, current - reduce_amount,
@@ -235,7 +235,7 @@ def train(config, generator, discriminator, kp_detector, checkpoint, netadapt_ch
                         current = get_decode_and_bottleneck_macs(log_dir, generator_full.generator, kp_detector, torch.device('cuda' if torch.cuda.is_available() else 'cpu'), lr_size, image_shape, 2)
                     reduce_amount = current * prune_rate
                     
-                epoch += 1
+                netadapt_iteration += 1
 
                 # This code is the same metrics dataloading code as below
                 # Logs metrics to tensorboard and checkpoints model.
@@ -256,7 +256,7 @@ def train(config, generator, discriminator, kp_detector, checkpoint, netadapt_ch
                             logger.log_iter(losses=losses)
                             logger.log_metrics_images(i, y, metrics_generated, loss_fn_vgg, original_lpips, face_lpips)
 
-                    logger.log_epoch(epoch, {'generator': generator_full.generator,
+                    logger.log_epoch(netadapt_iteration, {'generator': generator_full.generator,
                                              'discriminator': generator_full.discriminator,
                                              'kp_detector': generator_full.kp_extractor,
                                              'optimizer_generator': optimizer_generator,
@@ -269,7 +269,7 @@ def train(config, generator, discriminator, kp_detector, checkpoint, netadapt_ch
         # Don't run finetune if you run netadapt
         return
 
-    # I move the data parallel stuff down because it breaks netadapt for some unknown reason. It's also the reasona I need to manually move inputs over to the gpu within netadapth
+    # Netadapt interferes with dataparallel, so must be moved later
     if torch.cuda.is_available():
         generator_full = DataParallelWithCallback(generator_full, device_ids=device_ids)
         discriminator_full = DataParallelWithCallback(discriminator_full, device_ids=device_ids)

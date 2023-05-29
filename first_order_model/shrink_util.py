@@ -1,3 +1,6 @@
+"""
+Contains utils for netadapt.
+"""
 from tqdm import trange
 from math import ceil
 import gc
@@ -30,12 +33,9 @@ from frames_dataset import MetricsDataset
 from fractions import Fraction
 import lpips
 import random
-import av
 import numpy as np
 import torch.nn as nn
 
-from aiortc.codecs.vpx import Vp8Encoder, Vp8Decoder, vp8_depayload
-from aiortc.jitterbuffer import JitterFrame
 from matplotlib import pyplot as plt
 import matplotlib
 import warnings
@@ -82,7 +82,6 @@ def set_attr(obj, names, val):
     if len(names) == 0:
         with torch.no_grad():
             obj.set_(val)
-        #setattr(obj, names[0], val)
     else:
         set_attr(getattr(obj, names[0]), names[1:], val)
 
@@ -125,7 +124,8 @@ def print_diff(state_dict, state_dict2):
 def set_module(mod, state_dict, force_model=None):
     """
     Given a generator full model, set the generator and keypoint detector with state dict.
-    This is different from set state dict since it goes in and edits weights regardless of shape mismatch. Used only in loading netadapted parameters
+    This is different from set state dict since it goes in and edits weights regardless of shape mismatch. 
+    Used only in loading netadapted parameters
     Force model only sents that model, so if force_model = generator only the generator us updated.
     """
 
@@ -141,8 +141,10 @@ def set_module(mod, state_dict, force_model=None):
                 submod_names = [outer] + key.split(".")
             if force_model != None:
                 submod_names = key.split(".")
-            # Here you can either replace the existing one
+
             set_attr(mod, submod_names, dict_param)
+
+            # Edit the groups
             group_name = submod_names[:-1] + ['groups']
             og_groups = get_attr_default(mod, group_name, 1)
             if og_groups != 1:
@@ -688,7 +690,7 @@ def build_graph(all_layers, names):
 
 def pick_channels_with_lowest_importances(n, importances):
     """
-    Select n channges with lowest importances. Return their indices.
+    Select n channels with lowest importances. Return their indices.
     Input: n - number of channels to select
               importances - list of importances of each channel (float)
     """
@@ -712,6 +714,7 @@ def convert_to_deletions_list(indices):
     deletion_list = [(0, 1), (1,2), (3,4), (5,6)]
 
     This is used when we get the indices of the unimportant columns, then convert into a deletion list.
+    Deletion list is the format we use for generally storing which indices to remove.
     """
 
     deletion_list = []
@@ -726,36 +729,40 @@ def convert_to_deletions_list(indices):
     return deletion_list
 
 
-def get_importances(weight, relevent_slice):
+def get_importances(weight, relevant_slice):
     """
-    Use the L2 norm of the weights to get the importance of each channel in relevent_slice.
+    Use the L2 norm of the weights to get the importance of each channel in relevant_slice.
     """
 
-    # Get the weights of the relevent slice
-    relevent_weights = weight[:,relevent_slice[0]:relevent_slice[1]]
+    # Get the weights of the relevant slice
+    relevant_weights = weight[:, relevant_slice[0]:relevant_slice[1]]
 
     # Get the norm of each channel
-    importances = torch.linalg.vector_norm(relevent_weights, dim=(0,2,3))
+    importances = torch.linalg.vector_norm(relevant_weights, dim=(0,2,3))
 
     return importances
 
-def get_relevent_slice(layer_graph, node, target):
+
+def get_relevant_slice(layer_graph, node, target):
     """
     Given a node and a target, finds the slices of node which are affected by target.
     Returns [(x, y), (z, n)...] where each pair is the start and end of a slice
     """
     counter = 0
     output = []
+
+    # First figure out which inputs are directly affected by the target.
     for prev_node in layer_graph[node].before:
         if prev_node == target:
-            output += [(counter, counter+layer_graph[prev_node].o)]
+            output += [(counter, counter + layer_graph[prev_node].o)]
 
         counter += layer_graph[prev_node].o
 
     if len(output) == 0:
+        # If none are, then repeat recursively.
         counter = 0
         for prev_node in layer_graph[node].before:
-            temp_output = get_relevent_slice(layer_graph, prev_node, target)
+            temp_output = get_relevant_slice(layer_graph, prev_node, target)
             for out in temp_output:
                 output += [(out[0] + counter, out[1] + counter)]
 
@@ -829,28 +836,6 @@ def get_gen_input_old(model=None, x=None):
     return get_gen_input.inputs
 
 
-def calculate_macs(model, file_name=None):
-    """
-    Calculates the macs dict for the model.
-    Output is some sort of dictionary with key=layer, value = macs
-    """
-
-    inputs = get_gen_input()
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore")
-        result = profile_macs(model, inputs, reduction=None)
-    return result
-
-
-def total_macs(model):
-    """
-    Returns single number for total macs in model
-    """
-
-    macs_dict = calculate_macs(model)
-    return sum(macs_dict.values())
-
-
 def reverse_sort(input_list):
     """
     Input list is of the form: [(a, b), (c, d), ...]
@@ -861,7 +846,7 @@ def reverse_sort(input_list):
 
 def f_set(weight, target, prune_indices):
     """
-    Sets the value of a node to the weight modified with the prune indices
+    Sets the value of target node to the weight modified with the prune indices
     """
     new_weight = torch.cat(
         [weight[:prune_indices[0]], weight[prune_indices[1]:]])
@@ -917,9 +902,13 @@ def channel_prune(model, deletions):
         if pruners[0] == 'first':
             if node.type == 'conv':
                 node.value.out_channels = node.value.out_channels - get_channel_reduction(pruners[1:])
+
+            # Delete the outputs last to first.
             for prune_indices in reverse_sort(pruners[1:]):
                 if node.type == 'conv' and len(node.after) != 0:
                     # Prune the outupts of the convolutional layer
+                    # f_set sets the new node.value.weight to be node.value.weight for the indices that are not
+                    # in prune_indices. The bias also gets modified.
                     f_set(node.value.weight.detach(), node.value.weight, prune_indices)
                     if node.value.bias is not None:
                         f_set(node.value.bias.detach(), node.value.bias, prune_indices)
@@ -968,8 +957,6 @@ def get_metrics_loss(metrics_dataloader, lr_size, generator_full,
         for y in metrics_dataloader:
             y['driving_lr'] = F.interpolate(y['driving'], lr_size)
             
-            # Inputs need to be moved manually to gpu
-            move_to_gpu(y)
             losses_generator, metrics_generated = generator_full(
                 y, generator_type)
             loss_values = [val.mean() for val in losses_generator.values()]
@@ -1045,8 +1032,8 @@ def compute_deletion(layer_graph,
 
             assert first_conv is not None, "First conv is none"
 
-            # Find the relevent slices of input which matters if there is a concat in the way
-            slices = get_relevent_slice(layer_graph, first_conv, layer)
+            # Find the relevant slices of input which matters if there is a concat in the way
+            slices = get_relevant_slice(layer_graph, first_conv, layer)
 
             assert len(slices) != 0, "Slices length is 0"
 
@@ -1076,7 +1063,7 @@ def compute_deletion(layer_graph,
             custom_deletions.append((mirror, copy.copy(deletions[layer]), 'mirror'))
             print("Starting a mirrorred deletion")
 
-    # Figure out what you need to delete from the inputs of the following convs, and the relevent portions of batchnorms.
+    # Figure out what you need to delete from the inputs of the following convs, and the relevant portions of batchnorms.
     # Following layers contains any layeres who can be affected by the deletion in layer_graph[layer]
     for following_layer in following_layers:
         # If we have already addressed this layer, continue
@@ -1312,6 +1299,6 @@ def reduce_macs(model, target, current, kp_detector, discriminator,
 
     if curr_model is None:
         print("Could not shrink anymore")
-        raise StopIteration("Modle shrinking complete")
+        raise StopIteration("Model shrinking complete")
     print("finished netadapt iteration with loss", curr_loss)
     return curr_model, curr_kp_detector, curr_discriminator
