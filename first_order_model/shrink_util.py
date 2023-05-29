@@ -193,8 +193,8 @@ class Node:
         self.name = name
         self.index = index
         self.type = t
-        self.i = i
-        self.o = o
+        self.in_channels = i
+        self.out_channels = o
         self.value = value
         self.before = []
         self.after = []
@@ -754,9 +754,9 @@ def get_relevant_slice(layer_graph, node, target):
     # First figure out which inputs are directly affected by the target.
     for prev_node in layer_graph[node].before:
         if prev_node == target:
-            output += [(counter, counter + layer_graph[prev_node].o)]
+            output += [(counter, counter + layer_graph[prev_node].out_channels)]
 
-        counter += layer_graph[prev_node].o
+        counter += layer_graph[prev_node].out_channels
 
     if len(output) == 0:
         # If none are, then repeat recursively.
@@ -766,7 +766,7 @@ def get_relevant_slice(layer_graph, node, target):
             for out in temp_output:
                 output += [(out[0] + counter, out[1] + counter)]
 
-            counter += layer_graph[prev_node].o
+            counter += layer_graph[prev_node].out_channels
             
     return output
 
@@ -1038,7 +1038,7 @@ def compute_deletion(layer_graph,
             assert len(slices) != 0, "Slices length is 0"
 
             # Generate importances going slice by slice of the next layer..
-            importances = torch.zeros(layer_graph[layer].o).cuda()
+            importances = torch.zeros(layer_graph[layer].out_channels).cuda()
             for single_slice in slices:
                 importances += get_importances(layer_graph[first_conv].value.weight, single_slice)
 
@@ -1049,7 +1049,7 @@ def compute_deletion(layer_graph,
 
             deletions[layer] = deletion_list
         else:
-            deletions[layer] = [(layer_graph[layer].o-custom, layer_graph[layer].o)]
+            deletions[layer] = [(layer_graph[layer].out_channels-custom, layer_graph[layer].out_channels)]
     else:
         assert False, "Unsupported custom, only support list and ints"
 
@@ -1078,14 +1078,14 @@ def compute_deletion(layer_graph,
 
             # If you don't delete from the previous layer, just increment the counter by its ouputs.
             if previous_layer not in deletions:
-                counter += layer_graph[previous_layer].o
+                counter += layer_graph[previous_layer].out_channels
                 continue
 
             # If delete from previous layer, delete corresponding element from this layer and increment the counter
             for deletion in deletions[previous_layer]:
                 deletions[following_layer].append(
                     (counter + deletion[0], counter + deletion[1]))
-            counter += layer_graph[previous_layer].o
+            counter += layer_graph[previous_layer].out_channels
 
         # If there is another tied after layer i.e. a layer who has their output tied to the input of this layer, 
         # like in resnet, we need to delete from their outputs as well
@@ -1143,7 +1143,7 @@ def try_reduce(curr_loss, curr_model, dataloader, layer_graph,
         model_copy = copy.deepcopy(model)
 
     # Ignore this layer if it has only one output, or its output is never used
-    if 1 >= layer_graph[layer].o:
+    if 1 >= layer_graph[layer].out_channels:
         return None, None, None, None
     if len(layer_graph[layer].after) == 0:
         return None, None, None, None
@@ -1166,7 +1166,7 @@ def try_reduce(curr_loss, curr_model, dataloader, layer_graph,
     if to_remove == 0:
         to_remove = 1
     # Ensure the deletion is smaller than the layer size.
-    if to_remove >= layer_graph[layer].o:
+    if to_remove >= layer_graph[layer].out_channels:
         print("Cannot remove enough to hit target")
         return None, None, None, None
     # Perform the actual deletion
