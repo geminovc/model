@@ -4,6 +4,16 @@ import torch.nn.functional as F
 from first_order_model.modules.warplayer import warp
 from first_order_model.modules.refine import *
 
+
+""" RIFE blocks for motion estimation from https://github.com/megvii-research/ECCV2022-RIFE/tree/main/model
+    that reflect SOTA for optical flow estimation.
+    IF blocks represent the main unit used for estimating flows at different resolutions
+    These are then combined to learn the overall flow.
+    Refine and warplayer modules are responsible for refining the flow and warping it respectively.
+    if the Use_RIFE parameter is specified in the dense_motion of the FOMM, then, calls
+    are made to this module to obtain the optical flow.
+"""
+
 def deconv(in_planes, out_planes, kernel_size=4, stride=2, padding=1):
     return nn.Sequential(
         torch.nn.ConvTranspose2d(in_channels=in_planes, out_channels=out_planes, kernel_size=4, stride=2, padding=1),

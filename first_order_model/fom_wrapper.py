@@ -153,6 +153,11 @@ class FirstOrderModel(KeypointBasedFaceModels):
     def predict(self, target_keypoints, target_lr=None):
         """ takes target keypoints and returns an RGB image for the prediction """
         source_index = target_keypoints['source_index']
+        if not torch.is_tensor(target_lr):
+            target_lr_tensor = self.convert_image_to_tensor(target_lr)
+        else:
+            target_lr_tensor = target_lr
+
         assert(source_index in self.source_keypoints)
         assert(source_index in self.source_frames) 
         
@@ -163,7 +168,7 @@ class FirstOrderModel(KeypointBasedFaceModels):
         target_kp_tensors = self.convert_kp_dict_to_tensors(target_keypoints)
         out = self.generator(self.source_frames[source_index], \
             kp_source=source_kp_tensors, kp_driving=target_kp_tensors, \
-            update_source=update_source, driving_lr=target_lr)
+            update_source=update_source, driving_lr=target_lr_tensor)
 
 
         prediction = torch.mul(out['prediction'][0], 255).to(torch.uint8)
@@ -208,7 +213,7 @@ class FirstOrderModel(KeypointBasedFaceModels):
         """ predict and return the target RGB frame 
             from a low-res version of it. 
         """
-        target_lr_tensor = self.convert_image_to_tensor(target_lr_tensor)
+        target_lr_tensor = self.convert_image_to_tensor(target_lr)
         target_keypoints, _ = self.extract_keypoints(target_lr_tensor)
         return self.predict_with_source(target_keypoints, source_frame, source_keypoints, target_lr_tensor)
 

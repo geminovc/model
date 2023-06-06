@@ -65,7 +65,7 @@ class VggFace16(torch.nn.Module):
     Vgg16 network for face perceptual loss. Was added by Vibhaa.
     """
     def __init__(self, requires_grad=False):
-        super(Vgg16, self).__init__()
+        super(VggFace16, self).__init__()
         vgg_pretrained_features = models.vgg19(pretrained=True).features
         self.slice1 = torch.nn.Sequential()
         self.slice2 = torch.nn.Sequential()
@@ -228,7 +228,7 @@ class GeneratorFullModel(torch.nn.Module):
     def forward(self, x, generator_type='occlusion_aware'):
         driving_lr =  x.get('driving_lr', None)
 
-        if generator_type in ['occlusion_aware', 'split_hf_lf']:
+        if generator_type in ['occlusion_aware', 'split_hf_lf', 'student_occlusion_aware']:
             kp_source = self.kp_extractor(x['source'])
             
             if driving_lr is not None:
@@ -247,8 +247,11 @@ class GeneratorFullModel(torch.nn.Module):
         
         loss_values = {}
 
+        if 'teacher' in x:
+            generated.update({'teacher': x['teacher']})
+
         # standard pyramides for Vgg perceptual loss
-        real_input = x['driving']
+        real_input = x['driving'] if 'teacher' not in x else x['teacher']
         generated_input = generated['prediction']
         pyramide_real = self.pyramid(real_input)
         pyramide_generated = self.pyramid(generated_input)
@@ -302,9 +305,15 @@ class GeneratorFullModel(torch.nn.Module):
                     else generated['prediction']
             pix_loss = loss_fn(generated_lf, real_input.detach())
             loss_values['pixelwise'] = self.loss_weights['pixelwise'] * pix_loss
+
+        if self.loss_weights.get('encoder_distillation', 0) != 0:
+            student_encoded_output = generated['encoded_output'] 
+            teacher_encoded_output = x['teacher_encoded_output']
+            distillation_loss = F.mse_loss(student_encoded_output, teacher_encoded_output)
+            loss_values['encoder_distillation'] = self.loss_weights['encoder_distillation'] * distillation_loss
                    
         if self.loss_weights['generator_gan'] != 0:
-            if generator_type == 'occlusion_aware':
+            if 'occlusion_aware' in generator_type:
                 discriminator_maps_generated = self.discriminator(disc_pyramide_generated, kp=detach_kp(kp_driving))
                 discriminator_maps_real = self.discriminator(disc_pyramide_real, kp=detach_kp(kp_driving))
             else:

@@ -1,10 +1,19 @@
 import torch
 from torch import nn
+import os
 import torch.nn.functional as F
 from first_order_model.modules.util import ResBlock2d, SameBlock2d, UpBlock2d, DownBlock2d
 from first_order_model.modules.dense_motion import DenseMotionNetwork
 from first_order_model.modules.RIFE import RIFEModel
+from first_order_model.modules.efficientnet_encoder import EfficientNet, MBConvBlock
+from first_order_model.modules.efficientnet_decoder import EfficientNetDecoder
+from first_order_model.modules.efficientnet_utils import get_model_params
+
 import math
+if os.environ.get('CONV_TYPE', 'regular') == 'regular':
+    from torch.nn import Conv2d
+else:
+    from first_order_model.modules.custom_conv import Conv2d
 
 class OcclusionAwareGenerator(nn.Module):
     """
@@ -17,7 +26,8 @@ class OcclusionAwareGenerator(nn.Module):
                  predict_pixel_features=False, num_pixel_features=0, 
                  run_at_256=False, upsample_factor=1, use_hr_skip_connections=False,
                  dense_motion_params=None, estimate_jacobian=False, encode_hr_input_with_additional_blocks=False,
-                 use_lr_video=False, lr_features=32, lr_size=64,
+                 use_lr_video=False, lr_features=32, lr_size=64, use_3_pathways=False, concat_lr_video_in_decoder=False,
+                 use_dropout=False, dropout_rate=0,
                  hr_features=16, generator_type='occlusion_aware'):
         super(OcclusionAwareGenerator, self).__init__()
 
@@ -46,20 +56,44 @@ class OcclusionAwareGenerator(nn.Module):
         self.encode_hr_input_with_additional_blocks = encode_hr_input_with_additional_blocks
         self.generator_type = generator_type
         self.lr_size = lr_size
-        self.common_decoder_for_3_paths = False
-        
+        self.common_decoder_for_3_paths = use_3_pathways
+        self.disable_occlusions = False
+        self.use_lr_video = use_lr_video
+        self.use_dropout = use_dropout
+        self.concat_lr_video_in_decoder = concat_lr_video_in_decoder
+        self.encoder_type = 'regular'
+        self.decoder_type = 'regular'
 
-        if dense_motion_params.get('concatenate_lr_frame_to_hourglass_input', False) \
-                or dense_motion_params.get('concatenate_lr_frame_to_hourglass_output', False):
-            self.concat_lr_video_in_decoder = False
-            if dense_motion_params.get('estimate_additional_masks_for_lr_and_hr_bckgnd', False): 
-                self.use_lr_video = True
-            self.common_decoder_for_3_paths = True
+        if self.generator_type == 'student_occlusion_aware':
+            print('setting up EFFICIENTNET encoder/decoder')
+            self.generator_type = 'occlusion_aware'
+            # encoder is teacher one by default 
+            # self.encoder_type = 'efficient'
+            # self.efficientnet_encoder = EfficientNet.from_pretrained('efficientnet-b0', include_top=True)
+            self.decoder_type = 'efficient'
+            resolution = 1024 if hr_features == 16 else 512
+            self.efficientnet_decoder = EfficientNetDecoder.from_pretrained('efficientnet-b0', 
+                                                                            lr_resolution=self.lr_size,
+                                                                            output_resolution=resolution,
+                                                                            include_top=True) 
+ 
+        if self.common_decoder_for_3_paths:
+            self.use_lr_video = True
+            self.concat_lr_video_in_decoder = True
+            if not dense_motion_params.get('estimate_additional_masks_for_lr_and_hr_bckgnd', False): 
+                self.disable_occlusions = True
+
+        if self.disable_occlusions:
+            print("occlusions disabled")
         else:
-            self.concat_lr_video_in_decoder = use_lr_video
-            self.use_lr_video = use_lr_video
+            print("occlusions enabled")
 
-        if use_hr_skip_connections:
+        if self.common_decoder_for_3_paths:
+            print("using 3 pathways")
+        if self.concat_lr_video_in_decoder:
+            print("concatenating lr video in decoder")
+
+        if self.use_hr_skip_connections:
             assert run_at_256, "Skip connections require parallel 256 FOM pipeline"
         else:
             assert (not run_at_256) or (run_at_256 and not encode_hr_input_with_additional_blocks), \
@@ -70,7 +104,7 @@ class OcclusionAwareGenerator(nn.Module):
         
         self.upsample_factor = upsample_factor
         upsample_levels = round(math.log(upsample_factor, 2))
-        hr_starting_depth = hr_features if use_hr_skip_connections else block_expansion // (2 ** upsample_levels) 
+        hr_starting_depth = hr_features if self.use_hr_skip_connections else block_expansion // (2 ** upsample_levels) 
 
         # first layer either designed for 256x256 input or HR input
         self.first = SameBlock2d(num_channels, block_expansion, kernel_size=(7, 7), padding=(3, 3))
@@ -80,7 +114,20 @@ class OcclusionAwareGenerator(nn.Module):
 
         # first layer for LR input
         if self.use_lr_video:
-            self.lr_first = SameBlock2d(num_channels, lr_features, kernel_size=(7, 7), padding=(3, 3))
+            if self.encoder_type == 'efficient':
+                idx = round(math.log(512 / self.lr_size, 2)) + 1
+                blocks_args, global_params = get_model_params('efficientnet-b0', None)
+                lr_block_args = blocks_args[idx]
+                lr_block_args = lr_block_args._replace(stride=1, input_filters=3)
+                # single Mobilenet block to encode LR
+                self.lr_first = MBConvBlock(lr_block_args, 
+                                            global_params, 
+                                            image_size=(self.lr_size, self.lr_size))
+            else:
+                self.lr_first = SameBlock2d(num_channels, lr_features, kernel_size=(7, 7), padding=(3, 3))
+
+            if self.use_dropout:
+                self.dropout = nn.Dropout(p=dropout_rate)
 
         # enabling extra blocks for bringing higher resolution down
         hr_down_blocks = []
@@ -100,14 +147,12 @@ class OcclusionAwareGenerator(nn.Module):
         self.down_blocks = nn.ModuleList(down_blocks)
 
         # increase decoder feature sizes if you're getting multiple inputus
-        if self.common_decoder_for_3_paths:
-            adjusted_block_expansion = block_expansion * 2 + lr_features // (2 ** num_down_blocks)
+        if self.common_decoder_for_3_paths and self.decoder_type != 'efficient':
+            adjusted_block_expansion = block_expansion * 2 
             if upsample_levels > 0:
-                adjusted_hr_depth = hr_starting_depth * 2 + \
-                    lr_features // (2 ** (upsample_levels + num_down_blocks))
+                adjusted_hr_depth = hr_starting_depth * 2 
             else:
-                adjusted_hr_depth = block_expansion * 2 + \
-                    lr_features // (2 ** num_down_blocks)
+                adjusted_hr_depth = block_expansion * 2 
         else:
             adjusted_block_expansion = block_expansion
             adjusted_hr_depth = hr_starting_depth if upsample_levels > 0 else block_expansion
@@ -129,8 +174,10 @@ class OcclusionAwareGenerator(nn.Module):
         hr_up_blocks = []
         for i in range(upsample_levels):
             in_features = min(max_features, adjusted_hr_depth * (2 ** (upsample_levels - i)))
-            if use_hr_skip_connections:
-                in_features += min(max_features, hr_starting_depth * (2 ** (upsample_levels - i)))
+            if self.use_hr_skip_connections:
+                extra_offset = 2 if self.common_decoder_for_3_paths else 1
+                in_features += min(max_features, \
+                        extra_offset * hr_starting_depth * (2 ** (upsample_levels - i)))
             if i == (math.log(self.lr_size / 64, 2) - len(self.up_blocks)) \
                     and self.concat_lr_video_in_decoder and self.generator_type == 'occlusion_aware':
                 in_features += lr_features
@@ -144,7 +191,7 @@ class OcclusionAwareGenerator(nn.Module):
             self.bottleneck.add_module('r' + str(i), ResBlock2d(in_features, kernel_size=(3, 3), \
                     padding=(1, 1)))
         final_input_features = adjusted_hr_depth
-        self.final = nn.Conv2d(final_input_features, num_channels, kernel_size=(7, 7), padding=(3, 3))
+        self.final = Conv2d(final_input_features, num_channels, kernel_size=(7, 7), padding=(3, 3))
         self.estimate_occlusion_map = estimate_occlusion_map
 
         # upsampling blocks for LF superresolution if using it
@@ -164,7 +211,7 @@ class OcclusionAwareGenerator(nn.Module):
                         ResBlock2d(in_features, kernel_size=(3, 3), padding=(1, 1)))
 
             sr_final_input_features = out_features
-            self.sr_final = nn.Conv2d(sr_final_input_features, num_channels, kernel_size=(7, 7), padding=(3, 3))
+            self.sr_final = Conv2d(sr_final_input_features, num_channels, kernel_size=(7, 7), padding=(3, 3))
 
         self.num_channels = num_channels
         self.source_image = None
@@ -197,35 +244,46 @@ class OcclusionAwareGenerator(nn.Module):
             else:
                 resized_source_image = source_image
             
-            hr_out = None
-            if self.use_hr_skip_connections or self.encode_hr_input_with_additional_blocks:
-                hr_out = self.hr_first(source_image)
-                self.skip_connections = [hr_out] if self.use_hr_skip_connections else []
-                for block in self.hr_down_blocks:
-                    hr_out = block(hr_out)
-                    if self.use_hr_skip_connections:
-                        self.skip_connections.append(hr_out)
+            if self.encoder_type == 'efficient':
+                self.encoder_output, self.skip_connections = self.efficientnet_encoder(source_image)
             
-            out = hr_out if self.encode_hr_input_with_additional_blocks else self.first(resized_source_image)
-            for block in self.down_blocks: 
-                out = block(out)
+            else:
+                hr_out = None
+                if self.use_hr_skip_connections or self.encode_hr_input_with_additional_blocks:
+                    hr_out = self.hr_first(source_image)
+                    self.skip_connections = [hr_out] if self.use_hr_skip_connections else []
+                    for block in self.hr_down_blocks:
+                        hr_out = block(hr_out)
+                        if self.use_hr_skip_connections:
+                            self.skip_connections.append(hr_out)
+                
+                out = hr_out if self.encode_hr_input_with_additional_blocks else self.first(resized_source_image)
+                for block in self.down_blocks: 
+                    out = block(out)
 
-            self.encoder_output = out
+                self.encoder_output = out
+
 
         # lr target image encoding
         if self.use_lr_video:
             lr_encoded_features = self.lr_first(driving_lr)
+            
+            if self.use_dropout:
+                lr_encoded_features = self.dropout(lr_encoded_features)
 
         lr_occlusion_map = None
         hr_bgnd_map = None
+        hr_encoded_features = self.encoder_output
         
         # Transforming feature representation according to deformation and occlusion
         output_dict = {}
+        output_dict['encoded_output'] = self.encoder_output
         if self.dense_motion_network is not None:
             dense_motion = self.dense_motion_network(source_image=source_image, kp_driving=kp_driving,
                                                      kp_source=kp_source, lr_frame=driving_lr)
-            output_dict['mask'] = dense_motion['mask']
-            output_dict['sparse_deformed'] = dense_motion['sparse_deformed']
+            if 'mask' in dense_motion and 'sparse_deformed' in dense_motion:
+                output_dict['mask'] = dense_motion['mask']
+                output_dict['sparse_deformed'] = dense_motion['sparse_deformed']
 
             if 'occlusion_map' in dense_motion:
                 occlusion_map = dense_motion['occlusion_map']
@@ -235,16 +293,19 @@ class OcclusionAwareGenerator(nn.Module):
             deformation = dense_motion['deformation']
             out, _ = self.deform_input(self.encoder_output, deformation)
 
-            if 'lr_occlusion_mask' in dense_motion and 'hr_background_mask' in dense_motion:
+            if 'lr_occlusion_mask' in dense_motion:
                 lr_occlusion_map = dense_motion['lr_occlusion_mask']
                 output_dict['lr_occlusion_map'] = lr_occlusion_map
+            
+            if 'hr_background_mask' in dense_motion:
                 hr_bgnd_map = dense_motion['hr_background_mask']
                 output_dict['hr_background_mask'] = hr_bgnd_map
             
             if occlusion_map is not None:
                 if out.shape[2] != occlusion_map.shape[2] or out.shape[3] != occlusion_map.shape[3]:
                     occlusion_map = F.interpolate(occlusion_map, size=out.shape[2:], mode='bilinear')
-                out = out * occlusion_map
+                if not self.disable_occlusions:
+                    out = out * occlusion_map
 
             if lr_occlusion_map is not None:
                 if lr_encoded_features.shape[2] != lr_occlusion_map.shape[2] \
@@ -252,16 +313,17 @@ class OcclusionAwareGenerator(nn.Module):
                     lr_occlusion_map = F.interpolate(lr_occlusion_map, 
                                                      size=lr_encoded_features.shape[2:], 
                                                      mode='bilinear')
-                lr_encoded_features = lr_encoded_features * lr_occlusion_map
+                if not self.disable_occlusions:
+                    lr_encoded_features = lr_encoded_features * lr_occlusion_map
 
             if hr_bgnd_map is not None:
-                hr_encoded_features = self.encoder_output
                 if hr_encoded_features.shape[2] != hr_bgnd_map.shape[2] \
                         or hr_encoded_features.shape[3] != hr_bgnd_map.shape[3]:
                     hr_bgnd_map = F.interpolate(hr_bgnd_map, 
                                                 size=hr_encoded_features.shape[2:], 
                                                 mode='bilinear')
-                hr_encoded_features = hr_encoded_features * hr_bgnd_map
+                if not self.disable_occlusions:
+                    hr_encoded_features = hr_encoded_features * hr_bgnd_map
 
             if 'residual' in dense_motion:
                 out += dense_motion['residual']
@@ -271,8 +333,13 @@ class OcclusionAwareGenerator(nn.Module):
         
         # concatenate all pieces of info before decoding if you
         # want to use LR + static HR background
-        if hr_bgnd_map is not None and lr_occlusion_map is not None:
-            out = torch.cat([out, lr_encoded_features, hr_encoded_features], dim=1)
+        # LR will get incorporated at the appropriate place below in upblocks
+        # use addition instead of concat for EfficientNet to keep features small
+        if self.common_decoder_for_3_paths:
+            if self.decoder_type == 'efficient':
+                out += hr_encoded_features
+            else:
+                out = torch.cat([out, hr_encoded_features], dim=1)
         
         if self.rife is not None:
             source_lr = F.interpolate(source_image, self.lr_size)
@@ -285,32 +352,40 @@ class OcclusionAwareGenerator(nn.Module):
 
         # Decoding part
         out = self.bottleneck(out)
-        for i, block in enumerate(self.up_blocks):
-            if i == math.log(self.lr_size / 64, 2) \
-                    and self.concat_lr_video_in_decoder and self.generator_type == "occlusion_aware":
-                out_shape = list(out.shape)
-                out_shape.pop(1)
-                lr_shape = list(lr_encoded_features.shape)
-                lr_shape.pop(1)
-                assert out_shape == lr_shape, "Dimensions mismatch in LR video input and rest of pipeline"
-                out = torch.cat([out, lr_encoded_features], dim=1)
-            out = block(out)
 
-        for i in range(len(self.hr_up_blocks)):
-            block = self.hr_up_blocks[i]
-            if i == (math.log(self.lr_size / 64, 2) - len(self.up_blocks)) \
-                    and self.concat_lr_video_in_decoder and self.generator_type == "occlusion_aware":
-                out_shape = list(out.shape)
-                out_shape.pop(1)
-                lr_shape = list(lr_encoded_features.shape)
-                lr_shape.pop(1)
-                assert out_shape == lr_shape, "Dimensions mismatch in LR video input and rest of pipeline"
-                out = torch.cat([out, lr_encoded_features], dim=1)
-            if self.use_hr_skip_connections:
-                skip = self.skip_connections[len(self.skip_connections) - 1 - i]
-                skip, _ = self.deform_input(skip, deformation)
-                out = torch.cat([out, skip], dim=1)
-            out = block(out)
+        if self.decoder_type == 'efficient':
+            skip_connections = self.skip_connections if self.use_hr_skip_connections else []
+            out = self.efficientnet_decoder(out, lr_encoded_features, skip_connections)
+
+        else:
+            for i, block in enumerate(self.up_blocks):
+                if i == math.log(self.lr_size / 64, 2) and self.concat_lr_video_in_decoder \
+                        and self.generator_type == "occlusion_aware":
+                    out_shape = list(out.shape)
+                    out_shape.pop(1)
+                    lr_shape = list(lr_encoded_features.shape)
+                    lr_shape.pop(1)
+                    assert out_shape == lr_shape, "Dimensions mismatch in LR video input and rest of pipeline"
+                    out = torch.cat([out, lr_encoded_features], dim=1)
+                out = block(out)
+
+            for i in range(len(self.hr_up_blocks)):
+                block = self.hr_up_blocks[i]
+                if i == (math.log(self.lr_size / 64, 2) - len(self.up_blocks)) \
+                        and self.concat_lr_video_in_decoder and self.generator_type == "occlusion_aware":
+                    out_shape = list(out.shape)
+                    out_shape.pop(1)
+                    lr_shape = list(lr_encoded_features.shape)
+                    lr_shape.pop(1)
+                    assert out_shape == lr_shape, "Dimensions mismatch in LR video input and rest of pipeline"
+                    out = torch.cat([out, lr_encoded_features], dim=1)
+                if self.use_hr_skip_connections:
+                    skip = self.skip_connections[len(self.skip_connections) - 1 - i]
+                    skip_deformed, _ = self.deform_input(skip, deformation)
+                    out = torch.cat([out, skip_deformed], dim=1)
+                    if self.common_decoder_for_3_paths: # if you have non-warped features also
+                        out = torch.cat([out, skip], dim=1)
+                out = block(out)
 
         out = self.final(out)
         out = F.sigmoid(out)

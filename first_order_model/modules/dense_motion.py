@@ -1,10 +1,15 @@
 from torch import nn
 import torch.nn.functional as F
 import torch
+import os
 from first_order_model.modules.util import Hourglass, AntiAliasInterpolation2d, make_coordinate_grid, kp2gaussian
 from first_order_model.modules.util import SameBlock2d 
 import time
 import numpy as np
+if os.environ.get('CONV_TYPE', 'regular') == 'regular':
+    from torch.nn import Conv2d
+else:
+    from first_order_model.modules.custom_conv import Conv2d
 
 class DenseMotionNetwork(nn.Module):
     """
@@ -14,39 +19,46 @@ class DenseMotionNetwork(nn.Module):
     def __init__(self, block_expansion=64, num_blocks=5, max_features=1024, num_kp=10, lr_features=32,
             num_channels=3, estimate_residual=False, num_pixel_features=0, estimate_occlusion_map=False, 
             scale_factor=1, kp_variance=0.01, run_at_256=False, concatenate_lr_frame_to_hourglass_input=False,
-            use_RIFE=False, scales=[1], RIFE_checkpoint=None,
+            use_RIFE=False, scales=[1], RIFE_checkpoint=None, use_only_src_tgt_for_motion=False,
             concatenate_lr_frame_to_hourglass_output=False, estimate_additional_masks_for_lr_and_hr_bckgnd=False):
         super(DenseMotionNetwork, self).__init__()
 
         lr_features = 3 # only considering RGB image for now
-        additional_features = lr_features if concatenate_lr_frame_to_hourglass_input else 0
+        if concatenate_lr_frame_to_hourglass_input:
+            input_features = (num_kp + 1) * (num_channels + 1 + num_pixel_features) + lr_features
+        elif use_only_src_tgt_for_motion:
+            input_features = 2 * lr_features
+        else:
+            input_features = (num_kp + 1) * (num_channels + 1 + num_pixel_features) 
         self.hourglass = Hourglass(block_expansion=block_expansion, 
-                         in_features=(num_kp + 1) * (num_channels + 1 + num_pixel_features) + additional_features,
+                         in_features=input_features,
                          max_features=max_features, num_blocks=num_blocks)
 
         use_lr_frame = concatenate_lr_frame_to_hourglass_input or concatenate_lr_frame_to_hourglass_output
         additional_features = lr_features if concatenate_lr_frame_to_hourglass_output else 0
-        self.mask = nn.Conv2d(self.hourglass.out_filters + additional_features, 
-                              num_kp + 1, kernel_size=(7, 7), padding=(3, 3))
+        mask_output_features = 2 if use_only_src_tgt_for_motion else num_kp + 1
+        self.mask = Conv2d(self.hourglass.out_filters + additional_features, 
+                              mask_output_features, kernel_size=(7, 7), padding=(3, 3))
 
         if estimate_occlusion_map:
-            self.occlusion = nn.Conv2d(self.hourglass.out_filters + additional_features, \
+            self.occlusion = Conv2d(self.hourglass.out_filters + additional_features, \
                     1, kernel_size=(7, 7), padding=(3, 3))
         else:
             self.occlusion = None
         
         if estimate_additional_masks_for_lr_and_hr_bckgnd:
-            assert concatenate_lr_frame_to_hourglass_input, "Need LR in hourglass input to get additional masks"
-            self.lr_occlusion = nn.Conv2d(self.hourglass.out_filters + additional_features, \
+            assert concatenate_lr_frame_to_hourglass_input or use_only_src_tgt_for_motion, \
+                    "Need LR in hourglass input to get additional masks"
+            self.lr_occlusion = Conv2d(self.hourglass.out_filters + additional_features, \
                     1, kernel_size=(7, 7), padding=(3, 3))
-            self.hr_background_occlusion = nn.Conv2d(self.hourglass.out_filters + additional_features, \
+            self.hr_background_occlusion = Conv2d(self.hourglass.out_filters + additional_features, \
                     1, kernel_size=(7, 7), padding=(3, 3))
         else:
             self.lr_occlusion = None
             self.hr_background_occlusion = None
         
         if estimate_residual:
-            self.residual = nn.Conv2d(self.hourglass.out_filters + additional_features, \
+            self.residual = Conv2d(self.hourglass.out_filters + additional_features, \
                     1, kernel_size=(7, 7), padding=(3, 3))
             self.num_pixel_features = num_pixel_features
         else:
@@ -58,6 +70,7 @@ class DenseMotionNetwork(nn.Module):
         self.run_at_256 = run_at_256
         self.concatenate_lr_frame_to_hourglass_input = concatenate_lr_frame_to_hourglass_input
         self.concatenate_lr_frame_to_hourglass_output = concatenate_lr_frame_to_hourglass_output
+        self.use_only_src_tgt_for_motion = use_only_src_tgt_for_motion
 
         if use_lr_frame:
             self.lr_first = SameBlock2d(num_channels, lr_features, kernel_size=(7, 7), padding=(3, 3))
@@ -162,35 +175,48 @@ class DenseMotionNetwork(nn.Module):
         bs, _, h, w = source_image.shape
 
         out_dict = dict()
-        heatmap_representation, pixel_representations = self.create_heatmap_representations(
-                source_image, kp_driving, kp_source)
-        sparse_motion = self.create_sparse_motions(source_image, kp_driving, kp_source)
-        deformed_source = self.create_deformed_source_image(source_image, sparse_motion)
-        out_dict['sparse_deformed'] = deformed_source
 
-        if self.residual:
-            input = torch.cat([heatmap_representation, deformed_source, pixel_representations], dim=2)
+        if not self.use_only_src_tgt_for_motion:
+            heatmap_representation, pixel_representations = self.create_heatmap_representations(
+                    source_image, kp_driving, kp_source)
+            sparse_motion = self.create_sparse_motions(source_image, kp_driving, kp_source)
+            deformed_source = self.create_deformed_source_image(source_image, sparse_motion)
+            out_dict['sparse_deformed'] = deformed_source
+
+            if self.residual:
+                input = torch.cat([heatmap_representation, deformed_source, pixel_representations], dim=2)
+            else:
+                input = torch.cat([heatmap_representation, deformed_source], dim=2)
+
+            input = input.view(bs, -1, h, w)
+            if self.concatenate_lr_frame_to_hourglass_input:
+                lr_frame_features = lr_frame
+                if lr_frame_features.shape[2] != input.shape[2]:
+                    lr_frame_features = F.interpolate(lr_frame_features, input.shape[2])
+                input = torch.cat([input, lr_frame_features], dim = 1)
+        
+        # only use source and target 
         else:
-            input = torch.cat([heatmap_representation, deformed_source], dim=2)
-
-        input = input.view(bs, -1, h, w)
-        if self.concatenate_lr_frame_to_hourglass_input:
-            lr_frame_features = lr_frame
-            input = torch.cat([input, lr_frame_features], dim = 1)
+            source_frame_lr = F.interpolate(source_image, lr_frame.shape[2])
+            input = torch.cat([source_frame_lr, lr_frame], dim = 1)
 
         prediction = self.hourglass(input)
         if self.concatenate_lr_frame_to_hourglass_output:
             lr_frame_features = lr_frame
             prediction = torch.cat([prediction, lr_frame_features], dim = 1)
 
-        mask = self.mask(prediction)
-        mask = F.softmax(mask, dim=1)
-        out_dict['mask'] = mask
-        mask = mask.unsqueeze(2)
-        sparse_motion = sparse_motion.permute(0, 1, 4, 2, 3)
-        deformation = (sparse_motion * mask).sum(dim=1)
+        # either use sparse deformed sources or just src/tgt for motion
+        # prediction
+        if self.use_only_src_tgt_for_motion:
+            deformation = torch.sigmoid(self.mask(prediction))
+        else:
+            mask = self.mask(prediction)
+            mask = F.softmax(mask, dim=1)
+            out_dict['mask'] = mask
+            mask = mask.unsqueeze(2)
+            sparse_motion = sparse_motion.permute(0, 1, 4, 2, 3)
+            deformation = (sparse_motion * mask).sum(dim=1)
         deformation = deformation.permute(0, 2, 3, 1)
-
         out_dict['deformation'] = deformation
 
         if self.residual:
@@ -203,7 +229,7 @@ class DenseMotionNetwork(nn.Module):
         
         if self.lr_occlusion:
             lr_occlusion_map = torch.sigmoid(self.lr_occlusion(prediction))
-            out_dict['lr_occlusion_mask'] = occlusion_map
+            out_dict['lr_occlusion_mask'] = lr_occlusion_map
 
         if self.hr_background_occlusion:
             hr_background_mask = torch.sigmoid(self.hr_background_occlusion(prediction))

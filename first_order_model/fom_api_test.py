@@ -7,9 +7,10 @@ from frames_dataset import get_num_frames, get_frame
 import torch
 import piq
 from skimage import img_as_float32
-from first_order_model.modules.model import Vgg19
+from first_order_model.modules.model import Vgg19, VggFace16
 from reconstruction import *
 from utils import get_main_config_params
+import lpips
 
 parser = ArgumentParser()
 parser.add_argument("--config", 
@@ -91,12 +92,18 @@ reference_stream = []
 lr_stream = []
 metrics_file = open(os.path.join(args.log_dir, args.output_name + '_metrics_summary.txt'), 'wt')
 frame_metrics_file = open(os.path.join(args.log_dir, args.output_name + '_per_frame_metrics.txt'), 'wt')
-write_in_file(frame_metrics_file, 'frame,psnr,ssim,ssim_db,lpips\n')
-vgg_model = Vgg19()
+write_in_file(frame_metrics_file, 'frame,psnr,ssim,ssim_db,lpips,orig_lpips,face_lpips\n')
 
+vgg_model = Vgg19()
+vgg_face_model = VggFace16()
+original_lpips = lpips.LPIPS(net='vgg')
 if torch.cuda.is_available():
     vgg_model = vgg_model.cuda()
+    vgg_face_model = vgg_face_model.cuda()
+    original_lpips = original_lpips.cuda()
+
 loss_fn_vgg = vgg_model.compute_loss
+face_lpips = vgg_face_model.compute_loss
 
 start = torch.cuda.Event(enable_timing=timing_enabled)
 end = torch.cuda.Event(enable_timing=timing_enabled)
@@ -199,10 +206,8 @@ with torch.no_grad():
                 reference_stream.append(compressed_src)
 
         else:
-            out = model.generator(driving_lr)
-            prediction_device = torch.mul(out['prediction'][0], 255).to(torch.uint8)
-            prediction_cpu = prediction_device.data.cpu().numpy()
-            prediction = np.transpose(prediction_cpu, [1, 2, 0])
+            # generator_type could be "only_upsampler"
+            prediction = model.predict_with_lr_video(driving_lr)
             if args.encode_lr:
                 lr_stream.append(compressed_tgt)
 
@@ -212,26 +217,8 @@ with torch.no_grad():
             generator_times.append(start.elapsed_time(end))
 
         prediction_tensor = frame_to_tensor(img_as_float32(prediction), device)
-        '''
-        ssim = piq.ssim(driving, out['prediction'], data_range=1.).data.cpu().numpy().flatten()[0]
-        if use_same_tgt_ref_quality and (model.generator_type in ['occlusion_aware', 'split_hf_lf']):
-            ref_ssim = piq.ssim(driving, ref_out['prediction'], data_range=1.).data.cpu().numpy().flatten()[0]
-            if ssim < ref_ssim:
-                source = driving
-                kp_source = kp_driving
-                out = ref_out
-                reference_frame_list = [(source, kp_source)]
-                updated_src += 1
-                reference_stream.append(compressed_src)
-                ssim = ref_ssim
-
-        if choose_reference_frame:
-            ssim_correlation_file.write(f'{ssim:.4f}\n')
-        else:
-            ssim_correlation_file.write(f'{it+1},{frame_idx},{ssim:.4f}\n')
-        '''
         loss_list.append(torch.abs(prediction_tensor - driving_tensor).mean().cpu().numpy())
-        visual_metrics.append(Logger.get_visual_metrics(prediction_tensor, driving_tensor, loss_fn_vgg))
+        visual_metrics.append(Logger.get_visual_metrics(prediction_tensor, driving_tensor, loss_fn_vgg, original_lpips, face_lpips))
         predictions.append(prediction)
         if frame_idx % 100 == 0:
             print('total frames', frame_idx, 'updated src', updated_src)
@@ -246,10 +233,10 @@ lr_br = get_bitrate(lr_stream, video_duration)
 
 for i, m in enumerate(visual_metrics):
     write_in_file(frame_metrics_file, f'{i},{m["psnr"][0]},{m["ssim"]},' + 
-                f'{m["ssim_db"]},{m["lpips"]}\n')
+                f'{m["ssim_db"]},{m["lpips"]},{m["orig_lpips"]},{m["face_lpips"]}\n')
 frame_metrics_file.close()
 
-psnr, ssim, lpips_val, ssim_db = get_avg_visual_metrics(visual_metrics)
+psnr, ssim, lpips_val, ssim_db, orig_lpips_val, face_lpips_val = get_avg_visual_metrics(visual_metrics)
 metrics_report = f'reference_frame_update_freq {args.reference_frame_update_freq}'
 if args.encode_hr:
     metrics_report += f', hr_quantizer: {args.hr_quantizer}'
@@ -258,6 +245,7 @@ if args.encode_lr:
     metrics_report += f', lr_quantizer: {args.lr_quantizer}'
 
 metrics_report += f'\nPSNR: {psnr}, SSIM: {ssim}, SSIM_DB: {ssim_db}, LPIPS: {lpips_val}, ' +\
+    f'ORIG_LPIPS: {orig_lpips_val}, FACE_LPIPS: {face_lpips_val}' +\
     f'Reference: {ref_br:.3f}Kbps, LR: {lr_br:.3f}Kbps \n' +\
     f'Reconstruction loss: {np.mean(loss_list)}\n'
 

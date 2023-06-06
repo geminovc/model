@@ -50,29 +50,34 @@ class Logger:
 
     """ get visual metrics for the model's reconstruction """
     @staticmethod
-    def get_visual_metrics(prediction, original, loss_fn_vgg):
+    def get_visual_metrics(prediction, original, loss_fn_vgg, original_lpips, face_lpips):
         if torch.cuda.is_available():
             original = original.cuda()
             prediction = prediction.cuda()
-        lpips_val = loss_fn_vgg(original, prediction).data.cpu().numpy().flatten()[0]
+        lpips_val = 0 #loss_fn_vgg(original, prediction).data.cpu().numpy().flatten()[0]
+        face_lpips_val = 0 #face_lpips(original, prediction).data.cpu().numpy().flatten()[0]
+        original_lpips_val = original_lpips(original, prediction).data.cpu().numpy().flatten()[0]
         
         ssim = piq.ssim(original, prediction, data_range=1.).data.cpu().numpy().flatten()[0]
-        ssim_db = -20 * math.log10(1 - ssim)
+        ssim_db = -10 * math.log10(1 - ssim)
         psnr = piq.psnr(original, prediction, data_range=1., reduction='none').data.cpu().numpy()
         
-        return {'psnr': psnr, 'ssim': ssim, 'lpips': lpips_val, 'ssim_db': ssim_db}
+        return {'psnr': psnr, 'ssim': ssim, 'lpips': lpips_val, 'ssim_db': ssim_db, \
+                'orig_lpips': original_lpips_val, 'face_lpips': face_lpips_val}
 
-    def log_metrics_images(self, iteration, input_data, output, loss_fn_vgg):
+    def log_metrics_images(self, iteration, input_data, output, loss_fn_vgg, original_lpips, face_lpips):
         if iteration == 0:
             if self.metrics_averages is not None:
                 for name, values in self.metrics_averages.items():
                     average = np.mean(values)
                     self.writer.add_scalar(f'metrics/{name}', average, self.epoch)
-            self.metrics_averages = {'psnr': [], 'ssim': [], 'lpips': [], 'ssim_db': []}
+            self.metrics_averages = {'psnr': [], 'ssim': [], 'lpips': [], 'ssim_db': [], \
+                    'orig_lpips': [], 'face_lpips':[]}
 
         image = self.visualizer.visualize(input_data['driving'], input_data['source'], output)
         self.writer.add_image(f'metrics{iteration}', image, self.epoch, dataformats='HWC')
-        metrics = Logger.get_visual_metrics(output['prediction'], input_data['driving'], loss_fn_vgg)
+        metrics = Logger.get_visual_metrics(output['prediction'], input_data['driving'],\
+                loss_fn_vgg, original_lpips, face_lpips)
         for name, value in metrics.items():
             self.metrics_averages[name].append(value)
 
@@ -93,7 +98,8 @@ class Logger:
     def load_cpk(checkpoint_path, generator=None, discriminator=None, kp_detector=None,
                  optimizer_generator=None, optimizer_discriminator=None, optimizer_kp_detector=None, 
                  device='gpu', dense_motion_network=None, upsampling_enabled=False, use_lr_video=[], 
-                 hr_skip_connections=False, run_at_256=True, generator_type='occlusion_aware', reconstruction=False):
+                 hr_skip_connections=False, run_at_256=True, generator_type='occlusion_aware', 
+                 reconstruction=False, skip_generator_loading=False, keep_encoder=False):
 
         if device == torch.device('cpu'):
             checkpoint = torch.load(checkpoint_path, map_location=torch.device('cpu'))
@@ -104,11 +110,19 @@ class Logger:
             print("loading everything in generator as is")
             generator.load_state_dict(checkpoint['generator'])
 
-        elif generator is None and dense_motion_network is not None:
+        elif skip_generator_loading and dense_motion_network is not None:
             gen_params = checkpoint['generator']
             dense_motion_params = {k: gen_params[k] for k in gen_params.keys() if k.startswith('dense_motion_network')}
             generator.load_state_dict(dense_motion_params, strict=False)
             print("loading only dense motion in generator")
+        elif keep_encoder and dense_motion_network is not None:
+            gen_params = checkpoint['generator']
+            dense_motion_and_enc_params = {k: gen_params[k] for k in gen_params.keys() if \
+                    k.startswith('dense_motion_network') or k.startswith('hr_first') or \
+                    k.startswith('lr_first') or k.startswith('hr_down') or k.startswith('down')}
+            generator.load_state_dict(dense_motion_and_enc_params, strict=False)
+            print("loading only dense motion and encoding blocks in generator")
+
         elif generator is not None and upsampling_enabled:
             if hr_skip_connections or run_at_256:
                 # skip connections used in the decoder or bring everything down to same dimensions 
@@ -155,11 +169,8 @@ class Logger:
         elif generator is not None and generator_type in ['occlusion_aware', 'split_hf_lf']:
             print("loading everything in generator as is")
             generator.load_state_dict(checkpoint['generator'])
-        elif generator is not None and generator_type == "super_resolution":
-            modified_generator_params = {k: v for k, v in checkpoint['generator'].items() \
-                if (k.startswith("bottleneck") or k.startswith("up"))}
-            generator.load_state_dict(modified_generator_params, strict=False)
-            print("SR: loading bottleneck and upblocks, not loading final/first because of dimensions")
+        elif generator is not None and generator_type == "just_upsampler":
+            print("SR: not loading bottleneck and upblocks, not loading final/first because of dimensions")
 
         if kp_detector is not None:
             print("loading everything in kp detector as is")
@@ -273,6 +284,7 @@ class Visualizer:
         if 'kp_source' in out:
             kp_source = out['kp_source']['value'].data.cpu().numpy()
             images.append((source, kp_source))
+        images.append(source)
 
         # Equivariance visualization
         if 'transformed_frame' in out:
@@ -298,6 +310,13 @@ class Visualizer:
             kp_driving = out['kp_driving']['value'].data.cpu().numpy()
             images.append((driving, kp_driving))
         images.append(driving)
+
+        # teacher output
+        if 'teacher' in out:
+            teacher = out['teacher']
+            teacher = teacher.data.cpu().numpy()
+            teacher = np.transpose(teacher, [0, 2, 3, 1])
+            images.append(teacher)
 
 
         # Deformed image

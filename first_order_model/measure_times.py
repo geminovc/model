@@ -24,7 +24,7 @@ from first_order_model.frames_dataset import FramesDataset, DatasetRepeater
 from first_order_model.logger import Logger, Visualizer
 from first_order_model.modules.model import DiscriminatorFullModel
 from first_order_model.modules.generator import OcclusionAwareGenerator
-
+from first_order_model.utils import configure_fom_modules, get_main_config_params
 
 USE_QUANTIZATION = False
 USE_CUDA = True
@@ -85,19 +85,21 @@ def display_times(times, module_name, USE_FAST_CONV2, USE_QUANTIZATION, USE_FLOA
         writer.writerow(std_row)
 
 
-def get_random_inputs(model_name):
+def get_random_inputs(model_name, lr_size):
     x0 = torch.randn(BATCH_SIZE, 3, IMAGE_RESOLUTION, IMAGE_RESOLUTION, requires_grad=False)
     x1 = torch.randn(BATCH_SIZE, 10, 2, requires_grad=False)
     x2 = torch.randn(BATCH_SIZE, 10, 2, 2, requires_grad=False)
     x3 = torch.randn(BATCH_SIZE, 10, 2, requires_grad=False)
     x4 = torch.randn(BATCH_SIZE, 10, 2, 2, requires_grad=False)
-    
+    x5 = torch.randn(BATCH_SIZE, 3, lr_size, lr_size, requires_grad=False) if lr_size is not None else None
+
     if USE_FLOAT_16:
         x0 = torch.randn(BATCH_SIZE, 3, IMAGE_RESOLUTION, IMAGE_RESOLUTION, requires_grad=False, dtype=torch.float16)
         x1 = torch.randn(BATCH_SIZE, 10, 2, requires_grad=False, dtype=torch.float16)
         x2 = torch.randn(BATCH_SIZE, 10, 2, 2, requires_grad=False, dtype=torch.float16)
         x3 = torch.randn(BATCH_SIZE, 10, 2, requires_grad=False, dtype=torch.float16)
         x4 = torch.randn(BATCH_SIZE, 10, 2, 2, requires_grad=False, dtype=torch.float16)
+        x5 = torch.randn(BATCH_SIZE, 3, lr_size, lr_size, requires_grad=False, dtype=torch.float16)
     
     if USE_CUDA:
         x0 = x0.cuda()
@@ -105,9 +107,10 @@ def get_random_inputs(model_name):
         x2 = x2.cuda()
         x3 = x3.cuda()
         x4 = x4.cuda()
+        x5 = x5.cuda()
 
     if model_name != "kp_detector":
-        return x0, x1, x2, x3, x4
+        return x0, x1, x2, x3, x4, x5
     else:
         return x0, None, None, None, None
 
@@ -117,12 +120,12 @@ def time_generator(model):
     if USE_QUANTIZATION:
         model = quantize_generator(model, enable_meausre=False)
 
-    x0, x1, x2, x3, x4 = get_random_inputs("generator")
+    x0, x1, x2, x3, x4, x5 = get_random_inputs("generator", LR_SIZE)
     if USE_FLOAT_16:
         model.half()
-        model_inputs = [x0, {'value':x1}, {'value':x3}, False]
+        model_inputs = [x0, {'value':x1}, {'value':x3}, False, x5]
     else:
-        model_inputs = [x0, {'value':x1, 'jacobian':x2}, {'value':x3, 'jacobian':x4}, False]
+        model_inputs = [x0, {'value':x1, 'jacobian':x2}, {'value':x3, 'jacobian':x4}, False, x5]
 
     if USE_CUDA:
         model.cuda()
@@ -131,7 +134,7 @@ def time_generator(model):
     
     # warm-up
     for _ in range(WARM_UP):
-        _, _ = model(*model_inputs)
+        _ = model(*model_inputs)
     
     # measuring
     total_times = []
@@ -140,15 +143,15 @@ def time_generator(model):
     with torch.no_grad():
         for rep in range(NUM_RUNS):
             starter.record()
-            _, time_dict =  model(*model_inputs)
+            _ =  model(*model_inputs)
             ender.record()
             # WAIT FOR GPU SYNC
             torch.cuda.synchronize()
             curr_time = starter.elapsed_time(ender)
             print(curr_time)
             total_times.append(curr_time)
-            for key in time_dict.keys():
-                times_dict[key].append(time_dict[key])
+            #for key in time_dict.keys():
+            #    times_dict[key].append(time_dict[key])
             if SLEEP_DUR > 0:
                 time.sleep(SLEEP_DUR)
     times_dict['total_with_print'] = total_times
@@ -156,13 +159,15 @@ def time_generator(model):
 
 
 parser = ArgumentParser()
-parser.add_argument("--config", default="config/vox-256.yaml", help="path to config")
+parser.add_argument("--config", default="config/paper_configs/model_architecture_comparison/fomm_3_pathways_with_occlusion.yaml", help="path to config")
 parser.add_argument("--resolution", default=1024, help="image resolution")
 parser.add_argument("--batch_size", default=1, help="image batch_size")
 parser.add_argument("--sleep_dur", default=0, help="sleep duration in seconds")
 parser.add_argument("--float16", dest="float16", action="store_true", help="use float16")
 parser.set_defaults(verbose=False)
 opt = parser.parse_args()
+
+main_configs = get_main_config_params(opt.config)
 
 with open(opt.config) as f:
     config = yaml.load(f)
@@ -171,5 +176,9 @@ IMAGE_RESOLUTION = int(opt.resolution)
 BATCH_SIZE = int(opt.batch_size)
 USE_FLOAT_16 = opt.float16
 SLEEP_DUR = float(opt.sleep_dur)
-generator = OcclusionAwareGenerator(**config['model_params']['generator_params'],**config['model_params']['common_params'])
+if main_configs['use_lr_video'] == True:
+    LR_SIZE = main_configs['lr_size']
+else:
+    LR_SIZE = None
+generator, _, _ = configure_fom_modules(config, torch.device('cuda' if torch.cuda.is_available() else 'cpu'))
 time_generator(generator)
