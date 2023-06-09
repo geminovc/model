@@ -328,9 +328,8 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
             visualizations = []
             video_duration = get_video_duration(video_name)
 
-            if timing_enabled:
-                source_time = start.elapsed_time(end)
-                driving_times, generator_times, visualization_times = [], [], []
+            driving_times, generator_times = [], []
+            source_time = 0
 
             container = av.open(file=video_name, format=None, mode='r')
             stream = container.streams.video[0]
