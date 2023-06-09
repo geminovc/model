@@ -46,25 +46,6 @@ def get_size_of_nested_list(list_of_elem):
     return count
 
 
-def get_model_info(log_dir, kp_detector, generator):
-    """ get model summary information for the passed-in keypoint detector and 
-        generator in a text file in the log directory """
-    with open(os.path.join(log_dir, 'model_summary.txt'), 'wt') as model_file:
-        for model, name in zip([kp_detector, generator], ['kp', 'generator']):
-            number_of_trainable_parameters = 0
-            total_number_of_parameters = 0
-            if model is not None:
-                for param in model.parameters():
-                    total_number_of_parameters += get_size_of_nested_list(list(param))
-                    if param.requires_grad:
-                        number_of_trainable_parameters += get_size_of_nested_list(list(param))
-
-                model_file.write('%s %s: %s\n' % (name, 'total_number_of_parameters',
-                        str(total_number_of_parameters)))
-                model_file.write('%s %s: %s\n' % (name, 'number_of_trainable_parameters',
-                        str(number_of_trainable_parameters)))
-
-
 def get_avg_visual_metrics(visual_metrics):
     """ get average of visual metrics across all frames """
     psnrs = [m['psnr'] for m in visual_metrics]
