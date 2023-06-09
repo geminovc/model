@@ -129,11 +129,11 @@ with torch.no_grad():
         driving_lr_av.time_base = av_frame.time_base
 
         if args.encode_lr:
-            driving_lr, compressed_tgt = get_frame_from_video_codec(driving_lr_av, lr_encoder,
+            _, driving_lr, compressed_tgt = get_frame_from_video_codec(driving_lr_av, frame_idx, lr_encoder,
                                                                 lr_decoder, args.lr_quantizer)
         # for use as source frame
         if args.encode_hr:
-            decoded_array, compressed_src = get_frame_from_video_codec(av_frame, hr_encoder,
+            _, decoded_array, compressed_src = get_frame_from_video_codec(av_frame, frame_idx, hr_encoder,
                                                                 hr_decoder, args.hr_quantizer)
         else:
             decoded_array = driving
@@ -194,13 +194,13 @@ with torch.no_grad():
                 ref_out = model.generator(driving, kp_source=kp_driving, \
                     kp_driving=kp_driving, update_source=True, driving_lr=driving_lr)
 
-        elif generator_type == "bicubic":
+        elif generator_type == 'bicubic':
             driving_lr_tensor = frame_to_tensor(img_as_float32(driving_lr), device)
             prediction = resize_tensor_to_array(driving_lr_tensor, driving.shape[1], device, mode='bicubic')
             if args.encode_lr:
                 lr_stream.append(compressed_tgt)
 
-        elif generator_type == "vpx":
+        elif generator_type == 'vpx':
             prediction = decoded_array
             if args.encode_hr:
                 reference_stream.append(compressed_src)
@@ -232,8 +232,8 @@ ref_br = get_bitrate(reference_stream, video_duration)
 lr_br = get_bitrate(lr_stream, video_duration)
 
 for i, m in enumerate(visual_metrics):
-    write_in_file(frame_metrics_file, f'{i},{m["psnr"][0]},{m["ssim"]},' + 
-                f'{m["ssim_db"]},{m["lpips"]},{m["orig_lpips"]},{m["face_lpips"]}\n')
+    write_in_file(frame_metrics_file, f"{i},{m['psnr'][0]},{m['ssim']}," +
+                f"{m['ssim_db']},{m['lpips']},{m['orig_lpips']},{m['face_lpips']}\n")
 frame_metrics_file.close()
 
 psnr, ssim, lpips_val, ssim_db, orig_lpips_val, face_lpips_val = get_avg_visual_metrics(visual_metrics)
@@ -245,7 +245,7 @@ if args.encode_lr:
     metrics_report += f', lr_quantizer: {args.lr_quantizer}'
 
 metrics_report += f'\nPSNR: {psnr}, SSIM: {ssim}, SSIM_DB: {ssim_db}, LPIPS: {lpips_val}, ' +\
-    f'ORIG_LPIPS: {orig_lpips_val}, FACE_LPIPS: {face_lpips_val}' +\
+    f'ORIG_LPIPS: {orig_lpips_val}, FACE_LPIPS: {face_lpips_val} ' +\
     f'Reference: {ref_br:.3f}Kbps, LR: {lr_br:.3f}Kbps \n' +\
     f'Reconstruction loss: {np.mean(loss_list)}\n'
 

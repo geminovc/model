@@ -144,11 +144,11 @@ class FramesDataset(Dataset):
         elif self.is_train:
             name = self.videos[idx]
             path = os.path.join(self.root_dir, name)
-            path_suffix = name.split("_")[-1]
+            path_suffix = name.split('_')[-1]
 
             # get a different clip of the same larger video to pull target frame from
             if self.person_id != 'generic':
-                path_tgt = np.random.choice(glob.glob(os.path.join(self.root_dir, "*_" + path_suffix)))
+                path_tgt = np.random.choice(glob.glob(os.path.join(self.root_dir, '*_' + path_suffix)))
             else:
                 path_tgt = path
         else:
@@ -208,7 +208,7 @@ class MetricsDataset(Dataset):
     def __init__(self, root_dir, frame_shape, person_id=None):
         self.root_dir = root_dir
         if person_id is not None:
-            root_dir = os.path.join(root_dir, person_id, "validation")
+            root_dir = os.path.join(root_dir, person_id, 'validation')
             self.root_dir = root_dir
         
         self.frame_shape = tuple(frame_shape)
@@ -222,8 +222,8 @@ class MetricsDataset(Dataset):
         path = os.path.join(self.root_dir, file_name)
         assert os.path.isdir(path)
 
-        driving = img_as_float32(io.imread(os.path.join(path, "target.png")))
-        source = img_as_float32(io.imread(os.path.join(path, "source.png")))
+        driving = img_as_float32(io.imread(os.path.join(path, 'target.png')))
+        source = img_as_float32(io.imread(os.path.join(path, 'source.png')))
         
         out = {}
         out['driving'] = driving.transpose((2, 0, 1))
