@@ -656,21 +656,19 @@ def build_graph(all_layers, names):
         # Features get concatted into down block
         add('down_blocks.1.norm', 'bottleneck.r0.norm1')
 
+        # Last up block has 32 lr features added
         if is_1024:
-            # Second up block has 32 lr features added
             add('lr_first.norm', 'up_blocks.1.conv.depth_conv')
         else:
-            # Second up block has 32 lr features added
             add('lr_first.norm', 'up_blocks.0.conv.depth_conv')
 
+        # Add 2x hr down outputs to first hr up
         if is_1024:
-            # Add 2x hr down outputs to first hr up
             add('hr_down_blocks.1.norm', 'hr_up_blocks.0.conv.depth_conv')
             add('hr_down_blocks.1.norm', 'hr_up_blocks.0.conv.depth_conv')
             add('hr_down_blocks.0.norm', 'hr_up_blocks.1.conv.depth_conv')
             add('hr_down_blocks.0.norm', 'hr_up_blocks.1.conv.depth_conv')
         else:
-            # Add 2x hr down outputs to first hr up
             add('hr_down_blocks.0.norm', 'hr_up_blocks.0.conv.depth_conv')
             add('hr_down_blocks.0.norm', 'hr_up_blocks.0.conv.depth_conv')
 
@@ -763,25 +761,32 @@ def get_relevant_slice(layer_graph, dst, src):
     Returns [(x, y), (z, n)...] where each pair is the start and end of a slice
     Same notation for (x,y) applies where x<=y and the range x->y is the indices for the slice.
     """
-    counter = 0
+    # base counts up for each index in the inputs for this layer
+    # This is to solve the following problem:
+    # If layer a, and b get concatted into the inputs of c, then we want to note that
+    # deleting from b should only affect its corresponding inputs in c.
+    # We use this index to track the "base" of an input. So if layer a has length 20, layer b has length 10
+    # Then when looking at layer b in the following loop, base=20, so you know it affects indices
+    # after 20.
+    base = 0
     output = []
 
     # First figure out which inputs are directly affected by the src output.
     for prev_dst in layer_graph[dst].before:
         if prev_dst == src:
-            output += [(counter, counter + layer_graph[prev_dst].out_channels)]
+            output += [(base, base + layer_graph[prev_dst].out_channels)]
 
-        counter += layer_graph[prev_dst].out_channels
+        base += layer_graph[prev_dst].out_channels
 
     if len(output) == 0:
         # If your dst was not directly inputting the src outputs, then go back one level.
-        counter = 0
+        base = 0
         for prev_dst in layer_graph[dst].before:
             temp_output = get_relevant_slice(layer_graph, prev_dst, src)
             for out in temp_output:
-                output += [(out[0] + counter, out[1] + counter)]
+                output += [(out[0] + base, out[1] + base)]
 
-            counter += layer_graph[prev_dst].out_channels
+            base += layer_graph[prev_dst].out_channels
             
     return output
 
@@ -858,7 +863,7 @@ def reverse_sort(input_list):
 
     Used when deleting values in channel_prune, but it is generally useful for the following case
     E.x. deleting index 1 and 3 means if you first delete index 1 then you need to delete
-    index 2, but going backwards mean you delete index 3 then 1
+    index 2, but going backwards mean you delete index 3 then 1, which is easier.
     """
     return sorted(input_list, key=lambda x: x[0], reverse=True)
 
@@ -1119,20 +1124,26 @@ def compute_deletion(layer_graph,
 
         deletions[following_layer] = []
         
-        # Counts up for each index in the inputs for this layer
-        counter = 0
+        # base counts up for each index in the inputs for this layer
+        # This is to solve the following problem:
+        # If layer a, and b get concatted into the inputs of c, then we want to note that
+        # deleting from b should only affect its corresponding inputs in c.
+        # We use this index to track the "base" of an input. So if layer a has length 20, layer b has length 10
+        # Then when looking at layer b in the following loop, base=20, so you know it affects indices
+        # after 20.
+        base = 0
         for previous_layer in layer_graph[following_layer].before:
 
-            # If you don't delete from the previous layer, just increment the counter by its ouputs.
+            # If you don't delete from the previous layer, just increment the base by its ouputs.
             if previous_layer not in deletions:
-                counter += layer_graph[previous_layer].out_channels
+                base += layer_graph[previous_layer].out_channels
                 continue
 
-            # If delete from previous layer, delete corresponding element from this layer and increment the counter
+            # If delete from previous layer, delete corresponding element from this layer and increment the base
             for deletion in deletions[previous_layer]:
                 deletions[following_layer].append(
-                    (counter + deletion[0], counter + deletion[1]))
-            counter += layer_graph[previous_layer].out_channels
+                    (base + deletion[0], base + deletion[1]))
+            base += layer_graph[previous_layer].out_channels
 
         # If there is another tied after layer i.e. a layer who has their output tied to the input of this layer, 
         # like in resnet, we need to delete from their outputs as well
@@ -1239,7 +1250,6 @@ def try_reduce(curr_loss, curr_model, dataloader, layer_graph,
     discriminator_full.generator = model_copy
     discriminator_full.discriminator = new_discriminator
 
-    counter = 0
     generator_full = DataParallelWithCallback(generator_full, device_ids=device_ids)
     discriminator_full = DataParallelWithCallback(discriminator_full, device_ids=device_ids)
 
