@@ -242,6 +242,9 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
 
                 # This code is the same metrics dataloading code as below
                 # Logs metrics to tensorboard and checkpoints model.
+                if torch.cuda.is_available():
+                    generator_full_parallel = DataParallelWithCallback(generator_full, device_ids=device_ids)
+                    discriminator_full_parallel = DataParallelWithCallback(discriminator_full, device_ids=device_ids)
                 if metrics_dataloader is not None:
                     with torch.no_grad():
                         for i, y in enumerate(metrics_dataloader):
@@ -252,8 +255,7 @@ def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, da
                                 else:
                                     y['driving_lr'] = lr_frame
 
-                            move_to_gpu(y)
-                            losses_generator, metrics_generated = generator_full(y, generator_type)
+                            losses_generator, metrics_generated = generator_full_parallel(y, generator_type)
                             losses = {key: value.mean().detach().data.cpu().numpy() for key, value in losses_generator.items()}
                             losses['macs'] = current
                             logger.log_iter(losses=losses)

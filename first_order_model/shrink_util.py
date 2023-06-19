@@ -1301,7 +1301,7 @@ def reduce_macs(model, target, current, kp_detector, discriminator,
     Applies netadapt to reduce the model to target macs
     """
 
-    # Builds a depndency graph for later use
+    # Builds a dependency graph for later use
     all_layers = [
         m for n, m in model.named_modules()
         if (isinstance(m, nn.Conv2d)
