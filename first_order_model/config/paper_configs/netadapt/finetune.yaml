@@ -64,10 +64,10 @@ model_params:
 train_params:
   skip_generator_loading: False
   fine_tune_entire_model: True
-  train_only_generator: False
+  train_only_generator: True
   train_only_upsample_layers: False
   encode_video_for_training: False
-  num_epochs: 41
+  num_epochs: 60
   netadapt: False
   netadapt_steps_per_it: 250
   netadapt_sort: True
@@ -91,8 +91,8 @@ train_params:
     feature_matching: [10, 10, 10, 10]
     perceptual: [10, 10, 10, 10, 10]
     pixelwise: 10
-    equivariance_value: 10
-    equivariance_jacobian: 10
+    equivariance_value: 0
+    equivariance_jacobian: 0
 
 reconstruction_params:
   num_videos: 1000

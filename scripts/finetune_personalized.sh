@@ -1,12 +1,13 @@
 #!/bin/bash
 
+#./finetune_personalized.sh 0 /video-conf/scratch/vedatha.../.cpl /video-conf/scratch/vedantha/,,.cpk finetune
 gpu_index=$1
 base_checkpoint=$2
 netadapt_checkpoint=$3
 log_dir=$4
 
 # Run the command using the specified GPU index and file paths
-for person_id in "seth_meyers" "kayleigh" "needle_drop" "trevor_noah" "jen_psaki"
+for person_id in "needle_drop" "trevor_noah" "jen_psaki"
 do
     if [ $# -eq 5 ]
     then

@@ -1,10 +1,20 @@
 """
 Contains utils for netadapt.
+
+Notable Aspects:
+set_module -> used to load a netadapt checkpoint (can't use normal load_state_dict because shape mismatches).
+build_graph -> used to internally build a graph of the entire network.
+channel_prune -> Prunes input/output channels within the network.
+reduce_macs -> reduces the model down to the target macs by running one round of netadapt.
+
+
+* Unless specified otherwise, indices related to pruning are represented as (x, y), where x <= y, and the range x -> y represents the indices to be pruned.
+
 """
 from tqdm import trange
 from math import ceil
 import gc
-from utils import get_decode_and_bottleneck_macs
+from utils import get_decoder_and_bottleneck_macs
 import os
 from tqdm import tqdm
 import torch
@@ -117,7 +127,6 @@ def print_diff(state_dict, state_dict2):
         for key, dict_param in state_dict[outer].items():
             if 'norm' not in key and 'bias' not in key:
                 if state_dict2[outer][key].shape != dict_param.shape:
-
                     print(dict_param.shape, state_dict2[outer][key].shape, key)
 
 
@@ -126,7 +135,7 @@ def set_module(mod, state_dict, force_model=None):
     Given a generator full model, set the generator and keypoint detector with state dict.
     This is different from set state dict since it goes in and edits weights regardless of shape mismatch. 
     Used only in loading netadapted parameters
-    Force model only sents that model, so if force_model = generator only the generator us updated.
+    Force model only sets that model, so if force_model = generator only the generator us updated.
     """
 
     for outer in state_dict.keys():
@@ -144,10 +153,12 @@ def set_module(mod, state_dict, force_model=None):
 
             set_attr(mod, submod_names, dict_param)
 
-            # Edit the groups
+            # If the saved group count is 1 then set the in_channels/out_channels to the normal sizes
+            # If group count is not 1, then this is a depthwise layer, so set in_channels/out
+            # appropriately, and set group_count to the correct value.
             group_name = submod_names[:-1] + ['groups']
-            og_groups = get_attr_default(mod, group_name, 1)
-            if og_groups != 1:
+            original_groups = get_attr_default(mod, group_name, 1)
+            if original_groups != 1:
                 get_attr(mod, group_name[:-1]).groups = dict_param.shape[0]
                 try:
                     get_attr(mod, submod_names[:-1]).in_channels = dict_param.shape[0]
@@ -187,7 +198,7 @@ class Node:
     have the same shape and when deleting from one layer, you should also delete from the second.
 
     Mirrored nodes are nodes whose outputs are directly added together, so when deleting from one, you should
-    also delete from the other. I added this only when I needed it in distillation, so I could convert all the tied nodes to mirror, but its painful to go through that process agian.
+    also delete from the other. This was added near the end for distillation, so one could convert all the tied nodes to mirror, but its painful to go through that process again.
     """
     def __init__(self, index, t, i, o, value, name):
         self.name = name
@@ -279,21 +290,22 @@ def build_graph(all_layers, names):
         """
         Extended version of add which takes in a list
         """
-        index = 1
-        while index < len(names):
-            add(names[index - 1], names[index])
-            index += 1
+        for i in range(len(names) - 1):
+            add(names[i-1], names[i])
 
     is_efficient_net = False
+
     for name in names:
         if 'efficientnet' in name:
             is_efficient_net = True
             break
 
     is_1024 = False
+
     for name in names:
         if 'hr_down_blocks.1' in name:
             is_1024 = True
+
     if is_efficient_net:
         add_names([
             'dense_motion_network.hourglass.encoder.down_blocks.0.conv',
@@ -496,15 +508,13 @@ def build_graph(all_layers, names):
         add('down_blocks.1.norm', 'bottleneck.r0.norm1')
 
 
+        # Last up block has 32 lr features added
         if is_1024:
-            # Second up block has 32 lr features added
             add('lr_first.norm', 'up_blocks.1.conv')
         else:
-            # Second up block has 32 lr features added
             add('lr_first.norm', 'up_blocks.0.conv')
 
         # Add 2x hr down outputs to first hr up
-
         if is_1024:
             add('hr_down_blocks.1.norm', 'hr_up_blocks.0.conv')
             add('hr_down_blocks.1.norm', 'hr_up_blocks.0.conv')
@@ -743,30 +753,35 @@ def get_importances(weight, relevant_slice):
     return importances
 
 
-def get_relevant_slice(layer_graph, node, target):
+def get_relevant_slice(layer_graph, dst, src):
     """
-    Given a node and a target, finds the slices of node which are affected by target.
+    Given a node and a src, finds the slices of dst which are affected by src.
+
+    Both dst and src are layers in the network. By affected we mean the outputs of src are fed
+    directly in dst as inputs.
+
     Returns [(x, y), (z, n)...] where each pair is the start and end of a slice
+    Same notation for (x,y) applies where x<=y and the range x->y is the indices for the slice.
     """
     counter = 0
     output = []
 
-    # First figure out which inputs are directly affected by the target.
-    for prev_node in layer_graph[node].before:
-        if prev_node == target:
-            output += [(counter, counter + layer_graph[prev_node].out_channels)]
+    # First figure out which inputs are directly affected by the src output.
+    for prev_dst in layer_graph[dst].before:
+        if prev_dst == src:
+            output += [(counter, counter + layer_graph[prev_dst].out_channels)]
 
-        counter += layer_graph[prev_node].out_channels
+        counter += layer_graph[prev_dst].out_channels
 
     if len(output) == 0:
-        # If none are, then repeat recursively.
+        # If your dst was not directly inputting the src outputs, then go back one level.
         counter = 0
-        for prev_node in layer_graph[node].before:
-            temp_output = get_relevant_slice(layer_graph, prev_node, target)
+        for prev_dst in layer_graph[dst].before:
+            temp_output = get_relevant_slice(layer_graph, prev_dst, src)
             for out in temp_output:
                 output += [(out[0] + counter, out[1] + counter)]
 
-            counter += layer_graph[prev_node].out_channels
+            counter += layer_graph[prev_dst].out_channels
             
     return output
 
@@ -819,7 +834,7 @@ def get_generator_time(model, x):
 def get_gen_input_old(model=None, x=None):
     """
     Store the input of the model after this function is run once.
-    Is used for conveniently getting dummy inputs when I want to run a generator, without me needing to make sure sizes are set up correctly.
+    Is used for conveniently getting dummy inputs when running generator, without needing to make sure sizes are set up correctly.
     """
     if not x is None:
         driving_lr = x.get('driving_lr', None)
@@ -840,6 +855,10 @@ def reverse_sort(input_list):
     """
     Input list is of the form: [(a, b), (c, d), ...]
     We want to return the list sorted by the first element of each tuple
+
+    Used when deleting values in channel_prune, but it is generally useful for the following case
+    E.x. deleting index 1 and 3 means if you first delete index 1 then you need to delete
+    index 2, but going backwards mean you delete index 3 then 1
     """
     return sorted(input_list, key=lambda x: x[0], reverse=True)
 
@@ -847,6 +866,9 @@ def reverse_sort(input_list):
 def f_set(weight, target, prune_indices):
     """
     Sets the value of target node to the weight modified with the prune indices
+
+    Prune indices is a tuple (x,y), and the weight is updated to remove all indicies between x and y
+    So a weight like [1,2,3,4,5] and prune_indices = (1,3) -> weight is now [1, 4, 5]
     """
     new_weight = torch.cat(
         [weight[:prune_indices[0]], weight[prune_indices[1]:]])
@@ -858,7 +880,8 @@ def get_channel_reduction(deletions):
     Calculates how many filters a deletion list deletes
     Used when setting out_channels for a layer.
     Example:
-    get_channel_reduction([(1, 3), (5, 6)]) = 3
+    get_channel_reduction([(1, 3), (5, 6)]) = 3 because the indices (1,3) correspond to removing
+    index 1 and 2, and the (5, 6) removes index 5.
     """
     return sum(map(lambda x : x[1] - x[0], deletions))
 
@@ -868,18 +891,19 @@ def channel_prune(model, deletions):
     """
     Apply channel pruning to each of the conv layer in the backbone
 
-    I've gotten rid of generic n% pruning since it bloats the code and is not even remotely close to netadapt quality.
-
     Deletions looks something like this
     {92: ['first', (94, 95)], 95: [(94, 95)], 93: [(94, 95)]}
     which means delete the 94 output of layer 92, the 94th input of layer 95, and the 94th input of layer 96
 
-    The 'first' means you delete from layer 92's output instead of input signifying that it the 'first' layer whose outputs feed in as inputs to the rest of the layers.
+    The 'first' means you delete from layer 92's output instead of input signifying that
+    it is the 'first' layer whose outputs feed in as inputs to the rest of the layers.
     """
     model = copy.deepcopy(model)
 
     """
     Build layer_graph which graphs all the model dependencies
+
+    For example if layer i's output is layer j's input, then there is an edge from i->j
     """
     all_layers = [
         m for n, m in model.named_modules()
@@ -902,13 +926,15 @@ def channel_prune(model, deletions):
         if pruners[0] == 'first':
             if node.type == 'conv':
                 node.value.out_channels = node.value.out_channels - get_channel_reduction(pruners[1:])
-
-            # Delete the outputs last to first.
+            # Delete the outputs last to first because it keeps the indices consistent.
+            # E.x. deleting index 1 and 3 means if you first delete index 1 then you need to delete
+            # index 2 of the results, but going backwards mean you delete index 3 then 1
             for prune_indices in reverse_sort(pruners[1:]):
                 if node.type == 'conv' and len(node.after) != 0:
                     # Prune the outupts of the convolutional layer
                     # f_set sets the new node.value.weight to be node.value.weight for the indices that are not
-                    # in prune_indices. The bias also gets modified.
+                    # in the range defined by prune_indices. The bias also gets modified.
+                    # So a weight like [1,2,3,4,5] and prune_indices = (1,3) -> weight is now [1, 4, 5]
                     f_set(node.value.weight.detach(), node.value.weight, prune_indices)
                     if node.value.bias is not None:
                         f_set(node.value.bias.detach(), node.value.bias, prune_indices)
@@ -922,8 +948,6 @@ def channel_prune(model, deletions):
             if node.type == 'conv':
                 node.value.in_channels = node.value.in_channels - get_channel_reduction(pruners)
             for prune_indices in reverse_sort(pruners):
-
-
                 # Prune inputs of a convolutional layer
                 # We ignore depthwise layers since they take 1 input, their groups are just what changes.
                 if node.type == 'conv' and node.value.groups == 1:
@@ -969,7 +993,6 @@ def get_metrics_loss(metrics_dataloader, lr_size, generator_full,
 def get_following_layers_skip_depthwise(following_layers, layer_graph, x):
     """
     Specialized version of follow that skips over depthwise convolved layers. Only used when sorting the outputs of a layer for importance.
-
     """
     following_layers.append(x.index)
     if x.type == 'conv' and x.value.groups == 1:
@@ -999,7 +1022,7 @@ def get_first_conv(layer_graph, following_layers):
 
 
 def compute_deletion(layer_graph,
-                     custom_deletions,
+                     filters_to_recursively_remove,
                      deleted_things,
                      layer,
                      sort,
@@ -1007,6 +1030,8 @@ def compute_deletion(layer_graph,
                      reason=None):
     """
     Given a layer, generate the list of the indexes we need to delete from its following layers
+
+    The argument 'layer' is the layer whose outputs are modified.
     """
     # find all the following layers
     following_layers = []
@@ -1015,40 +1040,62 @@ def compute_deletion(layer_graph,
         follow(following_layers, layer_graph, layer_graph[after_layer])
 
     deletions = {}
+
+    # In this if/else if we are finding the output features to remove from layer
     if isinstance(custom, list):
+        # Either its passed in as a list in some cases (like if this output gets added to another one)
+        # and we've already determined what to remove from the other output.
         deletions[layer] = copy.copy(custom)
     elif isinstance(custom, int):
-        # The sorting magic happens here
-        # Find the first convolution
+
+        # Or custom tells us how many features to remove, but we decide which ones to remove.
         if sort:
+            """
+            In general the approach here is as follows
+
+            We need to calculate the "importances" of a given feature, which we determine using the following layer's weighting for that feature.
+
+            1) We need to find the following layer (called first_conv)
+
+            2) Figure out which of its input features correspond to the output features in layer (called slices)
+
+            3) Calculate the importance for a given feature by summing up its weights in the following layer.
+
+            """
+            # In the sorting case we select by lowest batch norm.
             assert layer_graph[layer].type != 'bn', "We cant sort batchnorm layers"
 
-            # Get the layer which accepts this ones output as input.
+            # Get the layer which accepts this ones output as input. In general there is only one such layer.
+            # But with skip connections there may be multiple such layers as this output can be fed to a different layer.
+            # In that case, we just select the non-skip connection.
             depthwise_skipped_following_layers = []
             for after_layer in layer_graph[layer].after:
                 get_following_layers_skip_depthwise(depthwise_skipped_following_layers, layer_graph, layer_graph[after_layer])
 
+            # first_conv is the layer described above, which we will use to determine the importances of the features.
             first_conv = get_first_conv(layer_graph, depthwise_skipped_following_layers)
 
             assert first_conv is not None, "First conv is none"
 
-            # Find the relevant slices of input which matters if there is a concat in the way
+            # If output of layer gets concatenated with something (could be itself), we need to figure out which "slices" in first_conv's inputs are actually affected by layer's output.
             slices = get_relevant_slice(layer_graph, first_conv, layer)
 
             assert len(slices) != 0, "Slices length is 0"
 
-            # Generate importances going slice by slice of the next layer..
+            # Each slice gives every output some importance, we sum them up by slice here.
             importances = torch.zeros(layer_graph[layer].out_channels).cuda()
             for single_slice in slices:
                 importances += get_importances(layer_graph[first_conv].value.weight, single_slice)
 
             importances = importances.tolist()
+
             deletion_indices = pick_channels_with_lowest_importances(custom, importances)
             assert len(deletion_indices) == custom, "Somehow we are deleting a different amount of indices than expected"
             deletion_list = convert_to_deletions_list(deletion_indices)
 
             deletions[layer] = deletion_list
         else:
+            # If no sort, then just select the last features.
             deletions[layer] = [(layer_graph[layer].out_channels-custom, layer_graph[layer].out_channels)]
     else:
         assert False, "Unsupported custom, only support list and ints"
@@ -1060,11 +1107,11 @@ def compute_deletion(layer_graph,
     for mirror in layer_graph[layer].mirror:
         # Start a new custom deletion for the mirror. The only other reason is tie, which is treated a little differently.
         if reason != 'mirror':
-            custom_deletions.append((mirror, copy.copy(deletions[layer]), 'mirror'))
+            filters_to_recursively_remove.append((mirror, copy.copy(deletions[layer]), 'mirror'))
             print("Starting a mirrorred deletion")
 
     # Figure out what you need to delete from the inputs of the following convs, and the relevant portions of batchnorms.
-    # Following layers contains any layeres who can be affected by the deletion in layer_graph[layer]
+    # Following layers contains any layers who can be affected by the deletion in layer_graph[layer]
     for following_layer in following_layers:
         # If we have already addressed this layer, continue
         if following_layer in deletions:
@@ -1090,13 +1137,13 @@ def compute_deletion(layer_graph,
         # If there is another tied after layer i.e. a layer who has their output tied to the input of this layer, 
         # like in resnet, we need to delete from their outputs as well
         if len(layer_graph[following_layer].tied_after) != 0:
-            total_deleted = copy.copy(deletions[following_layer])
+            filters_removed_from_following_layer = copy.copy(deletions[following_layer])
 
-            # Add the output layer to our work queue (custom deletions)
-            for after_tied in layer_graph[following_layer].tied_after:
-                if after_tied not in deleted_things:
-                    deleted_things.add(after_tied)
-                    custom_deletions.append((after_tied, total_deleted, 'tie'))
+            # Add the output layer to our work queue
+            for dependent_layer in layer_graph[following_layer].tied_after:
+                if dependent_layer not in deleted_things:
+                    deleted_things.add(dependent_layer)
+                    filters_to_recursively_remove.append((dependent_layer, filters_removed_from_following_layer, 'tie'))
 
     # The original layer is a special case because you delete its output not input
     deletions[layer].insert(0, 'first')
@@ -1107,23 +1154,21 @@ def shrink_model(model_copy, layer_graph, layer, count, sort):
     """
     Return a new model with the layer corresponding to the argument layer shrunken by count outputs
     """
-    custom_deletions = []
+    filters_to_recursively_remove = []
     deleted_things = set()
-    deletions = compute_deletion(layer_graph, custom_deletions, deleted_things,
+    single_filter_details = compute_deletion(layer_graph, filters_to_recursively_remove, deleted_things,
                                  layer, sort, count)
 
-    # Leaving this commented in because it is extremely useful
-    # print(deletions.keys())
+    model_copy = channel_prune(model_copy, single_filter_details)
 
-    model_copy = channel_prune(model_copy, deletions)
-    while len(custom_deletions) != 0:
-        custom_deletion = custom_deletions[0]
-        custom_deletions = custom_deletions[1:]
-        deletions = compute_deletion(layer_graph, custom_deletions,
-                                     deleted_things, custom_deletion[0], sort,
-                                     custom_deletion[1], custom_deletion[2])
-        print(deletions.keys())
-        model_copy = channel_prune(model_copy, deletions)
+    # Loop through the filters_to_recursively_remove and delete the filters from the model
+    while len(filters_to_recursively_remove) != 0:
+        single_filter_recursion_details = filters_to_recursively_remove[0]
+        filters_to_recursively_remove = filters_to_recursively_remove[1:]
+        single_filter_details = compute_deletion(layer_graph, filters_to_recursively_remove,
+                                     deleted_things, single_filter_recursion_details[0], sort,
+                                     single_filter_recursion_details[1], single_filter_recursion_details[2])
+        model_copy = channel_prune(model_copy, single_filter_details)
     return model_copy
 
 
@@ -1143,31 +1188,30 @@ def try_reduce(curr_loss, curr_model, dataloader, layer_graph,
         model_copy = copy.deepcopy(model)
 
     # Ignore this layer if it has only one output, or its output is never used
-    if 1 >= layer_graph[layer].out_channels:
+    if layer_graph[layer].out_channels <= 1:
         return None, None, None, None
     if len(layer_graph[layer].after) == 0:
         return None, None, None, None
 
-    # Reduce the layer by size 1 to check how much it affects model size.
+    # Reduce the layer by size 1 to see its impact on model macs.
+    # Then, extrapolate to the number of filters that must be shrunk to meet target.
     model_copy = shrink_model(model_copy, layer_graph, layer, 1, sort)
 
-    after_1_reduce = get_decode_and_bottleneck_macs(log_dir, model_copy, kp_detector, torch.device('cuda' if torch.cuda.is_available() else 'cpu'), lr_size, image_shape, 2)
-    print(after_1_reduce)
-    if after_1_reduce == current:
-        print("Trying to remove something that is not a part of the model")
+    macs_after_removing_one_channel = get_decode_and_bottleneck_macs(log_dir, model_copy, kp_detector, torch.device('cuda' if torch.cuda.is_available() else 'cpu'), lr_size, image_shape, 2)
+
+    if macs_after_removing_one_channel == current:
+        print("This layer is not included in MACS calculation, ignoring it")
         return None, None, None, None
 
     with torch.no_grad():
         model_copy = copy.deepcopy(model)
 
-    # Calculate the number of layers that must actually be removed to hit the target
-    to_remove = ceil(int((current - target) / (current - after_1_reduce)))
+    # Calculate the number of filters in this layer that must be removed to hit the target
+    to_remove = ceil(int((current - target) / (current - macs_after_removing_one_channel)))
 
-    if to_remove == 0:
-        to_remove = 1
     # Ensure the deletion is smaller than the layer size.
     if to_remove >= layer_graph[layer].out_channels:
-        print("Cannot remove enough to hit target")
+        print("Cannot remove enough filters in this layer to hit target")
         return None, None, None, None
     # Perform the actual deletion
     model_copy = shrink_model(model_copy, layer_graph, layer, to_remove, sort)
@@ -1235,7 +1279,7 @@ def try_reduce(curr_loss, curr_model, dataloader, layer_graph,
     # Test the model
     total_loss = get_metrics_loss(metrics_dataloader, lr_size, generator_full,
                                   generator_type)
-    # Keeping this commented out because its useful
+    # Helps track loss.
     # print("Loss for this model is: ", total_loss)
 
     # Store the best module
@@ -1247,14 +1291,13 @@ def try_reduce(curr_loss, curr_model, dataloader, layer_graph,
 
 def reduce_macs(model, target, current, kp_detector, discriminator,
                 train_params, dataloader, metrics_dataloader, generator_type,
-                lr_size, generator_full, sort, steps_per_it, device_ids, log_dir, discriminator_full, image_shape):
+                lr_size, generator_full, sort, steps_per_it, device_ids, log_dir,
+                discriminator_full, image_shape):
     """
     Applies netadapt to reduce the model to target macs
     """
 
-    """
-    Builds a depndency graph for later use
-    """
+    # Builds a depndency graph for later use
     all_layers = [
         m for n, m in model.named_modules()
         if (isinstance(m, nn.Conv2d)

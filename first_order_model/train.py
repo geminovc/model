@@ -25,7 +25,7 @@ import numpy as np
 
 from first_order_model.utils import get_frame_from_video_codec 
 
-def train(config, generator, discriminator, kp_detector, checkpoint, netadapt_checkpoint,  log_dir, dataset, device_ids, image_shape):
+def train(config, generator, discriminator, kp_detector, checkpoint, log_dir, dataset, device_ids, image_shape, netadapt_checkpoint):
     train_params = config['train_params'] 
     generator_params = config['model_params']['generator_params']
     generator_type = generator_params.get('generator_type', 'occlusion_aware')
@@ -185,10 +185,12 @@ def train(config, generator, discriminator, kp_detector, checkpoint, netadapt_ch
     # Set up the netadapt hyper parameters
     # Target: target macs, Current: current macs, reduce_amount: amoutn of macs to reduce each iteration
     
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     if train_params.get('netadapt', False):
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
-            start = get_decode_and_bottleneck_macs(log_dir, generator, kp_detector, torch.device('cuda' if torch.cuda.is_available() else 'cpu'), lr_size, image_shape, 2)
+            start = get_decoder_bottleneck_macs(log_dir, generator, kp_detector,
+                                                device, lr_size, image_shape, 2)
         print("Start macs: ", start)
         prune_rate = train_params.get('shrink_rate', 0.02)
         reduce_amount = start * prune_rate
@@ -204,7 +206,7 @@ def train(config, generator, discriminator, kp_detector, checkpoint, netadapt_ch
         optimizer_kp_detector = torch.optim.Adam(generator_full.kp_extractor.parameters(), 
                 lr=train_params['lr_kp_detector'], betas=(0.5, 0.999))
         optimizer_discriminator = torch.optim.Adam(generator_full.discriminator.parameters(), lr=train_params['lr_discriminator'], betas=(0.5, 0.999))
-        current = get_decode_and_bottleneck_macs(log_dir, copy.deepcopy(generator_full.generator), kp_detector, torch.device('cuda' if torch.cuda.is_available() else 'cpu'), lr_size, image_shape, 2)
+        current = get_decode_and_bottleneck_macs(log_dir, copy.deepcopy(generator_full.generator), kp_detector, device, lr_size, image_shape, 2)
         discriminator_full = DiscriminatorFullModel(generator_full.kp_extractor, generator_full.generator, generator_full.discriminator, train_params)
         generator = generator_full.generator
         discriminator = generator_full.discriminator
@@ -223,6 +225,7 @@ def train(config, generator, discriminator, kp_detector, checkpoint, netadapt_ch
                 print("Start macs was: ", start)
                 print("Shrink ratio is: ", current/start)
 
+                # Get one iteration of metrics before running netadapt
                 if netadapt_iteration != 0:
                     # Run one iteration of netadapt
                     generator_full.generator, generator_full.kp_extractor, generator_full.discriminator = reduce_macs(
@@ -232,7 +235,7 @@ def train(config, generator, discriminator, kp_detector, checkpoint, netadapt_ch
                         lr_size, generator_full, sort, steps_per_it, device_ids, log_dir, discriminator_full, image_shape)
                     with warnings.catch_warnings():
                         warnings.simplefilter("ignore")
-                        current = get_decode_and_bottleneck_macs(log_dir, generator_full.generator, kp_detector, torch.device('cuda' if torch.cuda.is_available() else 'cpu'), lr_size, image_shape, 2)
+                        current = get_decode_and_bottleneck_macs(log_dir, generator_full.generator, kp_detector, device, lr_size, image_shape, 2)
                     reduce_amount = current * prune_rate
                     
                 netadapt_iteration += 1
@@ -280,8 +283,6 @@ def train(config, generator, discriminator, kp_detector, checkpoint, netadapt_ch
     with Logger(log_dir=log_dir, visualizer_params=config['visualizer_params'], checkpoint_freq=train_params['checkpoint_freq']) as logger:
         for epoch in trange(start_epoch, train_params['num_epochs']):
             for x in dataloader:
-                break
-            for x in tqdm(dataloader):
                 if use_lr_video or use_RIFE:
                     lr_frame = F.interpolate(x['driving'], lr_size)
                     if train_params.get('encode_video_for_training', False):

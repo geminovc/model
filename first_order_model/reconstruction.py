@@ -197,8 +197,15 @@ def destamp_frame(frame):
     return final_frame, frame_id
 
 
-def reconstruction(config, generator, kp_detector, checkpoint, netadapt_checkpoint, log_dir, dataset, timing_enabled, 
-        save_visualizations_as_images, experiment_name, reference_frame_update_freq=None, profile=False):
+def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset, timing_enabled, 
+                   save_visualizations_as_images, experiment_name, reference_frame_update_freq=None, profile=False, netadapt_checkpoint=None):
+    """
+    Netadapt checkpoint vs regular checkpoint
+    This is in flux, but looking at the current way the code is written, netadapt checkpoint is
+    used to load just the netadapted-generator and kp-detector although technically it is froze
+    so it can be loaded by either, while the regular checkpoint is used to load the rest of the
+    model.
+    """
     """ reconstruct driving frames for each video in the dataset using the first frame
         as a source frame. Config specifies configuration details, while timing 
         determines whether to time the functions on a gpu or not """
@@ -229,10 +236,11 @@ def reconstruction(config, generator, kp_detector, checkpoint, netadapt_checkpoi
                     kp_detector=kp_detector, device=device, 
                     dense_motion_network=dense_motion, generator_type=generator_type, reconstruction=True)
 
-    # Manually force reload of netadapted model
-    reload_gen = netadapt_checkpoint
-    if reload_gen is not None:
-        state_dict = torch.load(reload_gen)
+    # Manually force the generator and keypoint netadapted moduels into the network.
+    # Overrides the values loaded by checkpoint. Technically kp_detector need not be overrided
+    # since it is frozen when running netadapt int the latest set of experiments.
+    if netadapt_checkpoint is not None:
+        state_dict = torch.load(netadapt_checkpoint)
         set_gen_module(generator, state_dict)
         set_keypoint_module(kp_detector, state_dict)
         print('reloaded params')

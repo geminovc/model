@@ -11,8 +11,6 @@ dataset_params:
       saturation: 0.1
       hue: 0.1
 
-checkpoint_params:
-    checkpoint_path: '/video-conf/scratch/vibhaa_mm_arjun_directory/needle_drop_with_hr_skip_connections 11_04_22_16.54.29/00000069-checkpoint.pth.tar'
 
 metrics_params:
   root_dir: /video-conf/scratch/pantea/fom_personalized_1024

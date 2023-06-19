@@ -30,7 +30,7 @@ if __name__ == "__main__":
     parser.add_argument("--log_dir", default='log', help="path to log into")
     parser.add_argument("--experiment_name", default='vox-256-standard', help="experiment name to save logs")
     parser.add_argument("--checkpoint", default=None, help="path to checkpoint to restore")
-    parser.add_argument("--netadapt_checkpoint", default=None, help="path to checkpoint to restore")
+    parser.add_argument("--netadapt_checkpoint", default=None, help="path to netadapt checkpoint to override generator (and kp detector but it is frozen)")
     parser.add_argument("--device_ids", default="0", type=lambda x: list(map(int, x.split(','))),
                         help="Names of the devices comma separated.")
     parser.add_argument("--verbose", dest="verbose", action="store_true", help="Print model architecture")
@@ -46,11 +46,10 @@ if __name__ == "__main__":
         config = yaml.load(f)
 
     if opt.mode == "reconstruction":
-        shrunk_gen_location = opt.netadapt_checkpoint
-        if shrunk_gen_location is None:
+        if opt.netadapt_checkpoint is None:
             log_dir = os.path.dirname(opt.checkpoint)
         else:
-            log_dir = os.path.dirname(shrunk_gen_location)
+            log_dir = os.path.dirname(opt.netadapt_checkpoint)
         log_dir = os.path.join(log_dir, 'reconstruction' + '_' + opt.experiment_name)
                 
     else:
@@ -83,12 +82,12 @@ if __name__ == "__main__":
 
     if opt.mode == 'train':
         print("Training...")
-        train(config, generator, discriminator, kp_detector, opt.checkpoint, opt.netadapt_checkpoint, log_dir, dataset, opt.device_ids, image_shape)
+        train(config, generator, discriminator, kp_detector, opt.checkpoint,  log_dir, dataset, opt.device_ids, image_shape, opt.netadapt_checkpoint)
     elif opt.mode == 'reconstruction':
         print("Reconstruction...")
-        reconstruction(config, generator, kp_detector, opt.checkpoint, opt.netadapt_checkpoint, log_dir, dataset, opt.enable_timing, 
+        reconstruction(config, generator, kp_detector, opt.checkpoint, log_dir, dataset, opt.enable_timing, 
                 opt.save_visualizations_as_images, opt.experiment_name, opt.reference_frame_update_freq,
-                opt.profile)
+                       opt.profile, opt.netadapt_checkpoint)
     elif opt.mode == 'distill':
         print("Distilling...")
         train_distillation(config, generator, discriminator, kp_detector, opt.checkpoint, log_dir, dataset, opt.device_ids)
