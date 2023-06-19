@@ -1250,9 +1250,6 @@ def try_reduce(curr_loss, curr_model, dataloader, layer_graph,
     generator_full = DataParallelWithCallback(generator_full, device_ids=device_ids)
     discriminator_full = DataParallelWithCallback(discriminator_full, device_ids=device_ids)
 
-    for x in dataloader:
-        break
-
     c = 0
     for x in tqdm(dataloader):
         c += 1
