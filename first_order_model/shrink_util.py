@@ -999,22 +999,19 @@ def get_following_layers_skip_depthwise(following_layers, layer_graph, x):
     """
     Specialized version of follow that skips over depthwise convolved layers. Only used when sorting the outputs of a layer for importance.
     """
-    following_layers.append(x.index)
-    if x.type == 'conv' and x.value.groups == 1:
-        return
-    for y in x.after:
-        get_following_layers_skip_depthwise(following_layers, layer_graph, layer_graph[y])
+    follow(following_layer, layer_graph, x, True)
 
 
-def follow(following_layers, layer_graph, x):
+def follow(following_layers, layer_graph, x, skip_depthwise=False):
     """
     Get any possible layers which are directly impacted by editing x's outputs
     """
     following_layers.append(x.index)
-    if x.type == 'conv':
+    is_1_groups = x.value.groups == 1 if skip_depthwise else True
+    if x.type == 'conv' and is_1_groups:
         return
     for y in x.after:
-        follow(following_layers, layer_graph, layer_graph[y])
+        follow(following_layers, layer_graph, layer_graph[y], skip_depthwise)
 
 
 def get_first_conv(layer_graph, following_layers):
