@@ -35,17 +35,6 @@ SAVE_LR_FRAMES = True
 generate_video_visualizations = False
 
 
-def get_size_of_nested_list(list_of_elem):
-    """ helper to get size of nested parameter list """ 
-    count = 0
-    for elem in list_of_elem:
-        if type(elem) == list:  
-            count += get_size_of_nested_list(elem)
-        else:
-            count += 1    
-    return count
-
-
 def get_avg_visual_metrics(visual_metrics):
     """ get average of visual metrics across all frames """
     psnrs = [m['psnr'] for m in visual_metrics]
