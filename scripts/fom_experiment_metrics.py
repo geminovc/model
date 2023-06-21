@@ -18,7 +18,7 @@ parser.add_argument('--base-dir',
 parser.add_argument('--metric-list',
                     type=str,
                     nargs='+',
-                    default=["SSIM", "LPIPS", "PSNR"],
+                    default=['SSIM', 'LPIPS', 'PSNR'],
                     help='what metrics to parse')
 parser.add_argument('--video-prefix',
                     type=str,
