@@ -23,10 +23,9 @@ if __name__ == '__main__':
     else:
         print("FIRST SHAPE | SECOND SHAPE | NAME")
 
-        # Load both state dicts 
+        # Load both state dicts
         state_dict = torch.load(sys.argv[1])
         state_dict2 = torch.load(sys.argv[2])
 
         # Prints a diff of the two state dicts
         print_diff(state_dict, state_dict2)
-
