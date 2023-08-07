@@ -964,7 +964,6 @@ def get_generator_time(model, x):
     """
     A sanity check timer function. This is only used in netadapt to get a rough idea for how fast the model is.
     """
-    #    _ = model(inp)
     driving_lr = x.get("driving_lr", None)
 
     kp_source = model.kp_extractor(x["source"])
