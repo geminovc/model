@@ -286,7 +286,7 @@ def build_graph(all_layers, names):
         graph[index1].add_mirror(index2)
         graph[index2].add_mirror(index1)
 
-    def add_names(names):
+    def add_multiple(names):
         """
         Extended version of add which takes in a list
         """
@@ -307,7 +307,7 @@ def build_graph(all_layers, names):
             is_1024 = True
 
     if is_efficient_net:
-        add_names([
+        add_multiple([
             'dense_motion_network.hourglass.encoder.down_blocks.0.conv',
             'dense_motion_network.hourglass.encoder.down_blocks.0.norm',
             'dense_motion_network.hourglass.encoder.down_blocks.1.conv',
@@ -351,11 +351,11 @@ def build_graph(all_layers, names):
             'dense_motion_network.hr_background_occlusion')
 
         add('lr_first.conv', 'lr_first.norm')
-        add_names([
+        add_multiple([
             'hr_first.conv', 'hr_first.norm', 'hr_down_blocks.0.conv',
             'hr_down_blocks.0.norm'
         ])
-        add_names([
+        add_multiple([
             'first.conv', 'first.norm', 'down_blocks.0.conv',
             'down_blocks.0.norm', 'down_blocks.1.conv', 'down_blocks.1.norm',
             'bottleneck.r0.norm1', 'bottleneck.r0.conv1',
@@ -371,7 +371,7 @@ def build_graph(all_layers, names):
             'bottleneck.r5.norm1', 'bottleneck.r5.conv1',
             'bottleneck.r5.norm2', 'bottleneck.r5.conv2'
         ])
-        add_names([
+        add_multiple([
             'bottleneck.r5.conv2', 'efficientnet_decoder._conv_head',
             'efficientnet_decoder._bn1',
             'efficientnet_decoder._blocks.1._expand_conv',
@@ -402,7 +402,7 @@ def build_graph(all_layers, names):
             'final'
         ])
 
-        # Features get concatted into down block
+        # Features get concatenated into down block
 
         # Second up block has 32 lr features added
         add('lr_first.norm', 'up_blocks.0.conv')
@@ -429,7 +429,7 @@ def build_graph(all_layers, names):
 
     # Build graph for default model
     elif os.environ.get('CONV_TYPE', 'regular') == 'regular': 
-        add_names([
+        add_multiple([
             'dense_motion_network.hourglass.encoder.down_blocks.0.conv',
             'dense_motion_network.hourglass.encoder.down_blocks.0.norm',
             'dense_motion_network.hourglass.encoder.down_blocks.1.conv',
@@ -473,15 +473,15 @@ def build_graph(all_layers, names):
             'dense_motion_network.hr_background_occlusion')
 
         add('lr_first.conv', 'lr_first.norm')
-        add_names([
+        add_multiple([
             'hr_first.conv', 'hr_first.norm', 'hr_down_blocks.0.conv',
             'hr_down_blocks.0.norm'
         ])
 
         if is_1024:
-            add_names(['hr_down_blocks.0.norm', 'hr_down_blocks.1.conv', 'hr_down_blocks.1.norm'])
+            add_multiple(['hr_down_blocks.0.norm', 'hr_down_blocks.1.conv', 'hr_down_blocks.1.norm'])
 
-        add_names([
+        add_multiple([
             'first.conv', 'first.norm', 'down_blocks.0.conv',
             'down_blocks.0.norm', 'down_blocks.1.conv', 'down_blocks.1.norm',
             'bottleneck.r0.norm1', 'bottleneck.r0.conv1',
@@ -500,11 +500,11 @@ def build_graph(all_layers, names):
             'hr_up_blocks.0.conv', 'hr_up_blocks.0.norm'
         ])
         if is_1024:
-            add_names(['hr_up_blocks.0.norm', 'hr_up_blocks.1.conv', 'hr_up_blocks.1.norm', 'final'])
+            add_multiple(['hr_up_blocks.0.norm', 'hr_up_blocks.1.conv', 'hr_up_blocks.1.norm', 'final'])
         else:
             add('hr_up_blocks.0.norm', 'final')
 
-        # Features get concatted into down block
+        # Features get concatenated into down block
         add('down_blocks.1.norm', 'bottleneck.r0.norm1')
 
 
@@ -534,7 +534,7 @@ def build_graph(all_layers, names):
 
     # Build graph for depthwise convolution model
     else:
-        add_names([
+        add_multiple([
             'dense_motion_network.hourglass.encoder.down_blocks.0.conv.depth_conv',
             'dense_motion_network.hourglass.encoder.down_blocks.0.conv.point_conv',
             'dense_motion_network.hourglass.encoder.down_blocks.0.norm',
@@ -586,40 +586,40 @@ def build_graph(all_layers, names):
         )
 
         # Add the dense motion outputs partly (First part)
-        add_names([
+        add_multiple([
             'dense_motion_network.hourglass.decoder.up_blocks.4.norm',
             'dense_motion_network.mask.depth_conv',
             'dense_motion_network.mask.point_conv'
         ])
-        add_names([
+        add_multiple([
             'dense_motion_network.hourglass.decoder.up_blocks.4.norm',
             'dense_motion_network.occlusion.depth_conv',
             'dense_motion_network.occlusion.point_conv'
         ])
-        add_names([
+        add_multiple([
             'dense_motion_network.hourglass.decoder.up_blocks.4.norm',
             'dense_motion_network.lr_occlusion.depth_conv',
             'dense_motion_network.lr_occlusion.point_conv'
         ])
-        add_names([
+        add_multiple([
             'dense_motion_network.hourglass.decoder.up_blocks.4.norm',
             'dense_motion_network.hr_background_occlusion.depth_conv',
             'dense_motion_network.hr_background_occlusion.point_conv'
         ])
 
-        add_names([
+        add_multiple([
             'lr_first.conv.depth_conv', 'lr_first.conv.point_conv',
             'lr_first.norm'
         ])
-        add_names([
+        add_multiple([
             'hr_first.conv.depth_conv', 'hr_first.conv.point_conv',
             'hr_first.norm', 'hr_down_blocks.0.conv.depth_conv',
             'hr_down_blocks.0.conv.point_conv', 'hr_down_blocks.0.norm'
         ])
         if is_1024:
-            add_names(['hr_down_blocks.0.norm', 'hr_down_blocks.1.conv.depth_conv', 'hr_down_blocks.1.conv.point_conv', 'hr_down_blocks.1.norm'])
+            add_multiple(['hr_down_blocks.0.norm', 'hr_down_blocks.1.conv.depth_conv', 'hr_down_blocks.1.conv.point_conv', 'hr_down_blocks.1.norm'])
 
-        add_names([
+        add_multiple([
             'first.conv.depth_conv', 'first.conv.point_conv', 'first.norm',
             'down_blocks.0.conv.depth_conv', 'down_blocks.0.conv.point_conv',
             'down_blocks.0.norm', 'down_blocks.1.conv.depth_conv',
@@ -649,11 +649,11 @@ def build_graph(all_layers, names):
             'hr_up_blocks.0.norm'])
 
         if is_1024:
-            add_names(['hr_up_blocks.0.norm', 'hr_up_blocks.1.conv.depth_conv', 'hr_up_blocks.1.conv.point_conv', 'hr_up_blocks.1.norm', 'final.depth_conv', 'final.point_conv'])
+            add_multiple(['hr_up_blocks.0.norm', 'hr_up_blocks.1.conv.depth_conv', 'hr_up_blocks.1.conv.point_conv', 'hr_up_blocks.1.norm', 'final.depth_conv', 'final.point_conv'])
         else:
-            add_names(['hr_up_blocks.0.norm', 'final.depth_conv', 'final.point_conv'])
+            add_multiple(['hr_up_blocks.0.norm', 'final.depth_conv', 'final.point_conv'])
 
-        # Features get concatted into down block
+        # Features get concatenated into down block
         add('down_blocks.1.norm', 'bottleneck.r0.norm1')
 
         # Last up block has 32 lr features added
@@ -763,11 +763,11 @@ def get_relevant_slice(layer_graph, dst, src):
     """
     # base counts up for each index in the inputs for this layer
     # This is to solve the following problem:
-    # If layer a, and b get concatted into the inputs of c, then we want to note that
+    # If layer a, and b get concatenated into the inputs of c, then we want to note that
     # deleting from b should only affect its corresponding inputs in c.
     # We use this index to track the "base" of an input. So if layer a has length 20, layer b has length 10
     # Then when looking at layer b in the following loop, base=20, so you know it affects indices
-    # after 20.
+    # after 20 in c. For example if you delete index 3 in b's output, you need to delete index 23 in c's input.
     base = 0
     output = []
 
@@ -859,11 +859,15 @@ def get_gen_input_old(model=None, x=None):
 def reverse_sort(input_list):
     """
     Input list is of the form: [(a, b), (c, d), ...]
-    We want to return the list sorted by the first element of each tuple
+    We want to return the list reverse-sorted by the first element of each tuple
 
     Used when deleting values in channel_prune, but it is generally useful for the following case
-    E.x. deleting index 1 and 3 means if you first delete index 1 then you need to delete
-    index 2, but going backwards mean you delete index 3 then 1, which is easier.
+    Lets say you have a list a, which contains elements [1 2 3 4 5]
+    Then you wanted to delete the elements with indices 1, 3 from this list leaving you with [1 3 5]
+    If you first delete index 1, then you get the list [1 3 4 5] from which you need to delete index 2
+    to get [1 3 5].
+    Instead if you proceed in reverse order and first delete index 3 getting [1 2 3 5] then you need
+    to delete just index 1 to get [1 3 5].
     """
     return sorted(input_list, key=lambda x: x[0], reverse=True)
 
@@ -873,7 +877,7 @@ def f_set(weight, target, prune_indices):
     Sets the value of target node to the weight modified with the prune indices
 
     Prune indices is a tuple (x,y), and the weight is updated to remove all indicies between x and y
-    So a weight like [1,2,3,4,5] and prune_indices = (1,3) -> weight is now [1, 4, 5]
+    So a weight (one dimension for this example) is [1,2,3,4,5] and prune_indices = (1,3) -> weight is now [1, 4, 5]
     """
     new_weight = torch.cat(
         [weight[:prune_indices[0]], weight[prune_indices[1]:]])
@@ -886,7 +890,7 @@ def get_channel_reduction(deletions):
     Used when setting out_channels for a layer.
     Example:
     get_channel_reduction([(1, 3), (5, 6)]) = 3 because the indices (1,3) correspond to removing
-    index 1 and 2, and the (5, 6) removes index 5.
+    index 1 and 2 from the output channels, and the (5, 6) removes index 5.
     """
     return sum(map(lambda x : x[1] - x[0], deletions))
 
@@ -901,7 +905,7 @@ def channel_prune(model, deletions):
     which means delete the 94 output of layer 92, the 94th input of layer 95, and the 94th input of layer 96
 
     The 'first' means you delete from layer 92's output instead of input signifying that
-    it is the 'first' layer whose outputs feed in as inputs to the rest of the layers.
+    "First" doesn't have inputs of its own, but its outputs feed in as inputs to the rest of the layers.
     """
     model = copy.deepcopy(model)
 
@@ -1004,7 +1008,11 @@ def get_following_layers_skip_depthwise(following_layers, layer_graph, x):
 
 def follow(following_layers, layer_graph, x, skip_depthwise=False):
     """
-    Get any possible layers which are directly impacted by editing x's outputs
+    Get any possible layers which are directly impacted by editing x's outputs.
+    skip_depthwise skips over depthwise layers in that normally you end your search
+    once you find a conv since its outputs and input sizes are independent, but in depthwise
+    layer they are not independent so you "skip over" the convolution and continue on
+    Edits following_layers in place.
     """
     following_layers.append(x.index)
     is_1_groups = x.value.groups == 1 if skip_depthwise else True
@@ -1033,7 +1041,17 @@ def compute_deletion(layer_graph,
     """
     Given a layer, generate the list of the indexes we need to delete from its following layers
 
-    The argument 'layer' is the layer whose outputs are modified.
+    'layer_graph' is the dependency graph of the neural net
+    'filter_to_recursively_remove' is a list we in-place modify which contains additional
+    layers that must be deleted from which are not part of the deletion dictionary returned
+    by compute_deletion
+    'deleted_things' is layers hich we have already deleted the requisite indices from.
+    'layer' is the layer whose outputs are modified.
+    'sort' is a boolean. True->delete indices sorted by least importance. False->arbitrarily delete indices
+    'custom' indicates how many indices to delete. or, in a custom case a list which describes which indices
+    'reason' is used to avoid infinite looping. If deleting from a requries that you delete from b and vica versa
+    you could run into an infinite loop. Reason contains some details passed in as a string to prevent this.
+    
     """
     # find all the following layers
     following_layers = []
@@ -1045,8 +1063,11 @@ def compute_deletion(layer_graph,
 
     # In this if/else if we are finding the output features to remove from layer
     if isinstance(custom, list):
-        # Either its passed in as a list in some cases (like if this output gets added to another one)
+        # Either its passed in as a list in some cases
         # and we've already determined what to remove from the other output.
+        # An example of such a case is d = c(a+b)
+        # Then a and b's shape must be the same, so deleting an index from a means
+        # deleting the same index from b.
         deletions[layer] = copy.copy(custom)
     elif isinstance(custom, int):
 
@@ -1055,7 +1076,8 @@ def compute_deletion(layer_graph,
             """
             In general the approach here is as follows
 
-            We need to calculate the "importances" of a given feature, which we determine using the following layer's weighting for that feature.
+            We need to calculate the "importances" of a given feature, which we determine using the following layer's
+            weighting for that feature.
 
             1) We need to find the following layer (called first_conv)
 
@@ -1074,12 +1096,18 @@ def compute_deletion(layer_graph,
             for after_layer in layer_graph[layer].after:
                 get_following_layers_skip_depthwise(depthwise_skipped_following_layers, layer_graph, layer_graph[after_layer])
 
-            # first_conv is the layer described above, which we will use to determine the importances of the features.
+            # first_conv is the first convolution following 'layer', which we will use to determine the importances of the features.
             first_conv = get_first_conv(layer_graph, depthwise_skipped_following_layers)
 
             assert first_conv is not None, "First conv is none"
 
-            # If output of layer gets concatenated with something (could be itself), we need to figure out which "slices" in first_conv's inputs are actually affected by layer's output.
+            # If output of layer gets concatenated with something (could be itself), we need to figure out which "slices"
+            # in first_conv's inputs are actually affected by layer's output.
+            # An example:
+            # layer c expects as input torch.cat([output of a, output of b])
+            # Layer a has 20 indices in output, layer b has 10
+            # Then if we care about what to remove from layer b, then we need to only include the slice [20:30]
+            # in c for our calculation. Slices represents the slice [20:30] in this case.
             slices = get_relevant_slice(layer_graph, first_conv, layer)
 
             assert len(slices) != 0, "Slices length is 0"
@@ -1108,6 +1136,13 @@ def compute_deletion(layer_graph,
     # it will be deleted in the other.
     for mirror in layer_graph[layer].mirror:
         # Start a new custom deletion for the mirror. The only other reason is tie, which is treated a little differently.
+        # A mirror appears in the following case:
+        # d = c(layer a's outputs + layer b's outputs)
+        # In this case, layer a and b are considered "mirrors" of one another because any deletion applied to one needs to
+        # be applied to the other.
+        # The other case, a tie, is when one layers input and another layers output must have the same shape. An example of this
+        # is the first and last layers of  a residual block in a resnet. Because of the addition operation, the first layers inputs
+        # are the same shape as the last layers outputs.
         if reason != 'mirror':
             filters_to_recursively_remove.append((mirror, copy.copy(deletions[layer]), 'mirror'))
             print("Starting a mirrorred deletion")
@@ -1123,11 +1158,11 @@ def compute_deletion(layer_graph,
         
         # base counts up for each index in the inputs for this layer
         # This is to solve the following problem:
-        # If layer a, and b get concatted into the inputs of c, then we want to note that
+        # If layer a, and b get concatenated into the inputs of c, then we want to note that
         # deleting from b should only affect its corresponding inputs in c.
         # We use this index to track the "base" of an input. So if layer a has length 20, layer b has length 10
         # Then when looking at layer b in the following loop, base=20, so you know it affects indices
-        # after 20.
+        # after 20 in c. For example if you delete index 3 in b's output, you need to delete index 23 in c's input.
         base = 0
         for previous_layer in layer_graph[following_layer].before:
 
@@ -1143,7 +1178,9 @@ def compute_deletion(layer_graph,
             base += layer_graph[previous_layer].out_channels
 
         # If there is another tied after layer i.e. a layer who has their output tied to the input of this layer, 
-        # like in resnet, we need to delete from their outputs as well
+        # like the first and last layers in a residual block in resnet, we need to delete from their outputs as well
+        # An example of this is the first and last layers of  a residual block in a resnet. Because of the
+        # addition operation, the first layers inputs are the same shape as the last layers outputs.
         if len(layer_graph[following_layer].tied_after) != 0:
             filters_removed_from_following_layer = copy.copy(deletions[following_layer])
 
@@ -1154,16 +1191,24 @@ def compute_deletion(layer_graph,
                     filters_to_recursively_remove.append((dependent_layer, filters_removed_from_following_layer, 'tie'))
 
     # The original layer is a special case because you delete its output not input
+    # {92: ['first', (94, 95)], 95: [(94, 95)], 93: [(94, 95)]} <- adds the 'first' here. See
+    # channel_prune for details on how this is interpreted.
     deletions[layer].insert(0, 'first')
     return deletions
 
 
 def shrink_model(model_copy, layer_graph, layer, count, sort):
     """
-    Return a new model with the layer corresponding to the argument layer shrunken by count outputs
+    Return a new model with the layer corresponding to the argument layer shrunken by count outputs with
+    random shrinking indicated by sort=false, while pruning lowest-importance layer indicated by sort=True.
     """
     filters_to_recursively_remove = []
     deleted_things = set()
+
+    # Single filter details contains information do delete count outputs from "layer". This is in the format
+    # of a deletion list.
+    # Because this deletion list is not exhaustive, we also have filters_to_recursively_remove get modified
+    # in place which contains other layers which must be modified in the form of a (layer, count, description)
     single_filter_details = compute_deletion(layer_graph, filters_to_recursively_remove, deleted_things,
                                  layer, sort, count)
 

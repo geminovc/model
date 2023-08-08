@@ -202,7 +202,7 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
     """
     Netadapt checkpoint vs regular checkpoint
     This is in flux, but looking at the current way the code is written, netadapt checkpoint is
-    used to load just the netadapted-generator and kp-detector although technically it is froze
+    used to load just the netadapted generator and kp-detector although technically it is frozen
     so it can be loaded by either, while the regular checkpoint is used to load the rest of the
     model.
     """
