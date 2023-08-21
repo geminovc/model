@@ -301,7 +301,7 @@ def build_graph(all_layers, names):
         """
         Extended version of add which takes in a list
         """
-        for i in range(len(names) - 1):
+        for i in range(1, len(names)):
             add(names[i - 1], names[i])
 
     is_efficient_net = False
@@ -1041,7 +1041,7 @@ def get_following_layers_skip_depthwise(following_layers, layer_graph, x):
     """
     Specialized version of follow that skips over depthwise convolved layers. Only used when sorting the outputs of a layer for importance.
     """
-    follow(following_layer, layer_graph, x, True)
+    follow(following_layers, layer_graph, x, True)
 
 
 def follow(following_layers, layer_graph, x, skip_depthwise=False):
@@ -1053,8 +1053,8 @@ def follow(following_layers, layer_graph, x, skip_depthwise=False):
     Edits following_layers in place.
     """
     following_layers.append(x.index)
-    is_1_groups = x.value.groups == 1 if skip_depthwise else True
-    if x.type == "conv" and is_1_groups:
+    is_1_groups = lambda x : x.value.groups == 1 if skip_depthwise else True
+    if x.type == "conv" and is_1_groups(x):
         return
     for y in x.after:
         follow(following_layers, layer_graph, layer_graph[y], skip_depthwise)
@@ -1330,7 +1330,7 @@ def try_reduce(
     # Then, extrapolate to the number of filters that must be shrunk to meet target.
     model_copy = shrink_model(model_copy, layer_graph, layer, 1, sort)
 
-    macs_after_removing_one_channel = get_decode_and_bottleneck_macs(
+    macs_after_removing_one_channel = get_decoder_and_bottleneck_macs(
         log_dir,
         model_copy,
         kp_detector,

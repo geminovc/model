@@ -1,5 +1,5 @@
 from tqdm import trange
-from utils import get_decode_and_bottleneck_macs
+from utils import get_decoder_and_bottleneck_macs
 from utils import get_encoded_frame
 import torch
 from shrink_util import *
@@ -304,7 +304,7 @@ def train(
     if train_params.get("netadapt", False):
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
-            start = get_decoder_bottleneck_macs(
+            start = get_decoder_and_bottleneck_macs(
                 log_dir, generator, kp_detector, device, lr_size, image_shape, 2
             )
         print("Start macs: ", start)
@@ -333,7 +333,7 @@ def train(
             lr=train_params["lr_discriminator"],
             betas=(0.5, 0.999),
         )
-        current = get_decode_and_bottleneck_macs(
+        current = get_decoder_and_bottleneck_macs(
             log_dir,
             copy.deepcopy(generator_full.generator),
             kp_detector,
@@ -396,7 +396,7 @@ def train(
                     )
                     with warnings.catch_warnings():
                         warnings.simplefilter("ignore")
-                        current = get_decode_and_bottleneck_macs(
+                        current = get_decoder_and_bottleneck_macs(
                             log_dir,
                             generator_full.generator,
                             kp_detector,
