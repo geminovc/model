@@ -61,7 +61,6 @@ if __name__ == "__main__":
         print(generator)
         print(discriminator)
         print(kp_detector)
-
     config['dataset_params']['person_id'] = opt.person_id
     is_train = opt.mode in ['train', 'distill']
     if 'metrics_params' in config:
