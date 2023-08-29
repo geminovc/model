@@ -543,7 +543,7 @@ def build_graph(all_layers, names):
         else:
             add("lr_first.norm", "up_blocks.0.conv")
 
-        # Add 2x hr down outputs to first hr up
+        # Add hr down outputs to hr up
         if is_1024:
             add("hr_down_blocks.1.norm", "hr_up_blocks.0.conv")
             add("hr_down_blocks.1.norm", "hr_up_blocks.0.conv")
@@ -691,7 +691,7 @@ def build_graph(all_layers, names):
         else:
             add("lr_first.norm", "up_blocks.0.conv.depth_conv")
 
-        # Add 2x hr down outputs to first hr up
+        # Add hr down outputs to hr up
         if is_1024:
             add("hr_down_blocks.1.norm", "hr_up_blocks.0.conv.depth_conv")
             add("hr_down_blocks.1.norm", "hr_up_blocks.0.conv.depth_conv")

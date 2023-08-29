@@ -201,10 +201,10 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
                    save_visualizations_as_images, experiment_name, reference_frame_update_freq=None, profile=False, netadapt_checkpoint=None):
     """
     Netadapt checkpoint vs regular checkpoint
-    This is in flux, but looking at the current way the code is written, netadapt checkpoint is
-    used to load just the netadapted generator and kp-detector although technically it is frozen
-    so it can be loaded by either, while the regular checkpoint is used to load the rest of the
-    model.
+    Then netadapt checkpoint is used to load just the netadapted `generator` and `kp_detector`
+    although it is frozen so both the netadapt and regular version contains the same
+    `kp_detector`.
+    Regular checkpoint is used to load the rest of the model.
     """
     """ reconstruct driving frames for each video in the dataset using the first frame
         as a source frame. Config specifies configuration details, while timing 
@@ -236,9 +236,10 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
                     kp_detector=kp_detector, device=device, 
                     dense_motion_network=dense_motion, generator_type=generator_type, reconstruction=True)
 
-    # Manually force the generator and keypoint netadapted moduels into the network.
-    # Overrides the values loaded by checkpoint. Technically kp_detector need not be overrided
-    # since it is frozen when running netadapt int the latest set of experiments.
+    # Manually force the generator and keypoint netadapted model weights
+    # into the network. It does reload the keypoint detector, but since
+    # both checkpoints contain tthe same kp detector, only the generator
+    # is changed.
     if netadapt_checkpoint is not None:
         state_dict = torch.load(netadapt_checkpoint)
         set_gen_module(generator, state_dict)
