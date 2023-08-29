@@ -228,7 +228,7 @@ class GeneratorFullModel(torch.nn.Module):
     def forward(self, x, generator_type='occlusion_aware'):
         driving_lr =  x.get('driving_lr', None)
 
-        if generator_type in ['occlusion_aware', 'split_hf_lf']:
+        if generator_type in ['occlusion_aware', 'split_hf_lf', 'student_occlusion_aware']:
             kp_source = self.kp_extractor(x['source'])
             
             if driving_lr is not None:
@@ -313,7 +313,7 @@ class GeneratorFullModel(torch.nn.Module):
             loss_values['encoder_distillation'] = self.loss_weights['encoder_distillation'] * distillation_loss
                    
         if self.loss_weights['generator_gan'] != 0:
-            if generator_type == 'occlusion_aware':
+            if 'occlusion_aware' in generator_type:
                 discriminator_maps_generated = self.discriminator(disc_pyramide_generated, kp=detach_kp(kp_driving))
                 discriminator_maps_real = self.discriminator(disc_pyramide_real, kp=detach_kp(kp_driving))
             else:

@@ -1,0 +1,27 @@
+dataset_params:
+  root_dir: /video-conf/scratch/pantea/fom_personalized_512
+  frame_shape: [512, 512, 3]
+
+metrics_params:
+  root_dir: /video-conf/scratch/pantea/fom_personalized_512
+  frame_shape: [512, 512, 3]
+
+model_params:
+  generator_params:
+    generator_type: 'vpx'
+    use_lr_video: False
+
+train_params:
+  encode_video_for_training: False
+  target_bitrate: 150000
+  batch_size: 2
+  codec: 'vp9'
+
+reconstruction_params:
+  num_videos: 1000
+  format: '.mp4'
+
+visualizer_params:
+  kp_size: 5
+  draw_border: True
+  colormap: 'gist_rainbow'

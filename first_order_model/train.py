@@ -1,5 +1,5 @@
 from tqdm import trange
-from utils import get_decode_and_bottleneck_macs
+from utils import get_decoder_and_bottleneck_macs
 from utils import get_encoded_frame
 import torch
 from shrink_util import *
@@ -87,21 +87,15 @@ def train(
         use_RIFE = True
     else:
         use_RIFE = False
-
-    if checkpoint is not None and generator_type in ["occlusion_aware", "split_hf_lf"]:
-        if train_params.get("fine_tune_entire_model", False):
-            start_epoch = Logger.load_cpk(
-                checkpoint,
-                generator,
-                discriminator,
-                kp_detector,
-                None if use_RIFE else optimizer_generator,
-                optimizer_discriminator,
-                None if train_params["lr_kp_detector"] == 0 else optimizer_kp_detector,
-                dense_motion_network=generator.dense_motion_network,
-                generator_type=generator_type,
-            )
-        elif train_params.get("skip_generator_loading", False):
+    
+    if checkpoint is not None and generator_type in ["occlusion_aware", "split_hf_lf", "student_occlusion_aware"]:
+        if train_params.get('fine_tune_entire_model', False):
+            start_epoch = Logger.load_cpk(checkpoint, generator, discriminator, kp_detector,
+                                      None if use_RIFE else optimizer_generator, optimizer_discriminator,
+                                      None if train_params['lr_kp_detector'] == 0 else optimizer_kp_detector, 
+                                      dense_motion_network=generator.dense_motion_network,
+                                      generator_type=generator_type)
+        elif train_params.get('skip_generator_loading', False):
             # set optimizers and discriminator to None to avoid bogus values and to start training from scratch
             start_epoch = Logger.load_cpk(
                 checkpoint,
@@ -304,7 +298,7 @@ def train(
     if train_params.get("netadapt", False):
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
-            start = get_decoder_bottleneck_macs(
+            start = get_decoder_and_bottleneck_macs(
                 log_dir, generator, kp_detector, device, lr_size, image_shape, 2
             )
         print("Start macs: ", start)
@@ -333,7 +327,7 @@ def train(
             lr=train_params["lr_discriminator"],
             betas=(0.5, 0.999),
         )
-        current = get_decode_and_bottleneck_macs(
+        current = get_decoder_and_bottleneck_macs(
             log_dir,
             copy.deepcopy(generator_full.generator),
             kp_detector,
@@ -396,7 +390,7 @@ def train(
                     )
                     with warnings.catch_warnings():
                         warnings.simplefilter("ignore")
-                        current = get_decode_and_bottleneck_macs(
+                        current = get_decoder_and_bottleneck_macs(
                             log_dir,
                             generator_full.generator,
                             kp_detector,

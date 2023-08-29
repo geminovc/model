@@ -99,7 +99,7 @@ def get_frame_from_video_codec(av_frame, av_frame_index, encoder, decoder, quant
         payloads, timestamp = encoder.encode(av_frame, quantizer=-1, \
                 target_bitrate=bitrate, enable_gcc=False)
     payload_data = [vp8_depayload(p) for p in payloads]
-    jitter_frame = JitterFrame(data=b"".join(payload_data), timestamp=timestamp)
+    jitter_frame = JitterFrame(data=b''.join(payload_data), timestamp=timestamp)
     decoded_frames = decoder.decode(jitter_frame)
     decoded_frame_av = decoded_frames[0]
     #decoded_frame_av, video_frame_index = destamp_frame(decoded_frames[0])
@@ -118,9 +118,9 @@ def get_bitrate(stream, video_duration):
 def get_video_duration(filename):
     """ get duration of video in seconds 
     """
-    result = subprocess.run(["ffprobe", "-v", "error", "-show_entries",
-                             "format=duration", "-of",
-                             "default=noprint_wrappers=1:nokey=1", filename],
+    result = subprocess.run(['ffprobe', '-v', 'error', '-show_entries',
+                             'format=duration', '-of',
+                             'default=noprint_wrappers=1:nokey=1', filename],
                             stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     return float(result.stdout)
 
@@ -201,10 +201,10 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
                    save_visualizations_as_images, experiment_name, reference_frame_update_freq=None, profile=False, netadapt_checkpoint=None):
     """
     Netadapt checkpoint vs regular checkpoint
-    This is in flux, but looking at the current way the code is written, netadapt checkpoint is
-    used to load just the netadapted-generator and kp-detector although technically it is froze
-    so it can be loaded by either, while the regular checkpoint is used to load the rest of the
-    model.
+    Then netadapt checkpoint is used to load just the netadapted `generator` and `kp_detector`
+    although it is frozen so both the netadapt and regular version contains the same
+    `kp_detector`.
+    Regular checkpoint is used to load the rest of the model.
     """
     """ reconstruct driving frames for each video in the dataset using the first frame
         as a source frame. Config specifies configuration details, while timing 
@@ -217,7 +217,7 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
     generator_params = config['model_params']['generator_params']
     generator_type = generator_params.get('generator_type', 'occlusion_aware')
     lr_size = generator_params.get('lr_size', 64)
-    print("reference_frame_update_freq", reference_frame_update_freq, 'lr_size', lr_size)
+    print('reference_frame_update_freq', reference_frame_update_freq, 'lr_size', lr_size)
 
     train_params = config['train_params']
     target_bitrate = train_params.get('target_bitrate', 1000000)
@@ -236,9 +236,10 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
                     kp_detector=kp_detector, device=device, 
                     dense_motion_network=dense_motion, generator_type=generator_type, reconstruction=True)
 
-    # Manually force the generator and keypoint netadapted moduels into the network.
-    # Overrides the values loaded by checkpoint. Technically kp_detector need not be overrided
-    # since it is frozen when running netadapt int the latest set of experiments.
+    # Manually force the generator and keypoint netadapted model weights
+    # into the network. It does reload the keypoint detector, but since
+    # both checkpoints contain tthe same kp detector, only the generator
+    # is changed.
     if netadapt_checkpoint is not None:
         state_dict = torch.load(netadapt_checkpoint)
         set_gen_module(generator, state_dict)
@@ -426,7 +427,7 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
                     else:
                         lr_stream.append(KEYPOINT_FIXED_PAYLOAD_SIZE)
 
-                elif generator_type == "bicubic":
+                elif generator_type == 'bicubic':
                     upsampled_frame = driving_lr_av.reformat(width=driving.shape[2], \
                             height=driving.shape[3],\
                             interpolation='BICUBIC').to_rgb().to_ndarray()
@@ -434,12 +435,12 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
                     lr_stream.append(compressed_tgt)
                     reference_stream.append(0)
                 
-                elif generator_type == "vpx":
+                elif generator_type == 'vpx':
                     out = {'prediction': decoded_tensor}
                     lr_stream.append(0)
                     reference_stream.append(compressed_src)
 
-                elif generator_type == "swinir":
+                elif generator_type == 'swinir':
                     predicted_array = generator.predict_with_lr_video(driving_lr_array)
                     out = {'prediction': frame_to_tensor(img_as_float32(predicted_array), device)}
                     lr_stream.append(compressed_tgt)
@@ -498,7 +499,7 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
                             print(f'saving {frame_idx} frames')
                             visualizations = []
                     else:
-                        frame_name = f'{x["name"][0]}_frame{frame_idx}.npy'
+                        frame_name = f"{x['name'][0]}_frame{frame_idx}.npy"
                         frame_file = open(os.path.join(visualization_dir, frame_name), 'wb')
                         np.save(frame_file, v)
                         frame_file.close()
@@ -514,7 +515,7 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
             
             psnr, ssim, lpips_val, ssim_db, orig_lpips, face_lpips_val = \
                     get_avg_visual_metrics(visual_metrics)
-            metrics_file.write(f'{x["name"][0]} PSNR: {psnr}, SSIM: {ssim}, SSIM_DB: {ssim_db}, ' + \
+            metrics_file.write(f"{x['name'][0]} PSNR: {psnr}, SSIM: {ssim}, SSIM_DB: {ssim_db}, " + \
                     f'LPIPS: {lpips_val}, ' +
                     f'Standard LPIPS: {orig_lpips}, Face LPIPS: {face_lpips_val}, ' + 
                     f'Reference: {ref_br:.3f}Kbps, LR: {lr_br:.3f}Kbps, ' + 
@@ -526,8 +527,8 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
                 frame_metrics_file.write('video_num,frame,psnr,ssim,ssim_db,lpips,orig_lpips,face_lpips,' + \
                         'kp_time,gen_time,reference_kbps,lr_kbps\n')
             for i, (m, d, g) in enumerate(zip(visual_metrics, driving_times, generator_times)):
-                frame_metrics_file.write(f'{it + 1},{i},{m["psnr"][0]},{m["ssim"]},{m["ssim_db"]},' + \
-                            f'{m["lpips"]},{m["orig_lpips"]},{m["face_lpips"]},{d},{g},{ref_br},{lr_br}\n')
+                frame_metrics_file.write(f"{it + 1},{i},{m['psnr'][0]},{m['ssim']},{m['ssim_db']}," + \
+                            f"{m['lpips']},{m['orig_lpips']},{m['face_lpips']},{d},{g},{ref_br},{lr_br}\n")
             frame_metrics_file.flush()
             
             print('source keypoints:', source_time, 'driving:', np.average(driving_times), \
