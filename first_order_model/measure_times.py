@@ -170,7 +170,7 @@ opt = parser.parse_args()
 main_configs = get_main_config_params(opt.config)
 
 with open(opt.config) as f:
-    config = yaml.load(f)
+    config = yaml.full_load(f)
 
 IMAGE_RESOLUTION = int(opt.resolution)
 BATCH_SIZE = int(opt.batch_size)
