@@ -161,7 +161,7 @@ class OcclusionAwareGenerator(nn.Module):
         up_blocks = []
         for i in range(num_down_blocks):
             in_features =  min(max_features, adjusted_block_expansion * (2 ** (num_down_blocks - i)))
-            if i == math.log(self.lr_size / 64, 2) \
+            if i == math.log(self.lr_size / 24, 2) \
                     and self.concat_lr_video_in_decoder and self.generator_type == 'occlusion_aware':
                 in_features += lr_features
 
@@ -178,12 +178,13 @@ class OcclusionAwareGenerator(nn.Module):
                 extra_offset = 2 if self.common_decoder_for_3_paths else 1
                 in_features += min(max_features, \
                         extra_offset * hr_starting_depth * (2 ** (upsample_levels - i)))
-            if i == (math.log(self.lr_size / 64, 2) - len(self.up_blocks)) \
+            if i == (math.log(self.lr_size / 24, 2) - len(self.up_blocks)) \
                     and self.concat_lr_video_in_decoder and self.generator_type == 'occlusion_aware':
                 in_features += lr_features
             out_features = min(max_features, adjusted_hr_depth * (2 ** (upsample_levels - i - 1)))
             hr_up_blocks.append(UpBlock2d(in_features, out_features, kernel_size=(3, 3), padding=(1, 1)))
         self.hr_up_blocks = nn.ModuleList(hr_up_blocks)
+        print("Blocks", len(self.up_blocks), len(self.hr_up_blocks), len(self.down_blocks), len(self.hr_down_blocks))
 
         self.bottleneck = torch.nn.Sequential()
         in_features = min(max_features, adjusted_block_expansion * (2 ** num_down_blocks))
@@ -240,7 +241,7 @@ class OcclusionAwareGenerator(nn.Module):
         # Encoding (downsampling) part
         if self.encoder_output is None or self.update_source:
             if self.run_at_256:
-                resized_source_image = F.interpolate(source_image, 256)
+                resized_source_image = source_image #F.interpolate(source_image, 256)
             else:
                 resized_source_image = source_image
             
@@ -359,7 +360,7 @@ class OcclusionAwareGenerator(nn.Module):
 
         else:
             for i, block in enumerate(self.up_blocks):
-                if i == math.log(self.lr_size / 64, 2) and self.concat_lr_video_in_decoder \
+                if i == math.log(self.lr_size / 24, 2) and self.concat_lr_video_in_decoder \
                         and self.generator_type == "occlusion_aware":
                     out_shape = list(out.shape)
                     out_shape.pop(1)
@@ -371,7 +372,7 @@ class OcclusionAwareGenerator(nn.Module):
 
             for i in range(len(self.hr_up_blocks)):
                 block = self.hr_up_blocks[i]
-                if i == (math.log(self.lr_size / 64, 2) - len(self.up_blocks)) \
+                if i == (math.log(self.lr_size / 24, 2) - len(self.up_blocks)) \
                         and self.concat_lr_video_in_decoder and self.generator_type == "occlusion_aware":
                     out_shape = list(out.shape)
                     out_shape.pop(1)
