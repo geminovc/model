@@ -55,4 +55,5 @@ This is due to versioning issues with python 3.9 and latest associated packages.
 * `logger.py`: `import circle` &rarr; `import disk as circle`
 * `logger.py`: `circle(kp[1], kp0..`' &rarr; `circle((kp[1], kp[0])..`
 * `run.py`: `yaml.load` &rarr; `yaml.full_load`
+* `measure_times.py`: `yaml.load` &rarr; `yaml.full_load`
 * `utils.py`: comment out `from swinir_wrapper import ...`
