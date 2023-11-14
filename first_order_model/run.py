@@ -16,6 +16,7 @@ import torch
 from train import train
 from reconstruction import reconstruction
 from animate import animate
+from shrink_util import set_module, set_gen_module, set_keypoint_module
 from train_with_distillation import train_distillation
 
 if __name__ == "__main__":
@@ -29,6 +30,7 @@ if __name__ == "__main__":
     parser.add_argument("--log_dir", default='log', help="path to log into")
     parser.add_argument("--experiment_name", default='vox-256-standard', help="experiment name to save logs")
     parser.add_argument("--checkpoint", default=None, help="path to checkpoint to restore")
+    parser.add_argument("--netadapt_checkpoint", default=None, help="path to netadapt checkpoint to override generator (and kp detector but it is frozen)")
     parser.add_argument("--device_ids", default="0", type=lambda x: list(map(int, x.split(','))),
                         help="Names of the devices comma separated.")
     parser.add_argument("--verbose", dest="verbose", action="store_true", help="Print model architecture")
@@ -44,8 +46,12 @@ if __name__ == "__main__":
         config = yaml.load(f)
 
     if opt.mode == "reconstruction":
-        log_dir = os.path.dirname(opt.checkpoint)
+        if opt.netadapt_checkpoint is None:
+            log_dir = os.path.dirname(opt.checkpoint)
+        else:
+            log_dir = os.path.dirname(opt.netadapt_checkpoint)
         log_dir = os.path.join(log_dir, 'reconstruction' + '_' + opt.experiment_name)
+                
     else:
         log_dir = os.path.join(opt.log_dir, opt.experiment_name)
         log_dir += ' ' + strftime("%d_%m_%y_%H.%M.%S", gmtime())
@@ -71,14 +77,16 @@ if __name__ == "__main__":
     elif opt.mode == "reconstruction":
         copy(opt.config, log_dir)
 
+    image_shape = config['dataset_params']['frame_shape'][0]
+
     if opt.mode == 'train':
         print("Training...")
-        train(config, generator, discriminator, kp_detector, opt.checkpoint, log_dir, dataset, opt.device_ids)
+        train(config, generator, discriminator, kp_detector, opt.checkpoint,  log_dir, dataset, opt.device_ids, image_shape, opt.netadapt_checkpoint)
     elif opt.mode == 'reconstruction':
         print("Reconstruction...")
         reconstruction(config, generator, kp_detector, opt.checkpoint, log_dir, dataset, opt.enable_timing, 
                 opt.save_visualizations_as_images, opt.experiment_name, opt.reference_frame_update_freq,
-                opt.profile)
+                       opt.profile, opt.netadapt_checkpoint)
     elif opt.mode == 'distill':
         print("Distilling...")
         train_distillation(config, generator, discriminator, kp_detector, opt.checkpoint, log_dir, dataset, opt.device_ids)

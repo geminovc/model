@@ -1,4 +1,5 @@
 import yaml
+from torch import nn
 import torch
 import numpy as np
 from skimage import img_as_float32
@@ -155,18 +156,29 @@ def configure_fom_modules(config, device, teacher=False):
     return generator, discriminator, kp_detector
 
 
-def get_model_macs(log_dir, generator, kp_detector, device, lr_size, image_size):
-    BATCH_SIZE = 1 # reconstruction
+def get_input_features(module):
 
-    source_image = torch.randn(BATCH_SIZE, 3, image_size, image_size, requires_grad=False, device=device)
-    driving_lr = torch.randn(BATCH_SIZE, 3, lr_size, lr_size, requires_grad = False, device=device)
+    all_layers = [
+        m for n, m in module.named_modules()
+        if (isinstance(m, nn.Conv2d)
+            or isinstance(m, nn.modules.batchnorm._BatchNorm))
+    ]
+    return all_layers[0].in_channels
+
+
+def get_model_macs(log_dir, generator, kp_detector, device, lr_size, image_size, batch_size=1):
+    # reconstruction
+
+    source_image = torch.randn(batch_size, 3, image_size, image_size, requires_grad=False, device=device)
+    driving_lr = torch.randn(batch_size, 3, lr_size, lr_size, requires_grad = False, device=device)
     update_source = True
-    kp_val1 = torch.randn(BATCH_SIZE, 10, 2, requires_grad=False, device=device)
-    kp_jac1 = torch.randn(BATCH_SIZE, 10, 2, 2, requires_grad=False, device=device)
-    kp_val2 = torch.randn(BATCH_SIZE, 10, 2, requires_grad=False, device=device)
-    kp_jac2 = torch.randn(BATCH_SIZE, 10, 2, 2, requires_grad=False, device=device)
+    kp_val1 = torch.randn(batch_size, 10, 2, requires_grad=False, device=device)
+    kp_jac1 = torch.randn(batch_size, 10, 2, 2, requires_grad=False, device=device)
+    kp_val2 = torch.randn(batch_size, 10, 2, requires_grad=False, device=device)
+    kp_jac2 = torch.randn(batch_size, 10, 2, 2, requires_grad=False, device=device)
     num_features = 256 if 'distillation' in log_dir else 512
-    bottleneck_inp = torch.randn(BATCH_SIZE, num_features, 64, 64, requires_grad=False, device=device)
+    bottleneck_num_features  = get_input_features(generator.bottleneck)
+    bottleneck_inp = torch.randn(batch_size, bottleneck_num_features, 64, 64, requires_grad=False, device=device)
 
     model_inputs = (source_image, 
                     {'value':kp_val1, 'jacobian':kp_jac1}, 
@@ -190,7 +202,7 @@ def get_model_macs(log_dir, generator, kp_detector, device, lr_size, image_size)
         
         dense_motion_macs = profile_macs(generator.dense_motion_network, dense_motion_inputs)
         print('{}: {:.4g} G'.format('dense motion macs', dense_motion_macs / 1e9))
-        model_file.write('{}: {:.4g} G\n'.format('generator macs', dense_motion_macs / 1e9))
+        model_file.write('{}: {:.4g} G\n'.format('dense motion macs', dense_motion_macs / 1e9))
 
         bottleneck_macs = profile_macs(generator.bottleneck, bottleneck_inp)
         print('{}: {:.4g} G'.format('bottleneck macs', bottleneck_macs / 1e9))
@@ -200,7 +212,8 @@ def get_model_macs(log_dir, generator, kp_detector, device, lr_size, image_size)
         for i, b in enumerate(generator.hr_down_blocks + generator.down_blocks):
             dim = int(image_size/2**i)
             start = int(16 * (1024 / image_size))
-            random_input =  torch.randn(BATCH_SIZE, start * 2**i, dim, dim, requires_grad=False, device=device)
+            features = get_input_features(b)
+            random_input =  torch.randn(batch_size, features, dim, dim, requires_grad=False, device=device)
             encoder_macs += profile_macs(b, random_input)
         print('{}: {:.4g} G'.format('encoder macs', encoder_macs / 1e9))
         model_file.write('{}: {:.4g} G\n'.format('encoder macs', encoder_macs / 1e9))
@@ -215,7 +228,8 @@ def get_model_macs(log_dir, generator, kp_detector, device, lr_size, image_size)
                     features *= 2
                 if dim == lr_size:
                     features += 32
-                random_input =  torch.randn(BATCH_SIZE, features, dim, dim, requires_grad=False, device=device)
+                features = get_input_features(b)
+                random_input =  torch.randn(batch_size, features, dim, dim, requires_grad=False, device=device)
                 decoder_macs += profile_macs(b, random_input)
             print('{}: {:.4g} G'.format('decoder macs', decoder_macs / 1e9))
             model_file.write('{}: {:.4g} G\n'.format('decoder macs', decoder_macs / 1e9))   
@@ -224,14 +238,26 @@ def get_model_macs(log_dir, generator, kp_detector, device, lr_size, image_size)
             dim = int(image_size)
             features = int(16 * (1024 / image_size))
             while dim >= 256:
-                skip_connections.append(torch.randn(BATCH_SIZE, features, dim, dim, requires_grad=False, device=device))
+                skip_connections.append(torch.randn(batch_size, features, dim, dim, requires_grad=False, device=device))
                 features *= 2
                 dim = dim // 2
-            lr_input = torch.randn(BATCH_SIZE, 32, lr_size, lr_size, requires_grad=False, device=device)
+            lr_input = torch.randn(batch_size, 32, lr_size, lr_size, requires_grad=False, device=device)
             decoder_macs = profile_macs(generator.efficientnet_decoder, (bottleneck_inp, lr_input, skip_connections))
             print('{}: {:.4g} G'.format('decoder macs', decoder_macs / 1e9))
             model_file.write('{}: {:.4g} G\n'.format('decoder macs', decoder_macs / 1e9))   
 
+    return {'decoder_macs': decoder_macs,
+            'bottleneck_macs': bottleneck_macs,
+            'kp_macs': kp_macs,
+            'dense_motion_macs' : dense_motion_macs}
+
+
+def get_decoder_and_bottleneck_macs(log_dir, generator, kp_detector, device, lr_size, image_size, batch_size=1):
+    """
+    Return cumulative macs for the decoder and bottleneck layers for the model
+    """
+    macs_dict = get_model_macs(log_dir, generator, kp_detector, device, lr_size, image_size, batch_size)
+    return macs_dict['decoder_macs'] + macs_dict['bottleneck_macs']
 
 
 def get_model_info(log_dir, kp_detector, generator):
@@ -243,6 +269,14 @@ def get_model_info(log_dir, kp_detector, generator):
             if model is not None:
                 number_of_trainable_parameters = sum(p.numel() for p in model.parameters() if p.requires_grad) 
                 total_number_of_parameters = sum(p.numel() for p in model.parameters())
+
+                if name == 'generator':
+                    total_decoder_bottleneck_params = sum(p.numel() for p in model.bottleneck.parameters())
+                    total_decoder_bottleneck_params += sum(p.numel() for p in model.up_blocks.parameters())
+                    total_decoder_bottleneck_params += sum(p.numel() for p in model.hr_up_blocks.parameters())
+                    model_file.write('%s %s: %s\n' % (name, 'total_number_of_decoder_bottleneck_parameters',
+                            str(total_decoder_bottleneck_params)))
+
   
                 model_file.write('%s %s: %s\n' % (name, 'total_number_of_parameters',
                         str(total_number_of_parameters)))

@@ -1,6 +1,7 @@
 import os
 from tqdm import tqdm
 import torch
+from  shrink_util import set_gen_module, set_keypoint_module
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
 from first_order_model.logger import Logger, Visualizer
@@ -197,7 +198,14 @@ def destamp_frame(frame):
 
 
 def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset, timing_enabled, 
-        save_visualizations_as_images, experiment_name, reference_frame_update_freq=None, profile=False):
+                   save_visualizations_as_images, experiment_name, reference_frame_update_freq=None, profile=False, netadapt_checkpoint=None):
+    """
+    Netadapt checkpoint vs regular checkpoint
+    Then netadapt checkpoint is used to load just the netadapted `generator` and `kp_detector`
+    although it is frozen so both the netadapt and regular version contains the same
+    `kp_detector`.
+    Regular checkpoint is used to load the rest of the model.
+    """
     """ reconstruct driving frames for each video in the dataset using the first frame
         as a source frame. Config specifies configuration details, while timing 
         determines whether to time the functions on a gpu or not """
@@ -227,8 +235,19 @@ def reconstruction(config, generator, kp_detector, checkpoint, log_dir, dataset,
             Logger.load_cpk(checkpoint, generator=generator, 
                     kp_detector=kp_detector, device=device, 
                     dense_motion_network=dense_motion, generator_type=generator_type, reconstruction=True)
-        else:
-            raise AttributeError('Checkpoint should be specified for reconstruction')
+
+    # Manually force the generator and keypoint netadapted model weights
+    # into the network. It does reload the keypoint detector, but since
+    # both checkpoints contain tthe same kp detector, only the generator
+    # is changed.
+    if netadapt_checkpoint is not None:
+        state_dict = torch.load(netadapt_checkpoint)
+        set_gen_module(generator, state_dict)
+        set_keypoint_module(kp_detector, state_dict)
+        print('reloaded params')
+
+    if checkpoint is None and netadapt_checkpoint is None:
+        raise AttributeError('Checkpoint should be specified for reconstruction')
 
     # get number of model parameters and mac stats
     if profile:
